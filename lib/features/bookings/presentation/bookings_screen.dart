@@ -1,0 +1,379 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/date_formatter.dart';
+import '../providers/booking_provider.dart';
+import 'direct_rental_screen.dart';
+import 'return_wizard_screen.dart';
+
+class BookingsScreen extends ConsumerWidget {
+  const BookingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentFilter = ref.watch(bookingFilterStatusProvider);
+    final bookingsAsync = ref.watch(bookingsListProvider);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Antrean Sewa Cabang'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_rounded),
+            tooltip: 'Sewa Baru',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DirectRentalScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => ref.refresh(bookingsListProvider),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Filter Capsule Selector
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                _buildFilterChip(ref, 'Sedang Sewa', 'rented', currentFilter),
+                const SizedBox(width: 8),
+                _buildFilterChip(ref, 'Terlambat', 'overdue', currentFilter),
+                const SizedBox(width: 8),
+                _buildFilterChip(ref, 'Semua', 'all', currentFilter),
+                const SizedBox(width: 8),
+                _buildFilterChip(ref, 'Selesai', 'returned', currentFilter),
+              ],
+            ),
+          ),
+
+          // Bookings List
+          Expanded(
+            child: bookingsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Gagal memuat daftar sewa: $e'),
+                ),
+              ),
+              data: (bookings) {
+                if (bookings.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inbox_outlined, size: 48, color: AppColors.textMuted),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Tidak ada data sewa untuk filter ini.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () => ref.refresh(bookingsListProvider.future),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 100),
+                    itemCount: bookings.length,
+                    itemBuilder: (context, index) {
+                      final item = bookings[index];
+                      final customer = item['customer'] ?? {};
+                      final items = (item['items'] as List?) ?? [];
+                      final firstAsset = items.isNotEmpty ? items.first['asset'] : null;
+                      final model = firstAsset?['model'];
+
+                      final endAt = item['end_at'] != null ? DateTime.tryParse(item['end_at']) : null;
+                      final isReturned = item['status'] == 'returned';
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header Row: Code & Relative time tag
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceMuted,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    item['booking_code'] ?? '',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: isReturned
+                                        ? AppColors.surfaceMuted
+                                        : (endAt != null && endAt.isBefore(DateTime.now()))
+                                            ? AppColors.dangerLight
+                                            : AppColors.infoLight,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    isReturned ? 'SELESAI' : DateFormatter.formatRelative(endAt),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: isReturned
+                                          ? AppColors.textSecondary
+                                          : (endAt != null && endAt.isBefore(DateTime.now()))
+                                              ? AppColors.danger
+                                              : AppColors.info,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Main Details
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: AppColors.borderSubtle),
+                                  ),
+                                  child: const Icon(Icons.smartphone_rounded, size: 28),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        model?['name'] ?? 'Perangkat Sewa',
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${customer['name'] ?? 'Pelanggan'} • ${customer['phone'] ?? ''}',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.lock_clock_outlined, size: 14, color: AppColors.textMuted),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Jaminan: ${item['collateral_storage_slot'] ?? 'Brankas Cabang'}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            if (!isReturned) ...[
+                              const SizedBox(height: 14),
+                              const Divider(height: 1, color: AppColors.borderSubtle),
+                              const SizedBox(height: 12),
+
+                              // Direct Action Buttons
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(40),
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                      onPressed: () => _showExtendDialog(context, ref, item['id']),
+                                      child: const Text('+ Tambah Jam', style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(40),
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => ReturnWizardScreen(booking: item),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text('Pengembalian', style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(WidgetRef ref, String label, String value, String? currentFilter) {
+    final isSelected = currentFilter == value;
+
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        ref.read(bookingFilterStatusProvider.notifier).setFilter(value);
+      },
+      selectedColor: AppColors.obsidian,
+      backgroundColor: AppColors.surface,
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : AppColors.textPrimary,
+        fontSize: 12,
+        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected ? AppColors.obsidian : AppColors.border,
+        ),
+      ),
+      showCheckmark: false,
+    );
+  }
+
+  void _showExtendDialog(BuildContext context, WidgetRef ref, int bookingId) {
+    int selectedHours = 6;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final fee = selectedHours * 15000;
+
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Perpanjang Masa Sewa Unit',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Tarif perpanjangan: Rp 15.000 / jam.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [6, 12, 24].map((hours) {
+                      final isSel = selectedHours == hours;
+                      return ChoiceChip(
+                        label: Text('$hours Jam'),
+                        selected: isSel,
+                        onSelected: (_) => setModalState(() => selectedHours = hours),
+                        selectedColor: AppColors.obsidian,
+                        labelStyle: TextStyle(color: isSel ? Colors.white : AppColors.textPrimary),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Biaya Tambahan:', style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text(
+                          CurrencyFormatter.format(fee),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      try {
+                        await ref.read(bookingRepositoryProvider).extendRental(bookingId, selectedHours);
+                        ref.invalidate(bookingsListProvider);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Sewa berhasil diperpanjang $selectedHours jam!')),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text('Konfirmasi & Simpan Perpanjangan'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
