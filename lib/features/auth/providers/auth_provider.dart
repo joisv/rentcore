@@ -78,6 +78,35 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  Future<bool> googleSignIn({
+    required String idToken,
+    String? email,
+    String? name,
+    String? avatarUrl,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final data = await _repository.googleSignIn(
+        idToken: idToken,
+        email: email,
+        name: name,
+        avatarUrl: avatarUrl,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        isAuthenticated: true,
+        user: data['user'],
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
     await _repository.logout();

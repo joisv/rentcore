@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../auth/providers/business_provider.dart';
 import '../data/asset_repository.dart';
 
 final assetRepositoryProvider = Provider<AssetRepository>((ref) {
@@ -45,11 +46,19 @@ final assetSearchQueryProvider = NotifierProvider<AssetSearchQueryNotifier, Stri
 );
 
 final categoriesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final bizState = ref.watch(businessProvider);
+  if (bizState.activeBusinessId == null || bizState.businesses.isEmpty) {
+    return [];
+  }
   final repo = ref.watch(assetRepositoryProvider);
   return repo.fetchCategories();
 });
 
 final productsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final bizState = ref.watch(businessProvider);
+  if (bizState.activeBusinessId == null || bizState.businesses.isEmpty) {
+    return [];
+  }
   final repo = ref.watch(assetRepositoryProvider);
   final categoryId = ref.watch(selectedAssetCategoryFilterProvider);
   final search = ref.watch(assetSearchQueryProvider);
@@ -61,6 +70,10 @@ final productsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>(
 });
 
 final inventoryListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final bizState = ref.watch(businessProvider);
+  if (bizState.activeBusinessId == null || bizState.businesses.isEmpty) {
+    return [];
+  }
   final repo = ref.watch(assetRepositoryProvider);
   final status = ref.watch(selectedAssetStatusFilterProvider);
   final categoryId = ref.watch(selectedAssetCategoryFilterProvider);
@@ -70,16 +83,25 @@ final inventoryListProvider = FutureProvider.autoDispose<List<Map<String, dynami
     status: status,
     categoryId: categoryId,
     search: search.isEmpty ? null : search,
+    branchId: bizState.activeBranchId,
   );
 });
 
 final catalogModelsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final bizState = ref.watch(businessProvider);
+  if (bizState.activeBusinessId == null || bizState.businesses.isEmpty) {
+    return [];
+  }
   final repo = ref.watch(assetRepositoryProvider);
   final categoryId = ref.watch(selectedAssetCategoryFilterProvider);
   return repo.fetchModels(categoryId: categoryId);
 });
 
 final allCatalogModelsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final bizState = ref.watch(businessProvider);
+  if (bizState.activeBusinessId == null || bizState.businesses.isEmpty) {
+    return [];
+  }
   final repo = ref.watch(assetRepositoryProvider);
   return repo.fetchModels();
 });

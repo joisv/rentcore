@@ -17,10 +17,13 @@ class BookingRepository {
     return data.map((e) => e as Map<String, dynamic>).toList();
   }
 
-  Future<List<Map<String, dynamic>>> fetchReadyAssets() async {
+  Future<List<Map<String, dynamic>>> fetchReadyAssets({int? branchId}) async {
+    final queryParams = <String, dynamic>{'status': 'ready'};
+    if (branchId != null) queryParams['branch_id'] = branchId;
+
     final response = await _client.dio.get(
       ApiConstants.assets,
-      queryParameters: {'status': 'ready'},
+      queryParameters: queryParams,
     );
     final data = response.data['data']['data'] as List;
     return data.map((e) => e as Map<String, dynamic>).toList();

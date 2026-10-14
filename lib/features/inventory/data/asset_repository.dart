@@ -8,11 +8,13 @@ class AssetRepository {
     String? status,
     String? search,
     int? categoryId,
+    int? branchId,
   }) async {
     final queryParams = <String, dynamic>{};
     if (status != null && status.isNotEmpty) queryParams['status'] = status;
     if (search != null && search.isNotEmpty) queryParams['search'] = search;
     if (categoryId != null) queryParams['category_id'] = categoryId;
+    if (branchId != null) queryParams['branch_id'] = branchId;
 
     final response = await _client.dio.get(
       ApiConstants.assets,

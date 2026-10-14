@@ -7,8 +7,10 @@ import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/direct_rental_screen.dart';
 import '../providers/cashier_provider.dart';
+import 'pos_transaction_detail_sheet.dart';
 
 class CashierScreen extends ConsumerStatefulWidget {
   const CashierScreen({super.key});
@@ -81,12 +83,203 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildPosTerminalTab(),
-          _buildClosingShiftTab(),
+          _buildBranchSelectorHeader(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildPosTerminalTab(),
+                _buildClosingShiftTab(),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBranchSelectorHeader() {
+    final bizState = ref.watch(businessProvider);
+    final authState = ref.watch(authProvider);
+    final posBranchFilter = ref.watch(posFilterBranchIdProvider);
+
+    final activeBiz = bizState.businesses.where((b) => b['id'] == bizState.activeBusinessId).firstOrNull;
+    final role = (activeBiz?['membership']?['role'] ?? authState.user?['role'] ?? 'staff').toString().toLowerCase();
+    final isOwnerOrAdmin = role == 'owner' || role == 'admin' || role == 'super_admin';
+
+    final rawBranches = (activeBiz?['branches'] as List?) ?? [];
+    final List<Map<String, dynamic>> branches = rawBranches
+        .whereType<Map>()
+        .map((b) => Map<String, dynamic>.from(b))
+        .toList();
+
+    final isCentralUser = isOwnerOrAdmin || (branches.any((b) => b['id'] == bizState.activeBranchId && b['is_central'] == true));
+
+    final bool isConsolidated = posBranchFilter == -1 || (posBranchFilter == null && bizState.activeBranchId == null);
+    final String branchLabel;
+    if (isConsolidated) {
+      branchLabel = 'Semua Cabang (Konsolidasi)';
+    } else {
+      final effectiveId = posBranchFilter ?? bizState.activeBranchId;
+      final match = branches.where((b) => b['id'] == effectiveId).firstOrNull;
+      branchLabel = match?['name'] ?? bizState.activeBranchName ?? 'Cabang Aktif';
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isConsolidated ? AppColors.warning.withValues(alpha: 0.6) : AppColors.border,
+          width: isConsolidated ? 1.5 : 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isConsolidated ? Icons.hub_rounded : Icons.storefront_rounded,
+            size: 20,
+            color: isConsolidated ? AppColors.warning : AppColors.obsidian,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'CAKUPAN POS & REKAP KASIR',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isConsolidated ? AppColors.warning : AppColors.textMuted,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  branchLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (isCentralUser && branches.isNotEmpty) ...[
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+              label: const Text('Ganti', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              onPressed: () => _showBranchFilterModal(context, branches, isConsolidated, posBranchFilter),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text('Terkunci', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showBranchFilterModal(
+    BuildContext context,
+    List<Map<String, dynamic>> branches,
+    bool isConsolidated,
+    int? currentFilterId,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Pilih Cakupan Cabang POS',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: Text(
+                    'Tentukan cabang yang ingin dipantau atau pilih konsolidasi semua cabang',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.hub_rounded, color: AppColors.warning),
+                  title: const Text('Semua Cabang (Konsolidasi)', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Gabungkan total transaksi & omset seluruh cabang', style: TextStyle(fontSize: 11)),
+                  trailing: isConsolidated ? const Icon(Icons.check_circle_rounded, color: AppColors.warning) : null,
+                  onTap: () {
+                    ref.read(posFilterBranchIdProvider.notifier).setBranchId(-1);
+                    ref.invalidate(closingSummaryProvider);
+                    ref.invalidate(cashierBookingsProvider(_searchQuery));
+                    Navigator.pop(ctx);
+                  },
+                ),
+                const Divider(indent: 20, endIndent: 20),
+                ...branches.map((b) {
+                  final bId = b['id'] as int;
+                  final bName = b['name'] as String;
+                  final isCent = b['is_central'] == true;
+                  final isSelected = !isConsolidated && (currentFilterId == bId || (currentFilterId == null && ref.read(businessProvider).activeBranchId == bId));
+
+                  return ListTile(
+                    leading: Icon(
+                      isCent ? Icons.account_balance_rounded : Icons.storefront_rounded,
+                      color: isCent ? AppColors.warning : AppColors.info,
+                    ),
+                    title: Text(bName, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                    subtitle: Text(isCent ? 'Kantor Pusat (Main Store)' : 'Outlet Cabang', style: const TextStyle(fontSize: 11)),
+                    trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: AppColors.success) : null,
+                    onTap: () {
+                      ref.read(posFilterBranchIdProvider.notifier).setBranchId(bId);
+                      ref.invalidate(closingSummaryProvider);
+                      ref.invalidate(cashierBookingsProvider(_searchQuery));
+                      Navigator.pop(ctx);
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openTransactionDetailSheet(BuildContext context, Map<String, dynamic> booking) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PosTransactionDetailSheet(
+        booking: booking,
+        onPaymentRequested: () => _openPosPaymentModal(context, booking),
       ),
     );
   }
@@ -289,6 +482,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
 
   Widget _buildBookingPosCard(Map<String, dynamic> b) {
     final customer = b['customer'] as Map? ?? {};
+    final affiliate = b['affiliate'] as Map? ?? {};
     final items = (b['items'] as List?) ?? [];
     final firstItem = items.isNotEmpty ? (items[0] as Map) : null;
     final modelName = firstItem?['asset']?['model']?['name'] ?? 'Perangkat Apple';
@@ -297,109 +491,147 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
     final paymentStatus = (b['payment_status'] ?? 'paid').toString().toLowerCase();
     final isPaid = paymentStatus == 'paid';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isPaid ? AppColors.border : AppColors.danger.withValues(alpha: 0.4),
-          width: isPaid ? 1 : 1.5,
+    final isCentral = affiliate['is_central'] == true;
+    final branchName = affiliate['name'] ?? (isCentral ? 'Pusat' : 'Cabang');
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _openTransactionDetailSheet(context, b),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isPaid ? AppColors.border : AppColors.danger.withValues(alpha: 0.4),
+            width: isPaid ? 1 : 1.5,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                b['booking_code'] ?? '',
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.3),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: isPaid ? AppColors.successLight : AppColors.dangerLight,
-                  borderRadius: BorderRadius.circular(6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      b['booking_code'] ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.3),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isCentral ? AppColors.warningLight : AppColors.infoLight,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isCentral ? 'Pusat' : branchName,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: isCentral ? AppColors.warning : AppColors.info,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  isPaid ? 'LUNAS' : (paymentStatus == 'partial' ? 'SEBAGIAN' : 'BELUM LUNAS'),
-                  style: TextStyle(
-                    color: isPaid ? AppColors.success : AppColors.danger,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isPaid ? AppColors.successLight : AppColors.dangerLight,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isPaid ? 'LUNAS' : (paymentStatus == 'partial' ? 'SEBAGIAN' : 'BELUM LUNAS'),
+                    style: TextStyle(
+                      color: isPaid ? AppColors.success : AppColors.danger,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.person_outline_rounded, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-              Text(
-                customer['name'] ?? 'Pelanggan',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-              ),
-              Text(
-                ' • ${customer['phone'] ?? ''}',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              const Icon(Icons.smartphone_rounded, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  '$modelName ($assetCode) • ${b['duration_hours']} Jam',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.person_outline_rounded, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                Text(
+                  customer['name'] ?? 'Pelanggan',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                 ),
-              ),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Divider(height: 1),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Total Tagihan', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
-                  Text(
-                    CurrencyFormatter.format(totalBill),
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.obsidian),
+                Text(
+                  ' • ${customer['phone'] ?? ''}',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.smartphone_rounded, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '$modelName ($assetCode) • ${b['duration_hours']} Jam',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                   ),
-                ],
-              ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isPaid ? AppColors.surfaceMuted : AppColors.obsidian,
-                  foregroundColor: isPaid ? AppColors.textPrimary : Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                icon: Icon(
-                  isPaid ? Icons.receipt_outlined : Icons.payments_rounded,
-                  size: 16,
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Divider(height: 1),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Total Tagihan', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                    Text(
+                      CurrencyFormatter.format(totalBill),
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.obsidian),
+                    ),
+                  ],
                 ),
-                label: Text(
-                  isPaid ? 'Rincian & Struk' : 'Bayar di Kasir',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(Icons.info_outline_rounded, size: 14),
+                      label: const Text('Rincian', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      onPressed: () => _openTransactionDetailSheet(context, b),
+                    ),
+                    if (!isPaid) ...[
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.obsidian,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: const Icon(Icons.payments_rounded, size: 14),
+                        label: const Text('Bayar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        onPressed: () => _openPosPaymentModal(context, b),
+                      ),
+                    ],
+                  ],
                 ),
-                onPressed: () => _openPosPaymentModal(context, b),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -436,7 +668,11 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Revenue Card
+            // Date Range Filter Chips
+            _buildDateFilterChips(),
+            const SizedBox(height: 14),
+
+            // Revenue Card & Consolidated Reports
             closingAsync.when(
               loading: () => const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
               error: (e, _) => Container(
@@ -467,10 +703,16 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                 final Map<String, dynamic> breakdown = data['breakdown_by_method'] is Map
                     ? Map<String, dynamic>.from(data['breakdown_by_method'] as Map)
                     : {};
+                final dateLabel = data['date'] ?? 'HARI INI';
+                final isConsolidated = data['is_consolidated'] == true;
+
+                final cashTotal = _calcCashTotal(breakdown);
+                final nonCashTotal = _calcNonCashTotal(breakdown);
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Main Revenue Card
                     Container(
                       padding: const EdgeInsets.all(22),
                       decoration: BoxDecoration(
@@ -487,19 +729,37 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                'TOTAL OMSET HARI INI',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.8,
-                                ),
+                              Row(
+                                children: [
+                                  Text(
+                                    'TOTAL OMSET ($dateLabel)',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  if (isConsolidated) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.warning,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        'KONSOLIDASI',
+                                        style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                              Icon(Icons.payments_rounded, color: Colors.white70, size: 20),
+                              const Icon(Icons.payments_rounded, color: Colors.white70, size: 20),
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -514,13 +774,150 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '$totalTx transaksi berhasil diselesaikan di shift ini',
+                            '$totalTx transaksi berhasil diselesaikan',
                             style: const TextStyle(color: Colors.white60, fontSize: 13),
+                          ),
+                          const SizedBox(height: 14),
+                          const Divider(color: Colors.white24, height: 1),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.money_rounded, size: 16, color: Colors.white70),
+                                    const SizedBox(width: 6),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Tunai (Cash)', style: TextStyle(color: Colors.white60, fontSize: 10)),
+                                        Text(
+                                          CurrencyFormatter.format(cashTotal),
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(width: 1, height: 28, color: Colors.white24),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.credit_card_rounded, size: 16, color: Colors.white70),
+                                    const SizedBox(width: 6),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Non-Tunai', style: TextStyle(color: Colors.white60, fontSize: 10)),
+                                        Text(
+                                          CurrencyFormatter.format(nonCashTotal),
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 20),
+
+                    // Branch Breakdown Section
+                    if (data['breakdown_by_branch'] is List && (data['breakdown_by_branch'] as List).isNotEmpty) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'KONTRIBUSI REVENUE PER CABANG',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          Text(
+                            '${(data['breakdown_by_branch'] as List).length} Cabang Terdata',
+                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ...(data['breakdown_by_branch'] as List).map((bItem) {
+                        final b = bItem is Map ? bItem : {};
+                        final bName = b['branch_name'] ?? 'Cabang';
+                        final isCent = b['is_central'] == true;
+                        final bRev = CurrencyFormatter.parse(b['total_revenue']);
+                        final bCash = CurrencyFormatter.parse(b['cash_revenue']);
+                        final bNonCash = CurrencyFormatter.parse(b['non_cash_revenue']);
+                        final bTxCount = b['transaction_count'] ?? 0;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: isCent ? AppColors.warningLight : AppColors.infoLight,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          isCent ? 'PUSAT' : 'CABANG',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: isCent ? AppColors.warning : AppColors.info,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        bName,
+                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    CurrencyFormatter.format(bRev),
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.obsidian),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('$bTxCount Transaksi', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                  Text(
+                                    'Tunai: ${CurrencyFormatter.format(bCash)} • Non-Tunai: ${CurrencyFormatter.format(bNonCash)}',
+                                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Method Breakdown
                     Text(
@@ -543,7 +940,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                         ),
                         child: const Center(
                           child: Text(
-                            'Belum ada transaksi pembayaran hari ini.',
+                            'Belum ada transaksi pembayaran di periode ini.',
                             style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                           ),
                         ),
@@ -587,6 +984,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                         );
                       }),
                     const SizedBox(height: 16),
+
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.obsidian,
@@ -598,6 +996,111 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                       label: const Text('Cetak Struk Closing Shift (ESC/POS)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                       onPressed: () => _printClosingReceipt(context, ref, data),
                     ),
+
+                    // Recent Completed Transactions (Inspection)
+                    if (data['recent_transactions'] is List && (data['recent_transactions'] as List).isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'TRANSAKSI TERBARU (AUDIT RINCIAN)',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          Text(
+                            '${(data['recent_transactions'] as List).length} Transaksi',
+                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ...(data['recent_transactions'] as List).map((txItem) {
+                        final tx = txItem is Map ? txItem : {};
+                        final txCode = tx['receipt_number'] ?? tx['transaction_code'] ?? 'TX';
+                        final custName = tx['customer_name'] ?? 'Pelanggan';
+                        final brName = tx['branch_name'] ?? 'Cabang';
+                        final isCent = tx['is_central'] == true;
+                        final txAmt = CurrencyFormatter.parse(tx['amount']);
+                        final pMethod = tx['payment_method'] ?? 'Tunai';
+                        final cashier = tx['cashier_name'] ?? 'Kasir';
+                        final itemsSummary = tx['items_summary'] ?? 'Perangkat Apple';
+
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => _openTransactionDetailSheet(context, Map<String, dynamic>.from(tx)),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isCent ? AppColors.warningLight : AppColors.infoLight,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              isCent ? 'Pusat' : brName,
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: isCent ? AppColors.warning : AppColors.info,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            txCode,
+                                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '$custName • $itemsSummary',
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Kasir: $cashier • $pMethod',
+                                        style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      CurrencyFormatter.format(txAmt),
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.obsidian),
+                                    ),
+                                    const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
                   ],
                 );
               },
@@ -676,6 +1179,121 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
     );
   }
 
+  double _calcCashTotal(Map<String, dynamic> breakdown) {
+    double total = 0.0;
+    breakdown.forEach((k, v) {
+      final kStr = k.toString().toLowerCase();
+      if (kStr.contains('tunai') || kStr == 'cash') {
+        if (v is Map) {
+          total += CurrencyFormatter.parse(v['total'] ?? v['total_amount']);
+        }
+      }
+    });
+    return total;
+  }
+
+  double _calcNonCashTotal(Map<String, dynamic> breakdown) {
+    double total = 0.0;
+    breakdown.forEach((k, v) {
+      final kStr = k.toString().toLowerCase();
+      if (!kStr.contains('tunai') && kStr != 'cash') {
+        if (v is Map) {
+          total += CurrencyFormatter.parse(v['total'] ?? v['total_amount']);
+        }
+      }
+    });
+    return total;
+  }
+
+  Widget _buildDateFilterChips() {
+    final dateState = ref.watch(posDateRangeProvider);
+    final activeLabel = dateState.label;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildDateFilterChip('Hari Ini', activeLabel == 'Hari Ini', () {
+            ref.read(posDateRangeProvider.notifier).setDateRange(label: 'Hari Ini');
+          }),
+          const SizedBox(width: 8),
+          _buildDateFilterChip('Kemarin', activeLabel == 'Kemarin', () {
+            final yesterday = DateTime.now().subtract(const Duration(days: 1));
+            final yStr = yesterday.toIso8601String().substring(0, 10);
+            ref.read(posDateRangeProvider.notifier).setDateRange(
+              label: 'Kemarin',
+              startDate: yStr,
+              endDate: yStr,
+            );
+          }),
+          const SizedBox(width: 8),
+          _buildDateFilterChip('Bulan Ini', activeLabel == 'Bulan Ini', () {
+            final now = DateTime.now();
+            final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+            final todayStr = now.toIso8601String().substring(0, 10);
+            ref.read(posDateRangeProvider.notifier).setDateRange(
+              label: 'Bulan Ini',
+              startDate: startOfMonth,
+              endDate: todayStr,
+            );
+          }),
+          const SizedBox(width: 8),
+          ActionChip(
+            avatar: const Icon(Icons.date_range_rounded, size: 16),
+            label: Text(
+              activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini'
+                  ? activeLabel
+                  : 'Rentang Kustom',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: (activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini')
+                    ? Colors.white
+                    : AppColors.textPrimary,
+              ),
+            ),
+            backgroundColor: (activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini')
+                ? AppColors.obsidian
+                : AppColors.surface,
+            onPressed: () async {
+              final picked = await showDateRangePicker(
+                context: context,
+                firstDate: DateTime(2024),
+                lastDate: DateTime.now().add(const Duration(days: 30)),
+              );
+              if (picked != null) {
+                final startStr = picked.start.toIso8601String().substring(0, 10);
+                final endStr = picked.end.toIso8601String().substring(0, 10);
+                ref.read(posDateRangeProvider.notifier).setDateRange(
+                  label: '$startStr s/d $endStr',
+                  startDate: startStr,
+                  endDate: endStr,
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateFilterChip(String label, bool isSelected, VoidCallback onTap) {
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          color: isSelected ? Colors.white : AppColors.textPrimary,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: AppColors.obsidian,
+      backgroundColor: AppColors.surface,
+      onSelected: (_) => onTap(),
+    );
+  }
+
   void _showServerSettings(BuildContext context) {
     final urlCtrl = TextEditingController(text: ApiClient().currentBaseUrl);
 
@@ -699,6 +1317,10 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                   ActionChip(
                     label: const Text('LAN Wi-Fi (192.168.1.93)', style: TextStyle(fontSize: 11)),
                     onPressed: () => urlCtrl.text = ApiConstants.lanPcBaseUrl,
+                  ),
+                  ActionChip(
+                    label: const Text('Current PC (192.168.1.101)', style: TextStyle(fontSize: 11)),
+                    onPressed: () => urlCtrl.text = ApiConstants.currentLanPcBaseUrl,
                   ),
                   ActionChip(
                     label: const Text('USB Reverse (127.0.0.1)', style: TextStyle(fontSize: 11)),

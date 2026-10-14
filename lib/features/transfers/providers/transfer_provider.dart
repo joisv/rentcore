@@ -46,3 +46,8 @@ final destinationAffiliatesProvider = FutureProvider.autoDispose<List<Map<String
   final repo = ref.watch(transferRepositoryProvider);
   return repo.fetchDestinationAffiliates();
 });
+
+final branchRecipientsProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int>((ref, branchId) async {
+  final repo = ref.watch(transferRepositoryProvider);
+  return repo.fetchRecipients(branchId);
+});

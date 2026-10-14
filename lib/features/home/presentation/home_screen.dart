@@ -8,6 +8,9 @@ import '../../bookings/providers/booking_provider.dart';
 import '../../inventory/presentation/inventory_screen.dart';
 import '../../transfers/presentation/transfers_screen.dart';
 import '../providers/dashboard_provider.dart';
+import '../../../shared/widgets/business_selector_sheet.dart';
+import '../../auth/providers/business_provider.dart';
+import '../../organization/presentation/manage_organization_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   final ValueChanged<int> onNavigateTab;
@@ -113,6 +116,13 @@ class HomeScreen extends ConsumerWidget {
                 _buildHeader(context, ref, user),
                 const SizedBox(height: 20),
 
+                // If user has NO active business: show dedicated onboarding banner
+                if (ref.watch(businessProvider).activeBusinessId == null ||
+                    ref.watch(businessProvider).businesses.isEmpty) ...[
+                  _buildOnboardingBanner(context),
+                  const SizedBox(height: 22),
+                ],
+
                 // 2. Quick Action Bar
                 _buildQuickActionBar(context, ref, user),
                 const SizedBox(height: 22),
@@ -131,14 +141,88 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
+  // --- Onboarding Banner for users with 0 businesses ---
+  Widget _buildOnboardingBanner(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.obsidian,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mulai Bisnis Rental Anda',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.textPrimary),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Kelola rental gadget & unit iPhone secara mandiri',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Akun Anda belum memiliki bisnis rental terdaftar. Buat bisnis dan cabang utama Anda untuk mulai mengelola katalog produk, tarif rental, dan inventaris perangkat.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.obsidian,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.add_business_rounded, size: 18),
+              label: const Text('Daftarkan Bisnis Rental Baru', style: TextStyle(fontWeight: FontWeight.w700)),
+              onPressed: () => BusinessSelectorSheet.show(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- Header Component ---
   Widget _buildHeader(BuildContext context, WidgetRef ref, Map<String, dynamic>? user) {
     final userName = user?['name']?.toString() ?? 'Petugas Counter';
     final role = user?['role']?.toString() ?? 'staff';
     final isSuperAdmin = role == 'super_admin';
     final affiliate = user?['affiliate'] as Map<String, dynamic>?;
-    final branchName = affiliate?['name']?.toString() ?? (isSuperAdmin ? 'Pusat Jaringan' : 'Pusat Operasional');
-    final branchCode = affiliate?['code']?.toString() ?? (isSuperAdmin ? 'HQ' : 'RC');
+    final fallbackBranchName = affiliate?['name']?.toString() ?? (isSuperAdmin ? 'Pusat Jaringan' : 'Pusat Operasional');
+
+    final businessState = ref.watch(businessProvider);
+    final hasBusiness = businessState.activeBusinessId != null && businessState.businesses.isNotEmpty;
+    final activeBizName = hasBusiness
+        ? (businessState.activeBusinessName ?? 'Bisnis Rental')
+        : 'Belum Ada Bisnis';
+    final activeBranchName = hasBusiness
+        ? (businessState.activeBranchName ?? fallbackBranchName)
+        : 'Ketuk untuk buat';
 
     final greeting = _getTimeGreeting();
     final initials = _getInitials(userName);
@@ -152,22 +236,26 @@ class HomeScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Initials Avatar
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: AppColors.obsidian,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
+          // Initials Avatar (Tappable to open Business Selector)
+          InkWell(
+            onTap: () => BusinessSelectorSheet.show(context),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColors.obsidian,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
           ),
@@ -179,20 +267,35 @@ class HomeScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
+                    Flexible(
+                      child: InkWell(
+                        onTap: () => BusinessSelectorSheet.show(context),
                         borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '$branchCode • $branchName',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceMuted,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  '$activeBizName • $activeBranchName',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: AppColors.textSecondary),
+                            ],
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -227,6 +330,11 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            onPressed: () => BusinessSelectorSheet.show(context),
+            tooltip: 'Pilih Usaha / Profil',
+            icon: const Icon(Icons.storefront_rounded, color: AppColors.textSecondary, size: 20),
           ),
           IconButton(
             onPressed: () => _confirmLogout(context, ref),
@@ -290,6 +398,27 @@ class HomeScreen extends ConsumerWidget {
             label: 'Kasir',
             onTap: () => onNavigateTab(3),
           ),
+          if (ref.watch(businessProvider).activeBusinessId != null) ...[
+            const SizedBox(width: 10),
+            _buildQuickAction(
+              icon: Icons.people_outline_rounded,
+              label: 'Kelola Tim',
+              onTap: () {
+                final bState = ref.read(businessProvider);
+                if (bState.activeBusinessId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ManageOrganizationScreen(
+                        businessId: bState.activeBusinessId!,
+                        businessName: bState.activeBusinessName ?? 'Bisnis Rental',
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
         ],
       ),
     );

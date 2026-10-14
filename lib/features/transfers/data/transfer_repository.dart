@@ -23,9 +23,16 @@ class TransferRepository {
     return data.map((e) => e as Map<String, dynamic>).toList();
   }
 
+  Future<List<Map<String, dynamic>>> fetchRecipients(int branchId) async {
+    final response = await _client.dio.get(ApiConstants.transferRecipients(branchId));
+    final data = response.data['data'] as List;
+    return data.map((e) => e as Map<String, dynamic>).toList();
+  }
+
   Future<Map<String, dynamic>> createTransfer({
     required int assetId,
     required int toAffiliateId,
+    required String recipientId,
     String? notes,
   }) async {
     final response = await _client.dio.post(
@@ -33,7 +40,23 @@ class TransferRepository {
       data: {
         'asset_id': assetId,
         'to_affiliate_id': toAffiliateId,
+        'recipient_id': recipientId,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
+    return response.data['data'];
+  }
+
+  Future<Map<String, dynamic>> approveTransfer(int transferId) async {
+    final response = await _client.dio.post(ApiConstants.approveTransfer(transferId));
+    return response.data['data'];
+  }
+
+  Future<Map<String, dynamic>> rejectTransfer(int transferId, String reason) async {
+    final response = await _client.dio.post(
+      ApiConstants.rejectTransfer(transferId),
+      data: {
+        'rejection_reason': reason,
       },
     );
     return response.data['data'];

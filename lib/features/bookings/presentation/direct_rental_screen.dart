@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../inventory/providers/asset_provider.dart';
@@ -27,7 +28,7 @@ class RentalTierOption {
   static String formatLabel(String unit, int value, int hours) {
     switch (unit.toLowerCase()) {
       case 'day':
-        return '$value Hari (${hours} Jam)';
+        return '$value Hari ($hours Jam)';
       case 'week':
         return '$value Minggu';
       case 'month':
@@ -393,7 +394,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final payload = {
+      final activeBranchId = ref.read(businessProvider).activeBranchId;
+      final payload = <String, dynamic>{
         'customer_name': _nameController.text.trim(),
         'customer_phone': _phoneController.text.trim(),
         'customer_address': address,
@@ -408,10 +410,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         'payment_method_id': _selectedPaymentMethodId,
         'cash_received': cashReceived,
       };
+      if (activeBranchId != null) {
+        payload['affiliate_id'] = activeBranchId;
+      }
 
       final booking = await ref.read(bookingRepositoryProvider).createRental(payload);
       ref.invalidate(bookingsListProvider);
       ref.invalidate(closingSummaryProvider);
+      ref.invalidate(readyAssetsProvider);
+      ref.invalidate(inventoryListProvider);
 
       if (mounted) {
         final change = _selectedPaymentMethodCode == 'CASH' ? (cashReceived - totalPayable) : 0.0;

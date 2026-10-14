@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/business_selector_sheet.dart';
+import '../../auth/providers/business_provider.dart';
 import '../providers/asset_provider.dart';
 import 'add_product_sheet.dart';
 
@@ -34,6 +36,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bizState = ref.watch(businessProvider);
+    final hasBusiness = bizState.activeBusinessId != null && bizState.businesses.isNotEmpty;
+
     final statusFilter = ref.watch(selectedAssetStatusFilterProvider);
     final categoryFilter = ref.watch(selectedAssetCategoryFilterProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
@@ -50,26 +55,72 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.post_add_rounded),
-            tooltip: 'Tambah Model & Tarif Baru',
-            onPressed: () => _showAddProductSheet(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Segarkan',
-            onPressed: () => ref.invalidate(inventoryListProvider),
-          ),
+          if (hasBusiness) ...[
+            IconButton(
+              icon: const Icon(Icons.post_add_rounded),
+              tooltip: 'Tambah Model & Tarif Baru',
+              onPressed: () => _showAddProductSheet(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Segarkan',
+              onPressed: () => ref.invalidate(inventoryListProvider),
+            ),
+          ],
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.obsidian,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Registrasi Unit', style: TextStyle(fontWeight: FontWeight.w700)),
-        onPressed: () => _showAddAssetSheet(context),
-      ),
-      body: Column(
+      floatingActionButton: hasBusiness
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.obsidian,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Registrasi Unit', style: TextStyle(fontWeight: FontWeight.w700)),
+              onPressed: () => _showAddAssetSheet(context),
+            )
+          : null,
+      body: !hasBusiness
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: const BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.storefront_rounded, size: 48, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Belum Ada Bisnis Rental',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Untuk mengelola stok perangkat, katalog iPhone & gadget, dan paket tarif, silakan daftarkan bisnis rental Anda terlebih dahulu.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.obsidian,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.add_business_rounded),
+                      label: const Text('Daftarkan Bisnis Rental Baru', style: TextStyle(fontWeight: FontWeight.w700)),
+                      onPressed: () => BusinessSelectorSheet.show(context),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Column(
         children: [
           // Search & Filter Header
           Container(
@@ -128,7 +179,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     ),
                   ),
                   loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
                 ),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -184,14 +235,42 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.textMuted.withValues(alpha: 0.5)),
                           const SizedBox(height: 16),
                           const Text(
-                            'Tidak Ada Perangkat Ditemukan',
+                            'Inventaris Masih Kosong',
                             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                           ),
                           const SizedBox(height: 8),
                           const Text(
-                            'Klik tombol "Registrasi Unit" untuk mendaftarkan unit elektronik baru ke inventaris cabang.',
+                            'Bisnis rental Anda belum memiliki unit terdaftar. Anda dapat menambahkan tipe model beserta paket tarif sewa terlebih dahulu, kemudian meregistrasikan unit fisiknya.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          ),
+                          const SizedBox(height: 24),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                icon: const Icon(Icons.post_add_rounded, size: 18),
+                                label: const Text('1. Tambah Model & Tarif', style: TextStyle(fontWeight: FontWeight.w700)),
+                                onPressed: () => _showAddProductSheet(context),
+                              ),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.obsidian,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                icon: const Icon(Icons.add_rounded, size: 18),
+                                label: const Text('2. Registrasi Unit', style: TextStyle(fontWeight: FontWeight.w700)),
+                                onPressed: () => _showAddAssetSheet(context),
+                              ),
+                            ],
                           ),
                         ],
                       ),

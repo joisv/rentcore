@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
+import '../services/secure_token_storage.dart';
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
@@ -27,10 +28,22 @@ class ApiClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final prefs = await SharedPreferences.getInstance();
-          final token = prefs.getString('auth_token');
+          final token = await SecureTokenStorage().getToken();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
+          }
+          final prefs = await SharedPreferences.getInstance();
+          final businessId = prefs.getInt('active_business_id');
+          if (businessId != null && businessId > 0) {
+            options.headers['X-Business-Id'] = businessId.toString();
+          }
+          if (!options.headers.containsKey('X-Branch-Id')) {
+            final branchId = prefs.getInt('active_branch_id');
+            if (branchId != null && branchId > 0) {
+              options.headers['X-Branch-Id'] = branchId.toString();
+            }
+          } else if (options.headers['X-Branch-Id'] == '' || options.headers['X-Branch-Id'] == null) {
+            options.headers.remove('X-Branch-Id');
           }
           return handler.next(options);
         },

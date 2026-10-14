@@ -655,7 +655,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                                 const Text('Satuan *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<String>(
-                                  value: rate.unit,
+                                  initialValue: rate.unit,
                                   isExpanded: true,
                                   decoration: InputDecoration(
                                     filled: true,
