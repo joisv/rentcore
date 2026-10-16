@@ -4,10 +4,20 @@ import '../../../core/network/api_client.dart';
 class BookingRepository {
   final ApiClient _client = ApiClient();
 
-  Future<List<Map<String, dynamic>>> fetchBookings({String? status, String? search}) async {
+  Future<List<Map<String, dynamic>>> fetchBookings({
+    String? status,
+    String? search,
+    int? branchId,
+    bool allBranches = false,
+  }) async {
     final queryParams = <String, dynamic>{};
     if (status != null) queryParams['status'] = status;
     if (search != null) queryParams['search'] = search;
+    if (allBranches) {
+      queryParams['all_branches'] = '1';
+    } else if (branchId != null) {
+      queryParams['branch_id'] = branchId.toString();
+    }
 
     final response = await _client.dio.get(
       ApiConstants.bookings,

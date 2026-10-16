@@ -4,6 +4,7 @@ import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -488,6 +489,9 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
     final modelName = firstItem?['asset']?['model']?['name'] ?? 'Perangkat Apple';
     final assetCode = firstItem?['asset']?['asset_code'] ?? '';
     final totalBill = CurrencyFormatter.parse(b['total_bill']);
+    final returnInspection = b['return_inspection'] as Map? ?? b['returnInspection'] as Map? ?? {};
+    final penaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+    final effectiveTotal = totalBill + penaltyDue;
     final paymentStatus = (b['payment_status'] ?? 'paid').toString().toLowerCase();
     final isPaid = paymentStatus == 'paid';
 
@@ -592,9 +596,27 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Total Tagihan', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                    Row(
+                      children: [
+                        const Text('Total Tagihan', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                        if (penaltyDue > 0) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.deepOrange.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              '+ Denda',
+                              style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.deepOrange),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                     Text(
-                      CurrencyFormatter.format(totalBill),
+                      CurrencyFormatter.format(effectiveTotal),
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.obsidian),
                     ),
                   ],
@@ -827,6 +849,106 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                     ),
                     const SizedBox(height: 20),
 
+                    // Income Type Breakdown (Rental, Extension, Penalty)
+                    if (data['breakdown_by_type'] is Map) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'SUMBER PENDAPATAN (INCOME TYPE)',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Builder(builder: (_) {
+                        final typeMap = data['breakdown_by_type'] as Map;
+                        final types = ['rental', 'extension', 'penalty'];
+                        return Column(
+                          children: types.map((key) {
+                            final info = typeMap[key] is Map ? (typeMap[key] as Map) : {};
+                            final label = info['label'] ?? (key == 'penalty' ? 'Denda Keterlambatan' : (key == 'extension' ? 'Perpanjangan Sewa' : 'Sewa Kontrak Pokok'));
+                            final total = CurrencyFormatter.parse(info['total']);
+                            final count = info['count'] ?? 0;
+                            final isPenalty = key == 'penalty';
+                            final isExtension = key == 'extension';
+
+                            final icon = isPenalty
+                                ? Icons.warning_amber_rounded
+                                : (isExtension ? Icons.update_rounded : Icons.vpn_key_outlined);
+                            final iconColor = isPenalty
+                                ? Colors.deepOrange
+                                : (isExtension ? AppColors.info : AppColors.obsidian);
+                            final iconBg = isPenalty
+                                ? Colors.deepOrange.withValues(alpha: 0.1)
+                                : (isExtension ? AppColors.infoLight : AppColors.surfaceMuted);
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isPenalty && total > 0 ? Colors.deepOrange.withValues(alpha: 0.35) : AppColors.border,
+                                  width: isPenalty && total > 0 ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: iconBg,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Icon(icon, size: 20, color: iconColor),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            label,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                              color: isPenalty && total > 0 ? Colors.deepOrange.shade800 : AppColors.textPrimary,
+                                            ),
+                                          ),
+                                          Text(
+                                            '$count Transaksi',
+                                            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    CurrencyFormatter.format(total),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: isPenalty && total > 0 ? Colors.deepOrange : AppColors.obsidian,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                    ],
+
                     // Branch Breakdown Section
                     if (data['breakdown_by_branch'] is List && (data['breakdown_by_branch'] as List).isNotEmpty) ...[
                       Row(
@@ -1029,6 +1151,8 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                         final pMethod = tx['payment_method'] ?? 'Tunai';
                         final cashier = tx['cashier_name'] ?? 'Kasir';
                         final itemsSummary = tx['items_summary'] ?? 'Perangkat Apple';
+                        final txType = tx['type']?.toString().toLowerCase();
+                        final txTypeLabel = tx['type_label'] ?? (txType == 'penalty' ? 'Denda Keterlambatan' : null);
 
                         return InkWell(
                           borderRadius: BorderRadius.circular(16),
@@ -1070,6 +1194,24 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                                             txCode,
                                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                                           ),
+                                          if (txType == 'penalty') ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.deepOrange.withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'Denda',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.deepOrange,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                       const SizedBox(height: 4),
@@ -1079,7 +1221,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       Text(
-                                        'Kasir: $cashier • $pMethod',
+                                        'Kasir: $cashier • $pMethod${txTypeLabel != null ? ' • $txTypeLabel' : ''}',
                                         style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
                                       ),
                                     ],
@@ -1441,6 +1583,8 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
   String _selectedMethodCode = 'CASH';
   bool _nonCashConfirmed = true;
   bool _isProcessing = false;
+  String _paymentTarget = 'settlement'; // 'settlement' or 'penalty'
+  bool _initializedTarget = false;
 
   @override
   void initState() {
@@ -1469,19 +1613,38 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
     final discount = CurrencyFormatter.parse(b['discount_amount']);
     final totalBill = CurrencyFormatter.parse(b['total_bill']);
 
+    final returnInspection = b['return_inspection'] as Map? ?? b['returnInspection'] as Map? ?? {};
+    final totalPenaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+
     final payments = (b['payments'] as List?) ?? [];
-    double alreadyPaid = 0.0;
+    double rentalPaid = 0.0;
+    double penaltyPaid = 0.0;
     for (final p in payments) {
-      if (p['type'] == 'settlement' || p['type'] == 'dp' || p['type'] == 'extension') {
-        alreadyPaid += CurrencyFormatter.parse(p['amount']);
+      final pType = p['type']?.toString().toLowerCase();
+      if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental') {
+        rentalPaid += CurrencyFormatter.parse(p['amount']);
+      } else if (pType == 'penalty') {
+        penaltyPaid += CurrencyFormatter.parse(p['amount']);
       }
     }
-    final remainingDue = (totalBill - alreadyPaid).clamp(0.0, double.infinity);
-    final isSettled = remainingDue <= 0 && (b['payment_status'] == 'paid');
+    final remainingRentalDue = (totalBill - rentalPaid).clamp(0.0, double.infinity);
+    final remainingPenaltyDue = (totalPenaltyDue - penaltyPaid).clamp(0.0, double.infinity);
+    final totalRemainingDue = remainingRentalDue + remainingPenaltyDue;
+    final isSettled = totalRemainingDue <= 0 && (b['payment_status'] == 'paid');
 
+    if (!_initializedTarget) {
+      _initializedTarget = true;
+      if (remainingRentalDue <= 0 && remainingPenaltyDue > 0) {
+        _paymentTarget = 'penalty';
+      } else {
+        _paymentTarget = 'settlement';
+      }
+    }
+
+    final currentTargetDue = _paymentTarget == 'penalty' ? remainingPenaltyDue : remainingRentalDue;
     final cashReceived = CurrencyFormatter.parse(_cashReceivedController.text);
-    final cashShortage = (remainingDue - cashReceived).clamp(0.0, double.infinity);
-    final cashChange = (cashReceived - remainingDue).clamp(0.0, double.infinity);
+    final cashShortage = CashPaymentSuggestionHelper.calculateShortage(amountDue: currentTargetDue, cashReceived: cashReceived);
+    final cashChange = CashPaymentSuggestionHelper.calculateChange(amountDue: currentTargetDue, cashReceived: cashReceived);
 
     final paymentMethodsAsync = ref.watch(paymentMethodsProvider);
 
@@ -1533,6 +1696,55 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
               ],
             ),
             const SizedBox(height: 14),
+
+            // Target Selector (If both rental and penalty have pending balance)
+            if (remainingRentalDue > 0 && remainingPenaltyDue > 0) ...[
+              SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(
+                    value: 'settlement',
+                    label: Text('Sewa (${CurrencyFormatter.format(remainingRentalDue)})', style: const TextStyle(fontSize: 11)),
+                  ),
+                  ButtonSegment(
+                    value: 'penalty',
+                    label: Text('Denda (${CurrencyFormatter.format(remainingPenaltyDue)})', style: const TextStyle(fontSize: 11)),
+                  ),
+                ],
+                selected: {_paymentTarget},
+                onSelectionChanged: (set) {
+                  setState(() {
+                    _paymentTarget = set.first;
+                    if (_selectedMethodCode == 'CASH') {
+                      final due = _paymentTarget == 'penalty' ? remainingPenaltyDue : remainingRentalDue;
+                      _cashReceivedController.text = due.toInt().toString();
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+            ] else if (_paymentTarget == 'penalty' && remainingPenaltyDue > 0) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.deepOrange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 18, color: Colors.deepOrange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Pembayaran Pelunasan Denda Keterlambatan Unit',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepOrange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             // Transaction Summary Card
             Container(
@@ -1590,13 +1802,33 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                       Text(CurrencyFormatter.format(totalBill), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  if (alreadyPaid > 0) ...[
+                  if (totalPenaltyDue > 0) ...[
                     const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Telah Dibayar Sebelumnya', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                        Text(CurrencyFormatter.format(alreadyPaid), style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                        const Text('Denda Keterlambatan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                        Text(CurrencyFormatter.format(totalPenaltyDue), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                      ],
+                    ),
+                  ],
+                  if (rentalPaid > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Sewa Terbayar', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                        Text(CurrencyFormatter.format(rentalPaid), style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                      ],
+                    ),
+                  ],
+                  if (penaltyPaid > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Denda Terbayar', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                        Text(CurrencyFormatter.format(penaltyPaid), style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                       ],
                     ),
                   ],
@@ -1604,16 +1836,16 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'SISA TAGIHAN (AMOUNT DUE)',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.danger),
+                      Text(
+                        _paymentTarget == 'penalty' ? 'SISA DENDA HARUS DIBAYAR' : 'SISA TAGIHAN SEWA',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.danger),
                       ),
                       Text(
-                        CurrencyFormatter.format(remainingDue),
+                        CurrencyFormatter.format(currentTargetDue),
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 18,
-                          color: remainingDue > 0 ? AppColors.danger : AppColors.success,
+                          color: currentTargetDue > 0 ? AppColors.danger : AppColors.success,
                         ),
                       ),
                     ],
@@ -1678,7 +1910,7 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                           _selectedMethodId = m['id'];
                           _selectedMethodCode = (m['code'] ?? 'CASH').toString().toUpperCase();
                           if (_selectedMethodCode == 'CASH') {
-                            _cashReceivedController.text = remainingDue.toInt().toString();
+                            _cashReceivedController.text = currentTargetDue.toInt().toString();
                           }
                         });
                       },
@@ -1706,45 +1938,37 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                       icon: const Icon(Icons.check_circle_outline_rounded),
                       tooltip: 'Uang Pas',
                       onPressed: () {
-                        _cashReceivedController.text = remainingDue.toInt().toString();
+                        _cashReceivedController.text = currentTargetDue.toInt().toString();
                       },
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
 
-                // Cash Denomination Shortcuts
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    ActionChip(
-                      label: const Text('Uang Pas', style: TextStyle(fontSize: 11)),
-                      onPressed: () {
-                        _cashReceivedController.text = remainingDue.toInt().toString();
-                      },
-                    ),
-                    ActionChip(
-                      label: const Text('Rp 50.000', style: TextStyle(fontSize: 11)),
-                      onPressed: () => _cashReceivedController.text = '50000',
-                    ),
-                    ActionChip(
-                      label: const Text('Rp 100.000', style: TextStyle(fontSize: 11)),
-                      onPressed: () => _cashReceivedController.text = '100000',
-                    ),
-                    ActionChip(
-                      label: const Text('Rp 200.000', style: TextStyle(fontSize: 11)),
-                      onPressed: () => _cashReceivedController.text = '200000',
-                    ),
-                    ActionChip(
-                      label: const Text('Rp 350.000', style: TextStyle(fontSize: 11)),
-                      onPressed: () => _cashReceivedController.text = '350000',
-                    ),
-                    ActionChip(
-                      label: const Text('Rp 500.000', style: TextStyle(fontSize: 11)),
-                      onPressed: () => _cashReceivedController.text = '500000',
-                    ),
-                  ],
+                // Cash Denomination Dynamic Suggestions
+                Builder(
+                  builder: (context) {
+                    final cashSuggestions = CashPaymentSuggestionHelper.getSuggestedAmounts(currentTargetDue);
+                    if (cashSuggestions.isEmpty) return const SizedBox.shrink();
+
+                    return Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: cashSuggestions.map((amt) {
+                        final isExact = amt == currentTargetDue.toInt();
+                        return ActionChip(
+                          label: Text(
+                            CurrencyFormatter.format(amt),
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          tooltip: isExact ? 'Uang Pas' : null,
+                          onPressed: () {
+                            _cashReceivedController.text = amt.toString();
+                          },
+                        );
+                      }).toList(),
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
 
@@ -1826,8 +2050,10 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                         (_selectedMethodCode == 'CASH' && cashShortage > 0) ||
                         (_selectedMethodCode != 'CASH' && !_nonCashConfirmed))
                     ? null
-                    : () => _executePayment(remainingDue),
+                    : () => _executePayment(currentTargetDue),
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: _paymentTarget == 'penalty' ? Colors.deepOrange.shade800 : AppColors.obsidian,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
@@ -1840,7 +2066,7 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                     : Text(
                         _selectedMethodCode == 'CASH' && cashShortage > 0
                             ? 'Uang Tunai Kurang (${CurrencyFormatter.format(cashShortage)})'
-                            : 'Konfirmasi Bayar (${CurrencyFormatter.format(remainingDue)}) 🖨️',
+                            : 'Konfirmasi Bayar ${_paymentTarget == 'penalty' ? 'Denda' : 'Sewa'} (${CurrencyFormatter.format(currentTargetDue)}) 🖨️',
                         style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                       ),
               ),
@@ -1865,7 +2091,8 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
         paymentMethodId: _selectedMethodId,
         cashReceived: cashReceived,
         amount: amountDue,
-        notes: 'Pelunasan di meja kasir POS',
+        paymentType: _paymentTarget,
+        notes: _paymentTarget == 'penalty' ? 'Pelunasan denda via Kasir POS' : 'Pelunasan di meja kasir POS',
       );
 
       widget.onPaymentSuccess();
@@ -1890,9 +2117,13 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Tagihan ${widget.booking['booking_code']} telah lunas.'),
+              Text(_paymentTarget == 'penalty'
+                  ? 'Denda keterlambatan ${widget.booking['booking_code']} telah lunas tercatat sebagai omset pendapatan.'
+                  : 'Tagihan ${widget.booking['booking_code']} telah lunas.'),
               const SizedBox(height: 8),
               Text('No. Struk: $receiptNum', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(height: 4),
+              Text('Tipe: ${_paymentTarget == 'penalty' ? 'Denda Keterlambatan' : 'Sewa Kontrak'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               const SizedBox(height: 4),
               Text('Metode: $_selectedMethodCode', style: const TextStyle(fontSize: 12)),
               if (_selectedMethodCode == 'CASH') ...[
@@ -1923,10 +2154,15 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memproses pembayaran: $e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text('Gagal memproses pembayaran: $e'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
     }
   }
 

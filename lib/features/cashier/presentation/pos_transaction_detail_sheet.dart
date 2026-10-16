@@ -19,7 +19,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookingId = booking['id'] ?? booking['booking_id'];
+    final bookingId = booking['booking_id'] ?? booking['id'];
     final detailAsync = ref.watch(bookingDetailProvider(bookingId));
 
     return Container(
@@ -107,16 +107,22 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     final discount = CurrencyFormatter.parse(b['discount_amount']);
 
     double totalPaid = 0.0;
+    double penaltyPaid = 0.0;
     for (final p in payments) {
       final pType = p['type']?.toString().toLowerCase();
       if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental') {
         totalPaid += CurrencyFormatter.parse(p['amount']);
+      } else if (pType == 'penalty') {
+        penaltyPaid += CurrencyFormatter.parse(p['amount']);
       }
     }
     if (totalPaid == 0 && isPaid) {
       totalPaid = totalBill;
     }
-    final remainingDue = (totalBill - totalPaid).clamp(0.0, double.infinity);
+    final remainingRentalDue = (totalBill - totalPaid).clamp(0.0, double.infinity);
+    final totalPenaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+    final remainingPenaltyDue = (totalPenaltyDue - penaltyPaid).clamp(0.0, double.infinity);
+    final remainingDue = remainingRentalDue + remainingPenaltyDue;
 
     final isCentral = affiliate['is_central'] == true;
     final branchName = affiliate['name'] ?? (isCentral ? 'Pusat (Main Store)' : 'Cabang');
@@ -411,9 +417,9 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                     ),
                 ],
                 const Divider(height: 16),
-                _buildPriceRow('TOTAL TAGIHAN', totalBill, isBold: true, fontSize: 14),
+                _buildPriceRow('TOTAL TAGIHAN', totalBill + totalPenaltyDue, isBold: true, fontSize: 14),
                 const SizedBox(height: 6),
-                _buildPriceRow('Total Terbayar', totalPaid, color: AppColors.success),
+                _buildPriceRow('Total Terbayar', totalPaid + penaltyPaid, color: AppColors.success),
                 const SizedBox(height: 6),
                 _buildPriceRow(
                   'SISA HARUS DIBAYAR',
@@ -449,6 +455,8 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                     final pMethod = p['payment_method']?['name'] ?? p['payment_method'] ?? 'Tunai';
                     final pDate = p['transacted_at'] ?? p['created_at'] ?? '';
                     final pCashier = p['processor']?['name'] ?? p['processed_by']?['name'] ?? 'Kasir';
+                    final pType = p['type']?.toString().toLowerCase();
+                    final pTypeLabel = p['type_label'] ?? (pType == 'penalty' ? 'Denda Keterlambatan' : (pType == 'extension' ? 'Perpanjangan' : 'Sewa Kontrak'));
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
@@ -463,7 +471,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('$pMethod • ${p['type'] ?? 'rental'}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                              Text('$pMethod • $pTypeLabel', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                               Text('$pDate • Oleh: $pCashier', style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
                             ],
                           ),

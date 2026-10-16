@@ -24,7 +24,10 @@ final bookingsListProvider = FutureProvider.autoDispose<List<Map<String, dynamic
   }
   final repo = ref.watch(bookingRepositoryProvider);
   final status = ref.watch(bookingFilterStatusProvider);
-  return repo.fetchBookings(status: status == 'all' ? null : status);
+  return repo.fetchBookings(
+    status: status == 'all' ? null : status,
+    branchId: bizState.activeBranchId,
+  );
 });
 
 final readyAssetsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {

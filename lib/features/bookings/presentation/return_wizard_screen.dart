@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../cashier/providers/cashier_provider.dart';
 import '../providers/booking_provider.dart';
 
 class ReturnWizardScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,25 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   bool _adapterReturned = true;
   String _conditionGrade = 'A';
   bool _isSubmitting = false;
+
+  bool _payPenaltyNow = true;
+  int _selectedPaymentMethodId = 1;
+  String _selectedPaymentMethodCode = 'CASH';
+  final _cashReceivedController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _cashReceivedController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _cashReceivedController.dispose();
+    super.dispose();
+  }
 
   bool get _requiresFrpCheck {
     final items = (widget.booking['items'] as List?) ?? [];
@@ -57,6 +78,10 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
         final billableHours = ((lateMinutes - 60) / 60).ceil();
         penaltyAmount = billableHours * 15000.0;
       }
+    }
+
+    if (_selectedPaymentMethodCode == 'CASH' && _cashReceivedController.text.isEmpty && penaltyAmount > 0) {
+      _cashReceivedController.text = penaltyAmount.toInt().toString();
     }
 
     return Scaffold(
@@ -278,7 +303,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                     value: _cableReturned,
                     onChanged: (v) => setState(() => _cableReturned = v ?? false),
                   ),
-                  CheckboxListTile(
+                    CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Adaptor charger dikembalikan', style: TextStyle(fontSize: 13)),
                     value: _adapterReturned,
@@ -287,11 +312,222 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // Penalty Payment Section (Rendered when penalty > 0)
+            if (penaltyAmount > 0) ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.5), width: 1.5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.receipt_long_rounded, color: AppColors.danger, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'PEMBAYARAN DENDA (${CurrencyFormatter.format(penaltyAmount)})',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                              color: AppColors.danger,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Bayar Sekarang di Counter'),
+                          selected: _payPenaltyNow,
+                          onSelected: (_) => setState(() => _payPenaltyNow = true),
+                          selectedColor: AppColors.obsidian,
+                          labelStyle: TextStyle(
+                            color: _payPenaltyNow ? Colors.white : AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Bayar Nanti di Kasir'),
+                          selected: !_payPenaltyNow,
+                          onSelected: (_) => setState(() => _payPenaltyNow = false),
+                          selectedColor: AppColors.obsidian,
+                          labelStyle: TextStyle(
+                            color: !_payPenaltyNow ? Colors.white : AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_payPenaltyNow) ...[
+                      const SizedBox(height: 14),
+                      const Text(
+                        'METODE PEMBAYARAN DENDA',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textMuted),
+                      ),
+                      const SizedBox(height: 8),
+                      ref.watch(paymentMethodsProvider).when(
+                        loading: () => const LinearProgressIndicator(),
+                        error: (e, _) => Text('Gagal memuat metode: $e'),
+                        data: (methods) => Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: methods.map((m) {
+                            final isSel = _selectedPaymentMethodId == m['id'];
+                            return ChoiceChip(
+                              label: Text(m['name'] ?? m['code'] ?? 'Metode'),
+                              selected: isSel,
+                              onSelected: (_) {
+                                setState(() {
+                                  _selectedPaymentMethodId = m['id'];
+                                  _selectedPaymentMethodCode = (m['code'] ?? 'CASH').toString().toUpperCase();
+                                  if (_selectedPaymentMethodCode == 'CASH') {
+                                    _cashReceivedController.text = penaltyAmount.toInt().toString();
+                                  }
+                                });
+                              },
+                              selectedColor: AppColors.obsidian,
+                              labelStyle: TextStyle(
+                                color: isSel ? Colors.white : AppColors.textPrimary,
+                                fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      if (_selectedPaymentMethodCode == 'CASH') ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _cashReceivedController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'Uang Tunai Diterima (Rp)',
+                            hintText: 'Nominal tunai pelanggan',
+                            prefixIcon: const Icon(Icons.attach_money_rounded, size: 20),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.check_circle_outline_rounded),
+                              tooltip: 'Uang Pas',
+                              onPressed: () {
+                                _cashReceivedController.text = penaltyAmount.toInt().toString();
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Cash Denomination Dynamic Suggestions
+                        Builder(
+                          builder: (context) {
+                            final cashSuggestions = CashPaymentSuggestionHelper.getSuggestedAmounts(penaltyAmount);
+                            if (cashSuggestions.isEmpty) return const SizedBox.shrink();
+
+                            return Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: cashSuggestions.map((amt) {
+                                final isExact = amt == penaltyAmount.toInt();
+                                return ActionChip(
+                                  label: Text(
+                                    CurrencyFormatter.format(amt),
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  tooltip: isExact ? 'Uang Pas' : null,
+                                  onPressed: () {
+                                    _cashReceivedController.text = amt.toString();
+                                  },
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Change or Shortage Display
+                        Builder(
+                          builder: (context) {
+                            final cashReceived = CurrencyFormatter.parse(_cashReceivedController.text);
+                            final cashShortage = CashPaymentSuggestionHelper.calculateShortage(
+                              amountDue: penaltyAmount,
+                              cashReceived: cashReceived,
+                            );
+                            final cashChange = CashPaymentSuggestionHelper.calculateChange(
+                              amountDue: penaltyAmount,
+                              cashReceived: cashReceived,
+                            );
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: cashShortage > 0 ? AppColors.dangerLight : AppColors.successLight,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: cashShortage > 0 ? AppColors.danger : AppColors.success,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        cashShortage > 0 ? Icons.error_outline_rounded : Icons.check_circle_rounded,
+                                        color: cashShortage > 0 ? AppColors.danger : AppColors.success,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        cashShortage > 0 ? 'Kekurangan Uang:' : 'Kembalian:',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                          color: cashShortage > 0 ? AppColors.danger : AppColors.success,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    CurrencyFormatter.format(cashShortage > 0 ? cashShortage : cashChange),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: cashShortage > 0 ? AppColors.danger : AppColors.success,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ] else ...[
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Denda akan dicatat sebagai tagihan denda belum lunas dan dapat diselesaikan di Meja Kasir POS.',
+                        style: TextStyle(fontSize: 12, color: AppColors.warning, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Submit Return
             ElevatedButton(
-              onPressed: _isSubmitting ? null : _processReturn,
+              onPressed: _isSubmitting ? null : () => _processReturn(penaltyAmount),
               child: _isSubmitting
                   ? const CircularProgressIndicator(color: Colors.white)
                   : const Text('Selesaikan Pengembalian & Ambil KTP 📥'),
@@ -302,11 +538,25 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     );
   }
 
-  void _processReturn() async {
+  void _processReturn(double penaltyAmount) async {
     if (_requiresFrpCheck && !_icloudRemoved) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('PERINGATAN: Akun iCloud / Apple ID / Google wajib dipastikan logout sebelum unit dapat diterima kembali!'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
+    final double cashReceived = CurrencyFormatter.parse(
+      _cashReceivedController.text.isNotEmpty ? _cashReceivedController.text : penaltyAmount.toString(),
+    );
+
+    if (penaltyAmount > 0 && _payPenaltyNow && _selectedPaymentMethodCode == 'CASH' && cashReceived < penaltyAmount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Uang tunai kurang dari tagihan denda (${CurrencyFormatter.format(penaltyAmount)})'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -327,6 +577,10 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
           'cable': _cableReturned,
           'adapter': _adapterReturned,
         },
+        if (penaltyAmount > 0 && _payPenaltyNow) ...{
+          'penalty_payment_method_id': _selectedPaymentMethodId,
+          'cash_received': cashReceived,
+        },
       };
 
       await ref.read(bookingRepositoryProvider).processReturn(widget.booking['id'], payload);
@@ -344,9 +598,10 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 Text('Unit Berhasil Kembali!'),
               ],
             ),
-            content: const Text(
+            content: Text(
               'Pemeriksaan pengembalian selesai.\n'
               'Unit kini siap disewakan kembali.\n'
+              '${penaltyAmount > 0 && _payPenaltyNow ? 'Denda keterlambatan berhasil dibayar & tercatat di revenue.\n' : ''}'
               'Silakan kembalikan KTP fisik kepada tamu.',
             ),
             actions: [

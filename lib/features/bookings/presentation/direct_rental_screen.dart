@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
@@ -512,8 +513,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
     final totalPayable = (_basePrice - _discountAmount).clamp(0.0, double.infinity);
     final cashReceived = CurrencyFormatter.parse(_cashReceivedController.text);
-    final cashShortage = (totalPayable - cashReceived).clamp(0.0, double.infinity);
-    final cashChange = (cashReceived - totalPayable).clamp(0.0, double.infinity);
+    final cashShortage = CashPaymentSuggestionHelper.calculateShortage(amountDue: totalPayable, cashReceived: cashReceived);
+    final cashChange = CashPaymentSuggestionHelper.calculateChange(amountDue: totalPayable, cashReceived: cashReceived);
 
     final isUnitSelected = _selectedAssetId != null;
 
@@ -1310,38 +1311,30 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Cash denomination shortcuts
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ActionChip(
-                          label: const Text('Uang Pas'),
-                          onPressed: () {
-                            _cashReceivedController.text = totalPayable.toInt().toString();
-                          },
-                        ),
-                        ActionChip(
-                          label: const Text('Rp 50.000'),
-                          onPressed: () => _cashReceivedController.text = '50000',
-                        ),
-                        ActionChip(
-                          label: const Text('Rp 100.000'),
-                          onPressed: () => _cashReceivedController.text = '100000',
-                        ),
-                        ActionChip(
-                          label: const Text('Rp 200.000'),
-                          onPressed: () => _cashReceivedController.text = '200000',
-                        ),
-                        ActionChip(
-                          label: const Text('Rp 350.000'),
-                          onPressed: () => _cashReceivedController.text = '350000',
-                        ),
-                        ActionChip(
-                          label: const Text('Rp 500.000'),
-                          onPressed: () => _cashReceivedController.text = '50000',
-                        ),
-                      ],
+                    // Cash denomination dynamic suggestions
+                    Builder(
+                      builder: (context) {
+                        final cashSuggestions = CashPaymentSuggestionHelper.getSuggestedAmounts(totalPayable);
+                        if (cashSuggestions.isEmpty) return const SizedBox.shrink();
+
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: cashSuggestions.map((amt) {
+                            final isExact = amt == totalPayable.toInt();
+                            return ActionChip(
+                              label: Text(
+                                CurrencyFormatter.format(amt),
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              tooltip: isExact ? 'Uang Pas' : null,
+                              onPressed: () {
+                                _cashReceivedController.text = amt.toString();
+                              },
+                            );
+                          }).toList(),
+                        );
+                      },
                     ),
                     const SizedBox(height: 14),
 
