@@ -941,8 +941,10 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
   @override
   void initState() {
     super.initState();
-    _status = widget.asset['status'] ?? 'ready';
-    _grade = widget.asset['condition_grade'] ?? 'A';
+    final rawStatus = widget.asset['status']?.toString().toLowerCase().trim();
+    _status = (rawStatus != null && rawStatus.isNotEmpty) ? rawStatus : 'ready';
+    final rawGrade = widget.asset['condition_grade']?.toString().toUpperCase().trim();
+    _grade = (rawGrade == 'A' || rawGrade == 'B' || rawGrade == 'C') ? rawGrade! : 'A';
     final bh = widget.asset['battery_health'];
     _batteryController = TextEditingController(text: bh != null ? bh.toString() : '');
     _notesController = TextEditingController(text: widget.asset['notes'] ?? '');
@@ -961,6 +963,39 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
     final categoryName = (model?['category']?['name'] ?? '').toString().toLowerCase();
     final modelName = (model?['name'] ?? '').toString().toLowerCase();
     final hasBattery = categoryName.contains('phone') || categoryName.contains('laptop') || modelName.contains('iphone') || modelName.contains('macbook');
+    final isRented = _status == 'rented';
+    final isInTransit = _status == 'in_transit';
+    final isLockedStatus = isRented || isInTransit;
+
+    final List<DropdownMenuItem<String>> statusItems = [
+      if (isRented)
+        const DropdownMenuItem(
+          value: 'rented',
+          enabled: false,
+          child: Text('Sedang Disewa (Terkunci)'),
+        ),
+      if (isInTransit)
+        const DropdownMenuItem(
+          value: 'in_transit',
+          enabled: false,
+          child: Text('Dalam Mutasi (Terkunci)'),
+        ),
+      const DropdownMenuItem(value: 'ready', child: Text('Siap Sewa (Ready)')),
+      const DropdownMenuItem(value: 'maintenance', child: Text('Perawatan / Rusak (Maintenance)')),
+      const DropdownMenuItem(value: 'retired', child: Text('Pensiun / Afkir (Retired)')),
+      const DropdownMenuItem(value: 'lost', child: Text('Hilang (Lost)')),
+    ];
+
+    if (!statusItems.any((item) => item.value == _status)) {
+      statusItems.insert(
+        0,
+        DropdownMenuItem(
+          value: _status,
+          enabled: false,
+          child: Text('$_status (Terkunci)'),
+        ),
+      );
+    }
 
     return Padding(
       padding: EdgeInsets.only(
@@ -984,7 +1019,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                   ),
                   Text(
-                    '${widget.asset['asset_code']} • SN: ${widget.asset['serial_number']}',
+                    '${widget.asset['asset_code'] ?? '-'} • SN: ${widget.asset['serial_number'] ?? '-'}',
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
@@ -1004,19 +1039,52 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
             initialValue: _status,
             decoration: InputDecoration(
               filled: true,
-              fillColor: AppColors.surfaceMuted,
+              fillColor: isLockedStatus ? AppColors.surfaceMuted.withValues(alpha: 0.6) : AppColors.surfaceMuted,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             ),
-            items: const [
-              DropdownMenuItem(value: 'ready', child: Text('Siap Sewa (Ready)')),
-              DropdownMenuItem(value: 'maintenance', child: Text('Perawatan / Rusak (Maintenance)')),
-              DropdownMenuItem(value: 'retired', child: Text('Pensiun / Afkir (Retired)')),
-            ],
-            onChanged: (val) {
-              if (val != null) setState(() => _status = val);
-            },
+            items: statusItems,
+            onChanged: isLockedStatus
+                ? null
+                : (val) {
+                    if (val != null) setState(() => _status = val);
+                  },
           ),
+          if (isLockedStatus) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isRented ? AppColors.infoLight : AppColors.warningLight,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isRented ? AppColors.info.withValues(alpha: 0.3) : AppColors.warning.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isRented ? Icons.info_outline_rounded : Icons.local_shipping_outlined,
+                    size: 16,
+                    color: isRented ? AppColors.info : AppColors.warning,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isRented
+                          ? 'Unit sedang aktif disewa pelanggan. Status operasional dikunci otomatis oleh sistem rental.'
+                          : 'Unit sedang dalam perjalanan mutasi antar cabang. Status operasional dikunci otomatis.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isRented ? AppColors.info : AppColors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
 
           // Grade Selector
@@ -1093,7 +1161,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                     try {
                       final repo = ref.read(assetRepositoryProvider);
                       final payload = <String, dynamic>{
-                        'status': _status,
+                        if (!isLockedStatus) 'status': _status,
                         'condition_grade': _grade,
                         if (_batteryController.text.trim().isNotEmpty && int.tryParse(_batteryController.text.trim()) != null)
                           'battery_health': int.tryParse(_batteryController.text.trim()),

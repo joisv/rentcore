@@ -8,6 +8,9 @@ import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../inventory/providers/asset_provider.dart';
+import '../../../core/services/thermal_printer_service.dart';
+import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../printer/providers/printer_provider.dart';
 import '../../vouchers/data/voucher_repository.dart';
 import '../providers/booking_provider.dart';
 
@@ -483,6 +486,69 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               ],
             ),
             actions: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.print_outlined, size: 18),
+                label: const Text('Cetak Struk'),
+                onPressed: () {
+                  final printerService = ThermalPrinterService();
+                  final printerSettings = ref.read(printerProvider).settings;
+                  final branchName = ref.read(businessProvider).activeBranchName ?? 'RentCore';
+                  String assetName = 'Perangkat Gadget';
+                  final bAsset = booking['asset'];
+                  if (bAsset is Map && bAsset['name'] != null) {
+                    assetName = bAsset['name'].toString();
+                  } else {
+                    final bItems = booking['items'];
+                    if (bItems is List && bItems.isNotEmpty && bItems[0] is Map && bItems[0]['asset'] is Map) {
+                      assetName = bItems[0]['asset']['name']?.toString() ?? 'Perangkat Gadget';
+                    }
+                  }
+                  final model = ReceiptDataModel(
+                    type: ReceiptType.rentalBooking,
+                    title: 'STRUK SEWA PERANGKAT',
+                    branchName: branchName,
+                    bookingCode: booking['booking_code']?.toString() ?? '',
+                    customerName: _nameController.text.trim(),
+                    customerPhone: _phoneController.text.trim(),
+                    unitName: assetName,
+                    rentalDurationText: '$_selectedDurationValue $_selectedDurationUnit',
+                    collateralInfo: 'KTP Fisik - Slot ${_slotController.text}',
+                    subtotal: _basePrice,
+                    discount: _discountAmount,
+                    totalAmount: totalPayable,
+                    paymentMethod: _selectedPaymentMethodCode ?? 'Tunai',
+                    cashReceived: cashReceived,
+                    cashChange: change,
+                    transactedAt: DateTime.now().toString().substring(0, 16),
+                  );
+                  final escposBytes = printerService.buildRentalBookingSlipBytes(model, printerSettings);
+                  showDialog(
+                    context: context,
+                    builder: (dCtx) => ThermalReceiptPreviewDialog(
+                      title: 'Cetak Struk Sewa',
+                      branchName: branchName,
+                      escposBytes: escposBytes,
+                      qrData: booking['booking_code']?.toString(),
+                      content: Column(
+                        children: [
+                          const Text('STRUK SEWA PERANGKAT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text('No: ${booking['booking_code'] ?? "-"}', style: const TextStyle(fontSize: 11)),
+                          Text('Pelanggan: ${_nameController.text}', style: const TextStyle(fontSize: 11)),
+                          Text('Unit: $assetName', style: const TextStyle(fontSize: 11)),
+                          const Divider(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Total Biaya:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              Text(CurrencyFormatter.format(totalPayable), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);

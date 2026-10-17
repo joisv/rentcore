@@ -4,7 +4,11 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/services/thermal_printer_service.dart';
+import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
+import '../../printer/providers/printer_provider.dart';
 import '../providers/booking_provider.dart';
 
 class ReturnWizardScreen extends ConsumerStatefulWidget {
@@ -605,6 +609,50 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               'Silakan kembalikan KTP fisik kepada tamu.',
             ),
             actions: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.print_outlined, size: 18),
+                label: const Text('Cetak Bukti'),
+                onPressed: () {
+                  final printerService = ThermalPrinterService();
+                  final printerSettings = ref.read(printerProvider).settings;
+                  final branchName = ref.read(businessProvider).activeBranchName ?? 'RentCore';
+                  final model = ReceiptDataModel(
+                    type: ReceiptType.rentalReturn,
+                    title: 'BUKTI PENGEMBALIAN UNIT',
+                    branchName: branchName,
+                    bookingCode: widget.booking['booking_code']?.toString() ?? '',
+                    customerName: widget.booking['customer']?['name']?.toString() ?? 'Pelanggan',
+                    unitName: widget.booking['asset']?['name']?.toString() ?? 'Perangkat Gadget',
+                    conditionGrade: 'Grade $_conditionGrade',
+                    checklistNotes: 'Screen: ${_screenOk ? "OK" : "Minus"} • Kamera: ${_cameraOk ? "OK" : "Minus"}',
+                    accessoriesNotes: 'Kabel: ${_cableReturned ? "OK" : "Kurang"} • Adaptor: ${_adapterReturned ? "OK" : "Kurang"}',
+                    penaltyAmount: (penaltyAmount > 0 && _payPenaltyNow) ? penaltyAmount : 0.0,
+                    paymentMethod: _payPenaltyNow ? 'Lunas Denda' : null,
+                    totalAmount: (penaltyAmount > 0 && _payPenaltyNow) ? penaltyAmount : 0.0,
+                    transactedAt: DateTime.now().toString().substring(0, 16),
+                  );
+                  final escposBytes = printerService.buildRentalReturnSlipBytes(model, printerSettings);
+                  showDialog(
+                    context: context,
+                    builder: (dCtx) => ThermalReceiptPreviewDialog(
+                      title: 'Bukti Pengembalian',
+                      branchName: branchName,
+                      escposBytes: escposBytes,
+                      qrData: widget.booking['booking_code']?.toString(),
+                      content: Column(
+                        children: [
+                          const Text('BUKTI PENGEMBALIAN UNIT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text('Kode: ${widget.booking['booking_code'] ?? "-"}', style: const TextStyle(fontSize: 11)),
+                          Text('Pelanggan: ${widget.booking['customer']?['name'] ?? "-"}', style: const TextStyle(fontSize: 11)),
+                          Text('Kondisi: Grade $_conditionGrade', style: const TextStyle(fontSize: 11)),
+                          const Divider(height: 16),
+                          const Text('KTP Fisik Telah Diserahkan Kembali', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.success)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);

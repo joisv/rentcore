@@ -97,6 +97,11 @@ void main() {
     });
 
     test('verifies connected device and simulated print job', () async {
+      printerService.setConnectedDevice(const ThermalPrinterDevice(
+        name: 'RPP-02N Bluetooth Printer (58mm)',
+        address: '00:11:22:33:44:55',
+        isConnected: true,
+      ));
       expect(printerService.connectedDevice, isNotNull);
       expect(printerService.connectedDevice!.isConnected, isTrue);
 

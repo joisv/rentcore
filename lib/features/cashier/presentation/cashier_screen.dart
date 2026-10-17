@@ -10,6 +10,8 @@ import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/direct_rental_screen.dart';
+import '../../printer/presentation/printer_settings_screen.dart';
+import '../../printer/providers/printer_provider.dart';
 import '../providers/cashier_provider.dart';
 import 'pos_transaction_detail_sheet.dart';
 
@@ -1272,19 +1274,57 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.print_rounded, size: 24, color: AppColors.success),
+                      Icon(
+                        ref.watch(printerProvider).settings.printMode == PrintMode.echo
+                            ? Icons.visibility_rounded
+                            : (ref.watch(printerProvider).status == PrinterConnectionStatus.connected
+                                ? Icons.print_rounded
+                                : Icons.bluetooth_disabled_rounded),
+                        size: 24,
+                        color: ref.watch(printerProvider).settings.printMode == PrintMode.echo
+                            ? AppColors.info
+                            : (ref.watch(printerProvider).status == PrinterConnectionStatus.connected
+                                ? AppColors.success
+                                : AppColors.textMuted),
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              ThermalPrinterService().connectedDevice?.name ?? 'Printer Thermal 58mm',
+                              ref.watch(printerProvider).settings.printMode == PrintMode.echo
+                                  ? 'Mode Echo (Virtual Audit)'
+                                  : (ref.watch(printerProvider).connectedDevice?.name ?? 'Tidak Ada Printer Terhubung'),
                               style: const TextStyle(fontWeight: FontWeight.w700),
                             ),
-                            const Text('Status: Siap Mencetak (Terhubung)', style: TextStyle(fontSize: 12, color: AppColors.success)),
+                            Text(
+                              ref.watch(printerProvider).settings.printMode == PrintMode.echo
+                                  ? 'Simulasi Layar • ${ref.watch(printerProvider).settings.paperWidth.label}'
+                                  : (ref.watch(printerProvider).status == PrinterConnectionStatus.connected
+                                      ? 'Status: Siap Mencetak (${ref.watch(printerProvider).settings.paperWidth.label})'
+                                      : 'Status: Terputus / Offline'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: ref.watch(printerProvider).settings.printMode == PrintMode.echo
+                                    ? AppColors.info
+                                    : (ref.watch(printerProvider).status == PrinterConnectionStatus.connected
+                                        ? AppColors.success
+                                        : AppColors.textMuted),
+                              ),
+                            ),
                           ],
                         ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.tune_rounded, size: 16),
+                        label: const Text('Atur', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -2182,14 +2222,21 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
       final method = receiptData['payment_method'] ?? 'Tunai';
 
       final printerService = ThermalPrinterService();
-      final escposBytes = printerService.buildClosingShiftSlipBytes(
+      final printerSettings = ref.read(printerProvider).settings;
+      final model = ReceiptDataModel(
+        type: ReceiptType.posPayment,
+        title: 'STRUK TRANSAKSI POS',
         branchName: branchName,
+        receiptNumber: receiptNum,
+        customerName: customerName,
         cashierName: cashierName,
-        date: receiptData['transacted_at']?.toString() ?? '',
-        totalTransactions: 1,
-        totalRevenue: totalAmt,
-        paymentBreakdown: {method: totalAmt},
+        totalAmount: totalAmt,
+        paymentMethod: method,
+        cashReceived: cashRec,
+        cashChange: cashChg,
+        transactedAt: receiptData['transacted_at']?.toString() ?? '',
       );
+      final escposBytes = printerService.buildPosPaymentSlipBytes(model, printerSettings);
 
       showDialog(
         context: context,

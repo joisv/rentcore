@@ -11,6 +11,7 @@ import '../providers/dashboard_provider.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../organization/presentation/manage_organization_screen.dart';
+import '../../printer/presentation/printer_settings_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   final ValueChanged<int> onNavigateTab;
@@ -337,6 +338,16 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.storefront_rounded, color: AppColors.textSecondary, size: 20),
           ),
           IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+              );
+            },
+            tooltip: 'Pengaturan Printer Thermal',
+            icon: const Icon(Icons.print_rounded, color: AppColors.textSecondary, size: 20),
+          ),
+          IconButton(
             onPressed: () => _confirmLogout(context, ref),
             tooltip: 'Keluar',
             icon: const Icon(Icons.logout_rounded, color: AppColors.textSecondary, size: 20),
@@ -397,6 +408,17 @@ class HomeScreen extends ConsumerWidget {
             icon: Icons.point_of_sale_outlined,
             label: 'Kasir',
             onTap: () => onNavigateTab(3),
+          ),
+          const SizedBox(width: 10),
+          _buildQuickAction(
+            icon: Icons.print_outlined,
+            label: 'Printer',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+              );
+            },
           ),
           if (ref.watch(businessProvider).activeBusinessId != null) ...[
             const SizedBox(width: 10),

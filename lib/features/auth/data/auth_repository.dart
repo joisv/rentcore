@@ -252,15 +252,21 @@ class AuthRepository {
       await _client.dio.post(ApiConstants.logout);
     } catch (_) {}
 
-    // Invalidate secure token storage
-    await SecureTokenStorage().clearToken();
+    // Invalidate secure token storage defensively
+    try {
+      await SecureTokenStorage().clearToken();
+    } catch (_) {}
 
-    final prefs = await SharedPreferences.getInstance();
-    final savedBaseUrl = prefs.getString('api_base_url');
-    await prefs.clear();
-    // Preserve custom server network configuration across logouts
-    if (savedBaseUrl != null && savedBaseUrl.isNotEmpty) {
-      await prefs.setString('api_base_url', savedBaseUrl);
-    }
+    // Purge tenant-scoped session context from preferences while preserving
+    // hardware configurations (thermal printer settings, paired Bluetooth devices)
+    // and network setup (custom server base URL, google server client ID).
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('active_business_id');
+      await prefs.remove('active_business_name');
+      await prefs.remove('active_branch_id');
+      await prefs.remove('branch_name');
+      await prefs.remove('branch_code');
+    } catch (_) {}
   }
 }

@@ -1,10 +1,14 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/models/thermal_printer_models.dart';
 import '../../core/services/thermal_printer_service.dart';
+import '../../features/printer/presentation/printer_settings_screen.dart';
+import '../../features/printer/providers/printer_provider.dart';
 
-class ThermalReceiptPreviewDialog extends StatefulWidget {
+class ThermalReceiptPreviewDialog extends ConsumerStatefulWidget {
   final String title;
   final String branchName;
   final Uint8List escposBytes;
@@ -21,16 +25,19 @@ class ThermalReceiptPreviewDialog extends StatefulWidget {
   });
 
   @override
-  State<ThermalReceiptPreviewDialog> createState() => _ThermalReceiptPreviewDialogState();
+  ConsumerState<ThermalReceiptPreviewDialog> createState() => _ThermalReceiptPreviewDialogState();
 }
 
-class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialog> {
+class _ThermalReceiptPreviewDialogState extends ConsumerState<ThermalReceiptPreviewDialog> {
   final _printerService = ThermalPrinterService();
   bool _isPrinting = false;
 
   @override
   Widget build(BuildContext context) {
-    final connectedDevice = _printerService.connectedDevice;
+    final printerState = ref.watch(printerProvider);
+    final connectedDevice = printerState.connectedDevice ?? _printerService.connectedDevice;
+    final isConnected = printerState.status == PrinterConnectionStatus.connected && connectedDevice != null;
+    final isEcho = printerState.settings.printMode == PrintMode.echo;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -51,9 +58,12 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    widget.title,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded),
@@ -66,27 +76,53 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
 
             // Printer Connection Indicator
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              color: AppColors.surface,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: isEcho
+                  ? AppColors.infoLight
+                  : (isConnected ? AppColors.successLight : AppColors.surfaceMuted),
               child: Row(
                 children: [
                   Icon(
-                    connectedDevice != null ? Icons.bluetooth_connected_rounded : Icons.bluetooth_disabled_rounded,
+                    isEcho
+                        ? Icons.visibility_rounded
+                        : (isConnected ? Icons.bluetooth_connected_rounded : Icons.bluetooth_disabled_rounded),
                     size: 18,
-                    color: connectedDevice != null ? AppColors.success : AppColors.textMuted,
+                    color: isEcho
+                        ? AppColors.info
+                        : (isConnected ? AppColors.success : AppColors.textMuted),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      connectedDevice?.name ?? 'Tidak ada printer terhubung',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isEcho
+                              ? 'Mode Echo (Virtual Audit)'
+                              : (connectedDevice?.name ?? 'Tidak ada printer terhubung'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isEcho ? AppColors.info : AppColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${printerState.settings.paperWidth.label} • ${isEcho ? "Simulasi Layar" : (isConnected ? "Siap Cetak" : "Offline")}',
+                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
                   ),
                   TextButton(
-                    onPressed: _showPrinterSelectorDialog,
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+                      );
+                    },
                     style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                    child: const Text('Ganti', style: TextStyle(fontSize: 12)),
+                    child: const Text('Atur', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -115,10 +151,12 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Paper Header
-                      const Center(
+                      Center(
                         child: Text(
-                          'RENTCORE ELECTRONICS',
-                          style: TextStyle(
+                          printerState.settings.customShopName.isNotEmpty
+                              ? printerState.settings.customShopName
+                              : 'RENTCORE GADGETS',
+                          style: const TextStyle(
                             fontFamily: 'monospace',
                             fontWeight: FontWeight.w900,
                             fontSize: 15,
@@ -128,7 +166,9 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
                       ),
                       Center(
                         child: Text(
-                          widget.branchName,
+                          printerState.settings.customBranchName.isNotEmpty
+                              ? printerState.settings.customBranchName
+                              : widget.branchName,
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 12,
@@ -137,10 +177,12 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
                         ),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
-                        '================================',
+                      Text(
+                        printerState.settings.separatorStyle == 'double'
+                            ? '================================'
+                            : '--------------------------------',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontFamily: 'monospace', color: Colors.grey),
+                        style: const TextStyle(fontFamily: 'monospace', color: Colors.grey),
                       ),
                       const SizedBox(height: 8),
 
@@ -148,7 +190,7 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
                       widget.content,
 
                       // Optional 2D QR Code
-                      if (widget.qrData != null) ...[
+                      if (widget.qrData != null && printerState.settings.showQrBarcode) ...[
                         const SizedBox(height: 12),
                         Center(
                           child: QrImageView(
@@ -172,16 +214,20 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
                       ],
 
                       const SizedBox(height: 12),
-                      const Text(
-                        '================================',
+                      Text(
+                        printerState.settings.separatorStyle == 'double'
+                            ? '================================'
+                            : '--------------------------------',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontFamily: 'monospace', color: Colors.grey),
+                        style: const TextStyle(fontFamily: 'monospace', color: Colors.grey),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
-                        '*** TERIMA KASIH ***\nSimpan struk ini sebagai bukti resmi',
+                      Text(
+                        printerState.settings.customFooterMessage.isNotEmpty
+                            ? printerState.settings.customFooterMessage
+                            : '*** TERIMA KASIH ***\nSimpan struk ini sebagai bukti resmi',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 10,
                           color: Colors.grey,
@@ -204,13 +250,19 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 icon: _isPrinting
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.print_rounded, size: 20),
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : Icon(isEcho ? Icons.visibility_rounded : Icons.print_rounded, size: 20),
                 label: Text(
-                  _isPrinting ? 'Mencetak Slip...' : 'Cetak Thermal (ESC/POS)',
+                  _isPrinting
+                      ? 'Memproses Cetak...'
+                      : (isEcho ? 'Cetak Slip Echo (Kompak)' : 'Cetak Thermal (ESC/POS)'),
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                 ),
-                onPressed: _isPrinting ? null : _handlePrint,
+                onPressed: _isPrinting ? null : () => _handlePrint(printerState),
               ),
             ),
           ],
@@ -219,25 +271,32 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
     );
   }
 
-  Future<void> _handlePrint() async {
+  Future<void> _handlePrint(PrinterState printerState) async {
     setState(() => _isPrinting = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final success = await _printerService.sendPrintJob(widget.escposBytes);
+      final success = await _printerService.sendPrintJob(
+        widget.escposBytes,
+        printerState.settings.printMode,
+      );
+
       if (mounted) {
         setState(() => _isPrinting = false);
         if (success) {
           Navigator.pop(context);
+          final isEcho = printerState.settings.printMode == PrintMode.echo;
           messenger.showSnackBar(
             SnackBar(
-              content: Text('Berhasil mencetak slip ke ${_printerService.connectedDevice?.name}!'),
+              content: Text(
+                'Berhasil mencetak slip ${isEcho ? "[ECHO] " : ""}ke ${_printerService.connectedDevice?.name ?? "Printer"}!',
+              ),
               backgroundColor: AppColors.success,
             ),
           );
         } else {
           messenger.showSnackBar(
             const SnackBar(
-              content: Text('Printer tidak terhubung atau Bluetooth terputus.'),
+              content: Text('Printer tidak terhubung atau Bluetooth terputus. Buka Pengaturan Printer.'),
               backgroundColor: AppColors.danger,
             ),
           );
@@ -251,51 +310,5 @@ class _ThermalReceiptPreviewDialogState extends State<ThermalReceiptPreviewDialo
         );
       }
     }
-  }
-
-  void _showPrinterSelectorDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Pilih Printer Bluetooth', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.print_rounded, color: AppColors.obsidian),
-              title: const Text('RPP-02N Bluetooth (58mm)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              subtitle: const Text('MAC: 00:11:22:33:44:55 • Paired', style: TextStyle(fontSize: 11)),
-              trailing: const Icon(Icons.check_circle_rounded, color: AppColors.success),
-              onTap: () {
-                _printerService.setConnectedDevice(const ThermalPrinterDevice(
-                  name: 'RPP-02N Bluetooth Printer (58mm)',
-                  address: '00:11:22:33:44:55',
-                  isConnected: true,
-                ));
-                setState(() {});
-                Navigator.pop(ctx);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.print_rounded, color: AppColors.textMuted),
-              title: const Text('PT-210 Mobile Printer (80mm)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              subtitle: const Text('MAC: 66:77:88:99:AA:BB • Ready', style: TextStyle(fontSize: 11)),
-              onTap: () {
-                _printerService.setConnectedDevice(const ThermalPrinterDevice(
-                  name: 'PT-210 Mobile Printer (80mm)',
-                  address: '66:77:88:99:AA:BB',
-                  isConnected: true,
-                ));
-                setState(() {});
-                Navigator.pop(ctx);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
-        ],
-      ),
-    );
   }
 }

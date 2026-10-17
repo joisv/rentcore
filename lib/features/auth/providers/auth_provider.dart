@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/constants/navigation_keys.dart';
 import '../data/auth_repository.dart';
+import 'business_provider.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());
 
@@ -108,9 +110,18 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
-    state = state.copyWith(isLoading: true);
-    await _repository.logout();
-    state = const AuthState();
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _repository.logout();
+    } catch (_) {
+      // Regardless of remote API or storage errors, ensure local state is cleared
+    } finally {
+      if (ref.mounted) {
+        ref.read(businessProvider.notifier).reset();
+        state = const AuthState();
+      }
+      rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+    }
   }
 }
 

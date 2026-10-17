@@ -81,6 +81,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
 
     try {
       final list = await _repository.fetchBusinesses();
+      if (!ref.mounted) return;
       int? effectiveBizId;
       String? effectiveBizName;
       int? effectiveBranchId;
@@ -132,6 +133,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
         }
       }
 
+      if (!ref.mounted) return;
       state = state.copyWith(
         isLoading: false,
         activeBusinessId: effectiveBizId,
@@ -141,6 +143,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
         businesses: list,
       );
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(
         isLoading: false,
         activeBusinessId: null,
@@ -171,6 +174,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
       branchName: branchName,
     );
 
+    if (!ref.mounted) return;
     state = state.copyWith(
       activeBusinessId: bizId,
       activeBusinessName: bizName,
@@ -192,6 +196,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
       );
     }
 
+    if (!ref.mounted) return;
     state = state.copyWith(
       activeBranchId: branchId,
       activeBranchName: branchName,
@@ -215,14 +220,17 @@ class BusinessNotifier extends Notifier<BusinessState> {
       );
 
       final list = await _repository.fetchBusinesses();
+      if (!ref.mounted) return false;
       await selectBusiness(newBiz);
 
+      if (!ref.mounted) return false;
       state = state.copyWith(
         isLoading: false,
         businesses: list,
       );
       return true;
     } catch (e) {
+      if (!ref.mounted) return false;
       state = state.copyWith(isLoading: false, error: e.toString());
       return false;
     }
@@ -230,6 +238,10 @@ class BusinessNotifier extends Notifier<BusinessState> {
 
   Future<void> refresh() async {
     await loadInitialContext();
+  }
+
+  void reset() {
+    state = const BusinessState();
   }
 }
 

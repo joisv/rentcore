@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/constants/navigation_keys.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -29,6 +30,7 @@ class RentCoreApp extends ConsumerWidget {
     final authState = ref.watch(authProvider);
 
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: 'RentCore Mobile',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,

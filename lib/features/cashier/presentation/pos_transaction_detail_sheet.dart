@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../printer/providers/printer_provider.dart';
 import '../providers/cashier_provider.dart';
 
 class PosTransactionDetailSheet extends ConsumerWidget {
@@ -605,14 +606,20 @@ class PosTransactionDetailSheet extends ConsumerWidget {
       final method = receiptData['payment_method'] ?? 'Tunai';
 
       final printerService = ThermalPrinterService();
-      final escposBytes = printerService.buildClosingShiftSlipBytes(
+      final printerSettings = ref.read(printerProvider).settings;
+      final model = ReceiptDataModel(
+        type: ReceiptType.posPayment,
+        title: 'STRUK TRANSAKSI POS',
         branchName: branchName,
+        receiptNumber: receiptNum,
+        bookingCode: b['booking_code']?.toString(),
+        customerName: b['customer']?['name']?.toString() ?? '-',
         cashierName: cashierName,
-        date: receiptData['transacted_at']?.toString() ?? DateTime.now().toString().substring(0, 16),
-        totalTransactions: 1,
-        totalRevenue: totalAmt,
-        paymentBreakdown: {method: totalAmt},
+        totalAmount: totalAmt,
+        paymentMethod: method,
+        transactedAt: receiptData['transacted_at']?.toString() ?? DateTime.now().toString().substring(0, 16),
       );
+      final escposBytes = printerService.buildPosPaymentSlipBytes(model, printerSettings);
 
       showDialog(
         context: context,
