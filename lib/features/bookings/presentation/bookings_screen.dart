@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../cashier/providers/cashier_provider.dart';
+import '../../payments/models/payment_context.dart';
+import '../../payments/presentation/payment_page.dart';
 import '../providers/booking_provider.dart';
 import 'direct_rental_screen.dart';
 import 'return_wizard_screen.dart';
@@ -221,7 +224,7 @@ class BookingsScreen extends ConsumerWidget {
                                         minimumSize: const Size.fromHeight(40),
                                         padding: EdgeInsets.zero,
                                       ),
-                                      onPressed: () => _showExtendDialog(context, ref, item['id']),
+                                      onPressed: () => _showExtendDialog(context, ref, item),
                                       child: const Text('+ Tambah Jam', style: TextStyle(fontSize: 12)),
                                     ),
                                   ),
@@ -286,8 +289,16 @@ class BookingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showExtendDialog(BuildContext context, WidgetRef ref, int bookingId) {
+  void _showExtendDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> item) {
     int selectedHours = 6;
+    final bookingId = (item['id'] as num).toInt();
+    final bookingCode = item['booking_code']?.toString() ?? '#$bookingId';
+    final customer = (item['customer'] as Map?) ?? {};
+    final customerName = customer['name']?.toString() ?? 'Pelanggan';
+    final device = (item['device'] as Map?) ?? {};
+    final model = (device['asset_model'] as Map?) ?? {};
+    final deviceModel = model['name']?.toString() ?? 'Unit Sewa';
+    final hourlyRate = ((model['tier']?['hourly_rate'] ?? 15000) as num).toInt();
 
     showModalBottomSheet(
       context: context,
@@ -297,7 +308,7 @@ class BookingsScreen extends ConsumerWidget {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            final fee = selectedHours * 15000;
+            final fee = selectedHours * hourlyRate;
 
             return Padding(
               padding: const EdgeInsets.all(24),
@@ -310,9 +321,9 @@ class BookingsScreen extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Tarif perpanjangan: Rp 15.000 / jam.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  Text(
+                    'Tarif perpanjangan: ${CurrencyFormatter.format(hourlyRate)} / jam.',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                   const SizedBox(height: 20),
                   Row(
@@ -346,8 +357,42 @@ class BookingsScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      final result = await Navigator.push<PaymentResult>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PaymentPage(
+                            paymentContext: PaymentContext.extension(
+                              bookingId: bookingId,
+                              bookingCode: bookingCode,
+                              customerName: customerName,
+                              deviceModel: deviceModel,
+                              additionalHours: selectedHours,
+                              extensionFee: fee.toDouble(),
+                            ),
+                          ),
+                        ),
+                      );
+
+                      if (result != null && result.isSuccess) {
+                        ref.invalidate(bookingsListProvider);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Perpanjangan sewa $selectedHours jam berhasil dibayar & diperbarui!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text('Lanjut ke Pembayaran POS 💳'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
                     onPressed: () async {
                       Navigator.pop(ctx);
                       try {
@@ -355,7 +400,7 @@ class BookingsScreen extends ConsumerWidget {
                         ref.invalidate(bookingsListProvider);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Sewa berhasil diperpanjang $selectedHours jam!')),
+                            SnackBar(content: Text('Sewa diperpanjang $selectedHours jam (tagihan dicatat).')),
                           );
                         }
                       } catch (e) {
@@ -366,7 +411,10 @@ class BookingsScreen extends ConsumerWidget {
                         }
                       }
                     },
-                    child: const Text('Konfirmasi & Simpan Perpanjangan'),
+                    child: const Text(
+                      'Perpanjang Tanpa Bayar Langsung (Catat ke Tagihan)',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
                   ),
                 ],
               ),

@@ -12,6 +12,8 @@ import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/direct_rental_screen.dart';
 import '../../printer/presentation/printer_settings_screen.dart';
 import '../../printer/providers/printer_provider.dart';
+import '../../payments/models/payment_context.dart';
+import '../../payments/presentation/payment_page.dart';
 import '../providers/cashier_provider.dart';
 import 'pos_transaction_detail_sheet.dart';
 
@@ -662,12 +664,45 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
 
   /// Opens the POS Payment Modal / Sheet for a transaction.
   void _openPosPaymentModal(BuildContext context, Map<String, dynamic> booking) {
+    final returnInspection = booking['return_inspection'] as Map? ?? booking['returnInspection'] as Map? ?? {};
+    final totalPenaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+    final payments = (booking['payments'] as List?) ?? [];
+    double penaltyPaid = 0.0;
+    for (final p in payments) {
+      if (p['type']?.toString().toLowerCase() == 'penalty') {
+        penaltyPaid += CurrencyFormatter.parse(p['amount']);
+      }
+    }
+    final remainingPenalty = (totalPenaltyDue - penaltyPaid).clamp(0.0, double.infinity);
+
+    final totalBill = CurrencyFormatter.parse(booking['total_bill']);
+    double rentalPaid = 0.0;
+    for (final p in payments) {
+      final pt = p['type']?.toString().toLowerCase();
+      if (pt == 'settlement' || pt == 'dp' || pt == 'extension' || pt == 'rental') {
+        rentalPaid += CurrencyFormatter.parse(p['amount']);
+      }
+    }
+    final remainingRental = (totalBill - rentalPaid).clamp(0.0, double.infinity);
+
+    final isPenaltyTarget = remainingRental <= 0 && remainingPenalty > 0;
+    final paymentContext = isPenaltyTarget
+        ? PaymentContext.penalty(
+            booking: booking,
+            penaltyDue: remainingPenalty,
+          )
+        : PaymentContext.settlement(
+            booking: booking,
+            remainingDue: remainingRental > 0 ? remainingRental : (remainingPenalty > 0 ? remainingPenalty : totalBill),
+          );
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _PosPaymentModalSheet(
-        booking: booking,
+      builder: (ctx) => PaymentPage(
+        paymentContext: paymentContext,
+        isModal: true,
         onPaymentSuccess: () {
           ref.invalidate(cashierBookingsProvider(_searchQuery));
           ref.invalidate(closingSummaryProvider);

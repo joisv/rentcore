@@ -10,6 +10,8 @@ import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../providers/booking_provider.dart';
+import '../../payments/models/payment_context.dart';
+import '../../payments/presentation/payment_page.dart';
 
 class ReturnWizardScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> booking;
@@ -30,23 +32,6 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   bool _isSubmitting = false;
 
   bool _payPenaltyNow = true;
-  int _selectedPaymentMethodId = 1;
-  String _selectedPaymentMethodCode = 'CASH';
-  final _cashReceivedController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _cashReceivedController.addListener(() {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _cashReceivedController.dispose();
-    super.dispose();
-  }
 
   bool get _requiresFrpCheck {
     final items = (widget.booking['items'] as List?) ?? [];
@@ -82,10 +67,6 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
         final billableHours = ((lateMinutes - 60) / 60).ceil();
         penaltyAmount = billableHours * 15000.0;
       }
-    }
-
-    if (_selectedPaymentMethodCode == 'CASH' && _cashReceivedController.text.isEmpty && penaltyAmount > 0) {
-      _cashReceivedController.text = penaltyAmount.toInt().toString();
     }
 
     return Scaffold(
@@ -375,154 +356,17 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                         ),
                       ],
                     ),
-                    if (_payPenaltyNow) ...[
-                      const SizedBox(height: 14),
-                      const Text(
-                        'METODE PEMBAYARAN DENDA',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textMuted),
+                    const SizedBox(height: 10),
+                    Text(
+                      _payPenaltyNow
+                          ? 'Setelah inspeksi disimpan, sistem akan membuka Terminal Kasir POS untuk memproses & mencetak struk denda.'
+                          : 'Denda akan dicatat sebagai tagihan belum lunas dan dapat diselesaikan di menu Kasir POS.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _payPenaltyNow ? AppColors.textSecondary : AppColors.warning,
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(height: 8),
-                      ref.watch(paymentMethodsProvider).when(
-                        loading: () => const LinearProgressIndicator(),
-                        error: (e, _) => Text('Gagal memuat metode: $e'),
-                        data: (methods) => Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: methods.map((m) {
-                            final isSel = _selectedPaymentMethodId == m['id'];
-                            return ChoiceChip(
-                              label: Text(m['name'] ?? m['code'] ?? 'Metode'),
-                              selected: isSel,
-                              onSelected: (_) {
-                                setState(() {
-                                  _selectedPaymentMethodId = m['id'];
-                                  _selectedPaymentMethodCode = (m['code'] ?? 'CASH').toString().toUpperCase();
-                                  if (_selectedPaymentMethodCode == 'CASH') {
-                                    _cashReceivedController.text = penaltyAmount.toInt().toString();
-                                  }
-                                });
-                              },
-                              selectedColor: AppColors.obsidian,
-                              labelStyle: TextStyle(
-                                color: isSel ? Colors.white : AppColors.textPrimary,
-                                fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      if (_selectedPaymentMethodCode == 'CASH') ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _cashReceivedController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'Uang Tunai Diterima (Rp)',
-                            hintText: 'Nominal tunai pelanggan',
-                            prefixIcon: const Icon(Icons.attach_money_rounded, size: 20),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.check_circle_outline_rounded),
-                              tooltip: 'Uang Pas',
-                              onPressed: () {
-                                _cashReceivedController.text = penaltyAmount.toInt().toString();
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Cash Denomination Dynamic Suggestions
-                        Builder(
-                          builder: (context) {
-                            final cashSuggestions = CashPaymentSuggestionHelper.getSuggestedAmounts(penaltyAmount);
-                            if (cashSuggestions.isEmpty) return const SizedBox.shrink();
-
-                            return Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: cashSuggestions.map((amt) {
-                                final isExact = amt == penaltyAmount.toInt();
-                                return ActionChip(
-                                  label: Text(
-                                    CurrencyFormatter.format(amt),
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                  tooltip: isExact ? 'Uang Pas' : null,
-                                  onPressed: () {
-                                    _cashReceivedController.text = amt.toString();
-                                  },
-                                );
-                              }).toList(),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Change or Shortage Display
-                        Builder(
-                          builder: (context) {
-                            final cashReceived = CurrencyFormatter.parse(_cashReceivedController.text);
-                            final cashShortage = CashPaymentSuggestionHelper.calculateShortage(
-                              amountDue: penaltyAmount,
-                              cashReceived: cashReceived,
-                            );
-                            final cashChange = CashPaymentSuggestionHelper.calculateChange(
-                              amountDue: penaltyAmount,
-                              cashReceived: cashReceived,
-                            );
-
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: cashShortage > 0 ? AppColors.dangerLight : AppColors.successLight,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: cashShortage > 0 ? AppColors.danger : AppColors.success,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        cashShortage > 0 ? Icons.error_outline_rounded : Icons.check_circle_rounded,
-                                        color: cashShortage > 0 ? AppColors.danger : AppColors.success,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        cashShortage > 0 ? 'Kekurangan Uang:' : 'Kembalian:',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 12,
-                                          color: cashShortage > 0 ? AppColors.danger : AppColors.success,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Text(
-                                    CurrencyFormatter.format(cashShortage > 0 ? cashShortage : cashChange),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: cashShortage > 0 ? AppColors.danger : AppColors.success,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ] else ...[
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Denda akan dicatat sebagai tagihan denda belum lunas dan dapat diselesaikan di Meja Kasir POS.',
-                        style: TextStyle(fontSize: 12, color: AppColors.warning, fontWeight: FontWeight.w600),
-                      ),
-                    ],
+                    ),
                   ],
                 ),
               ),
@@ -553,20 +397,6 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       return;
     }
 
-    final double cashReceived = CurrencyFormatter.parse(
-      _cashReceivedController.text.isNotEmpty ? _cashReceivedController.text : penaltyAmount.toString(),
-    );
-
-    if (penaltyAmount > 0 && _payPenaltyNow && _selectedPaymentMethodCode == 'CASH' && cashReceived < penaltyAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Uang tunai kurang dari tagihan denda (${CurrencyFormatter.format(penaltyAmount)})'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-      return;
-    }
-
     setState(() => _isSubmitting = true);
 
     try {
@@ -581,88 +411,38 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
           'cable': _cableReturned,
           'adapter': _adapterReturned,
         },
-        if (penaltyAmount > 0 && _payPenaltyNow) ...{
-          'penalty_payment_method_id': _selectedPaymentMethodId,
-          'cash_received': cashReceived,
-        },
       };
 
       await ref.read(bookingRepositoryProvider).processReturn(widget.booking['id'], payload);
       ref.invalidate(bookingsListProvider);
+      ref.invalidate(closingSummaryProvider);
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: AppColors.success),
-                SizedBox(width: 8),
-                Text('Unit Berhasil Kembali!'),
-              ],
-            ),
-            content: Text(
-              'Pemeriksaan pengembalian selesai.\n'
-              'Unit kini siap disewakan kembali.\n'
-              '${penaltyAmount > 0 && _payPenaltyNow ? 'Denda keterlambatan berhasil dibayar & tercatat di revenue.\n' : ''}'
-              'Silakan kembalikan KTP fisik kepada tamu.',
-            ),
-            actions: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.print_outlined, size: 18),
-                label: const Text('Cetak Bukti'),
-                onPressed: () {
-                  final printerService = ThermalPrinterService();
-                  final printerSettings = ref.read(printerProvider).settings;
-                  final branchName = ref.read(businessProvider).activeBranchName ?? 'RentCore';
-                  final model = ReceiptDataModel(
-                    type: ReceiptType.rentalReturn,
-                    title: 'BUKTI PENGEMBALIAN UNIT',
-                    branchName: branchName,
-                    bookingCode: widget.booking['booking_code']?.toString() ?? '',
-                    customerName: widget.booking['customer']?['name']?.toString() ?? 'Pelanggan',
-                    unitName: widget.booking['asset']?['name']?.toString() ?? 'Perangkat Gadget',
-                    conditionGrade: 'Grade $_conditionGrade',
-                    checklistNotes: 'Screen: ${_screenOk ? "OK" : "Minus"} • Kamera: ${_cameraOk ? "OK" : "Minus"}',
-                    accessoriesNotes: 'Kabel: ${_cableReturned ? "OK" : "Kurang"} • Adaptor: ${_adapterReturned ? "OK" : "Kurang"}',
-                    penaltyAmount: (penaltyAmount > 0 && _payPenaltyNow) ? penaltyAmount : 0.0,
-                    paymentMethod: _payPenaltyNow ? 'Lunas Denda' : null,
-                    totalAmount: (penaltyAmount > 0 && _payPenaltyNow) ? penaltyAmount : 0.0,
-                    transactedAt: DateTime.now().toString().substring(0, 16),
-                  );
-                  final escposBytes = printerService.buildRentalReturnSlipBytes(model, printerSettings);
-                  showDialog(
-                    context: context,
-                    builder: (dCtx) => ThermalReceiptPreviewDialog(
-                      title: 'Bukti Pengembalian',
-                      branchName: branchName,
-                      escposBytes: escposBytes,
-                      qrData: widget.booking['booking_code']?.toString(),
-                      content: Column(
-                        children: [
-                          const Text('BUKTI PENGEMBALIAN UNIT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text('Kode: ${widget.booking['booking_code'] ?? "-"}', style: const TextStyle(fontSize: 11)),
-                          Text('Pelanggan: ${widget.booking['customer']?['name'] ?? "-"}', style: const TextStyle(fontSize: 11)),
-                          Text('Kondisi: Grade $_conditionGrade', style: const TextStyle(fontSize: 11)),
-                          const Divider(height: 16),
-                          const Text('KTP Fisik Telah Diserahkan Kembali', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.success)),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+      if (!mounted) return;
+
+      bool penaltyPaid = false;
+      if (penaltyAmount > 0 && _payPenaltyNow) {
+        // Launch Shared Payment Page for Authoritative Penalty Settlement
+        final result = await Navigator.push<PaymentResult>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PaymentPage(
+              paymentContext: PaymentContext.penalty(
+                booking: widget.booking,
+                penaltyDue: penaltyAmount,
               ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.pop(context);
-                },
-                child: const Text('Selesai'),
-              ),
-            ],
+            ),
           ),
         );
+
+        if (result != null && result.isSuccess) {
+          penaltyPaid = true;
+          ref.invalidate(bookingsListProvider);
+          ref.invalidate(closingSummaryProvider);
+        }
+      }
+
+      if (mounted) {
+        _showReturnSuccessDialog(penaltyAmount, penaltyPaid);
       }
     } catch (e) {
       if (mounted) {
@@ -671,7 +451,82 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
         );
       }
     } finally {
-      setState(() => _isSubmitting = false);
+      if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  void _showReturnSuccessDialog(double penaltyAmount, bool penaltyPaid) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: AppColors.success),
+            SizedBox(width: 8),
+            Text('Unit Berhasil Kembali!'),
+          ],
+        ),
+        content: Text(
+          'Pemeriksaan pengembalian selesai.\n'
+          'Unit kini siap disewakan kembali.\n'
+          '${penaltyPaid ? 'Denda keterlambatan berhasil dibayar & tercatat di revenue.\n' : (penaltyAmount > 0 ? 'Denda keterlambatan dicatat ke kasir (belum lunas).\n' : '')}'
+          'Silakan kembalikan KTP fisik kepada tamu.',
+        ),
+        actions: [
+          OutlinedButton.icon(
+            icon: const Icon(Icons.print_outlined, size: 18),
+            label: const Text('Cetak Bukti'),
+            onPressed: () {
+              final printerService = ThermalPrinterService();
+              final printerSettings = ref.read(printerProvider).settings;
+              final branchName = ref.read(businessProvider).activeBranchName ?? 'RentCore';
+              final model = ReceiptDataModel(
+                type: ReceiptType.rentalReturn,
+                title: 'BUKTI PENGEMBALIAN UNIT',
+                branchName: branchName,
+                bookingCode: widget.booking['booking_code']?.toString() ?? '',
+                customerName: widget.booking['customer']?['name']?.toString() ?? 'Pelanggan',
+                unitName: widget.booking['asset']?['name']?.toString() ?? 'Perangkat Gadget',
+                conditionGrade: 'Grade $_conditionGrade',
+                checklistNotes: 'Screen: ${_screenOk ? "OK" : "Minus"} • Kamera: ${_cameraOk ? "OK" : "Minus"}',
+                accessoriesNotes: 'Kabel: ${_cableReturned ? "OK" : "Kurang"} • Adaptor: ${_adapterReturned ? "OK" : "Kurang"}',
+                penaltyAmount: penaltyPaid ? penaltyAmount : 0.0,
+                paymentMethod: penaltyPaid ? 'Lunas Denda' : null,
+                totalAmount: penaltyPaid ? penaltyAmount : 0.0,
+                transactedAt: DateTime.now().toString().substring(0, 16),
+              );
+              final escposBytes = printerService.buildRentalReturnSlipBytes(model, printerSettings);
+              showDialog(
+                context: context,
+                builder: (dCtx) => ThermalReceiptPreviewDialog(
+                  title: 'Bukti Pengembalian',
+                  branchName: branchName,
+                  escposBytes: escposBytes,
+                  qrData: widget.booking['booking_code']?.toString(),
+                  content: Column(
+                    children: [
+                      const Text('BUKTI PENGEMBALIAN UNIT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text('Kode: ${widget.booking['booking_code'] ?? "-"}', style: const TextStyle(fontSize: 11)),
+                      Text('Pelanggan: ${widget.booking['customer']?['name'] ?? "-"}', style: const TextStyle(fontSize: 11)),
+                      Text('Kondisi: Grade $_conditionGrade', style: const TextStyle(fontSize: 11)),
+                      const Divider(height: 16),
+                      const Text('KTP Fisik Telah Diserahkan Kembali', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.success)),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            child: const Text('Selesai'),
+          ),
+        ],
+      ),
+    );
   }
 }

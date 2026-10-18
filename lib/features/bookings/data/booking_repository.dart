@@ -47,11 +47,21 @@ class BookingRepository {
     return response.data['data'];
   }
 
-  Future<Map<String, dynamic>> extendRental(int bookingId, int additionalHours, {double? fee}) async {
+  Future<Map<String, dynamic>> extendRental(
+    int bookingId,
+    int additionalHours, {
+    double? fee,
+    int? paymentMethodId,
+    double? cashReceived,
+    String? notes,
+  }) async {
     final data = <String, dynamic>{
       'additional_hours': additionalHours,
     };
     if (fee != null) data['additional_fee'] = fee;
+    if (paymentMethodId != null) data['payment_method_id'] = paymentMethodId;
+    if (cashReceived != null) data['cash_received'] = cashReceived;
+    if (notes != null) data['notes'] = notes;
 
     final response = await _client.dio.post(
       ApiConstants.extendBooking(bookingId),

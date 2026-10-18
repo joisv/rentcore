@@ -13,6 +13,8 @@ import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../../vouchers/data/voucher_repository.dart';
 import '../providers/booking_provider.dart';
+import '../../payments/models/payment_context.dart';
+import '../../payments/presentation/payment_page.dart';
 
 class RentalTierOption {
   final String unit; // 'hour', 'day', 'week', 'month'
@@ -63,6 +65,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   final _cashReceivedController = TextEditingController();
 
   // Unit Selection MUST Come First: initially null
+  Map<String, dynamic>? _selectedAsset;
   int? _selectedAssetId;
   int? _selectedAssetCategoryId;
   int? _selectedDuration;
@@ -151,6 +154,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   /// Handles user tapping a rental unit.
   void _onAssetSelected(Map<String, dynamic> asset) {
     setState(() {
+      _selectedAsset = asset;
       _selectedAssetId = asset['id'];
       final availableTiers = _getAvailableTiers(asset);
 
@@ -305,7 +309,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     });
   }
 
-  void _submitRental() async {
+  void _proceedToPayment() async {
     // 1. Unit Validation Must Come First
     if (_selectedAssetId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -366,208 +370,63 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       return;
     }
 
-    // 4. POS Cashier Payment Validation
     final totalPayable = (_basePrice - _discountAmount).clamp(0.0, double.infinity);
-    double cashReceived = 0.0;
-
-    if (_selectedPaymentMethodCode == 'CASH') {
-      cashReceived = CurrencyFormatter.parse(_cashReceivedController.text);
-      if (cashReceived < totalPayable) {
-        final shortage = totalPayable - cashReceived;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Uang tunai kurang ${CurrencyFormatter.format(shortage)}! Tagihan belum mencukupi.'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-        return;
-      }
-    } else {
-      if (!_nonCashConfirmed) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Harap centang konfirmasi pembayaran non-tunai telah diverifikasi.'),
-            backgroundColor: AppColors.warning,
-          ),
-        );
-        return;
-      }
-      cashReceived = totalPayable;
+    final activeBranchId = ref.read(businessProvider).activeBranchId;
+    final activeBranchName = ref.read(businessProvider).activeBranchName;
+    final payload = <String, dynamic>{
+      'customer_name': _nameController.text.trim(),
+      'customer_phone': _phoneController.text.trim(),
+      'customer_address': address,
+      'identity_photo_base64': _identityPhotoBase64,
+      'asset_ids': [_selectedAssetId],
+      'duration_hours': _selectedDuration,
+      'duration_unit': _selectedDurationUnit,
+      'duration_value': _selectedDurationValue,
+      'collateral_type': 'KTP Asli',
+      'collateral_storage_slot': _slotController.text.trim(),
+      'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
+    };
+    if (activeBranchId != null) {
+      payload['affiliate_id'] = activeBranchId;
     }
 
-    setState(() => _isSubmitting = true);
+    final model = _selectedAsset?['model'] as Map?;
+    final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
 
-    try {
-      final activeBranchId = ref.read(businessProvider).activeBranchId;
-      final payload = <String, dynamic>{
-        'customer_name': _nameController.text.trim(),
-        'customer_phone': _phoneController.text.trim(),
-        'customer_address': address,
-        'identity_photo_base64': _identityPhotoBase64,
-        'asset_ids': [_selectedAssetId],
-        'duration_hours': _selectedDuration,
-        'duration_unit': _selectedDurationUnit,
-        'duration_value': _selectedDurationValue,
-        'collateral_type': 'KTP Asli',
-        'collateral_storage_slot': _slotController.text.trim(),
-        'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
-        'payment_method_id': _selectedPaymentMethodId,
-        'cash_received': cashReceived,
-      };
-      if (activeBranchId != null) {
-        payload['affiliate_id'] = activeBranchId;
-      }
+    final result = await Navigator.push<PaymentResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentPage(
+          paymentContext: PaymentContext.booking(
+            customerName: _nameController.text.trim(),
+            customerPhone: _phoneController.text.trim(),
+            customerAddress: address,
+            deviceName: deviceModelName,
+            assetCode: _selectedAsset?['asset_code']?.toString(),
+            totalAmount: totalPayable,
+            branchId: activeBranchId,
+            branchName: activeBranchName,
+            extraPayload: payload,
+          ),
+        ),
+      ),
+    );
 
-      final booking = await ref.read(bookingRepositoryProvider).createRental(payload);
+    if (result != null && result.isSuccess) {
       ref.invalidate(bookingsListProvider);
       ref.invalidate(closingSummaryProvider);
       ref.invalidate(readyAssetsProvider);
       ref.invalidate(inventoryListProvider);
 
       if (mounted) {
-        final change = _selectedPaymentMethodCode == 'CASH' ? (cashReceived - totalPayable) : 0.0;
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: AppColors.success),
-                SizedBox(width: 8),
-                Text('Sewa Berhasil Aktif!'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Booking ${booking['booking_code']} telah aktif.\n'
-                  'Perangkat langsung diserahkan ke pelanggan.\n'
-                  'Jaminan KTP diamankan di: ${_slotController.text}.',
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Total Tagihan:', style: TextStyle(fontSize: 12)),
-                          Text(CurrencyFormatter.format(totalPayable), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ],
-                      ),
-                      if (_selectedPaymentMethodCode == 'CASH') ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Uang Diterima:', style: TextStyle(fontSize: 12)),
-                            Text(CurrencyFormatter.format(cashReceived), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Kembalian:', style: TextStyle(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.bold)),
-                            Text(CurrencyFormatter.format(change), style: const TextStyle(fontSize: 13, color: AppColors.success, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.print_outlined, size: 18),
-                label: const Text('Cetak Struk'),
-                onPressed: () {
-                  final printerService = ThermalPrinterService();
-                  final printerSettings = ref.read(printerProvider).settings;
-                  final branchName = ref.read(businessProvider).activeBranchName ?? 'RentCore';
-                  String assetName = 'Perangkat Gadget';
-                  final bAsset = booking['asset'];
-                  if (bAsset is Map && bAsset['name'] != null) {
-                    assetName = bAsset['name'].toString();
-                  } else {
-                    final bItems = booking['items'];
-                    if (bItems is List && bItems.isNotEmpty && bItems[0] is Map && bItems[0]['asset'] is Map) {
-                      assetName = bItems[0]['asset']['name']?.toString() ?? 'Perangkat Gadget';
-                    }
-                  }
-                  final model = ReceiptDataModel(
-                    type: ReceiptType.rentalBooking,
-                    title: 'STRUK SEWA PERANGKAT',
-                    branchName: branchName,
-                    bookingCode: booking['booking_code']?.toString() ?? '',
-                    customerName: _nameController.text.trim(),
-                    customerPhone: _phoneController.text.trim(),
-                    unitName: assetName,
-                    rentalDurationText: '$_selectedDurationValue $_selectedDurationUnit',
-                    collateralInfo: 'KTP Fisik - Slot ${_slotController.text}',
-                    subtotal: _basePrice,
-                    discount: _discountAmount,
-                    totalAmount: totalPayable,
-                    paymentMethod: _selectedPaymentMethodCode ?? 'Tunai',
-                    cashReceived: cashReceived,
-                    cashChange: change,
-                    transactedAt: DateTime.now().toString().substring(0, 16),
-                  );
-                  final escposBytes = printerService.buildRentalBookingSlipBytes(model, printerSettings);
-                  showDialog(
-                    context: context,
-                    builder: (dCtx) => ThermalReceiptPreviewDialog(
-                      title: 'Cetak Struk Sewa',
-                      branchName: branchName,
-                      escposBytes: escposBytes,
-                      qrData: booking['booking_code']?.toString(),
-                      content: Column(
-                        children: [
-                          const Text('STRUK SEWA PERANGKAT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text('No: ${booking['booking_code'] ?? "-"}', style: const TextStyle(fontSize: 11)),
-                          Text('Pelanggan: ${_nameController.text}', style: const TextStyle(fontSize: 11)),
-                          Text('Unit: $assetName', style: const TextStyle(fontSize: 11)),
-                          const Divider(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Total Biaya:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                              Text(CurrencyFormatter.format(totalPayable), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.pop(context);
-                },
-                child: const Text('Selesai & Tutup'),
-              ),
-            ],
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sewa ${result.transactionCode ?? ''} berhasil aktif & dibayar!'),
+            backgroundColor: AppColors.success,
           ),
         );
+        Navigator.pop(context);
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal membuat sewa: $e'), backgroundColor: AppColors.danger),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -575,13 +434,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   Widget build(BuildContext context) {
     final readyAssetsAsync = ref.watch(readyAssetsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
-    final paymentMethodsAsync = ref.watch(paymentMethodsProvider);
-
     final totalPayable = (_basePrice - _discountAmount).clamp(0.0, double.infinity);
-    final cashReceived = CurrencyFormatter.parse(_cashReceivedController.text);
-    final cashShortage = CashPaymentSuggestionHelper.calculateShortage(amountDue: totalPayable, cashReceived: cashReceived);
-    final cashChange = CashPaymentSuggestionHelper.calculateChange(amountDue: totalPayable, cashReceived: cashReceived);
-
     final isUnitSelected = _selectedAssetId != null;
 
     return Scaffold(
@@ -1283,7 +1136,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             ),
             const SizedBox(height: 20),
 
-            // STEP 4: POS-STYLE CASHIER PAYMENT SECTION
+            // STEP 4: RINGKASAN BIAYA & PEMBAYARAN KASIR POS
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -1309,7 +1162,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       ),
                       const SizedBox(width: 8),
                       const Text(
-                        'PEMBAYARAN KASIR POS',
+                        'RINGKASAN SEWA & PEMBAYARAN',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -1319,257 +1172,97 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-
-                  // Payment Method Selector
-                  paymentMethodsAsync.when(
-                    loading: () => const LinearProgressIndicator(),
-                    error: (e, _) => Text('Gagal memuat metode pembayaran: $e'),
-                    data: (methods) {
-                      if (methods.isEmpty) {
-                        return const Text('Metode pembayaran tidak tersedia.');
-                      }
-
-                      return Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: methods.map((m) {
-                          final isSelected = _selectedPaymentMethodId == m['id'];
-                          return ChoiceChip(
-                            label: Text(m['name'] ?? m['code'] ?? 'Metode'),
-                            selected: isSelected,
-                            onSelected: (_) {
-                              setState(() {
-                                _selectedPaymentMethodId = m['id'];
-                                _selectedPaymentMethodCode = (m['code'] ?? 'CASH').toString().toUpperCase();
-                              });
-                            },
-                            selectedColor: AppColors.obsidian,
-                            labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.textPrimary,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-
                   const SizedBox(height: 16),
-
-                  // If Cash: Show Amount Received input & Change Calculation
-                  if (_selectedPaymentMethodCode == 'CASH') ...[
-                    TextField(
-                      controller: _cashReceivedController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Jumlah Uang Diterima (Rp)',
-                        hintText: 'Masukkan nominal uang tunai dari pelanggan',
-                        prefixIcon: const Icon(Icons.attach_money_rounded, size: 20),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
-                          tooltip: 'Uang Pas',
-                          onPressed: () {
-                            _cashReceivedController.text = totalPayable.toInt().toString();
-                          },
-                        ),
-                      ),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    const SizedBox(height: 10),
-
-                    // Cash denomination dynamic suggestions
-                    Builder(
-                      builder: (context) {
-                        final cashSuggestions = CashPaymentSuggestionHelper.getSuggestedAmounts(totalPayable);
-                        if (cashSuggestions.isEmpty) return const SizedBox.shrink();
-
-                        return Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: cashSuggestions.map((amt) {
-                            final isExact = amt == totalPayable.toInt();
-                            return ActionChip(
-                              label: Text(
-                                CurrencyFormatter.format(amt),
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              tooltip: isExact ? 'Uang Pas' : null,
-                              onPressed: () {
-                                _cashReceivedController.text = amt.toString();
-                              },
-                            );
-                          }).toList(),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Change or Shortage Display
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: cashShortage > 0 ? AppColors.dangerLight : AppColors.successLight,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: cashShortage > 0 ? AppColors.danger : AppColors.success,
-                          width: 1,
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Unit Sewa:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                            Text(
+                              _selectedAsset?['model']?['name'] ?? (isUnitSelected ? 'Unit Dipilih' : 'Belum dipilih'),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ],
                         ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Durasi Sewa:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                            Text(
+                              _selectedDuration != null ? '$_selectedDuration Jam ($_selectedDurationValue $_selectedDurationUnit)' : '-',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Subtotal Tarif:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                            Text(
+                              isUnitSelected ? CurrencyFormatter.format(_basePrice) : 'Rp 0',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                        if (_discountAmount > 0) ...[
+                          const SizedBox(height: 8),
                           Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Icon(
-                                cashShortage > 0 ? Icons.error_outline_rounded : Icons.check_circle_rounded,
-                                color: cashShortage > 0 ? AppColors.danger : AppColors.success,
-                                size: 22,
-                              ),
-                              const SizedBox(width: 8),
+                              const Text('Diskon Voucher:', style: TextStyle(fontSize: 13, color: AppColors.success)),
                               Text(
-                                cashShortage > 0 ? 'Kekurangan Uang:' : 'Kembalian Pelanggan:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13,
-                                  color: cashShortage > 0 ? AppColors.danger : AppColors.success,
-                                ),
+                                '- ${CurrencyFormatter.format(_discountAmount)}',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.success),
                               ),
                             ],
                           ),
-                          Text(
-                            CurrencyFormatter.format(cashShortage > 0 ? cashShortage : cashChange),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                              color: cashShortage > 0 ? AppColors.danger : AppColors.success,
-                            ),
-                          ),
                         ],
-                      ),
-                    ),
-                  ] else ...[
-                    // Non-Cash: Confirmation Checkbox
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value: _nonCashConfirmed,
-                            activeColor: AppColors.obsidian,
-                            onChanged: (val) {
-                              setState(() => _nonCashConfirmed = val ?? false);
-                            },
-                          ),
-                          const Expanded(
-                            child: Text(
-                              'Konfirmasi bukti transfer/pembayaran QRIS telah diterima dan diverifikasi oleh kasir.',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          child: Divider(height: 1, color: AppColors.border),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'TOTAL PEMBAYARAN POS:',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // BILLING SUMMARY CARD
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: AppColors.obsidian,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Subtotal Sewa', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      Text(
-                        isUnitSelected ? CurrencyFormatter.format(_basePrice) : 'Rp 0',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                  if (_discountAmount > 0) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Potongan Diskon Voucher', style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
-                        Text(
-                          '- ${CurrencyFormatter.format(_discountAmount)}',
-                          style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w700, fontSize: 13),
+                            Text(
+                              CurrencyFormatter.format(totalPayable),
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.obsidian),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(color: Colors.white24, height: 1),
                   ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'TOTAL TAGIHAN POS',
-                            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.5),
-                          ),
-                          Text('Wajib lunas di meja kasir', style: TextStyle(color: Colors.white60, fontSize: 11)),
-                        ],
-                      ),
-                      Text(
-                        CurrencyFormatter.format(totalPayable),
-                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
-                      ),
-                    ],
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: !isUnitSelected ? null : _proceedToPayment,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    icon: const Icon(Icons.payment_rounded),
+                    label: Text(
+                      !isUnitSelected
+                          ? 'Pilih Unit Rental Terlebih Dahulu'
+                          : 'Lanjut ke Pembayaran Kasir POS 💳',
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 20),
-
-            // SUBMIT BUTTON WITH VALIDATION AND PROTECTION
-            ElevatedButton(
-              onPressed: (_isSubmitting || !isUnitSelected || (_selectedPaymentMethodCode == 'CASH' && cashShortage > 0))
-                  ? null
-                  : _submitRental,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: _isSubmitting
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : Text(
-                      !isUnitSelected
-                          ? 'Pilih Unit Rental Terlebih Dahulu'
-                          : (_selectedPaymentMethodCode == 'CASH' && cashShortage > 0
-                              ? 'Uang Tunai Kurang (${CurrencyFormatter.format(cashShortage)})'
-                              : 'Konfirmasi Bayar & Aktifkan Sewa 🖨️'),
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                    ),
             ),
           ],
         ),
