@@ -353,7 +353,66 @@ class ThermalPrinterService {
       ));
     }
 
-    if (data.unitName != null) {
+    if (data.type == ReceiptType.rentalExchange) {
+      lines.add(const ReceiptLineItem(
+        type: ReceiptLineType.text,
+        text: 'PERANGKAT LAMA (DIKEMBALIKAN):',
+        isBold: true,
+      ));
+      if (data.oldUnitName != null) {
+        lines.add(ReceiptLineItem(
+          type: ReceiptLineType.text,
+          text: data.oldUnitName!,
+        ));
+      }
+      if (data.oldUnitSerial != null && data.oldUnitSerial!.isNotEmpty) {
+        lines.add(ReceiptLineItem(
+          type: ReceiptLineType.text,
+          text: 'SN/IMEI: ${data.oldUnitSerial}',
+        ));
+      }
+      if (data.exchangeReason != null) {
+        lines.add(ReceiptLineItem(
+          type: ReceiptLineType.text,
+          text: 'Kendala: ${data.exchangeReason}',
+        ));
+      }
+      lines.add(ReceiptLineItem(
+        type: ReceiptLineType.divider,
+        text: divider,
+        alignment: ReceiptHeaderAlignment.center,
+      ));
+      lines.add(const ReceiptLineItem(
+        type: ReceiptLineType.text,
+        text: 'PERANGKAT BARU (PENGGANTI):',
+        isBold: true,
+      ));
+      if (data.unitName != null) {
+        lines.add(ReceiptLineItem(
+          type: ReceiptLineType.text,
+          text: data.unitName!,
+        ));
+      }
+      if (data.unitSerial != null && data.unitSerial!.isNotEmpty) {
+        lines.add(ReceiptLineItem(
+          type: ReceiptLineType.text,
+          text: 'SN/IMEI: ${data.unitSerial}',
+        ));
+      }
+      if (data.rentalEndDate != null) {
+        lines.add(ReceiptLineItem(
+          type: ReceiptLineType.keyValue,
+          leftText: 'Batas Sewa Tetap',
+          rightText: data.rentalEndDate!,
+          text: _formatTwoColumn('Batas Sewa Tetap', data.rentalEndDate!, width),
+        ));
+      }
+      lines.add(ReceiptLineItem(
+        type: ReceiptLineType.divider,
+        text: divider,
+        alignment: ReceiptHeaderAlignment.center,
+      ));
+    } else if (data.unitName != null) {
       if (!isEcho) {
         lines.add(const ReceiptLineItem(
           type: ReceiptLineType.text,
@@ -426,6 +485,15 @@ class ThermalPrinterService {
         leftText: 'Denda Telat',
         rightText: 'Rp ${_formatNumber(data.penaltyAmount!)}',
         text: _formatTwoColumn('Denda Telat', 'Rp ${_formatNumber(data.penaltyAmount!)}', width),
+      ));
+    }
+    if (data.type == ReceiptType.rentalExchange && data.priceDifferential != null) {
+      lines.add(ReceiptLineItem(
+        type: ReceiptLineType.keyValue,
+        leftText: 'Selisih Biaya',
+        rightText: data.priceDifferential! > 0 ? 'Rp ${_formatNumber(data.priceDifferential!)}' : 'Rp 0 (Setara)',
+        text: _formatTwoColumn('Selisih Biaya', data.priceDifferential! > 0 ? 'Rp ${_formatNumber(data.priceDifferential!)}' : 'Rp 0 (Setara)', width),
+        isBold: true,
       ));
     }
 

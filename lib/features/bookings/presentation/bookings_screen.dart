@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../shared/widgets/status_badge.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
 import '../providers/booking_provider.dart';
 import 'direct_rental_screen.dart';
+import 'exchange_history_sheet.dart';
+import 'exchange_wizard_screen.dart';
 import 'return_wizard_screen.dart';
 
 class BookingsScreen extends ConsumerWidget {
@@ -94,8 +97,20 @@ class BookingsScreen extends ConsumerWidget {
                       final item = bookings[index];
                       final customer = item['customer'] ?? {};
                       final items = (item['items'] as List?) ?? [];
-                      final firstAsset = items.isNotEmpty ? items.first['asset'] : null;
-                      final model = firstAsset?['model'];
+                      final exchanges = (item['exchanges'] as List?) ?? [];
+                      Map<String, dynamic>? activeItem;
+                      for (final it in items) {
+                        if (it is Map && (it['status'] == 'active' || it['status'] == null)) {
+                          activeItem = (it as Map).cast<String, dynamic>();
+                          break;
+                        }
+                      }
+                      activeItem ??= (items.isNotEmpty && items.first is Map)
+                          ? (items.first as Map).cast<String, dynamic>()
+                          : null;
+                      final activeAsset = (item['active_asset'] as Map?)?.cast<String, dynamic>() ??
+                          (activeItem?['asset'] as Map?)?.cast<String, dynamic>();
+                      final model = activeAsset?['model'];
 
                       final endAt = item['end_at'] != null ? DateTime.tryParse(item['end_at']) : null;
                       final isReturned = item['status'] == 'returned';
@@ -111,46 +126,69 @@ class BookingsScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header Row: Code & Relative time tag
+                            // Header Row: Code, Exchange tag & Relative time tag
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceMuted,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    item['booking_code'] ?? '',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceMuted,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        item['booking_code'] ?? '',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (exchanges.isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      GestureDetector(
+                                        onTap: () => ExchangeHistorySheet.show(context, item),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.infoLight,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.swap_horiz_rounded, size: 12, color: AppColors.info),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                'Ditukar (${exchanges.length}x)',
+                                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.info),
+                                              ),
+                                              const SizedBox(width: 2),
+                                              const Icon(Icons.info_outline_rounded, size: 11, color: AppColors.info),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                Container(
+                                StatusBadge(
+                                  label: isReturned ? 'SELESAI' : DateFormatter.formatRelative(endAt),
+                                  textColor: isReturned
+                                      ? AppColors.textSecondary
+                                      : (endAt != null && endAt.isBefore(DateTime.now()))
+                                          ? AppColors.danger
+                                          : AppColors.info,
+                                  backgroundColor: isReturned
+                                      ? AppColors.surfaceMuted
+                                      : (endAt != null && endAt.isBefore(DateTime.now()))
+                                          ? AppColors.dangerLight
+                                          : AppColors.infoLight,
+                                  borderRadius: 12,
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: isReturned
-                                        ? AppColors.surfaceMuted
-                                        : (endAt != null && endAt.isBefore(DateTime.now()))
-                                            ? AppColors.dangerLight
-                                            : AppColors.infoLight,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    isReturned ? 'SELESAI' : DateFormatter.formatRelative(endAt),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: isReturned
-                                          ? AppColors.textSecondary
-                                          : (endAt != null && endAt.isBefore(DateTime.now()))
-                                              ? AppColors.danger
-                                              : AppColors.info,
-                                    ),
-                                  ),
                                 ),
                               ],
                             ),
@@ -181,6 +219,17 @@ class BookingsScreen extends ConsumerWidget {
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
+                                      if (activeAsset?['asset_code'] != null || activeAsset?['serial_number'] != null) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${activeAsset?['asset_code'] ?? ''}${activeAsset?['serial_number'] != null ? ' • SN: ${activeAsset?['serial_number']}' : ''}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontFamily: 'monospace',
+                                            color: AppColors.textMuted,
+                                          ),
+                                        ),
+                                      ],
                                       const SizedBox(height: 4),
                                       Text(
                                         '${customer['name'] ?? 'Pelanggan'} • ${customer['phone'] ?? ''}',
@@ -221,18 +270,41 @@ class BookingsScreen extends ConsumerWidget {
                                   Expanded(
                                     child: OutlinedButton(
                                       style: OutlinedButton.styleFrom(
-                                        minimumSize: const Size.fromHeight(40),
+                                        minimumSize: const Size.fromHeight(38),
                                         padding: EdgeInsets.zero,
                                       ),
                                       onPressed: () => _showExtendDialog(context, ref, item),
-                                      child: const Text('+ Tambah Jam', style: TextStyle(fontSize: 12)),
+                                      child: const Text('+ Tambah Jam', style: TextStyle(fontSize: 11)),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(38),
+                                        padding: EdgeInsets.zero,
+                                        foregroundColor: AppColors.info,
+                                        side: const BorderSide(color: AppColors.info),
+                                      ),
+                                      onPressed: () async {
+                                        final res = await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => ExchangeWizardScreen(booking: item),
+                                          ),
+                                        );
+                                        if (res != null) {
+                                          ref.invalidate(bookingsListProvider);
+                                        }
+                                      },
+                                      child: const Text('Ganti Unit', style: TextStyle(fontSize: 11)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
                                   Expanded(
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
-                                        minimumSize: const Size.fromHeight(40),
+                                        minimumSize: const Size.fromHeight(38),
                                         padding: EdgeInsets.zero,
                                       ),
                                       onPressed: () {
@@ -243,7 +315,7 @@ class BookingsScreen extends ConsumerWidget {
                                           ),
                                         );
                                       },
-                                      child: const Text('Pengembalian', style: TextStyle(fontSize: 12)),
+                                      child: const Text('Pengembalian', style: TextStyle(fontSize: 11)),
                                     ),
                                   ),
                                 ],

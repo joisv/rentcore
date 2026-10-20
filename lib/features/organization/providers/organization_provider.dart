@@ -75,6 +75,7 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
       final branches = await _repository.fetchBranches(businessId);
       final members = await _repository.fetchMembers(businessId);
 
+      if (!ref.mounted) return;
       state = state.copyWith(
         isLoading: false,
         userRole: role,
@@ -82,6 +83,7 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
         members: members,
       );
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -153,6 +155,10 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
     if (state.businessId != null) {
       await loadOrganization(state.businessId!, businessName: state.businessName);
     }
+  }
+
+  void reset() {
+    state = const OrganizationState();
   }
 }
 

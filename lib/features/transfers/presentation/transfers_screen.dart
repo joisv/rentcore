@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/status_badge.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../bookings/data/booking_repository.dart';
@@ -239,45 +240,6 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
     final isSender = currentUserId != null && currentUserId == senderId;
     final canCancel = (status == 'pending' || status == 'in_transit') && (isOwner || isSender);
 
-    Color statusColor;
-    Color statusBg;
-    String statusText;
-    IconData statusIcon;
-
-    switch (status) {
-      case 'pending':
-        statusColor = AppColors.warning;
-        statusBg = AppColors.warningLight;
-        statusText = 'Menunggu Persetujuan';
-        statusIcon = Icons.hourglass_top_rounded;
-        break;
-      case 'received':
-        statusColor = AppColors.success;
-        statusBg = AppColors.successLight;
-        statusText = 'Diterima';
-        statusIcon = Icons.check_circle_rounded;
-        break;
-      case 'rejected':
-        statusColor = AppColors.danger;
-        statusBg = AppColors.dangerLight;
-        statusText = 'Ditolak';
-        statusIcon = Icons.highlight_off_rounded;
-        break;
-      case 'cancelled':
-        statusColor = AppColors.textMuted;
-        statusBg = AppColors.surfaceMuted;
-        statusText = 'Dibatalkan';
-        statusIcon = Icons.cancel_rounded;
-        break;
-      case 'in_transit':
-      default:
-        statusColor = Colors.blue.shade700;
-        statusBg = Colors.blue.shade50;
-        statusText = 'Dalam Pengiriman';
-        statusIcon = Icons.local_shipping_rounded;
-        break;
-    }
-
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -307,28 +269,7 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
                   letterSpacing: 0.5,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, size: 14, color: statusColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      statusText,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              StatusBadge.transfer(status),
             ],
           ),
           const SizedBox(height: 12),

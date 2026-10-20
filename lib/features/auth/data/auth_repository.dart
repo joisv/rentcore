@@ -33,16 +33,21 @@ class AuthRepository {
       await prefs.setInt('active_branch_id', user['affiliate']['id'] ?? 0);
     }
 
-    if (user['businesses'] != null && (user['businesses'] as List).isNotEmpty) {
-      final firstBiz = (user['businesses'] as List).first;
+    final businesses = data['businesses'] ?? user['businesses'];
+    if (businesses is List && businesses.isNotEmpty) {
+      final firstBiz = businesses.first;
       await prefs.setInt('active_business_id', firstBiz['id'] ?? 0);
       await prefs.setString('active_business_name', firstBiz['name'] ?? '');
       if (firstBiz['branches'] != null && (firstBiz['branches'] as List).isNotEmpty) {
         final firstBranch = (firstBiz['branches'] as List).first;
         await prefs.setInt('active_branch_id', firstBranch['id'] ?? 0);
         await prefs.setString('branch_name', firstBranch['name'] ?? '');
+      } else {
+        await prefs.remove('active_branch_id');
+        await prefs.remove('branch_name');
+        await prefs.remove('branch_code');
       }
-    } else {
+    } else if (businesses is List && businesses.isEmpty) {
       await prefs.remove('active_business_id');
       await prefs.remove('active_business_name');
       await prefs.remove('active_branch_id');
@@ -85,16 +90,21 @@ class AuthRepository {
       await prefs.setString('user_avatar', user['avatar_url']);
     }
 
-    if (user['businesses'] != null && (user['businesses'] as List).isNotEmpty) {
-      final firstBiz = (user['businesses'] as List).first;
+    final businesses = data['businesses'] ?? user['businesses'];
+    if (businesses is List && businesses.isNotEmpty) {
+      final firstBiz = businesses.first;
       await prefs.setInt('active_business_id', firstBiz['id'] ?? 0);
       await prefs.setString('active_business_name', firstBiz['name'] ?? '');
       if (firstBiz['branches'] != null && (firstBiz['branches'] as List).isNotEmpty) {
         final firstBranch = (firstBiz['branches'] as List).first;
         await prefs.setInt('active_branch_id', firstBranch['id'] ?? 0);
         await prefs.setString('branch_name', firstBranch['name'] ?? '');
+      } else {
+        await prefs.remove('active_branch_id');
+        await prefs.remove('branch_name');
+        await prefs.remove('branch_code');
       }
-    } else {
+    } else if (businesses is List && businesses.isEmpty) {
       await prefs.remove('active_business_id');
       await prefs.remove('active_business_name');
       await prefs.remove('active_branch_id');
@@ -208,6 +218,8 @@ class AuthRepository {
     }
     if (branchName != null) {
       await prefs.setString('branch_name', branchName);
+    } else {
+      await prefs.remove('branch_name');
     }
   }
 
@@ -218,30 +230,38 @@ class AuthRepository {
     final prefs = await SharedPreferences.getInstance();
     try {
       final response = await _client.dio.get(ApiConstants.me);
-      final user = response.data['data']['user'];
+      final resData = response.data['data'];
+      final user = resData['user'];
+      final businesses = resData['businesses'] ?? user['businesses'];
       // Ensure active business is set if available
       final currentBizId = prefs.getInt('active_business_id');
-      if (user['businesses'] != null && (user['businesses'] as List).isNotEmpty) {
-        final bizList = (user['businesses'] as List);
-        final matches = bizList.where((b) => b['id'] == currentBizId);
+      if (businesses is List && businesses.isNotEmpty) {
+        final matches = businesses.where((b) => b['id'] == currentBizId);
         if (currentBizId == null || currentBizId == 0 || matches.isEmpty) {
-          final firstBiz = bizList.first;
+          final firstBiz = businesses.first;
           await prefs.setInt('active_business_id', firstBiz['id'] ?? 0);
           await prefs.setString('active_business_name', firstBiz['name'] ?? '');
           if (firstBiz['branches'] != null && (firstBiz['branches'] as List).isNotEmpty) {
             final firstBranch = (firstBiz['branches'] as List).first;
             await prefs.setInt('active_branch_id', firstBranch['id'] ?? 0);
             await prefs.setString('branch_name', firstBranch['name'] ?? '');
+          } else {
+            await prefs.remove('active_branch_id');
+            await prefs.remove('branch_name');
+            await prefs.remove('branch_code');
           }
         }
-      } else {
+      } else if (businesses is List && businesses.isEmpty) {
         await prefs.remove('active_business_id');
         await prefs.remove('active_business_name');
         await prefs.remove('active_branch_id');
         await prefs.remove('branch_name');
         await prefs.remove('branch_code');
       }
-      return user;
+      return {
+        'user': user,
+        'businesses': businesses,
+      };
     } catch (_) {
       return null;
     }
@@ -257,7 +277,7 @@ class AuthRepository {
       await SecureTokenStorage().clearToken();
     } catch (_) {}
 
-    // Purge tenant-scoped session context from preferences while preserving
+    // Purge tenant-scoped session context and user profile from preferences while preserving
     // hardware configurations (thermal printer settings, paired Bluetooth devices)
     // and network setup (custom server base URL, google server client ID).
     try {
@@ -267,6 +287,10 @@ class AuthRepository {
       await prefs.remove('active_branch_id');
       await prefs.remove('branch_name');
       await prefs.remove('branch_code');
+      await prefs.remove('user_name');
+      await prefs.remove('user_role');
+      await prefs.remove('user_email');
+      await prefs.remove('user_avatar');
     } catch (_) {}
   }
 }

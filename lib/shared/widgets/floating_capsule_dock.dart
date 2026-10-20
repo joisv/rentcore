@@ -48,12 +48,18 @@ class FloatingCapsuleDock extends StatelessWidget {
           ),
           _buildDockItem(
             index: 2,
+            icon: Icons.inventory_2_outlined,
+            activeIcon: Icons.inventory_2_rounded,
+            label: 'Aset',
+          ),
+          _buildDockItem(
+            index: 3,
             icon: Icons.confirmation_number_outlined,
             activeIcon: Icons.confirmation_number_rounded,
             label: 'Voucher',
           ),
           _buildDockItem(
-            index: 3,
+            index: 4,
             icon: Icons.point_of_sale_outlined,
             activeIcon: Icons.point_of_sale_rounded,
             label: 'Kasir',
@@ -78,7 +84,7 @@ class FloatingCapsuleDock extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
         padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 16 : 12,
+          horizontal: isSelected ? 14 : 10,
           vertical: 8,
         ),
         decoration: BoxDecoration(

@@ -55,6 +55,7 @@ class VoucherNotifier extends Notifier<VoucherState> {
   }
 
   Future<void> loadVouchers() async {
+    if (!ref.mounted) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
       final list = await _repository.fetchVouchers(
@@ -62,8 +63,10 @@ class VoucherNotifier extends Notifier<VoucherState> {
         search: state.searchQuery,
         branchId: state.selectedBranchId,
       );
+      if (!ref.mounted) return;
       state = state.copyWith(isLoading: false, vouchers: list);
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(
         isLoading: false,
         error: e.toString().replaceAll('Exception: ', ''),
@@ -143,6 +146,10 @@ class VoucherNotifier extends Notifier<VoucherState> {
       );
       rethrow;
     }
+  }
+
+  void reset() {
+    state = const VoucherState();
   }
 }
 

@@ -45,12 +45,21 @@ class ApiConstants {
   static String bookingDetail(dynamic id) => '/bookings/$id';
   static String extendBooking(dynamic id) => '/bookings/$id/extend';
   static String returnBooking(dynamic id) => '/bookings/$id/return';
+  static String availableReplacements(dynamic id, {dynamic assetId}) =>
+      assetId != null ? '/bookings/$id/available-replacements?asset_id=$assetId' : '/bookings/$id/available-replacements';
+  static String exchangeBooking(dynamic id) => '/bookings/$id/exchange';
 
   // Cashier
   static const String closingSummary = '/cashier/closing-summary';
   static const String paymentMethods = '/cashier/payment-methods';
   static const String cashierPay = '/cashier/pay';
+  static String voidTransaction(dynamic id) => '/cashier/transactions/$id/void';
   static String cashierReceipt(dynamic id) => '/cashier/transactions/$id/receipt';
+  static const String cashierExpenses = '/cashier/expenses';
+  static String approveExpense(dynamic id) => '/cashier/expenses/$id/approve';
+  static const String currentShift = '/cashier/shift/current';
+  static const String openShift = '/cashier/shift/open';
+  static const String closeShift = '/cashier/shift/close';
 
   // Inter-Affiliate Stock Transfers
   static const String transfers = '/transfers';

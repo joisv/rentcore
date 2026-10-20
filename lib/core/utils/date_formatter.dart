@@ -5,14 +5,22 @@ class DateFormatter {
     if (dateTime == null) return '-';
     final dt = dateTime is DateTime ? dateTime : DateTime.tryParse(dateTime.toString());
     if (dt == null) return dateTime.toString();
-    return DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(dt);
+    try {
+      return DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(dt);
+    } catch (_) {
+      return DateFormat('d MMM yyyy, HH:mm').format(dt);
+    }
   }
 
   static String formatShort(dynamic dateTime) {
     if (dateTime == null) return '-';
     final dt = dateTime is DateTime ? dateTime : DateTime.tryParse(dateTime.toString());
     if (dt == null) return dateTime.toString();
-    return DateFormat('d MMM yyyy', 'id_ID').format(dt);
+    try {
+      return DateFormat('d MMM yyyy', 'id_ID').format(dt);
+    } catch (_) {
+      return DateFormat('d MMM yyyy').format(dt);
+    }
   }
 
   static String formatTime(DateTime? dateTime) {

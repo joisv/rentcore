@@ -264,6 +264,7 @@ enum ReceiptType {
   rentalBooking,
   posPayment,
   rentalReturn,
+  rentalExchange,
   closingShift,
   voucherSlip,
   testPrint;
@@ -276,6 +277,8 @@ enum ReceiptType {
         return 'STRUK TRANSAKSI POS';
       case ReceiptType.rentalReturn:
         return 'BUKTI PENGEMBALIAN UNIT';
+      case ReceiptType.rentalExchange:
+        return 'BUKTI PENGGANTIAN UNIT';
       case ReceiptType.closingShift:
         return 'LAPORAN CLOSING SHIFT';
       case ReceiptType.voucherSlip:
@@ -319,6 +322,10 @@ class ReceiptDataModel {
   final Map<String, double>? shiftBreakdown;
   final int? shiftTotalTransactions;
   final String? transactedAt;
+  final String? oldUnitName;
+  final String? oldUnitSerial;
+  final double? priceDifferential;
+  final String? exchangeReason;
 
   const ReceiptDataModel({
     required this.type,
@@ -353,6 +360,10 @@ class ReceiptDataModel {
     this.shiftBreakdown,
     this.shiftTotalTransactions,
     this.transactedAt,
+    this.oldUnitName,
+    this.oldUnitSerial,
+    this.priceDifferential,
+    this.exchangeReason,
   });
 }
 

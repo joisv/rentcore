@@ -8,6 +8,7 @@ import 'features/bookings/presentation/bookings_screen.dart';
 import 'features/bookings/presentation/direct_rental_screen.dart';
 import 'features/cashier/presentation/cashier_screen.dart';
 import 'features/home/presentation/home_screen.dart';
+import 'features/inventory/presentation/inventory_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'core/network/api_client.dart';
 import 'core/constants/app_colors.dart';
@@ -140,6 +141,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
                   },
                 ),
                 const BookingsScreen(),
+                const InventoryScreen(),
                 const VoucherScreen(),
                 const CashierScreen(),
               ],

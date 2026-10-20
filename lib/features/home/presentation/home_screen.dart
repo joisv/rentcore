@@ -99,6 +99,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
+    final businessState = ref.watch(businessProvider);
     final kpiAsync = ref.watch(dashboardKpiProvider);
 
     return Scaffold(
@@ -106,7 +107,10 @@ class HomeScreen extends ConsumerWidget {
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.obsidian,
-          onRefresh: () => ref.refresh(dashboardKpiProvider.future),
+          onRefresh: () async {
+            await ref.read(businessProvider.notifier).refresh();
+            ref.invalidate(dashboardKpiProvider);
+          },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 100),
@@ -114,21 +118,34 @@ class HomeScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // 1. Personalized Header
-                _buildHeader(context, ref, user),
-                const SizedBox(height: 20),
+                _buildHeader(context, ref, user, businessState),
+                const SizedBox(height: 12),
 
-                // If user has NO active business: show dedicated onboarding banner
-                if (ref.watch(businessProvider).activeBusinessId == null ||
-                    ref.watch(businessProvider).businesses.isEmpty) ...[
+                // 2. Business Sync / Connection Error Diagnostic Card
+                if (businessState.error != null) ...[
+                  _buildBusinessErrorCard(context, ref, businessState.error!),
+                  const SizedBox(height: 14),
+                ],
+
+                // 3. Persistent Active Context Bar (Branch / Consolidated Indicator)
+                if (businessState.activeBusinessId != null) ...[
+                  _buildActiveContextBanner(context, ref, businessState),
+                  const SizedBox(height: 16),
+                ],
+
+                // 4. If user has NO active business and no error: show dedicated onboarding banner
+                if (businessState.error == null &&
+                    !businessState.isLoading &&
+                    (businessState.activeBusinessId == null || businessState.businesses.isEmpty)) ...[
                   _buildOnboardingBanner(context),
                   const SizedBox(height: 22),
                 ],
 
-                // 2. Quick Action Bar
+                // 5. Quick Action Bar
                 _buildQuickActionBar(context, ref, user),
                 const SizedBox(height: 22),
 
-                // 3. Dynamic KPI & Operations Content
+                // 6. Dynamic KPI & Operations Content
                 kpiAsync.when(
                   loading: () => _buildSkeletonLoading(),
                   error: (error, _) => _buildErrorCard(context, ref, error),
@@ -209,21 +226,15 @@ class HomeScreen extends ConsumerWidget {
   }
 
   // --- Header Component ---
-  Widget _buildHeader(BuildContext context, WidgetRef ref, Map<String, dynamic>? user) {
+  Widget _buildHeader(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic>? user,
+    BusinessState businessState,
+  ) {
     final userName = user?['name']?.toString() ?? 'Petugas Counter';
-    final role = user?['role']?.toString() ?? 'staff';
-    final isSuperAdmin = role == 'super_admin';
-    final affiliate = user?['affiliate'] as Map<String, dynamic>?;
-    final fallbackBranchName = affiliate?['name']?.toString() ?? (isSuperAdmin ? 'Pusat Jaringan' : 'Pusat Operasional');
-
-    final businessState = ref.watch(businessProvider);
-    final hasBusiness = businessState.activeBusinessId != null && businessState.businesses.isNotEmpty;
-    final activeBizName = hasBusiness
-        ? (businessState.activeBusinessName ?? 'Bisnis Rental')
-        : 'Belum Ada Bisnis';
-    final activeBranchName = hasBusiness
-        ? (businessState.activeBranchName ?? fallbackBranchName)
-        : 'Ketuk untuk buat';
+    final isSuperAdmin = user?['is_platform_admin'] == true || user?['role'] == 'super_admin';
+    final activeRole = businessState.currentBusiness?['role']?.toString() ?? user?['role']?.toString() ?? 'staff';
 
     final greeting = _getTimeGreeting();
     final initials = _getInitials(userName);
@@ -268,53 +279,7 @@ class HomeScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Flexible(
-                      child: InkWell(
-                        onTap: () => BusinessSelectorSheet.show(context),
-                        borderRadius: BorderRadius.circular(6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  '$activeBizName • $activeBranchName',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: AppColors.textSecondary),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isSuperAdmin ? AppColors.infoLight : AppColors.successLight,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        isSuperAdmin ? 'SUPER ADMIN' : 'STAFF KASIR',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          color: isSuperAdmin ? AppColors.info : AppColors.success,
-                        ),
-                      ),
-                    ),
+                    _buildRoleBadge(activeRole, isSuperAdmin),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -334,7 +299,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           IconButton(
             onPressed: () => BusinessSelectorSheet.show(context),
-            tooltip: 'Pilih Usaha / Profil',
+            tooltip: 'Pilih Usaha / Cabang',
             icon: const Icon(Icons.storefront_rounded, color: AppColors.textSecondary, size: 20),
           ),
           IconButton(
@@ -351,6 +316,313 @@ class HomeScreen extends ConsumerWidget {
             onPressed: () => _confirmLogout(context, ref),
             tooltip: 'Keluar',
             icon: const Icon(Icons.logout_rounded, color: AppColors.textSecondary, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Role Badge Helper ---
+  Widget _buildRoleBadge(String role, bool isSuperAdmin) {
+    Color bg;
+    Color fg;
+    String label;
+
+    if (isSuperAdmin) {
+      bg = AppColors.infoLight;
+      fg = AppColors.info;
+      label = 'SUPER ADMIN';
+    } else {
+      switch (role.toLowerCase()) {
+        case 'owner':
+          bg = const Color(0xFFFEF3C7);
+          fg = const Color(0xFFD97706);
+          label = 'PEMILIK (OWNER)';
+          break;
+        case 'admin':
+          bg = const Color(0xFFEEF2FF);
+          fg = const Color(0xFF4F46E5);
+          label = 'ADMIN USAHA';
+          break;
+        case 'staff':
+        case 'cashier':
+        default:
+          bg = AppColors.successLight;
+          fg = AppColors.success;
+          label = 'STAFF KASIR';
+          break;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: fg,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  // --- Persistent Active Context Banner ---
+  Widget _buildActiveContextBanner(
+    BuildContext context,
+    WidgetRef ref,
+    BusinessState businessState,
+  ) {
+    if (businessState.isConsolidated) {
+      // Consolidated Mode (All Branches)
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.corporate_fare_rounded, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD97706),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'KONSOLIDASI',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          businessState.activeBusinessName ?? 'Semua Cabang',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: Color(0xFF92400E),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Mode Konsolidasi: Melihat gabungan seluruh cabang. Beralih ke cabang tertentu untuk transaksi POS & kasir.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFFB45309),
+                      height: 1.25,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () => BusinessSelectorSheet.show(context),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFFFEF3C7),
+                foregroundColor: const Color(0xFF92400E),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Pilih Cabang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  SizedBox(width: 2),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 10),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Specific Branch Mode
+    final isCentral = businessState.isCentralBranch;
+    final branchCity = businessState.currentBranch?['city'] ?? '';
+    final branchCode = businessState.currentBranch?['code'] ?? '';
+    final metaParts = [
+      if (branchCode.toString().isNotEmpty) branchCode.toString(),
+      if (branchCity.toString().isNotEmpty) branchCity.toString(),
+      businessState.activeBusinessName ?? '',
+    ].where((s) => s.isNotEmpty).join(' • ');
+
+    return InkWell(
+      onTap: () => BusinessSelectorSheet.show(context),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isCentral ? AppColors.obsidian : AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isCentral ? Icons.hub_rounded : Icons.storefront_rounded,
+                color: isCentral ? Colors.white : AppColors.obsidian,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isCentral ? AppColors.obsidian : AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          isCentral ? 'CABANG UTAMA' : 'SUB-CABANG',
+                          style: TextStyle(
+                            color: isCentral ? Colors.white : AppColors.textSecondary,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          businessState.activeBranchName ?? 'Cabang Terpilih',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    metaParts.isNotEmpty ? metaParts : (businessState.activeBusinessName ?? ''),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.swap_horiz_rounded, size: 16, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- Business Error Card ---
+  Widget _buildBusinessErrorCard(BuildContext context, WidgetRef ref, String error) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.dangerLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.sync_problem_rounded, color: AppColors.danger, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Gagal Menyinkronkan Konteks Bisnis',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.danger),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  error,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              ref.read(businessProvider.notifier).refresh();
+              ref.invalidate(dashboardKpiProvider);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Coba Lagi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -379,12 +651,7 @@ class HomeScreen extends ConsumerWidget {
           _buildQuickAction(
             icon: Icons.inventory_2_outlined,
             label: 'Inventaris',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const InventoryScreen()),
-              );
-            },
+            onTap: () => onNavigateTab(2),
           ),
           const SizedBox(width: 10),
           _buildQuickAction(
@@ -401,13 +668,13 @@ class HomeScreen extends ConsumerWidget {
           _buildQuickAction(
             icon: Icons.confirmation_number_outlined,
             label: 'Voucher',
-            onTap: () => onNavigateTab(2),
+            onTap: () => onNavigateTab(3),
           ),
           const SizedBox(width: 10),
           _buildQuickAction(
             icon: Icons.point_of_sale_outlined,
             label: 'Kasir',
-            onTap: () => onNavigateTab(3),
+            onTap: () => onNavigateTab(4),
           ),
           const SizedBox(width: 10),
           _buildQuickAction(
@@ -494,6 +761,20 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
+  int _parseInt(dynamic value, [int fallback = 0]) {
+    if (value == null) return fallback;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? double.tryParse(value)?.toInt() ?? fallback;
+    return fallback;
+  }
+
+  double _parseDouble(dynamic value, [double fallback = 0.0]) {
+    if (value == null) return fallback;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
   // --- Main Dashboard Data Content ---
   Widget _buildDashboardContent(
     BuildContext context,
@@ -501,21 +782,21 @@ class HomeScreen extends ConsumerWidget {
     Map<String, dynamic> data,
     Map<String, dynamic>? user,
   ) {
-    final kpi = data['kpi'] ?? {};
+    final kpi = data['kpi'] is Map ? data['kpi'] as Map : (data['stats'] is Map ? data['stats'] as Map : const {});
     final overdueAlerts = (data['overdue_alerts'] as List?) ?? [];
     final imminentReturns = (data['imminent_returns'] as List?) ?? [];
 
-    final unitsTotal = (kpi['units_total'] ?? 0) as int;
-    final unitsReady = (kpi['units_ready'] ?? 0) as int;
-    final unitsRented = (kpi['units_rented'] ?? 0) as int;
-    final unitsMaintenance = (kpi['units_maintenance'] ?? 0) as int;
-    final utilizationRate = (kpi['utilization_rate'] ?? 0).toDouble();
+    final unitsTotal = _parseInt(kpi['units_total'] ?? kpi['total_units']);
+    final unitsReady = _parseInt(kpi['units_ready'] ?? kpi['ready_units']);
+    final unitsRented = _parseInt(kpi['units_rented'] ?? kpi['rented_units']);
+    final unitsMaintenance = _parseInt(kpi['units_maintenance'] ?? kpi['maintenance_units']);
+    final utilizationRate = _parseDouble(kpi['utilization_rate']);
 
-    final todayRevenue = (kpi['today_revenue'] ?? 0.0);
-    final todayTransactions = (kpi['today_transactions_count'] ?? 0);
-    final todayRentalsCreated = (kpi['today_rentals_created'] ?? 0);
-    final dueToday = (kpi['due_today'] ?? 0);
-    final overdueCount = (kpi['overdue'] ?? 0);
+    final todayRevenue = CurrencyFormatter.parse(kpi['today_revenue']);
+    final todayTransactions = _parseInt(kpi['today_transactions_count']);
+    final todayRentalsCreated = _parseInt(kpi['today_rentals_created']);
+    final dueToday = _parseInt(kpi['due_today']);
+    final overdueCount = _parseInt(kpi['overdue'] ?? kpi['overdue_count']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -604,7 +885,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           ...alerts.take(3).map((alert) {
-            final bookingId = alert['booking_id'] as int? ?? 0;
+            final bookingId = _parseInt(alert['booking_id']);
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
@@ -1179,7 +1460,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           ElevatedButton.icon(
-            onPressed: () => ref.refresh(dashboardKpiProvider.future),
+            onPressed: () => ref.invalidate(dashboardKpiProvider),
             icon: const Icon(Icons.refresh_rounded, size: 16),
             label: const Text('Coba Lagi'),
             style: ElevatedButton.styleFrom(

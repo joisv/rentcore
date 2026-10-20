@@ -370,6 +370,10 @@ class PrinterNotifier extends Notifier<PrinterState> {
           case ReceiptType.rentalReturn:
             bytes = _service.buildRentalReturnSlipBytes(data, state.settings);
             break;
+          case ReceiptType.rentalExchange:
+            final doc = _service.buildReceiptDocument(data, state.settings);
+            bytes = _service.buildSlipBytesFromDocument(doc, state.settings);
+            break;
           case ReceiptType.closingShift:
             bytes = _service.buildClosingShiftSlipBytes(
               branchName: data.branchName,

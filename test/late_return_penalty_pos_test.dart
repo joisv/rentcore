@@ -173,6 +173,7 @@ class _FakeCashierRepository extends CashierRepository {
     double? amount,
     String? paymentType,
     String? notes,
+    String? idempotencyKey,
   }) async {
     paidBookingId = bookingId;
     lastPaymentType = paymentType;

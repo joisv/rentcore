@@ -150,8 +150,38 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
           ),
           const SizedBox(height: 12),
 
+          // Error alert
+          if (businessState.error != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppColors.dangerLight,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      businessState.error!,
+                      style: const TextStyle(fontSize: 12, color: AppColors.danger),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.read(businessProvider.notifier).refresh(),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    child: const Text('Coba Lagi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // Business list
-          if (businesses.isEmpty)
+          if (businesses.isEmpty && businessState.error == null)
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -252,26 +282,109 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                       ),
                       children: [
                         const Divider(height: 1, indent: 16, endIndent: 16),
+                        if (role == 'owner' && branches.length > 1) ...[
+                          ListTile(
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                            leading: Icon(
+                              Icons.corporate_fare_rounded,
+                              size: 18,
+                              color: isSelected && businessState.activeBranchId == null
+                                  ? AppColors.warning
+                                  : AppColors.textSecondary,
+                            ),
+                            title: Row(
+                              children: [
+                                Text(
+                                  'Semua Cabang (Konsolidasi)',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isSelected && businessState.activeBranchId == null
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isSelected && businessState.activeBranchId == null
+                                        ? const Color(0xFFB45309)
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF3C7),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: const Color(0xFFFDE68A)),
+                                  ),
+                                  child: const Text(
+                                    'KONSOLIDASI',
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF92400E),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            subtitle: const Text(
+                              'Laporan & analitik gabungan seluruh cabang',
+                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            ),
+                            trailing: isSelected && businessState.activeBranchId == null
+                                ? const Icon(Icons.check_circle_rounded, color: AppColors.warning, size: 18)
+                                : null,
+                            onTap: () {
+                              ref.read(businessProvider.notifier).selectBusiness(biz);
+                              ref.read(businessProvider.notifier).selectBranch(null);
+                              Navigator.pop(context);
+                            },
+                          ),
+                          const Divider(height: 1, indent: 32, endIndent: 16),
+                        ],
                         ...branches.map((b) {
                           final branchMap = b as Map<String, dynamic>;
                           final isBranchActive = isSelected && branchMap['id'] == businessState.activeBranchId;
+                          final isCentral = branchMap['is_central'] == true;
 
                           return ListTile(
                             dense: true,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                             leading: Icon(
-                              Icons.store_rounded,
+                              isCentral ? Icons.hub_rounded : Icons.store_rounded,
                               size: 18,
                               color: isBranchActive ? AppColors.info : AppColors.textSecondary,
                             ),
-                            title: Text(
-                              branchMap['name'] ?? '',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: isBranchActive ? FontWeight.bold : FontWeight.normal,
-                                color: isBranchActive ? AppColors.info : AppColors.textPrimary,
-                              ),
+                            title: Row(
+                              children: [
+                                Text(
+                                  branchMap['name'] ?? '',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isBranchActive ? FontWeight.bold : FontWeight.normal,
+                                    color: isBranchActive ? AppColors.info : AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                if (isCentral)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.obsidian.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'PUSAT',
+                                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.obsidian),
+                                    ),
+                                  ),
+                              ],
                             ),
+                            subtitle: branchMap['city'] != null
+                                ? Text(
+                                    '${branchMap['code'] ?? ''} • ${branchMap['city']}'.trim(),
+                                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  )
+                                : null,
                             trailing: isBranchActive
                                 ? const Icon(Icons.check_circle_rounded, color: AppColors.info, size: 18)
                                 : null,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,9 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../bookings/presentation/exchange_history_sheet.dart';
+import '../../bookings/presentation/exchange_wizard_screen.dart';
+import '../../bookings/providers/booking_provider.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../providers/cashier_provider.dart';
 
@@ -96,6 +100,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     final items = (b['items'] as List?) ?? [];
     final payments = (b['payments'] as List?) ?? [];
     final extensions = (b['extensions'] as List?) ?? [];
+    final exchanges = (b['exchanges'] as List?) ?? [];
     final returnInspection = b['return_inspection'] as Map? ?? b['returnInspection'] as Map? ?? {};
 
     final bookingCode = b['booking_code'] ?? '-';
@@ -316,6 +321,41 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                                 ),
                               ),
+                              if (b['status'] == 'rented' && item['status'] != 'exchanged')
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                    side: const BorderSide(color: AppColors.info),
+                                    foregroundColor: AppColors.info,
+                                  ),
+                                  icon: const Icon(Icons.swap_horiz_rounded, size: 14),
+                                  label: const Text('Tukar Unit', style: TextStyle(fontSize: 11)),
+                                  onPressed: () async {
+                                    Navigator.pop(context);
+                                    final res = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ExchangeWizardScreen(booking: b),
+                                      ),
+                                    );
+                                    if (res != null) {
+                                      ref.invalidate(bookingsListProvider);
+                                    }
+                                  },
+                                )
+                              else if (item['status'] == 'exchanged')
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.warningLight,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'DITUKAR',
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.warning),
+                                  ),
+                                ),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -334,6 +374,144 @@ class PosTransactionDetailSheet extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
+
+          // 3b. Exchange History Summary & Direct Access
+          if (exchanges.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.swap_horiz_rounded, size: 18, color: AppColors.info),
+                          SizedBox(width: 6),
+                          Text(
+                            'RIWAYAT PERTUKARAN UNIT',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                          ),
+                        ],
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          foregroundColor: AppColors.info,
+                        ),
+                        icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                        label: const Text('Detail Lengkap', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        onPressed: () => ExchangeHistorySheet.show(context, b),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...exchanges.asMap().entries.map((entry) {
+                    final idx = entry.key + 1;
+                    final exc = entry.value as Map;
+                    final oldAsset = exc['old_asset'] as Map? ?? exc['oldAsset'] as Map? ?? {};
+                    final newAsset = exc['new_asset'] as Map? ?? exc['newAsset'] as Map? ?? {};
+                    final oldModel = oldAsset['model'] as Map? ?? {};
+                    final newModel = newAsset['model'] as Map? ?? {};
+                    final diff = CurrencyFormatter.parse(exc['price_differential']);
+                    final waived = exc['fee_waived'] == true;
+                    final timeElapsed = exc['time_elapsed_hours'];
+                    final category = exc['reported_issue_category'] ?? 'other';
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderSubtle),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Pertukaran #$idx  •  ${exc['exchange_reference'] ?? 'EXC-${exc['id']}'}',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+                              ),
+                              if (timeElapsed != null)
+                                Text(
+                                  '+${timeElapsed}j dari awal sewa',
+                                  style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Icon(Icons.phonelink_erase_rounded, size: 14, color: AppColors.danger),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'Lama: ${oldModel['name'] ?? 'Unit Lama'} (${oldAsset['asset_code'] ?? '-'})',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.arrow_forward_rounded, size: 14, color: AppColors.info),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'Ganti: ${newModel['name'] ?? 'Unit Baru'} (${newAsset['asset_code'] ?? '-'})',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.obsidian),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Keluhan: "${exc['customer_complaint'] ?? category}"',
+                            style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
+                          ),
+                          const Divider(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                waived
+                                    ? 'Selisih: Bebas Biaya (Waived)'
+                                    : (diff > 0 ? 'Selisih: +${CurrencyFormatter.format(diff)}' : 'Selisih: Setara (Rp 0)'),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: waived ? AppColors.warning : (diff > 0 ? AppColors.success : AppColors.info),
+                                ),
+                              ),
+                              Text(
+                                'Staff: ${exc['handler']?['name'] ?? 'Staff'}',
+                                style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // 4. Rental Timeline
           Container(
@@ -405,6 +583,23 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                     );
                   }),
                 ],
+                if (exchanges.isNotEmpty) ...[
+                  ...exchanges.map((exc) {
+                    final oldAsset = (exc['old_asset'] as Map? ?? exc['oldAsset'] as Map? ?? {}).cast<String, dynamic>();
+                    final newAsset = (exc['new_asset'] as Map? ?? exc['newAsset'] as Map? ?? {}).cast<String, dynamic>();
+                    final oldModel = (oldAsset['model'] as Map?)?['name'] ?? 'Unit Lama';
+                    final newModel = (newAsset['model'] as Map?)?['name'] ?? 'Unit Baru';
+                    final diff = CurrencyFormatter.parse(exc['price_differential']);
+                    final waived = exc['fee_waived'] == true;
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: _buildPriceRow(
+                        waived ? 'Tukar: $oldModel ➔ $newModel (Waived)' : 'Tukar: $oldModel ➔ $newModel',
+                        waived ? 0.0 : diff,
+                      ),
+                    );
+                  }),
+                ],
                 if (returnInspection.isNotEmpty) ...[
                   if (CurrencyFormatter.parse(returnInspection['late_fee']) > 0)
                     Padding(
@@ -453,9 +648,9 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   const SizedBox(height: 10),
                   ...payments.map((p) {
                     final pAmt = CurrencyFormatter.parse(p['amount']);
-                    final pMethod = p['payment_method']?['name'] ?? p['payment_method'] ?? 'Tunai';
+                    final pMethod = (p['payment_method'] is Map ? p['payment_method']['name'] : p['payment_method']) ?? 'Tunai';
                     final pDate = p['transacted_at'] ?? p['created_at'] ?? '';
-                    final pCashier = p['processor']?['name'] ?? p['processed_by']?['name'] ?? 'Kasir';
+                    final pCashier = (p['processor'] is Map ? p['processor']['name'] : (p['processed_by'] is Map ? p['processed_by']['name'] : p['processed_by'])) ?? 'Kasir';
                     final pType = p['type']?.toString().toLowerCase();
                     final pTypeLabel = p['type_label'] ?? (pType == 'penalty' ? 'Denda Keterlambatan' : (pType == 'extension' ? 'Perpanjangan' : 'Sewa Kontrak'));
 
@@ -469,14 +664,32 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('$pMethod • $pTypeLabel', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12), overflow: TextOverflow.ellipsis),
+                                Text('$pDate • Oleh: $pCashier', style: const TextStyle(fontSize: 10, color: AppColors.textMuted), overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('$pMethod • $pTypeLabel', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                              Text('$pDate • Oleh: $pCashier', style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                              Text(CurrencyFormatter.format(pAmt), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                              if (p['status'] != 'void') ...[
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  icon: const Icon(Icons.cancel_outlined, size: 16, color: AppColors.danger),
+                                  tooltip: 'Batalkan Pembayaran (Void)',
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () => _showVoidDialog(context, ref, p, b['id'] ?? b['booking_id']),
+                                ),
+                              ],
                             ],
                           ),
-                          Text(CurrencyFormatter.format(pAmt), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                         ],
                       ),
                     );
@@ -650,5 +863,281 @@ class PosTransactionDetailSheet extends ConsumerWidget {
         SnackBar(content: Text('Gagal mencetak struk: $e'), backgroundColor: AppColors.danger),
       );
     }
+  }
+
+  void _showVoidDialog(BuildContext context, WidgetRef ref, Map p, dynamic bookingId) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => _VoidTransactionDialog(
+        payment: p,
+        bookingId: bookingId,
+      ),
+    );
+  }
+}
+
+class _VoidTransactionDialog extends ConsumerStatefulWidget {
+  final Map payment;
+  final dynamic bookingId;
+
+  const _VoidTransactionDialog({
+    required this.payment,
+    required this.bookingId,
+  });
+
+  @override
+  ConsumerState<_VoidTransactionDialog> createState() => _VoidTransactionDialogState();
+}
+
+class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> {
+  final _reasonController = TextEditingController();
+  final _pinController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  bool _isSubmitting = false;
+  int _failedAttempts = 0;
+  DateTime? _lockoutUntil;
+  String? _pinError;
+  Timer? _countdownTimer;
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    _reasonController.dispose();
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  void _startLockoutTimer() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_lockoutUntil == null || DateTime.now().isAfter(_lockoutUntil!)) {
+        t.cancel();
+        setState(() {
+          _lockoutUntil = null;
+          _failedAttempts = 0;
+          _pinError = null;
+        });
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
+  Future<void> _handleVoidSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+
+    final p = widget.payment;
+    final pCode = p['transaction_code'] ?? p['receipt_number'] ?? 'TX-${p['id']}';
+
+    try {
+      final repo = ref.read(cashierRepositoryProvider);
+      await repo.voidTransaction(
+        transactionId: p['id'],
+        reason: _reasonController.text.trim(),
+        managerPin: _pinController.text.trim().isNotEmpty ? _pinController.text.trim() : null,
+      );
+
+      _countdownTimer?.cancel();
+      if (!mounted) return;
+
+      Navigator.pop(context);
+      ref.invalidate(bookingDetailProvider(widget.bookingId));
+      ref.invalidate(closingSummaryProvider);
+      ref.invalidate(cashierExpensesProvider);
+      ref.invalidate(currentShiftProvider);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Transaksi $pCode berhasil dibatalkan (void).'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      final errStr = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      final isPinError = errStr.toLowerCase().contains('pin') ||
+          errStr.toLowerCase().contains('otorisasi') ||
+          errStr.toLowerCase().contains('unauthorized') ||
+          errStr.contains('403');
+
+      if (isPinError) {
+        _failedAttempts++;
+        if (_failedAttempts >= 3) {
+          _lockoutUntil = DateTime.now().add(const Duration(seconds: 30));
+          _pinError = 'Terlalu banyak percobaan PIN salah. Terkunci 30 detik.';
+          _startLockoutTimer();
+        } else {
+          _pinError = 'PIN Manager salah ($_failedAttempts/3 percobaan).';
+        }
+      }
+
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal membatalkan transaksi: $errStr'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.payment;
+    final pCode = p['transaction_code'] ?? p['receipt_number'] ?? 'TX-${p['id']}';
+    final pAmt = CurrencyFormatter.parse(p['amount']);
+    final isLockedOut = _lockoutUntil != null && DateTime.now().isBefore(_lockoutUntil!);
+    final remainingSeconds = isLockedOut ? _lockoutUntil!.difference(DateTime.now()).inSeconds + 1 : 0;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.dangerLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
+          ),
+          const SizedBox(width: 10),
+          const Text('Batalkan Transaksi (Void)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ],
+      ),
+      content: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(pCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text(CurrencyFormatter.format(pAmt), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.danger)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Metode: ${(p['payment_method'] is Map ? p['payment_method']['name'] : p['payment_method']) ?? 'Tunai'} • Tipe: ${p['type_label'] ?? p['type'] ?? 'Bayar'}',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('Alasan Pembatalan *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _reasonController,
+                decoration: InputDecoration(
+                  hintText: 'Contoh: Salah input nominal, duplikasi, dsb.',
+                  hintStyle: const TextStyle(fontSize: 12),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().length < 5) {
+                    return 'Alasan wajib diisi minimal 5 karakter';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+              const Text('PIN Manager Cabang', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const Text(
+                'Diperlukan jika Anda bukan Owner/Admin bisnis.',
+                style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _pinController,
+                obscureText: true,
+                enabled: !isLockedOut,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: InputDecoration(
+                  hintText: isLockedOut ? 'Terkunci sementara' : '6 digit PIN Manager',
+                  hintStyle: const TextStyle(fontSize: 12),
+                  counterText: '',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+              if (isLockedOut) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerLight,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_clock_rounded, color: AppColors.danger, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Akses PIN dikunci sementara: $remainingSeconds detik tersisa.',
+                          style: const TextStyle(fontSize: 11, color: AppColors.danger, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (_pinError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _pinError!,
+                  style: const TextStyle(fontSize: 11, color: AppColors.danger, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () {
+            _countdownTimer?.cancel();
+            Navigator.pop(context);
+          },
+          child: const Text('Batal'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.danger,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          onPressed: (_isSubmitting || isLockedOut) ? null : _handleVoidSubmit,
+          child: _isSubmitting
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text(
+                  isLockedOut ? 'Terkunci ($remainingSeconds s)' : 'Void Transaksi',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+        ),
+      ],
+    );
   }
 }

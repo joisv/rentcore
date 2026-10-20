@@ -2,15 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../shared/widgets/status_badge.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../inventory/providers/asset_provider.dart';
-import '../../../core/services/thermal_printer_service.dart';
-import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
-import '../../printer/providers/printer_provider.dart';
 import '../../vouchers/data/voucher_repository.dart';
 import '../providers/booking_provider.dart';
 import '../../payments/models/payment_context.dart';
@@ -54,6 +51,12 @@ class DirectRentalScreen extends ConsumerStatefulWidget {
 }
 
 class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
+  final _formKey = GlobalKey<FormState>();
+  int _currentStep = 0; // 0: Unit & Durasi, 1: Data Penyewa, 2: Ringkasan & Bayar
+
+  String? _assetValidationError;
+  String? _durationValidationError;
+
   // Customer Info Controllers
   final _nameController = TextEditingController(text: 'Dedi Kurniawan');
   final _phoneController = TextEditingController(text: '081298765432');
@@ -64,22 +67,18 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   final _voucherController = TextEditingController();
   final _cashReceivedController = TextEditingController();
 
-  // Unit Selection MUST Come First: initially null
+  // Unit Selection initially null
   Map<String, dynamic>? _selectedAsset;
   int? _selectedAssetId;
   int? _selectedAssetCategoryId;
   int? _selectedDuration;
   String _selectedDurationUnit = 'hour';
   int _selectedDurationValue = 24;
-  int _selectedPaymentMethodId = 1;
-  String _selectedPaymentMethodCode = 'CASH';
 
   double _basePrice = 0.0;
   double _discountAmount = 0.0;
   bool _isValidatingVoucher = false;
   String? _voucherMessage;
-  bool _isSubmitting = false;
-  bool _nonCashConfirmed = true;
 
   // Customer Search & Auto-Fill
   bool _isSearchingCustomer = false;
@@ -119,7 +118,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return Icons.phone_iphone_rounded;
   }
 
-  /// Returns available duration tiers list for the currently selected asset model.
   List<RentalTierOption> _getAvailableTiers(Map<String, dynamic>? asset) {
     if (asset == null) return [];
     final model = asset['model'] ?? {};
@@ -151,11 +149,12 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return list;
   }
 
-  /// Handles user tapping a rental unit.
   void _onAssetSelected(Map<String, dynamic> asset) {
     setState(() {
       _selectedAsset = asset;
       _selectedAssetId = asset['id'];
+      _assetValidationError = null;
+      _durationValidationError = null;
       final availableTiers = _getAvailableTiers(asset);
 
       RentalTierOption selectedTier = availableTiers.first;
@@ -171,23 +170,21 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       _selectedDurationValue = selectedTier.value;
       _basePrice = selectedTier.price;
 
-      // Auto set cash received to total if not manually modified
       _updateCashReceivedDefault();
     });
 
-    // Revalidate voucher against new unit price if voucher was previously entered
     if (_voucherController.text.trim().isNotEmpty) {
       _validateVoucher();
     }
   }
 
-  /// Handles duration tier change.
   void _onTierSelected(RentalTierOption tier) {
     setState(() {
       _selectedDuration = tier.hours;
       _selectedDurationUnit = tier.unit;
       _selectedDurationValue = tier.value;
       _basePrice = tier.price;
+      _durationValidationError = null;
       _updateCashReceivedDefault();
     });
 
@@ -309,41 +306,36 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     });
   }
 
-  void _proceedToPayment() async {
-    // 1. Unit Validation Must Come First
-    if (_selectedAssetId == null) {
+  void _onNextToCustomerStep() {
+    setState(() {
+      _assetValidationError = _selectedAssetId == null ? 'Pilih salah satu unit rental terlebih dahulu.' : null;
+      _durationValidationError = _selectedDuration == null ? 'Pilih durasi sewa yang diinginkan.' : null;
+    });
+
+    if (_selectedAssetId == null || _selectedDuration == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Pilih salah satu unit rental terlebih dahulu!'),
+          content: Text('Silakan pilih unit rental dan durasi terlebih dahulu.'),
           backgroundColor: AppColors.danger,
         ),
       );
       return;
     }
 
-    if (_selectedDuration == null) {
+    setState(() => _currentStep = 1);
+  }
+
+  void _onNextToSummaryStep() {
+    if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Pilih durasi sewa yang diinginkan.'),
+          content: Text('Lengkapi formulir data penyewa yang bertanda merah.'),
           backgroundColor: AppColors.danger,
         ),
       );
       return;
     }
 
-    // 2. Customer Address Validation (Alamat Sesuai Kartu Identitas)
-    final address = _addressController.text.trim();
-    if (address.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Alamat sesuai kartu identitas wajib diisi lengkap.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-      return;
-    }
-
-    // 3. Blacklist Guard
     if (_foundCustomer != null && _foundCustomer!['is_blacklisted'] == true) {
       showDialog(
         context: context,
@@ -367,6 +359,33 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           ],
         ),
       );
+      return;
+    }
+
+    setState(() => _currentStep = 2);
+  }
+
+  void _onBackStep() {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    }
+  }
+
+  void _proceedToPayment() async {
+    final address = _addressController.text.trim();
+
+    if (_selectedAssetId == null || _selectedDuration == null) {
+      setState(() => _currentStep = 0);
+      return;
+    }
+
+    final isFormValid = _formKey.currentState?.validate() ?? true;
+    if (!isFormValid) {
+      setState(() => _currentStep = 1);
+      return;
+    }
+
+    if (_foundCustomer != null && _foundCustomer!['is_blacklisted'] == true) {
       return;
     }
 
@@ -447,826 +466,1097 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // STEP 1: PILIH UNIT RENTAL TERSEDIA (MUST COME FIRST)
+            // STEPPER PROGRESS HEADER
+            _buildStepperHeader(),
+
+            // STEP BODY
+            if (_currentStep == 0)
+              _buildStep1UnitAndDuration(readyAssetsAsync, categoriesAsync, isUnitSelected)
+            else if (_currentStep == 1)
+              _buildStep2CustomerAndCollateral()
+            else
+              _buildStep3SummaryAndPayment(totalPayable, isUnitSelected),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepperHeader() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          _buildStepItem(
+            step: 0,
+            label: '1. Unit & Durasi',
+            icon: Icons.phone_iphone_rounded,
+          ),
+          _buildStepDivider(0),
+          _buildStepItem(
+            step: 1,
+            label: '2. Penyewa',
+            icon: Icons.person_rounded,
+          ),
+          _buildStepDivider(1),
+          _buildStepItem(
+            step: 2,
+            label: '3. Bayar',
+            icon: Icons.payment_rounded,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepItem({
+    required int step,
+    required String label,
+    required IconData icon,
+  }) {
+    final isActive = _currentStep == step;
+    final isDone = _currentStep > step;
+    final isClickable = isDone;
+
+    final color = isActive
+        ? AppColors.obsidian
+        : (isDone ? AppColors.success : AppColors.textMuted);
+
+    return InkWell(
+      onTap: isClickable ? () => setState(() => _currentStep = step) : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              width: 26,
+              height: 26,
               decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
+                color: isActive
+                    ? AppColors.obsidian
+                    : (isDone ? AppColors.successLight : AppColors.surfaceMuted),
+                shape: BoxShape.circle,
                 border: Border.all(
-                  color: isUnitSelected ? AppColors.obsidian : AppColors.border,
-                  width: isUnitSelected ? 1.5 : 1,
+                  color: isActive
+                      ? AppColors.obsidian
+                      : (isDone ? AppColors.success : AppColors.border),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.obsidian,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'LANGKAH 1',
-                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'PILIH UNIT RENTAL TERSEDIA',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (isUnitSelected)
-                        const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20)
-                      else
-                        const Text(
-                          '*Wajib Pertama',
-                          style: TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
+              child: Center(
+                child: isDone
+                    ? const Icon(Icons.check_rounded, size: 14, color: AppColors.success)
+                    : Icon(icon, size: 13, color: isActive ? Colors.white : AppColors.textMuted),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                  // Category Filter Chips
-                  categoriesAsync.when(
-                    loading: () => const SizedBox.shrink(),
-                    error: (e, s) => const SizedBox.shrink(),
-                    data: (categories) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              ChoiceChip(
-                                label: const Text('Semua'),
-                                selected: _selectedAssetCategoryId == null,
-                                onSelected: (_) => setState(() => _selectedAssetCategoryId = null),
+  Widget _buildStepDivider(int step) {
+    final isDone = _currentStep > step;
+    return Expanded(
+      child: Container(
+        height: 2,
+        margin: const EdgeInsets.symmetric(horizontal: 6),
+        color: isDone ? AppColors.success : AppColors.border,
+      ),
+    );
+  }
+
+  Widget _buildStep1UnitAndDuration(
+    AsyncValue<List<dynamic>> readyAssetsAsync,
+    AsyncValue<List<dynamic>> categoriesAsync,
+    bool isUnitSelected,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isUnitSelected ? AppColors.obsidian : AppColors.border,
+              width: isUnitSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'PILIH UNIT RENTAL TERSEDIA',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (isUnitSelected)
+                    const StatusBadge(
+                      label: 'Unit Dipilih',
+                      textColor: AppColors.success,
+                      backgroundColor: AppColors.successLight,
+                      icon: Icons.check_circle_rounded,
+                    )
+                  else
+                    const Text(
+                      '*Wajib Dipilih',
+                      style: TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Category Filter Chips
+              categoriesAsync.when(
+                loading: () => const SizedBox.shrink(),
+                error: (e, s) => const SizedBox.shrink(),
+                data: (categories) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Semua'),
+                            selected: _selectedAssetCategoryId == null,
+                            onSelected: (_) => setState(() => _selectedAssetCategoryId = null),
+                            selectedColor: AppColors.obsidian,
+                            labelStyle: TextStyle(
+                              color: _selectedAssetCategoryId == null ? Colors.white : AppColors.textPrimary,
+                              fontWeight: _selectedAssetCategoryId == null ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                          ...categories.map((cat) {
+                            final isSelected = _selectedAssetCategoryId == cat['id'];
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: ChoiceChip(
+                                label: Text(cat['name'] ?? ''),
+                                selected: isSelected,
+                                onSelected: (_) => setState(() => _selectedAssetCategoryId = cat['id']),
                                 selectedColor: AppColors.obsidian,
                                 labelStyle: TextStyle(
-                                  color: _selectedAssetCategoryId == null ? Colors.white : AppColors.textPrimary,
-                                  fontWeight: _selectedAssetCategoryId == null ? FontWeight.w700 : FontWeight.w500,
+                                  color: isSelected ? Colors.white : AppColors.textPrimary,
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                                   fontSize: 12,
                                 ),
                               ),
-                              ...categories.map((cat) {
-                                final isSelected = _selectedAssetCategoryId == cat['id'];
-                                return Padding(
-                                  padding: const EdgeInsets.only(left: 8),
-                                  child: ChoiceChip(
-                                    label: Text(cat['name'] ?? ''),
-                                    selected: isSelected,
-                                    onSelected: (_) => setState(() => _selectedAssetCategoryId = cat['id']),
-                                    selectedColor: AppColors.obsidian,
-                                    labelStyle: TextStyle(
-                                      color: isSelected ? Colors.white : AppColors.textPrimary,
-                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                  readyAssetsAsync.when(
-                    loading: () => const LinearProgressIndicator(),
-                    error: (e, _) => Text('Gagal memuat unit: $e'),
-                    data: (assets) {
-                      final filteredAssets = _selectedAssetCategoryId == null
-                          ? assets
-                          : assets.where((a) => a['model']?['category_id'] == _selectedAssetCategoryId).toList();
-
-                      if (filteredAssets.isEmpty) {
-                        return Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded, color: AppColors.warning),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Tidak ada unit rental ready sewa saat ini di kategori ini.',
-                                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      return Column(
-                        children: filteredAssets.map((asset) {
-                          final isSelected = _selectedAssetId == asset['id'];
-                          final model = asset['model'] ?? {};
-                          final category = model['category'] ?? {};
-                          final tiers = _getAvailableTiers(asset);
-                          double dynamicRate = tiers.isNotEmpty ? tiers.first.price : 0.0;
-                          for (final t in tiers) {
-                            if (t.hours == (_selectedDuration ?? 24)) {
-                              dynamicRate = t.price;
-                              break;
-                            }
-                          }
-
-                          final batteryText = asset['battery_health'] != null ? 'Baterai ${asset['battery_health']}% • ' : '';
-                          final snText = asset['serial_number'] != null ? 'SN: ${asset['serial_number']} • ' : '';
-                          final subtitle = '${asset['asset_code']} • $batteryText$snText Grade ${asset['condition_grade']}';
-
-                          return GestureDetector(
-                            onTap: () => _onAssetSelected(asset),
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.surfaceMuted : Colors.transparent,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: isSelected ? AppColors.obsidian : AppColors.borderSubtle,
-                                  width: isSelected ? 2 : 1,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                    size: 18,
-                                    color: isSelected ? AppColors.obsidian : AppColors.textMuted,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Icon(
-                                    _getCategoryIcon(category['name']),
-                                    size: 20,
-                                    color: isSelected ? AppColors.obsidian : AppColors.textSecondary,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          model['name'] ?? '',
-                                          style: TextStyle(
-                                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                        Text(
-                                          subtitle,
-                                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    CurrencyFormatter.format(dynamicRate),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                      color: AppColors.obsidian,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // STEP 2: DURASI SEWA & VOUCHER DISKON (DISABLED UNTIL UNIT SELECTED)
-            AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: isUnitSelected ? 1.0 : 0.5,
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: isUnitSelected ? AppColors.obsidian : AppColors.textMuted,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'LANGKAH 2',
-                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'DURASI SEWA & VOUCHER DISKON',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Helper banner when unit is not selected
-                    if (!isUnitSelected)
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 14),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.borderSubtle),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.info_outline_rounded, size: 18, color: AppColors.textSecondary),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Pilih unit rental terlebih dahulu untuk menentukan durasi dan voucher.',
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    // Duration Tier Chips
-                    readyAssetsAsync.when(
-                      loading: () => const SizedBox.shrink(),
-                      error: (e, s) => const SizedBox.shrink(),
-                      data: (assets) {
-                        Map<String, dynamic>? selectedAsset;
-                        for (final a in assets) {
-                          if (a['id'] == _selectedAssetId) {
-                            selectedAsset = a;
-                            break;
-                          }
-                        }
-                        final availableTiers = _getAvailableTiers(selectedAsset);
-
-                        return Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: availableTiers.map((tier) {
-                            final isSelected = _selectedDuration == tier.hours;
-                            return ChoiceChip(
-                              label: Text(tier.label),
-                              selected: isSelected,
-                              onSelected: isUnitSelected
-                                  ? (_) => _onTierSelected(tier)
-                                  : null,
-                              selectedColor: AppColors.obsidian,
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.white : AppColors.textPrimary,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              ),
                             );
-                          }).toList(),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Voucher Field
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _voucherController,
-                            enabled: isUnitSelected,
-                            textCapitalization: TextCapitalization.characters,
-                            decoration: InputDecoration(
-                              labelText: 'Kode Voucher Diskon (Opsional)',
-                              hintText: isUnitSelected ? 'Contoh: RC-VCR-8921' : 'Pilih unit terlebih dahulu',
-                              prefixIcon: const Icon(Icons.confirmation_number_outlined, size: 20),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(90, 52),
-                            padding: EdgeInsets.zero,
-                          ),
-                          onPressed: (isUnitSelected && !_isValidatingVoucher) ? _validateVoucher : null,
-                          child: _isValidatingVoucher
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                )
-                              : const Text('Terapkan'),
-                        ),
-                      ],
-                    ),
-                    if (_voucherMessage != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _voucherMessage!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _discountAmount > 0 ? AppColors.success : AppColors.danger,
-                        ),
+                          }),
+                        ],
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: 20),
 
-            // STEP 3: DATA PENYEWA & JAMINAN (WITH MULTILINE ADDRESS)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              if (_assetValidationError != null) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.obsidian,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'LANGKAH 3',
-                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'DATA PENYEWA & ALAMAT IDENTITAS',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      TextButton.icon(
-                        onPressed: _searchCustomer,
-                        icon: _isSearchingCustomer
-                            ? const SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.obsidian),
-                              )
-                            : const Icon(Icons.search_rounded, size: 14, color: AppColors.obsidian),
-                        label: const Text(
-                          'Cari Data',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.obsidian,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _assetValidationError!,
+                          style: const TextStyle(fontSize: 12, color: AppColors.danger, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                ),
+              ],
 
-                  // Customer Name
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nama Lengkap Penyewa',
-                      prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+              readyAssetsAsync.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (e, _) => Text('Gagal memuat unit: $e'),
+                data: (assets) {
+                  final filteredAssets = _selectedAssetCategoryId == null
+                      ? assets
+                      : assets.where((a) => a['model']?['category_id'] == _selectedAssetCategoryId).toList();
 
-                  // WhatsApp Phone
-                  TextField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      labelText: 'Nomor WhatsApp Aktif',
-                      prefixIcon: const Icon(Icons.phone_outlined, size: 20),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.search_rounded, size: 20),
-                        onPressed: _searchCustomer,
-                        tooltip: 'Cari Riwayat Pelanggan',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Address as Written on Identity Card (Multiline Input)
-                  TextField(
-                    controller: _addressController,
-                    maxLines: 3,
-                    minLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Alamat Sesuai Kartu Identitas',
-                      hintText: 'Jalan, nomor rumah, RT/RW, kelurahan/desa, kecamatan, kota/kabupaten, kode pos',
-                      alignLabelWithHint: true,
-                      prefixIcon: Padding(
-                        padding: EdgeInsets.only(bottom: 28),
-                        child: Icon(Icons.home_outlined, size: 20),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Collateral Safe Slot
-                  TextField(
-                    controller: _slotController,
-                    decoration: const InputDecoration(
-                      labelText: 'Slot Brankas Penyimpanan Jaminan Fisik',
-                      prefixIcon: Icon(Icons.shield_outlined, size: 20),
-                    ),
-                  ),
-
-                  // Customer Search Status Feedback
-                  if (_foundCustomer != null && _foundCustomer!['is_blacklisted'] == true)
-                    Container(
-                      margin: const EdgeInsets.only(top: 14),
-                      padding: const EdgeInsets.all(12),
+                  if (filteredAssets.isEmpty) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.dangerLight,
+                        color: AppColors.surfaceMuted,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.danger),
                       ),
-                      child: Row(
+                      child: const Row(
                         children: [
-                          const Icon(Icons.block_rounded, color: AppColors.danger, size: 22),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'DAFTAR HITAM (BLACKLIST)',
-                                  style: TextStyle(
-                                    color: AppColors.danger,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                Text(
-                                  'Alasan: ${_foundCustomer!['blacklist_reason'] ?? 'Pelanggan bermasalah'}',
-                                  style: const TextStyle(
-                                    color: AppColors.danger,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (_foundCustomer != null)
-                    Container(
-                      margin: const EdgeInsets.only(top: 14),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.successLight,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.verified_rounded, color: AppColors.success, size: 18),
-                          const SizedBox(width: 8),
+                          Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+                          SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Pelanggan Terdaftar • ${_foundCustomer!['bookings_count'] ?? 0}x Sewa Selesai',
-                              style: const TextStyle(
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                              ),
+                              'Tidak ada unit rental ready sewa saat ini di kategori ini.',
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ),
                         ],
                       ),
-                    )
-                  else if (_customerLookupMessage != null)
-                    Container(
-                      margin: const EdgeInsets.only(top: 14),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        _customerLookupMessage!,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                    );
+                  }
 
-                  // Encrypted ID Document Photo Vault
-                  const SizedBox(height: 16),
-                  const Divider(height: 1),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'FOTO DOKUMEN JAMINAN (KTP/SIM)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                      if (_identityPhotoBase64 != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  return Column(
+                    children: filteredAssets.map((asset) {
+                      final isSelected = _selectedAssetId == asset['id'];
+                      final model = asset['model'] ?? {};
+                      final category = model['category'] ?? {};
+                      final tiers = _getAvailableTiers(asset);
+                      double dynamicRate = tiers.isNotEmpty ? tiers.first.price : 0.0;
+                      for (final t in tiers) {
+                        if (t.hours == (_selectedDuration ?? 24)) {
+                          dynamicRate = t.price;
+                          break;
+                        }
+                      }
+
+                      final batteryText = asset['battery_health'] != null ? 'Baterai ${asset['battery_health']}% • ' : '';
+                      final snText = asset['serial_number'] != null ? 'SN: ${asset['serial_number']} • ' : '';
+                      final subtitle = '${asset['asset_code']} • $batteryText$snText Grade ${asset['condition_grade']}';
+
+                      return GestureDetector(
+                        onTap: () => _onAssetSelected(asset),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.obsidian,
-                            borderRadius: BorderRadius.circular(6),
+                            color: isSelected ? AppColors.surfaceMuted : Colors.transparent,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected ? AppColors.obsidian : AppColors.borderSubtle,
+                              width: isSelected ? 2 : 1,
+                            ),
                           ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
+                          child: Row(
                             children: [
-                              Icon(Icons.lock_rounded, size: 10, color: Colors.white),
-                              SizedBox(width: 4),
+                              Icon(
+                                isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                                size: 18,
+                                color: isSelected ? AppColors.obsidian : AppColors.textMuted,
+                              ),
+                              const SizedBox(width: 10),
+                              Icon(
+                                _getCategoryIcon(category['name']),
+                                size: 20,
+                                color: isSelected ? AppColors.obsidian : AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      model['name'] ?? '',
+                                      style: TextStyle(
+                                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    Text(
+                                      subtitle,
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               Text(
-                                'AES-256 VAULT',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
+                                CurrencyFormatter.format(dynamicRate),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: AppColors.obsidian,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                    ],
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // DURATION & VOUCHER SECTION
+        AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: isUnitSelected ? 1.0 : 0.6,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'DURASI SEWA & VOUCHER PROMO',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: AppColors.textPrimary,
                   ),
-                  const SizedBox(height: 10),
-                  if (_identityPhotoBase64 == null)
-                    InkWell(
-                      onTap: _attachIdentityDocument,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
+                ),
+                const SizedBox(height: 14),
+
+                if (!isUnitSelected)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.borderSubtle),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 18, color: AppColors.textSecondary),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Pilih unit rental terlebih dahulu untuk menentukan durasi dan voucher.',
+                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
                         ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.camera_alt_outlined, color: AppColors.textSecondary, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Lampirkan Foto Dokumen Identitas',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
+                      ],
+                    ),
+                  ),
+
+                if (_durationValidationError != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerLight,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _durationValidationError!,
+                            style: const TextStyle(fontSize: 12, color: AppColors.danger, fontWeight: FontWeight.w600),
+                          ),
                         ),
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: AppColors.obsidian,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.badge_rounded, color: Colors.white, size: 20),
+                      ],
+                    ),
+                  ),
+                ],
+
+                readyAssetsAsync.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (e, s) => const SizedBox.shrink(),
+                  data: (assets) {
+                    Map<String, dynamic>? selectedAsset;
+                    for (final a in assets) {
+                      if (a['id'] == _selectedAssetId) {
+                        selectedAsset = a;
+                        break;
+                      }
+                    }
+                    final availableTiers = _getAvailableTiers(selectedAsset);
+
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: availableTiers.map((tier) {
+                        final isSelected = _selectedDuration == tier.hours;
+                        return ChoiceChip(
+                          label: Text(tier.label),
+                          selected: isSelected,
+                          onSelected: isUnitSelected ? (_) => _onTierSelected(tier) : null,
+                          selectedColor: AppColors.obsidian,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : AppColors.textPrimary,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _identityPhotoName ?? 'Foto_Identitas.jpg',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const Text(
-                                  'Dokumen terenkripsi & tersimpan',
-                                  style: TextStyle(
-                                    color: AppColors.success,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.danger),
-                            onPressed: _removeIdentityDocument,
-                            tooltip: 'Hapus Foto',
-                          ),
-                        ],
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Voucher Input Field
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _voucherController,
+                        enabled: isUnitSelected,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: InputDecoration(
+                          labelText: 'Kode Voucher Diskon (Opsional)',
+                          hintText: isUnitSelected ? 'Contoh: RC-VCR-8921' : 'Pilih unit terlebih dahulu',
+                          prefixIcon: const Icon(Icons.confirmation_number_outlined, size: 20),
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(90, 52),
+                        padding: EdgeInsets.zero,
+                      ),
+                      onPressed: (isUnitSelected && !_isValidatingVoucher) ? _validateVoucher : null,
+                      child: _isValidatingVoucher
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Terapkan'),
+                    ),
+                  ],
+                ),
+                if (_voucherMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _voucherMessage!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _discountAmount > 0 ? AppColors.success : AppColors.danger,
+                    ),
+                  ),
                 ],
-              ),
+              ],
             ),
-            const SizedBox(height: 20),
+          ),
+        ),
+        const SizedBox(height: 20),
 
-            // STEP 4: RINGKASAN BIAYA & PEMBAYARAN KASIR POS
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
+        // FORWARD ACTION TO STEP 2
+        ElevatedButton.icon(
+          onPressed: _onNextToCustomerStep,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.obsidian,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+          label: Text(
+            !isUnitSelected
+                ? 'Pilih Unit Terlebih Dahulu'
+                : 'Lanjut: Data Penyewa (${CurrencyFormatter.format((_basePrice - _discountAmount).clamp(0.0, double.infinity))})',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStep2CustomerAndCollateral() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'DATA PENYEWA & ALAMAT IDENTITAS',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _searchCustomer,
+                      icon: _isSearchingCustomer
+                          ? const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.obsidian),
+                            )
+                          : const Icon(Icons.search_rounded, size: 14, color: AppColors.obsidian),
+                      label: const Text(
+                        'Cari Riwayat',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.obsidian,
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Customer Name
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Lengkap Penyewa *',
+                    prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().length < 3) {
+                      return 'Nama lengkap penyewa minimal 3 karakter';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // WhatsApp Phone
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: 'Nomor WhatsApp Aktif *',
+                    prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.search_rounded, size: 20),
+                      onPressed: _searchCustomer,
+                      tooltip: 'Cari Riwayat Pelanggan',
+                    ),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().length < 8) {
+                      return 'Nomor WhatsApp aktif wajib diisi minimal 8 digit';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // Address
+                TextFormField(
+                  controller: _addressController,
+                  maxLines: 3,
+                  minLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Alamat Sesuai Kartu Identitas *',
+                    hintText: 'Jalan, nomor rumah, RT/RW, kelurahan/desa, kecamatan, kota/kabupaten',
+                    alignLabelWithHint: true,
+                    prefixIcon: Padding(
+                      padding: EdgeInsets.only(bottom: 28),
+                      child: Icon(Icons.home_outlined, size: 20),
+                    ),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().length < 5) {
+                      return 'Alamat sesuai kartu identitas wajib diisi lengkap';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // Collateral Safe Slot
+                TextFormField(
+                  controller: _slotController,
+                  decoration: const InputDecoration(
+                    labelText: 'Slot Brankas Penyimpanan Jaminan Fisik *',
+                    prefixIcon: Icon(Icons.shield_outlined, size: 20),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Lokasi slot brankas jaminan fisik wajib dicatat';
+                    }
+                    return null;
+                  },
+                ),
+
+                // Customer Search Status Feedback
+                if (_foundCustomer != null && _foundCustomer!['is_blacklisted'] == true)
+                  Container(
+                    margin: const EdgeInsets.only(top: 14),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerLight,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.danger),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.block_rounded, color: AppColors.danger, size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'DAFTAR HITAM (BLACKLIST)',
+                                style: TextStyle(
+                                  color: AppColors.danger,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                'Alasan: ${_foundCustomer!['blacklist_reason'] ?? 'Pelanggan bermasalah'}',
+                                style: const TextStyle(
+                                  color: AppColors.danger,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (_foundCustomer != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.successLight,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.verified_rounded, color: AppColors.success, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Pelanggan Terdaftar • ${_foundCustomer!['bookings_count'] ?? 0}x Sewa Selesai',
+                            style: const TextStyle(
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (_customerLookupMessage != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      _customerLookupMessage!,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+
+                // Encrypted ID Document Photo Vault
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'FOTO DOKUMEN JAMINAN (KTP/SIM)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    if (_identityPhotoBase64 != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: AppColors.obsidian,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
-                          'LANGKAH 4',
-                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock_rounded, size: 10, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              'AES-256 VAULT',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'RINGKASAN SEWA & PEMBAYARAN',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: AppColors.textPrimary,
-                        ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (_identityPhotoBase64 == null)
+                  InkWell(
+                    onTap: _attachIdentityDocument,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.camera_alt_outlined, color: AppColors.textSecondary, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'Lampirkan Foto Dokumen Identitas',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
                     ),
-                    child: Column(
+                    child: Row(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Unit Sewa:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                            Text(
-                              _selectedAsset?['model']?['name'] ?? (isUnitSelected ? 'Unit Dipilih' : 'Belum dipilih'),
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                            ),
-                          ],
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.obsidian,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.badge_rounded, color: Colors.white, size: 20),
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Durasi Sewa:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                            Text(
-                              _selectedDuration != null ? '$_selectedDuration Jam ($_selectedDurationValue $_selectedDurationUnit)' : '-',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Subtotal Tarif:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                            Text(
-                              isUnitSelected ? CurrencyFormatter.format(_basePrice) : 'Rp 0',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                        if (_discountAmount > 0) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Diskon Voucher:', style: TextStyle(fontSize: 13, color: AppColors.success)),
                               Text(
-                                '- ${CurrencyFormatter.format(_discountAmount)}',
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.success),
+                                _identityPhotoName ?? 'Foto_Identitas.jpg',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const Text(
+                                'Dokumen terenkripsi & tersimpan',
+                                style: TextStyle(
+                                  color: AppColors.success,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ],
                           ),
-                        ],
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 10),
-                          child: Divider(height: 1, color: AppColors.border),
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'TOTAL PEMBAYARAN POS:',
-                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                            ),
-                            Text(
-                              CurrencyFormatter.format(totalPayable),
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.obsidian),
-                            ),
-                          ],
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.danger),
+                          onPressed: _removeIdentityDocument,
+                          tooltip: 'Hapus Foto',
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: !isUnitSelected ? null : _proceedToPayment,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    icon: const Icon(Icons.payment_rounded),
-                    label: Text(
-                      !isUnitSelected
-                          ? 'Pilih Unit Rental Terlebih Dahulu'
-                          : 'Lanjut ke Pembayaran Kasir POS 💳',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // STEP 2 NAVIGATION BUTTONS
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _onBackStep,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                label: const Text('Kembali', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                onPressed: _onNextToSummaryStep,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.obsidian,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: const Text('Lanjut: Ringkasan Biaya', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildStep3SummaryAndPayment(double totalPayable, bool isUnitSelected) {
+    final model = _selectedAsset?['model'] as Map?;
+    final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // OVERVIEW REVIEW CARDS
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'RINGKASAN SEWA & IDENTITAS PENYEWA',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Unit Card Review
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.obsidian,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.phone_iphone_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(deviceModelName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                          Text(
+                            '${_selectedAsset?['asset_code'] ?? '-'} • Durasi: $_selectedDuration Jam',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    StatusBadge.inventory('ready'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Customer Card Review
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: const Icon(Icons.person_rounded, color: AppColors.obsidian, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_nameController.text.trim(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                          Text(
+                            'WA: ${_phoneController.text.trim()} • Slot: ${_slotController.text.trim()}',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_identityPhotoBase64 != null)
+                      const StatusBadge(
+                        label: 'KTP Valid',
+                        textColor: AppColors.success,
+                        backgroundColor: AppColors.successLight,
+                        icon: Icons.shield_rounded,
+                      ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+
+              // Itemized Bill
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Subtotal Tarif Sewa:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  Text(
+                    CurrencyFormatter.format(_basePrice),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                ],
+              ),
+              if (_discountAmount > 0) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Diskon Promo Voucher:', style: TextStyle(fontSize: 13, color: AppColors.success)),
+                    Text(
+                      '- ${CurrencyFormatter.format(_discountAmount)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.success),
+                    ),
+                  ],
+                ),
+              ],
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Divider(height: 1, color: AppColors.border),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'TOTAL TAGIHAN POS:',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                  Text(
+                    CurrencyFormatter.format(totalPayable),
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.obsidian),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // STEP 3 NAVIGATION BUTTONS
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _onBackStep,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                label: const Text('Ubah Data', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                onPressed: !isUnitSelected ? null : _proceedToPayment,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.obsidian,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.payment_rounded, size: 18),
+                label: const Text(
+                  'Lanjut ke Pembayaran POS 💳',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

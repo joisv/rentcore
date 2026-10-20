@@ -6,6 +6,7 @@ import '../../../core/models/thermal_printer_models.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../shared/widgets/pos_numpad.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../printer/providers/printer_provider.dart';
@@ -38,6 +39,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   bool _nonCashConfirmed = true;
   bool _isProcessing = false;
   bool _methodInitialized = false;
+  bool _showNumpad = true;
   PaymentResult? _completedResult;
 
   @override
@@ -397,6 +399,37 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'KEYPAD NUMERIK POS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => setState(() => _showNumpad = !_showNumpad),
+                  icon: Icon(_showNumpad ? Icons.keyboard_hide_rounded : Icons.dialpad_rounded, size: 16),
+                  label: Text(
+                    _showNumpad ? 'Sembunyikan' : 'Buka Keypad',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            if (_showNumpad) ...[
+              const SizedBox(height: 6),
+              PosNumpad(
+                controller: _cashReceivedController,
+                exactAmount: amountDue,
+                onInputChanged: (_) => setState(() {}),
+              ),
+            ],
           ] else ...[
             // Non-Cash Confirmation
             Container(

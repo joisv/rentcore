@@ -39,6 +39,20 @@ class BusinessState {
     this.error,
   });
 
+  Map<String, dynamic>? get currentBusiness {
+    if (activeBusinessId == null) return null;
+    return businesses.where((b) => b['id'] == activeBusinessId).firstOrNull as Map<String, dynamic>?;
+  }
+
+  Map<String, dynamic>? get currentBranch {
+    if (activeBranchId == null) return null;
+    final branches = currentBusiness?['branches'] as List<dynamic>?;
+    return branches?.where((b) => b['id'] == activeBranchId).firstOrNull as Map<String, dynamic>?;
+  }
+
+  bool get isCentralBranch => currentBranch?['is_central'] == true;
+  bool get isConsolidated => activeBusinessId != null && activeBranchId == null;
+
   BusinessState copyWith({
     bool? isLoading,
     int? activeBusinessId,
@@ -46,6 +60,7 @@ class BusinessState {
     int? activeBranchId,
     String? activeBranchName,
     bool clearBranch = false,
+    bool clearError = false,
     List<dynamic>? businesses,
     String? error,
   }) {
@@ -56,7 +71,7 @@ class BusinessState {
       activeBranchId: clearBranch ? null : (activeBranchId ?? this.activeBranchId),
       activeBranchName: clearBranch ? null : (activeBranchName ?? this.activeBranchName),
       businesses: businesses ?? this.businesses,
-      error: error,
+      error: clearError ? null : (error ?? this.error),
     );
   }
 }
@@ -67,11 +82,10 @@ class BusinessNotifier extends Notifier<BusinessState> {
   @override
   BusinessState build() {
     _repository = ref.watch(authRepositoryProvider);
-    Future.microtask(() => loadInitialContext());
     return const BusinessState();
   }
 
-  Future<void> loadInitialContext() async {
+  Future<void> loadInitialContext({List<dynamic>? preloadedBusinesses}) async {
     state = state.copyWith(isLoading: true);
     final prefs = await SharedPreferences.getInstance();
     final bizId = prefs.getInt('active_business_id');
@@ -80,7 +94,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
     final branchName = prefs.getString('branch_name');
 
     try {
-      final list = await _repository.fetchBusinesses();
+      final list = preloadedBusinesses ?? await _repository.fetchBusinesses();
       if (!ref.mounted) return;
       int? effectiveBizId;
       String? effectiveBizName;
@@ -141,6 +155,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
         activeBranchId: effectiveBranchId,
         activeBranchName: effectiveBranchName,
         businesses: list,
+        clearError: true,
       );
     } catch (e) {
       if (!ref.mounted) return;
@@ -150,7 +165,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
         activeBusinessName: null,
         activeBranchId: null,
         activeBranchName: null,
-        error: e.toString(),
+        error: e.toString().replaceAll('Exception: ', ''),
       );
     }
   }
@@ -180,6 +195,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
       activeBusinessName: bizName,
       activeBranchId: branchId,
       activeBranchName: branchName,
+      clearError: true,
     );
   }
 
@@ -201,6 +217,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
       activeBranchId: branchId,
       activeBranchName: branchName,
       clearBranch: branchId == null,
+      clearError: true,
     );
   }
 
@@ -210,7 +227,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
     String? address,
     String? phone,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final newBiz = await _repository.createBusiness(
         name: name,
@@ -227,16 +244,18 @@ class BusinessNotifier extends Notifier<BusinessState> {
       state = state.copyWith(
         isLoading: false,
         businesses: list,
+        clearError: true,
       );
       return true;
     } catch (e) {
       if (!ref.mounted) return false;
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
       return false;
     }
   }
 
   Future<void> refresh() async {
+    state = state.copyWith(isLoading: true, clearError: true);
     await loadInitialContext();
   }
 

@@ -1,5 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/navigation_keys.dart';
+import '../../bookings/providers/booking_provider.dart';
+import '../../cashier/providers/cashier_provider.dart';
+import '../../customers/providers/customer_provider.dart';
+import '../../inventory/providers/asset_provider.dart';
+import '../../organization/providers/organization_provider.dart';
+import '../../transfers/providers/transfer_provider.dart';
+import '../../vouchers/providers/voucher_provider.dart';
 import '../data/auth_repository.dart';
 import 'business_provider.dart';
 
@@ -45,8 +53,28 @@ class AuthNotifier extends Notifier<AuthState> {
 
   Future<void> checkCurrentSession() async {
     state = state.copyWith(isLoading: true);
-    final user = await _repository.checkSession();
-    if (user != null) {
+    final sessionData = await _repository.checkSession();
+    if (sessionData != null) {
+      final user = (sessionData.containsKey('user') && sessionData['user'] is Map<String, dynamic>)
+          ? sessionData['user'] as Map<String, dynamic>
+          : sessionData;
+      final businesses = sessionData['businesses'] is List ? sessionData['businesses'] as List : null;
+      try {
+        await ref.read(businessProvider.notifier).loadInitialContext(
+          preloadedBusinesses: businesses,
+        );
+      } catch (e) {
+        debugPrint('[AuthProvider] checkCurrentSession loadInitialContext error: $e');
+      }
+
+      if (ref.exists(voucherProvider)) {
+        try {
+          ref.read(voucherProvider.notifier).loadVouchers();
+        } catch (e) {
+          debugPrint('[AuthProvider] checkCurrentSession loadVouchers error: $e');
+        }
+      }
+
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
@@ -65,6 +93,23 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final data = await _repository.login(email, password);
+      final businesses = data['businesses'] ?? data['user']?['businesses'];
+      try {
+        await ref.read(businessProvider.notifier).loadInitialContext(
+          preloadedBusinesses: businesses is List ? businesses : null,
+        );
+      } catch (e) {
+        debugPrint('[AuthProvider] login loadInitialContext error: $e');
+      }
+
+      if (ref.exists(voucherProvider)) {
+        try {
+          ref.read(voucherProvider.notifier).loadVouchers();
+        } catch (e) {
+          debugPrint('[AuthProvider] login loadVouchers error: $e');
+        }
+      }
+
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
@@ -94,6 +139,23 @@ class AuthNotifier extends Notifier<AuthState> {
         name: name,
         avatarUrl: avatarUrl,
       );
+      final businesses = data['businesses'] ?? data['user']?['businesses'];
+      try {
+        await ref.read(businessProvider.notifier).loadInitialContext(
+          preloadedBusinesses: businesses is List ? businesses : null,
+        );
+      } catch (e) {
+        debugPrint('[AuthProvider] login loadInitialContext error: $e');
+      }
+
+      if (ref.exists(voucherProvider)) {
+        try {
+          ref.read(voucherProvider.notifier).loadVouchers();
+        } catch (e) {
+          debugPrint('[AuthProvider] login loadVouchers error: $e');
+        }
+      }
+
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
@@ -113,11 +175,46 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       await _repository.logout();
-    } catch (_) {
-      // Regardless of remote API or storage errors, ensure local state is cleared
+    } catch (e) {
+      debugPrint('[AuthProvider] remote logout error (local session will still be cleared): $e');
     } finally {
       if (ref.mounted) {
-        ref.read(businessProvider.notifier).reset();
+        if (ref.exists(businessProvider)) {
+          ref.read(businessProvider.notifier).reset();
+        }
+        if (ref.exists(voucherProvider)) {
+          try { ref.read(voucherProvider.notifier).reset(); } catch (_) {}
+        }
+        if (ref.exists(organizationProvider)) {
+          try { ref.read(organizationProvider.notifier).reset(); } catch (_) {}
+        }
+        if (ref.exists(customerSearchQueryProvider)) {
+          try { ref.read(customerSearchQueryProvider.notifier).setQuery(''); } catch (_) {}
+        }
+        if (ref.exists(bookingFilterStatusProvider)) {
+          try { ref.read(bookingFilterStatusProvider.notifier).setFilter('rented'); } catch (_) {}
+        }
+        if (ref.exists(selectedAssetStatusFilterProvider)) {
+          try { ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(null); } catch (_) {}
+        }
+        if (ref.exists(selectedAssetCategoryFilterProvider)) {
+          try { ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null); } catch (_) {}
+        }
+        if (ref.exists(assetSearchQueryProvider)) {
+          try { ref.read(assetSearchQueryProvider.notifier).setSearch(''); } catch (_) {}
+        }
+        if (ref.exists(posFilterBranchIdProvider)) {
+          try { ref.read(posFilterBranchIdProvider.notifier).setBranchId(null); } catch (_) {}
+        }
+        if (ref.exists(posDateRangeProvider)) {
+          try { ref.read(posDateRangeProvider.notifier).setDateRange(label: 'Hari Ini'); } catch (_) {}
+        }
+        if (ref.exists(selectedTransferDirectionProvider)) {
+          try { ref.read(selectedTransferDirectionProvider.notifier).setDirection('all'); } catch (_) {}
+        }
+        if (ref.exists(selectedTransferStatusProvider)) {
+          try { ref.read(selectedTransferStatusProvider.notifier).setStatus(null); } catch (_) {}
+        }
         state = const AuthState();
       }
       rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);

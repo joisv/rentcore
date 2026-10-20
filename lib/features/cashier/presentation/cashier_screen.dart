@@ -15,7 +15,10 @@ import '../../printer/providers/printer_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
 import '../providers/cashier_provider.dart';
+import 'financial_activity_ledger_screen.dart';
 import 'pos_transaction_detail_sheet.dart';
+import 'widgets/add_branch_expense_modal.dart';
+import 'widgets/cash_drawer_shift_modal.dart';
 
 class CashierScreen extends ConsumerStatefulWidget {
   const CashierScreen({super.key});
@@ -55,6 +58,17 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
       appBar: AppBar(
         title: const Text('Kasir POS & Laporan Closing'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.menu_book_rounded),
+            tooltip: 'Buku Kas & Ledger Finansial',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const FinancialActivityLedgerScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Pengaturan Server',
@@ -285,6 +299,38 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
       builder: (ctx) => PosTransactionDetailSheet(
         booking: booking,
         onPaymentRequested: () => _openPosPaymentModal(context, booking),
+      ),
+    );
+  }
+
+  void _openAddExpenseModal(BuildContext context, int? branchId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddBranchExpenseModal(
+        branchId: branchId,
+        onExpenseCreated: () {
+          ref.invalidate(closingSummaryProvider);
+          ref.invalidate(cashierExpensesProvider);
+        },
+      ),
+    );
+  }
+
+  void _openShiftModal(BuildContext context, Map<String, dynamic>? activeShift, double expectedCash, int? branchId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CashDrawerShiftModal(
+        activeShift: activeShift,
+        expectedDrawerCash: expectedCash,
+        branchId: branchId,
+        onShiftUpdated: () {
+          ref.invalidate(closingSummaryProvider);
+          ref.invalidate(currentShiftProvider);
+        },
       ),
     );
   }
@@ -886,6 +932,197 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                     ),
                     const SizedBox(height: 20),
 
+                    // Quick Action: Catat Beban, Buka/Tutup Shift, dan Buku Kas
+                    Builder(builder: (_) {
+                      final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
+                      final activeShift = recon['active_shift'] is Map ? Map<String, dynamic>.from(recon['active_shift'] as Map) : null;
+                      final hasActiveShift = activeShift != null && activeShift['status'] == 'open';
+                      final totalExp = CurrencyFormatter.parse(data['total_expenses']);
+                      final cashExp = CurrencyFormatter.parse(data['cash_drawer_expenses']);
+                      final expectedCash = recon.containsKey('expected_cash_in_drawer')
+                          ? CurrencyFormatter.parse(recon['expected_cash_in_drawer'])
+                          : (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
+
+                      final bizState = ref.read(businessProvider);
+                      final posBranchFilter = ref.read(posFilterBranchIdProvider);
+                      final int? effBranch = posBranchFilter != -1 ? (posBranchFilter ?? bizState.activeBranchId) : bizState.activeBranchId;
+
+                      return Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                    side: const BorderSide(color: AppColors.border),
+                                  ),
+                                  icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
+                                  label: const Text(
+                                    '+ Catat Beban',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                  onPressed: () => _openAddExpenseModal(context, effBranch),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: hasActiveShift ? AppColors.obsidian : AppColors.info,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                    elevation: 0,
+                                  ),
+                                  icon: Icon(
+                                    hasActiveShift ? Icons.lock_clock_rounded : Icons.lock_open_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    hasActiveShift ? 'Tutup Shift' : 'Buka Shift',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                  onPressed: () => _openShiftModal(context, activeShift, expectedCash, effBranch),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const FinancialActivityLedgerScreen(),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.menu_book_rounded, size: 16, color: AppColors.obsidian),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Buku Kas Lengkap (Audit Ledger Finansial)',
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.obsidian),
+                                      ),
+                                    ],
+                                  ),
+                                  Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.textMuted),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                    const SizedBox(height: 16),
+
+                    // Cash Drawer & Operational Expense Card
+                    if (data['cash_reconciliation'] is Map || (data['total_expenses'] != null && CurrencyFormatter.parse(data['total_expenses']) > 0)) ...[
+                      Builder(builder: (_) {
+                        final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
+                        final totalExp = CurrencyFormatter.parse(data['total_expenses']);
+                        final cashExp = CurrencyFormatter.parse(data['cash_drawer_expenses']);
+                        final expectedCash = recon.containsKey('expected_cash_in_drawer')
+                            ? CurrencyFormatter.parse(recon['expected_cash_in_drawer'])
+                            : (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
+                        final openingFloat = CurrencyFormatter.parse(recon['opening_cash_float']);
+
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Row(
+                                    children: [
+                                      Icon(Icons.point_of_sale_rounded, size: 18, color: AppColors.obsidian),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'REKONSILIASI KAS LACI & BEBAN',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                                      ),
+                                    ],
+                                  ),
+                                  if (recon['active_shift'] is Map)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.successLight,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        'Shift #${(recon['active_shift'] as Map)['shift_number'] ?? (recon['active_shift'] as Map)['id']} Aktif',
+                                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.success),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (openingFloat > 0) ...[
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Modal Awal Kas Laci', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                    Text(CurrencyFormatter.format(openingFloat), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                              ],
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Kas Masuk Bersih (Net Cash)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                  Text(CurrencyFormatter.format(cashTotal), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.success)),
+                                ],
+                              ),
+                              if (totalExp > 0) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Beban Pengeluaran Cabang ${cashExp > 0 ? '(Kas Laci)' : ''}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                    Text('-${CurrencyFormatter.format(cashExp > 0 ? cashExp : totalExp)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.danger)),
+                                  ],
+                                ),
+                              ],
+                              const Divider(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('FISIK KAS HARUS ADA DI LACI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                                  Text(
+                                    CurrencyFormatter.format(expectedCash),
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.obsidian),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                    ],
+
                     // Income Type Breakdown (Rental, Extension, Penalty)
                     if (data['breakdown_by_type'] is Map) ...[
                       Row(
@@ -905,15 +1142,22 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                       const SizedBox(height: 10),
                       Builder(builder: (_) {
                         final typeMap = data['breakdown_by_type'] as Map;
-                        final types = ['rental', 'extension', 'penalty'];
+                        final types = [
+                          'rental',
+                          'extension',
+                          'penalty',
+                          if (typeMap.containsKey('refund') && ((typeMap['refund'] is Map && (typeMap['refund']['count'] ?? 0) > 0) || CurrencyFormatter.parse((typeMap['refund'] is Map ? typeMap['refund']['total'] : null)) > 0))
+                            'refund',
+                        ];
                         return Column(
                           children: types.map((key) {
                             final info = typeMap[key] is Map ? (typeMap[key] as Map) : {};
-                            final label = info['label'] ?? (key == 'penalty' ? 'Denda Keterlambatan' : (key == 'extension' ? 'Perpanjangan Sewa' : 'Sewa Kontrak Pokok'));
+                            final label = info['label'] ?? (key == 'penalty' ? 'Denda Keterlambatan' : (key == 'extension' ? 'Perpanjangan Sewa' : (key == 'refund' ? 'Pengembalian Deposit (Refund)' : 'Sewa Kontrak Pokok')));
                             final total = CurrencyFormatter.parse(info['total']);
                             final count = info['count'] ?? 0;
                             final isPenalty = key == 'penalty';
                             final isExtension = key == 'extension';
+                            final isRefund = key == 'refund';
 
                             final icon = isPenalty
                                 ? Icons.warning_amber_rounded
@@ -1171,9 +1415,20 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                               color: AppColors.textMuted,
                             ),
                           ),
-                          Text(
-                            '${(data['recent_transactions'] as List).length} Transaksi',
-                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                            icon: const Icon(Icons.menu_book_rounded, size: 14),
+                            label: const Text('Buku Kas Lengkap', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const FinancialActivityLedgerScreen(),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),

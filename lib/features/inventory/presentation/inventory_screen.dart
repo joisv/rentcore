@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
+import '../../../shared/widgets/status_badge.dart';
 import '../../auth/providers/business_provider.dart';
 import '../providers/asset_provider.dart';
 import 'add_product_sheet.dart';
@@ -351,38 +352,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final grade = asset['condition_grade'] as String? ?? 'A';
     final battery = asset['battery_health'] as int?;
 
-    Color statusColor;
-    Color statusBg;
-    String statusText;
-
-    switch (status) {
-      case 'ready':
-        statusColor = AppColors.success;
-        statusBg = AppColors.successLight;
-        statusText = 'Siap Sewa';
-        break;
-      case 'rented':
-        statusColor = AppColors.info;
-        statusBg = AppColors.infoLight;
-        statusText = 'Sedang Disewa';
-        break;
-      case 'maintenance':
-        statusColor = AppColors.danger;
-        statusBg = AppColors.dangerLight;
-        statusText = 'Perawatan';
-        break;
-      case 'in_transit':
-        statusColor = AppColors.warning;
-        statusBg = AppColors.warningLight;
-        statusText = 'Dalam Mutasi';
-        break;
-      default:
-        statusColor = AppColors.textSecondary;
-        statusBg = AppColors.surfaceMuted;
-        statusText = status.toUpperCase();
-        break;
-    }
-
     final specParts = [
       category?['name'] ?? 'Gadget',
       if (model?['color'] != null && (model!['color'] as String).isNotEmpty) model['color'],
@@ -438,21 +407,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusBg,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+                StatusBadge.inventory(status),
               ],
             ),
             const SizedBox(height: 14),

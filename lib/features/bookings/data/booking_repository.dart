@@ -82,4 +82,22 @@ class BookingRepository {
     final response = await _client.dio.get(ApiConstants.bookingDetail(bookingId));
     return response.data['data'];
   }
+
+  Future<Map<String, dynamic>> fetchAvailableReplacements(dynamic bookingId, {dynamic assetId}) async {
+    final response = await _client.dio.get(
+      ApiConstants.availableReplacements(bookingId, assetId: assetId),
+    );
+    return response.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> exchangeRentalUnit(
+    dynamic bookingId,
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _client.dio.post(
+      ApiConstants.exchangeBooking(bookingId),
+      data: payload,
+    );
+    return response.data as Map<String, dynamic>;
+  }
 }

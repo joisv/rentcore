@@ -85,3 +85,31 @@ final bookingDetailProvider = FutureProvider.autoDispose.family<Map<String, dyna
   final repo = ref.watch(cashierRepositoryProvider);
   return repo.fetchBookingDetail(bookingId);
 });
+
+final cashierExpensesProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final bizState = ref.watch(businessProvider);
+  final posBranchFilter = ref.watch(posFilterBranchIdProvider);
+  final dateRange = ref.watch(posDateRangeProvider);
+  final repo = ref.watch(cashierRepositoryProvider);
+
+  final bool isConsolidated = posBranchFilter == -1 || (posBranchFilter == null && bizState.activeBranchId == null);
+  final int? effectiveBranchId = isConsolidated ? null : (posBranchFilter ?? bizState.activeBranchId);
+
+  return repo.fetchExpenses(
+    branchId: effectiveBranchId,
+    allBranches: isConsolidated,
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+  );
+});
+
+final currentShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final bizState = ref.watch(businessProvider);
+  final posBranchFilter = ref.watch(posFilterBranchIdProvider);
+  final repo = ref.watch(cashierRepositoryProvider);
+
+  final bool isConsolidated = posBranchFilter == -1 || (posBranchFilter == null && bizState.activeBranchId == null);
+  final int? effectiveBranchId = isConsolidated ? null : (posBranchFilter ?? bizState.activeBranchId);
+
+  return repo.fetchCurrentShift(branchId: effectiveBranchId);
+});
