@@ -4,7 +4,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/status_badge.dart';
-import '../../cashier/providers/cashier_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
 import '../providers/booking_provider.dart';
@@ -98,18 +97,43 @@ class BookingsScreen extends ConsumerWidget {
                       final customer = item['customer'] ?? {};
                       final items = (item['items'] as List?) ?? [];
                       final exchanges = (item['exchanges'] as List?) ?? [];
-                      Map<String, dynamic>? activeItem;
+
+                      // Reliably distinguish primary device and associated add-ons
+                      Map<String, dynamic>? primaryItem;
+                      final addonItems = <Map<String, dynamic>>[];
+
                       for (final it in items) {
-                        if (it is Map && (it['status'] == 'active' || it['status'] == null)) {
-                          activeItem = (it as Map).cast<String, dynamic>();
-                          break;
+                        if (it is Map) {
+                          final itMap = Map<String, dynamic>.from(it);
+                          final itemType = itMap['item_type']?.toString().toLowerCase();
+                          final asset = itMap['asset'] as Map?;
+                          final m = asset?['model'] as Map?;
+                          final isAddon = itemType == 'addon' ||
+                              m?['is_addon'] == true ||
+                              m?['is_addon'] == 1;
+
+                          if (isAddon) {
+                            addonItems.add(itMap);
+                          } else {
+                            final isActive = itMap['status'] == 'active' || itMap['status'] == null;
+                            if (isActive && primaryItem == null) {
+                              primaryItem = itMap;
+                            } else {
+                              primaryItem ??= itMap;
+                            }
+                          }
                         }
                       }
-                      activeItem ??= (items.isNotEmpty && items.first is Map)
-                          ? (items.first as Map).cast<String, dynamic>()
-                          : null;
-                      final activeAsset = (item['active_asset'] as Map?)?.cast<String, dynamic>() ??
-                          (activeItem?['asset'] as Map?)?.cast<String, dynamic>();
+
+                      // Fallback: If no primary item identified, use first item
+                      if (primaryItem == null && items.isNotEmpty && items.first is Map) {
+                        primaryItem = Map<String, dynamic>.from(items.first as Map);
+                        addonItems.remove(primaryItem);
+                      }
+
+                      final activeAsset = (item['primary_asset'] as Map?)?.cast<String, dynamic>() ??
+                          (item['active_asset'] as Map?)?.cast<String, dynamic>() ??
+                          (primaryItem?['asset'] as Map?)?.cast<String, dynamic>();
                       final model = activeAsset?['model'];
 
                       final endAt = item['end_at'] != null ? DateTime.tryParse(item['end_at']) : null;
@@ -155,7 +179,7 @@ class BookingsScreen extends ConsumerWidget {
                                           decoration: BoxDecoration(
                                             color: AppColors.infoLight,
                                             borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                                            border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
                                           ),
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
@@ -255,6 +279,95 @@ class BookingsScreen extends ConsumerWidget {
                                       ),
                                     ],
                                   ),
+                                ),
+                              ],
+                            ),
+
+                            // Associated Add-on Items Section
+                            if (addonItems.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.borderSubtle),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.extension_outlined, size: 14, color: AppColors.obsidian),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Item Add-on (${addonItems.length}):',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: addonItems.map((addon) {
+                                        final aAsset = addon['asset'] as Map? ?? {};
+                                        final aModel = aAsset['model'] as Map? ?? {};
+                                        final aName = aModel['name']?.toString() ?? 'Aksesoris';
+                                        final aCode = aAsset['asset_code']?.toString();
+                                        final aPrice = addon['unit_price'] != null ? CurrencyFormatter.parse(addon['unit_price']) : 0.0;
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.surface,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: AppColors.border),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.check_circle_outline_rounded, size: 12, color: AppColors.success),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                aCode != null ? '$aName ($aCode)' : aName,
+                                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                              ),
+                                              if (aPrice > 0) ...[
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '• ${CurrencyFormatter.format(aPrice)}',
+                                                  style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            // Pricing & Subtotal Summary Row
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                if (item['addon_subtotal'] != null && CurrencyFormatter.parse(item['addon_subtotal']) > 0)
+                                  Text(
+                                    'Utama: ${CurrencyFormatter.format(item['primary_subtotal'] ?? 0)} • Add-on: ${CurrencyFormatter.format(item['addon_subtotal'])}',
+                                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                                  )
+                                else
+                                  const SizedBox(),
+                                Text(
+                                  'Total: ${CurrencyFormatter.format(item['total_bill'] ?? item['total_amount'] ?? 0)}',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.obsidian),
                                 ),
                               ],
                             ),
@@ -367,8 +480,10 @@ class BookingsScreen extends ConsumerWidget {
     final bookingCode = item['booking_code']?.toString() ?? '#$bookingId';
     final customer = (item['customer'] as Map?) ?? {};
     final customerName = customer['name']?.toString() ?? 'Pelanggan';
-    final device = (item['device'] as Map?) ?? {};
-    final model = (device['asset_model'] as Map?) ?? {};
+    final primaryAsset = (item['primary_asset'] as Map?) ??
+        (item['active_asset'] as Map?) ??
+        (item['device'] as Map?) ?? {};
+    final model = (primaryAsset['model'] as Map?) ?? (primaryAsset['asset_model'] as Map?) ?? {};
     final deviceModel = model['name']?.toString() ?? 'Unit Sewa';
     final hourlyRate = ((model['tier']?['hourly_rate'] ?? 15000) as num).toInt();
 

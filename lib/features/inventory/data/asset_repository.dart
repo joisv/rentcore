@@ -4,24 +4,70 @@ import '../../../core/network/api_client.dart';
 class AssetRepository {
   final ApiClient _client = ApiClient();
 
+  List<Map<String, dynamic>> _extractList(dynamic rawData) {
+    if (rawData == null) return [];
+    if (rawData is List) {
+      return rawData
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    if (rawData is Map) {
+      final inner = rawData['data'];
+      if (inner is List) {
+        return inner
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (inner is Map && inner['data'] is List) {
+        return (inner['data'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    }
+    return [];
+  }
+
+  List<Map<String, dynamic>> extractList(dynamic rawData) => _extractList(rawData);
+
   Future<List<Map<String, dynamic>>> fetchAssets({
     String? status,
     String? search,
     int? categoryId,
     int? branchId,
+    bool allBranches = false,
   }) async {
     final queryParams = <String, dynamic>{};
     if (status != null && status.isNotEmpty) queryParams['status'] = status;
     if (search != null && search.isNotEmpty) queryParams['search'] = search;
     if (categoryId != null) queryParams['category_id'] = categoryId;
     if (branchId != null) queryParams['branch_id'] = branchId;
+    if (allBranches) queryParams['all_branches'] = 1;
 
-    final response = await _client.dio.get(
-      ApiConstants.assets,
-      queryParameters: queryParams,
-    );
-    final data = response.data['data']['data'] as List;
-    return data.map((e) => e as Map<String, dynamic>).toList();
+    print('>>> [ASSET_REPO] GET ${ApiConstants.assets} with params: $queryParams');
+    try {
+      final response = await _client.dio.get(
+        ApiConstants.assets,
+        queryParameters: queryParams,
+      );
+      print('>>> [ASSET_REPO] response status: ${response.statusCode}, type: ${response.data.runtimeType}');
+      final data = response.data;
+      if (data is Map && data.containsKey('data')) {
+        final extracted = _extractList(data['data']);
+        print('>>> [ASSET_REPO] extracted count from data["data"]: ${extracted.length}');
+        if (extracted.isNotEmpty || data['data'] is List || (data['data'] is Map && (data['data'] as Map)['data'] is List)) {
+          return extracted;
+        }
+      }
+      final extractedFallback = _extractList(data);
+      print('>>> [ASSET_REPO] extractedFallback count: ${extractedFallback.length}');
+      return extractedFallback;
+    } catch (e, st) {
+      print('>>> [ASSET_REPO] dio get error: $e\n$st');
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchModels({int? categoryId}) async {
@@ -32,8 +78,11 @@ class AssetRepository {
       ApiConstants.assetModels,
       queryParameters: queryParams,
     );
-    final data = response.data['data'] as List;
-    return data.map((e) => e as Map<String, dynamic>).toList();
+    final data = response.data;
+    if (data is Map && data.containsKey('data')) {
+      return _extractList(data['data']);
+    }
+    return _extractList(data);
   }
 
   Future<List<Map<String, dynamic>>> fetchCategories() async {
@@ -41,8 +90,11 @@ class AssetRepository {
       ApiConstants.categories,
       queryParameters: {'all': true},
     );
-    final data = response.data['data'] as List;
-    return data.map((e) => e as Map<String, dynamic>).toList();
+    final data = response.data;
+    if (data is Map && data.containsKey('data')) {
+      return _extractList(data['data']);
+    }
+    return _extractList(data);
   }
 
   Future<List<Map<String, dynamic>>> fetchProducts({
@@ -57,8 +109,11 @@ class AssetRepository {
       ApiConstants.products,
       queryParameters: queryParams,
     );
-    final data = response.data['data'] as List;
-    return data.map((e) => e as Map<String, dynamic>).toList();
+    final data = response.data;
+    if (data is Map && data.containsKey('data')) {
+      return _extractList(data['data']);
+    }
+    return _extractList(data);
   }
 
   Future<Map<String, dynamic>> calculatePrice({
@@ -123,6 +178,14 @@ class AssetRepository {
   Future<Map<String, dynamic>> createProduct(Map<String, dynamic> payload) async {
     final response = await _client.dio.post(
       ApiConstants.products,
+      data: payload,
+    );
+    return response.data['data'];
+  }
+
+  Future<Map<String, dynamic>> updateProduct(int id, Map<String, dynamic> payload) async {
+    final response = await _client.dio.put(
+      ApiConstants.updateProduct(id),
       data: payload,
     );
     return response.data['data'];

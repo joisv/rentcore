@@ -76,6 +76,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   int _selectedDurationValue = 24;
 
   double _basePrice = 0.0;
+  double _addonSubtotal = 0.0;
+  final List<Map<String, dynamic>> _selectedAddons = [];
+  int? _selectedAddonCategoryId;
   double _discountAmount = 0.0;
   bool _isValidatingVoucher = false;
   String? _voucherMessage;
@@ -170,6 +173,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       _selectedDurationValue = selectedTier.value;
       _basePrice = selectedTier.price;
 
+      _recalculateAddons();
       _updateCashReceivedDefault();
     });
 
@@ -185,6 +189,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       _selectedDurationValue = tier.value;
       _basePrice = tier.price;
       _durationValidationError = null;
+      _recalculateAddons();
       _updateCashReceivedDefault();
     });
 
@@ -193,8 +198,41 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     }
   }
 
+  double _computeAddonPrice(Map<String, dynamic> addonAsset) {
+    final tiers = _getAvailableTiers(addonAsset);
+    if (tiers.isEmpty) return 20000.0;
+    for (final t in tiers) {
+      if (t.hours == (_selectedDuration ?? 24)) {
+        return t.price;
+      }
+    }
+    return tiers.first.price;
+  }
+
+  void _recalculateAddons() {
+    double total = 0.0;
+    for (final addon in _selectedAddons) {
+      total += _computeAddonPrice(addon);
+    }
+    _addonSubtotal = total;
+  }
+
+  void _toggleAddon(Map<String, dynamic> addon) {
+    final addonId = addon['id'];
+    final existingIdx = _selectedAddons.indexWhere((a) => a['id'] == addonId);
+    setState(() {
+      if (existingIdx >= 0) {
+        _selectedAddons.removeAt(existingIdx);
+      } else {
+        _selectedAddons.add(addon);
+      }
+      _recalculateAddons();
+      _updateCashReceivedDefault();
+    });
+  }
+
   void _updateCashReceivedDefault() {
-    final payable = (_basePrice - _discountAmount).clamp(0.0, double.infinity);
+    final payable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
     if (_cashReceivedController.text.isEmpty ||
         CurrencyFormatter.parse(_cashReceivedController.text) == 0.0) {
       _cashReceivedController.text = payable.toInt().toString();
@@ -203,7 +241,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
   void _validateVoucher() async {
     final code = _voucherController.text.trim();
-    if (code.isEmpty || _basePrice <= 0) return;
+    final combinedSubtotal = _basePrice + _addonSubtotal;
+    if (code.isEmpty || combinedSubtotal <= 0) return;
 
     setState(() {
       _isValidatingVoucher = true;
@@ -212,7 +251,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
     try {
       final repo = VoucherRepository();
-      final result = await repo.validateVoucher(code, _basePrice);
+      final result = await repo.validateVoucher(code, combinedSubtotal);
       setState(() {
         _discountAmount = CurrencyFormatter.parse(result['calculated_discount']);
         _voucherMessage = 'Voucher aktif: Hemat ${CurrencyFormatter.format(_discountAmount)} (${result['discount_percentage']}%)';
@@ -389,7 +428,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       return;
     }
 
-    final totalPayable = (_basePrice - _discountAmount).clamp(0.0, double.infinity);
+    final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
     final activeBranchId = ref.read(businessProvider).activeBranchId;
     final activeBranchName = ref.read(businessProvider).activeBranchName;
     final payload = <String, dynamic>{
@@ -398,12 +437,21 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       'customer_address': address,
       'identity_photo_base64': _identityPhotoBase64,
       'asset_ids': [_selectedAssetId],
+      if (_selectedAddons.isNotEmpty)
+        'addon_asset_ids': _selectedAddons.map((a) => a['id']).toList(),
       'duration_hours': _selectedDuration,
       'duration_unit': _selectedDurationUnit,
       'duration_value': _selectedDurationValue,
       'collateral_type': 'KTP Asli',
       'collateral_storage_slot': _slotController.text.trim(),
       'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
+      'unit_prices': {
+        if (_selectedAssetId != null)
+          _selectedAssetId.toString(): _basePrice,
+        for (final a in _selectedAddons)
+          if (a['id'] != null)
+            a['id'].toString(): _computeAddonPrice(a),
+      },
     };
     if (activeBranchId != null) {
       payload['affiliate_id'] = activeBranchId;
@@ -453,7 +501,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   Widget build(BuildContext context) {
     final readyAssetsAsync = ref.watch(readyAssetsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
-    final totalPayable = (_basePrice - _discountAmount).clamp(0.0, double.infinity);
+    final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
     final isUnitSelected = _selectedAssetId != null;
 
     return Scaffold(
@@ -969,6 +1017,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             ),
           ),
         ),
+        _buildAddonsSelectionSection(readyAssetsAsync, categoriesAsync),
         const SizedBox(height: 20),
 
         // FORWARD ACTION TO STEP 2
@@ -984,11 +1033,190 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           label: Text(
             !isUnitSelected
                 ? 'Pilih Unit Terlebih Dahulu'
-                : 'Lanjut: Data Penyewa (${CurrencyFormatter.format((_basePrice - _discountAmount).clamp(0.0, double.infinity))})',
+                : 'Lanjut: Data Penyewa (${CurrencyFormatter.format((_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity))})',
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAddonsSelectionSection(
+    AsyncValue<List<dynamic>> readyAssetsAsync,
+    AsyncValue<List<dynamic>> categoriesAsync,
+  ) {
+    return readyAssetsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (assets) {
+        final addonAssets = assets.where((a) {
+          final m = a['model'] as Map? ?? {};
+          final c = m['category'] as Map? ?? {};
+          final isAddonModel = m['is_addon'] == true || m['is_addon'] == 1;
+          final isAddonCat = c['is_addon'] == true || c['is_addon'] == 1;
+          final catName = (c['name']?.toString() ?? '').toLowerCase();
+          final isKnownAddon = catName.contains('aksesoris') ||
+              catName.contains('accessory') ||
+              catName.contains('power bank') ||
+              catName.contains('charger') ||
+              catName.contains('tripod');
+          return isAddonModel || isAddonCat || isKnownAddon;
+        }).toList();
+
+        if (addonAssets.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final filteredAddons = _selectedAddonCategoryId == null
+            ? addonAssets
+            : addonAssets.where((a) => a['model']?['category_id'] == _selectedAddonCategoryId).toList();
+
+        return Container(
+          margin: const EdgeInsets.only(top: 16),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _selectedAddons.isNotEmpty ? AppColors.obsidian : AppColors.border,
+              width: _selectedAddons.isNotEmpty ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.extension_outlined, size: 18, color: AppColors.obsidian),
+                      SizedBox(width: 8),
+                      Text(
+                        'AKSESORIS & ADD-ON SEWA',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_selectedAddons.isNotEmpty)
+                    StatusBadge(
+                      label: '${_selectedAddons.length} Dipilih',
+                      textColor: AppColors.success,
+                      backgroundColor: AppColors.successLight,
+                      icon: Icons.check_circle_rounded,
+                    )
+                  else
+                    const StatusBadge(
+                      label: 'Opsional',
+                      textColor: AppColors.textSecondary,
+                      backgroundColor: AppColors.surfaceMuted,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Pilih power bank, charger, tripod, atau aksesoris tambahan yang disewa bersamaan.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+
+              // Addon items list
+              Column(
+                children: filteredAddons.map((addon) {
+                  final isSelected = _selectedAddons.any((a) => a['id'] == addon['id']);
+                  final model = addon['model'] as Map? ?? {};
+                  final modelName = model['name']?.toString() ?? 'Aksesoris';
+                  final price = _computeAddonPrice(addon);
+
+                  return InkWell(
+                    onTap: () => _toggleAddon(addon),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.surfaceMuted : AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? AppColors.obsidian : AppColors.border,
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: isSelected,
+                            activeColor: AppColors.obsidian,
+                            onChanged: (_) => _toggleAddon(addon),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.obsidian : AppColors.surfaceMuted,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.power_rounded,
+                              size: 18,
+                              color: isSelected ? Colors.white : AppColors.obsidian,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  modelName,
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                ),
+                                Text(
+                                  '${addon['asset_code']} • Grade ${addon['condition_grade']}',
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '+ ${CurrencyFormatter.format(price)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: isSelected ? AppColors.obsidian : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              if (_selectedAddons.isNotEmpty) ...[
+                const Divider(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Subtotal Add-on (${_selectedAddons.length} item):',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                    ),
+                    Text(
+                      CurrencyFormatter.format(_addonSubtotal),
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.obsidian),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1428,6 +1656,63 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                   ],
                 ),
               ),
+
+              // Add-on Review Tiles
+              if (_selectedAddons.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ..._selectedAddons.map((addon) {
+                  final model = addon['model'] as Map? ?? {};
+                  final modelName = model['name']?.toString() ?? 'Aksesoris';
+                  final price = _computeAddonPrice(addon);
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.obsidian,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(Icons.power_rounded, color: Colors.white, size: 14),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                modelName,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                              ),
+                              Text(
+                                '${addon['asset_code']} • Add-on',
+                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const StatusBadge(
+                          label: 'Add-on',
+                          textColor: AppColors.obsidian,
+                          backgroundColor: AppColors.surface,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          CurrencyFormatter.format(price),
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
               const SizedBox(height: 10),
 
               // Customer Card Review
@@ -1480,13 +1765,29 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Subtotal Tarif Sewa:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const Text('Subtotal Perangkat Utama:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                   Text(
                     CurrencyFormatter.format(_basePrice),
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                   ),
                 ],
               ),
+              if (_selectedAddons.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Subtotal Add-on (${_selectedAddons.length} unit):',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      '+ ${CurrencyFormatter.format(_addonSubtotal)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.obsidian),
+                    ),
+                  ],
+                ),
+              ],
               if (_discountAmount > 0) ...[
                 const SizedBox(height: 8),
                 Row(

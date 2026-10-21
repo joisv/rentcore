@@ -24,7 +24,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     Future.microtask(() {
       ref.read(organizationProvider.notifier).loadOrganization(
             widget.businessId,
@@ -117,6 +117,10 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
               icon: const Icon(Icons.group_outlined, size: 20),
               text: 'Tim & Staf (${orgState.members.length})',
             ),
+            const Tab(
+              icon: Icon(Icons.policy_outlined, size: 20),
+              text: 'Kebijakan Sewa',
+            ),
           ],
         ),
       ),
@@ -138,7 +142,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Mode Lihat: Penambahan cabang dan undangan staf hanya dapat dilakukan oleh Owner atau Admin.',
+                      'Mode Lihat: Penambahan cabang, staf, dan perubahan kebijakan hanya dapat dilakukan oleh Owner atau Admin.',
                       style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
                     ),
                   ),
@@ -153,6 +157,11 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
               children: [
                 _buildBranchesTab(orgState),
                 _buildMembersTab(orgState),
+                _RentalRulesTabView(
+                  businessId: widget.businessId,
+                  initialRules: orgState.rentalRules,
+                  isOwnerOrAdmin: isOwnerOrAdmin,
+                ),
               ],
             ),
           ),
@@ -162,6 +171,9 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           ? AnimatedBuilder(
               animation: _tabController,
               builder: (context, _) {
+                if (_tabController.index == 2) {
+                  return const SizedBox.shrink();
+                }
                 final isBranchesTab = _tabController.index == 0;
                 return FloatingActionButton.extended(
                   backgroundColor: AppColors.obsidian,
@@ -1077,6 +1089,381 @@ class _InviteMemberBottomSheetState extends ConsumerState<_InviteMemberBottomShe
                 color: isSelected ? Colors.white70 : AppColors.textSecondary,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// TAB 3: KEBIJAKAN SEWA & ADD-ONS
+// ==========================================
+class _RentalRulesTabView extends ConsumerStatefulWidget {
+  final int businessId;
+  final Map<String, dynamic>? initialRules;
+  final bool isOwnerOrAdmin;
+
+  const _RentalRulesTabView({
+    required this.businessId,
+    required this.initialRules,
+    required this.isOwnerOrAdmin,
+  });
+
+  @override
+  ConsumerState<_RentalRulesTabView> createState() => _RentalRulesTabViewState();
+}
+
+class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
+  late bool _idLimitEnabled;
+  late TextEditingController _maxPrimaryController;
+  late bool _addonsEnabled;
+  late bool _unlimitedAddons;
+  late TextEditingController _maxAddonsController;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final rules = widget.initialRules ?? {};
+    _idLimitEnabled = rules['id_document_limit_enabled'] ?? true;
+    _maxPrimaryController = TextEditingController(
+      text: (rules['max_primary_devices_per_id'] ?? 1).toString(),
+    );
+    _addonsEnabled = rules['addons_enabled'] ?? true;
+    _unlimitedAddons = rules['max_addons_per_rental'] == null;
+    _maxAddonsController = TextEditingController(
+      text: (rules['max_addons_per_rental'] ?? 5).toString(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _RentalRulesTabView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialRules != oldWidget.initialRules && widget.initialRules != null) {
+      final rules = widget.initialRules!;
+      setState(() {
+        _idLimitEnabled = rules['id_document_limit_enabled'] ?? true;
+        _maxPrimaryController.text = (rules['max_primary_devices_per_id'] ?? 1).toString();
+        _addonsEnabled = rules['addons_enabled'] ?? true;
+        _unlimitedAddons = rules['max_addons_per_rental'] == null;
+        _maxAddonsController.text = (rules['max_addons_per_rental'] ?? 5).toString();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _maxPrimaryController.dispose();
+    _maxAddonsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveRules() async {
+    final maxPrimary = int.tryParse(_maxPrimaryController.text.trim()) ?? 1;
+    final maxAddons = int.tryParse(_maxAddonsController.text.trim()) ?? 5;
+
+    setState(() => _isSaving = true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final payload = <String, dynamic>{
+      'id_document_limit_enabled': _idLimitEnabled,
+      'max_primary_devices_per_id': maxPrimary,
+      'addons_enabled': _addonsEnabled,
+      'allow_unlimited_addons': _unlimitedAddons,
+      if (!_unlimitedAddons) 'max_addons_per_rental': maxAddons,
+    };
+
+    final success = await ref.read(organizationProvider.notifier).updateRentalRules(payload);
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+      if (success) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Kebijakan sewa dan add-on berhasil disimpan!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyimpan kebijakan: ${ref.read(organizationProvider).error ?? 'Terjadi kesalahan'}'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Info banner
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.shield_outlined, color: AppColors.obsidian, size: 22),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Kelola aturan batas sewa per dokumen identitas (KTP/SIM) dan fitur aksesoris add-on agar operasional toko tetap aman dan terkontrol.',
+                    style: TextStyle(fontSize: 12, height: 1.4, color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // SECTION 1: Identity Document Rental Limit
+          _buildCard(
+            title: 'Batas Dokumen Identitas (KTP / SIM)',
+            subtitle: 'Kontrol berapa banyak perangkat utama yang boleh disewa oleh 1 identitas pelanggan.',
+            icon: Icons.badge_outlined,
+            children: [
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Batasi Sewa per Dokumen Identitas',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                subtitle: const Text(
+                  'Mencegah 1 pelanggan menyewa unit utama melebihi kuota sebelum sewa sebelumnya dikembalikan.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+                value: _idLimitEnabled,
+                activeColor: AppColors.obsidian,
+                onChanged: widget.isOwnerOrAdmin ? (val) => setState(() => _idLimitEnabled = val) : null,
+              ),
+              if (_idLimitEnabled) ...[
+                const Divider(height: 24),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Maksimal Unit Utama per Identitas',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Default: 1 unit utama (iPhone, iPad, Kamera, Laptop)',
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    SizedBox(
+                      width: 80,
+                      child: TextFormField(
+                        controller: _maxPrimaryController,
+                        enabled: widget.isOwnerOrAdmin,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.infoLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_rounded, size: 16, color: AppColors.info),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Add-on (power bank, charger) TIDAK dihitung sebagai perangkat utama.',
+                          style: TextStyle(fontSize: 11, color: AppColors.info, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // SECTION 2: Add-on Accessories Feature
+          _buildCard(
+            title: 'Fitur Add-on & Aksesoris Sewa',
+            subtitle: 'Atur ketersediaan dan kuota sewa aksesoris tambahan (Power Bank, Charger, Tripod, dll).',
+            icon: Icons.extension_outlined,
+            children: [
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Aktifkan Fitur Add-on / Aksesoris',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                subtitle: const Text(
+                  'Izinkan kasir menambahkan item add-on bersama unit utama saat membuat transaksi sewa.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+                value: _addonsEnabled,
+                activeColor: AppColors.obsidian,
+                onChanged: widget.isOwnerOrAdmin ? (val) => setState(() => _addonsEnabled = val) : null,
+              ),
+              if (_addonsEnabled) ...[
+                const Divider(height: 24),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Tanpa Batas Unit Add-on (Unlimited)',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                  ),
+                  subtitle: const Text(
+                    'Pelanggan dapat menyewa add-on sebanyak stok fisik yang tersedia.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                  value: _unlimitedAddons,
+                  activeColor: AppColors.obsidian,
+                  onChanged: widget.isOwnerOrAdmin ? (val) => setState(() => _unlimitedAddons = val ?? false) : null,
+                ),
+                if (!_unlimitedAddons) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Maksimal Unit Add-on per Sewa',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Batas kuota total add-on dalam 1 struk sewa',
+                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      SizedBox(
+                        width: 80,
+                        child: TextFormField(
+                          controller: _maxAddonsController,
+                          enabled: widget.isOwnerOrAdmin,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // SAVE BUTTON
+          if (widget.isOwnerOrAdmin)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.obsidian,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle_outline_rounded, size: 20),
+                label: Text(
+                  _isSaving ? 'Menyimpan Kebijakan...' : 'Simpan Kebijakan Rental',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+                onPressed: _isSaving ? null : _saveRules,
+              ),
+            ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: AppColors.obsidian, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...children,
           ],
         ),
       ),

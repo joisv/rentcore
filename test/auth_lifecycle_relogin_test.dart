@@ -129,6 +129,7 @@ class _FakeAssetRepository extends AssetRepository {
     int? categoryId,
     String? search,
     int? branchId,
+    bool allBranches = false,
   }) async {
     return [
       {

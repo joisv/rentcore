@@ -48,4 +48,10 @@ app.*.map.json
 .widget_preview/
 
 # Graphify Local Cache
+graphify-out/2026-10-21/
+
+# Temporary screenshots and test APKs
+*.png
+*.apk
+test_dio*.dart
 graphify-out/cache/

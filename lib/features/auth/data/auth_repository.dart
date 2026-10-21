@@ -267,6 +267,21 @@ class AuthRepository {
     }
   }
 
+  Future<Map<String, dynamic>> fetchRentalRules(int businessId) async {
+    final response = await _client.dio.get(ApiConstants.businessRentalRules(businessId));
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> updateRentalRules(int businessId, Map<String, dynamic> payload) async {
+    final response = await _client.dio.put(
+      ApiConstants.businessRentalRules(businessId),
+      data: payload,
+    );
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
   Future<void> logout() async {
     try {
       await _client.dio.post(ApiConstants.logout);

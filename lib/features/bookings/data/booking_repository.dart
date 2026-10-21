@@ -23,8 +23,14 @@ class BookingRepository {
       ApiConstants.bookings,
       queryParameters: queryParams,
     );
-    final data = response.data['data']['data'] as List;
-    return data.map((e) => e as Map<String, dynamic>).toList();
+    final rawData = response.data['data'];
+    if (rawData is List) {
+      return rawData.whereType<Map<String, dynamic>>().toList();
+    }
+    if (rawData is Map && rawData['data'] is List) {
+      return (rawData['data'] as List).whereType<Map<String, dynamic>>().toList();
+    }
+    return [];
   }
 
   Future<List<Map<String, dynamic>>> fetchReadyAssets({int? branchId}) async {
@@ -35,8 +41,14 @@ class BookingRepository {
       ApiConstants.assets,
       queryParameters: queryParams,
     );
-    final data = response.data['data']['data'] as List;
-    return data.map((e) => e as Map<String, dynamic>).toList();
+    final rawData = response.data['data'];
+    if (rawData is List) {
+      return rawData.whereType<Map<String, dynamic>>().toList();
+    }
+    if (rawData is Map && rawData['data'] is List) {
+      return (rawData['data'] as List).whereType<Map<String, dynamic>>().toList();
+    }
+    return [];
   }
 
   Future<Map<String, dynamic>> createRental(Map<String, dynamic> payload) async {

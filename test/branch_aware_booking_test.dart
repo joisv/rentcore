@@ -19,6 +19,7 @@ class _FakeAssetRepository extends AssetRepository {
     String? search,
     int? categoryId,
     int? branchId,
+    bool allBranches = false,
   }) async {
     recordedBranchRequests.add(branchId);
     if (branchId == null) {

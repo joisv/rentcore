@@ -11,6 +11,7 @@ class OrganizationState {
   final String? userRole;
   final List<dynamic> branches;
   final List<dynamic> members;
+  final Map<String, dynamic>? rentalRules;
   final String? error;
 
   const OrganizationState({
@@ -21,6 +22,7 @@ class OrganizationState {
     this.userRole,
     this.branches = const [],
     this.members = const [],
+    this.rentalRules,
     this.error,
   });
 
@@ -34,6 +36,7 @@ class OrganizationState {
     String? userRole,
     List<dynamic>? branches,
     List<dynamic>? members,
+    Map<String, dynamic>? rentalRules,
     String? error,
   }) {
     return OrganizationState(
@@ -44,6 +47,7 @@ class OrganizationState {
       userRole: userRole ?? this.userRole,
       branches: branches ?? this.branches,
       members: members ?? this.members,
+      rentalRules: rentalRules ?? this.rentalRules,
       error: error,
     );
   }
@@ -74,6 +78,10 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
 
       final branches = await _repository.fetchBranches(businessId);
       final members = await _repository.fetchMembers(businessId);
+      Map<String, dynamic>? rentalRules;
+      try {
+        rentalRules = await _repository.fetchRentalRules(businessId);
+      } catch (_) {}
 
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -81,6 +89,7 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
         userRole: role,
         branches: branches,
         members: members,
+        rentalRules: rentalRules,
       );
     } catch (e) {
       if (!ref.mounted) return;
@@ -144,6 +153,21 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
 
       final members = await _repository.fetchMembers(bizId);
       state = state.copyWith(isSubmitting: false, members: members);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> updateRentalRules(Map<String, dynamic> payload) async {
+    final bizId = state.businessId;
+    if (bizId == null) return false;
+
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      final updated = await _repository.updateRentalRules(bizId, payload);
+      state = state.copyWith(isSubmitting: false, rentalRules: updated);
       return true;
     } catch (e) {
       state = state.copyWith(isSubmitting: false, error: e.toString());

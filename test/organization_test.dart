@@ -110,6 +110,7 @@ void main() {
       // Check Tabs
       expect(find.text('Cabang (1)'), findsOneWidget);
       expect(find.text('Tim & Staf (1)'), findsOneWidget);
+      expect(find.text('Kebijakan Sewa'), findsOneWidget);
 
       // Check Branch card in Tab 1
       expect(find.text('Cabang Seminyak Pusat'), findsOneWidget);
@@ -230,7 +231,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify View-Only Notice is rendered
-      expect(find.textContaining('Mode Lihat: Penambahan cabang dan undangan staf hanya dapat dilakukan oleh Owner atau Admin.'), findsOneWidget);
+      expect(find.textContaining('Mode Lihat: Penambahan cabang, staf, dan perubahan kebijakan hanya dapat dilakukan oleh Owner atau Admin.'), findsOneWidget);
 
       // Verify FloatingActionButton is NOT present
       expect(find.byType(FloatingActionButton), findsNothing);

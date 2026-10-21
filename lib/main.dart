@@ -50,7 +50,7 @@ class MainShellScreen extends ConsumerStatefulWidget {
 }
 
 class _MainShellScreenState extends ConsumerState<MainShellScreen> {
-  int _currentTabIndex = 0;
+  int _currentTabIndex = 2;
 
   @override
   Widget build(BuildContext context) {

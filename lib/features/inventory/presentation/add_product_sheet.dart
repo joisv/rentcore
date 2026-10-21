@@ -6,8 +6,13 @@ import '../providers/asset_provider.dart';
 
 class AddProductSheet extends ConsumerStatefulWidget {
   final VoidCallback onSuccess;
+  final Map<String, dynamic>? initialProduct;
 
-  const AddProductSheet({super.key, required this.onSuccess});
+  const AddProductSheet({
+    super.key,
+    required this.onSuccess,
+    this.initialProduct,
+  });
 
   @override
   ConsumerState<AddProductSheet> createState() => _AddProductSheetState();
@@ -38,6 +43,8 @@ class _RateItem {
 class _AddProductSheetState extends ConsumerState<AddProductSheet> {
   final _formKey = GlobalKey<FormState>();
 
+  bool get _isEditing => widget.initialProduct != null;
+
   int? _selectedCategoryId;
   final _brandController = TextEditingController();
   final _nameController = TextEditingController();
@@ -46,6 +53,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
   final _descriptionController = TextEditingController();
   final _accessoriesController = TextEditingController();
   bool _requiresFrpCheck = false;
+  bool _isAddon = false;
   bool _isLoading = false;
 
   final List<_RateItem> _rates = [];
@@ -53,8 +61,45 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
   @override
   void initState() {
     super.initState();
-    // Default initial rate: 1 Hari
-    _rates.add(_RateItem(unit: 'day', value: '1', price: '', extensionRate: '20000'));
+    final p = widget.initialProduct;
+    if (p != null) {
+      _selectedCategoryId = p['category_id'] as int? ?? p['category']?['id'] as int?;
+      _brandController.text = p['brand']?.toString() ?? '';
+      _nameController.text = p['name']?.toString() ?? '';
+      _colorController.text = p['color']?.toString() ?? '';
+      _storageController.text = p['storage_capacity']?.toString() ?? '';
+      _descriptionController.text = p['description']?.toString() ?? '';
+      _requiresFrpCheck = p['requires_frp_check'] == true;
+      _isAddon = p['is_addon'] == true || p['is_addon'] == 1;
+
+      final acc = p['standard_accessories'];
+      if (acc is List) {
+        _accessoriesController.text = acc.join(', ');
+      } else if (acc != null) {
+        _accessoriesController.text = acc.toString();
+      }
+
+      final tiers = p['pricing_tiers'] as List?;
+      if (tiers != null && tiers.isNotEmpty) {
+        for (final t in tiers) {
+          if (t is Map<String, dynamic>) {
+            final pr = t['price'];
+            final ext = t['extension_hourly_rate'];
+            _rates.add(_RateItem(
+              unit: t['duration_unit']?.toString() ?? 'day',
+              value: (t['duration_value'] ?? 1).toString(),
+              price: pr != null ? (pr is num ? pr.toInt().toString() : pr.toString()) : '',
+              extensionRate: ext != null ? (ext is num ? ext.toInt().toString() : ext.toString()) : '20000',
+            ));
+          }
+        }
+      }
+    }
+
+    if (_rates.isEmpty) {
+      // Default initial rate: 1 Hari
+      _rates.add(_RateItem(unit: 'day', value: '1', price: '', extensionRate: '20000'));
+    }
   }
 
   @override
@@ -274,23 +319,35 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
         if (accessories.isNotEmpty)
           'standard_accessories': accessories,
         'requires_frp_check': _requiresFrpCheck,
+        'is_addon': _isAddon,
         'rates': formattedRates,
       };
 
-      await repo.createProduct(payload);
+      if (_isEditing) {
+        await repo.updateProduct(widget.initialProduct!['id'] as int, payload);
+      } else {
+        await repo.createProduct(payload);
+      }
 
       // Refresh catalog providers
       ref.invalidate(categoriesProvider);
       ref.invalidate(allCatalogModelsProvider);
       ref.invalidate(catalogModelsProvider);
       ref.invalidate(productsProvider);
+      ref.invalidate(inventoryListProvider);
 
       widget.onSuccess();
+      if (mounted) {
+        Navigator.pop(context);
+        messenger.showSnackBar(
+          SnackBar(content: Text(_isEditing ? 'Katalog berhasil diperbarui!' : 'Produk baru berhasil didaftarkan!')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         messenger.showSnackBar(
-          SnackBar(content: Text('Gagal mendaftarkan produk: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text('Gagal ${_isEditing ? "memperbarui" : "mendaftarkan"} produk: $e'), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -321,19 +378,21 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Tambah Model & Tarif Sewa',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Katalog produk baru & konfigurasi paket harga',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                    ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isEditing ? 'Edit Model & Tarif Sewa' : 'Tambah Model & Tarif Sewa',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _isEditing ? 'Perbarui informasi katalog & konfigurasi paket harga' : 'Katalog produk baru & konfigurasi paket harga',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded),
@@ -526,21 +585,47 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
               const SizedBox(height: 14),
 
               // FRP / iCloud switch
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceMuted,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.borderSubtle),
-                ),
-                child: SwitchListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                  title: const Text('Wajib Cek Akun (iCloud / Google FRP)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  subtitle: const Text(
-                    'Aktifkan hanya untuk smartphone/tablet. Untuk kamera, proyektor, laptop, dan konsol game sebaiknya matikan.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              Material(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(14),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.borderSubtle),
                   ),
-                  value: _requiresFrpCheck,
-                  onChanged: (val) => setState(() => _requiresFrpCheck = val),
+                  child: SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    title: const Text('Wajib Cek Akun (iCloud / Google FRP)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    subtitle: const Text(
+                      'Aktifkan hanya untuk smartphone/tablet. Untuk kamera, proyektor, laptop, dan konsol game sebaiknya matikan.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                    value: _requiresFrpCheck,
+                    onChanged: (val) => setState(() => _requiresFrpCheck = val),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Add-on / Aksesoris switch
+              Material(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(14),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.borderSubtle),
+                  ),
+                  child: SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    title: const Text('Item Add-on / Aksesoris Sewa', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    subtitle: const Text(
+                      'Tandai produk ini sebagai aksesoris tambahan (Power Bank, Charger, Tripod, dll) yang dapat disewa bersama perangkat utama.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                    value: _isAddon,
+                    onChanged: (val) => setState(() => _isAddon = val),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -789,7 +874,10 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                 onPressed: _isLoading ? null : _submitProduct,
                 child: _isLoading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Simpan Produk & Tarif ke Katalog', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                    : Text(
+                        _isEditing ? 'Simpan Perubahan Katalog' : 'Simpan Produk & Tarif ke Katalog',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
               ),
             ],
           ),

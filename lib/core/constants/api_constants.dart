@@ -22,6 +22,7 @@ class ApiConstants {
   static String businessDetail(dynamic id) => '/businesses/$id';
   static String businessMembers(dynamic id) => '/businesses/$id/members';
   static String businessBranches(dynamic id) => '/businesses/$id/branches';
+  static String businessRentalRules(dynamic id) => '/businesses/$id/rental-rules';
 
   // Dashboard
   static const String dashboardKpi = '/dashboard/kpi';
@@ -31,6 +32,8 @@ class ApiConstants {
   static const String assetModels = '/assets/models';
   static const String categories = '/categories';
   static const String products = '/products';
+  static String productDetail(dynamic id) => '/products/$id';
+  static String updateProduct(dynamic id) => '/products/$id';
   static String productRates(dynamic id) => '/products/$id/rates';
   static const String calculatePrice = '/pricing/calculate';
   static String assetAvailability(dynamic id) => '/assets/$id/availability';
