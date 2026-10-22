@@ -167,6 +167,13 @@ class AssetRepository {
     return response.data['data'];
   }
 
+  Future<Map<String, dynamic>> deleteAsset(int id) async {
+    final response = await _client.dio.delete(
+      ApiConstants.deleteAsset(id),
+    );
+    return response.data is Map ? Map<String, dynamic>.from(response.data) : {};
+  }
+
   Future<Map<String, dynamic>> createCategory(Map<String, dynamic> payload) async {
     final response = await _client.dio.post(
       ApiConstants.categories,

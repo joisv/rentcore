@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
@@ -71,8 +72,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('Pengembalian: ${booking['booking_code']}'),
+      appBar: RentCoreAppBar(
+        title: 'Pengembalian: ${booking['booking_code']}',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

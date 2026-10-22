@@ -209,6 +209,13 @@ class ThermalPrinterService {
         isBold: true,
         isDoubleSize: false,
       ));
+      if (settings.customSlogan.isNotEmpty) {
+        lines.add(ReceiptLineItem(
+          type: ReceiptLineType.text,
+          text: settings.customSlogan,
+          alignment: settings.headerAlignment,
+        ));
+      }
       String subInfo = branchName;
       if (settings.storePhone.isNotEmpty) {
         subInfo = '$subInfo • ${settings.storePhone}';
@@ -239,6 +246,13 @@ class ThermalPrinterService {
         isBold: true,
         isDoubleSize: true,
       ));
+      if (settings.customSlogan.isNotEmpty) {
+        lines.add(ReceiptLineItem(
+          type: ReceiptLineType.text,
+          text: settings.customSlogan,
+          alignment: settings.headerAlignment,
+        ));
+      }
       lines.add(ReceiptLineItem(
         type: ReceiptLineType.header,
         text: branchName,

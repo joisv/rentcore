@@ -148,10 +148,53 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.text('Daftar Aset'), findsOneWidget);
       expect(find.text('Unit Fisik (Inventaris)'), findsOneWidget);
       expect(find.text('Katalog & Tarif'), findsOneWidget);
       expect(find.text('CAM-001'), findsOneWidget);
       expect(find.text('Edit Unit'), findsOneWidget);
+    });
+
+    testWidgets('Tapping drawer button opens filter drawer with Category and Status filters', (tester) async {
+      final repo = _TrackingAssetRepository();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            businessProvider.overrideWith(() => _TestBusinessNotifier(mockBusiness)),
+            assetRepositoryProvider.overrideWithValue(repo),
+            inventoryListProvider.overrideWith((ref) => Future.value([sampleAsset])),
+          ],
+          child: MaterialApp(
+            navigatorKey: rootNavigatorKey,
+            home: const InventoryScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Daftar Aset'), findsOneWidget);
+      expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
+
+      // Open drawer
+      await tester.tap(find.byIcon(Icons.tune_rounded));
+      await tester.pumpAndSettle();
+
+      // Drawer contents
+      expect(find.text('Filter Aset'), findsOneWidget);
+      expect(find.text('Status Unit'), findsOneWidget);
+      expect(find.text('Kategori'), findsOneWidget);
+      expect(find.descendant(of: find.byType(Drawer), matching: find.text('Siap Sewa')), findsOneWidget);
+      expect(find.text('Sedang Sewa'), findsOneWidget);
+      expect(find.text('Perawatan'), findsOneWidget);
+      expect(find.text('Terapkan Filter'), findsOneWidget);
+
+      // Close drawer
+      await tester.tap(find.text('Terapkan Filter'));
+      await tester.pumpAndSettle();
+
+      // Back to main screen
+      expect(find.text('CAM-001'), findsOneWidget);
     });
 
     testWidgets('Tapping Edit Unit opens _EditAssetSheet with prefilled values and submits updates', (tester) async {

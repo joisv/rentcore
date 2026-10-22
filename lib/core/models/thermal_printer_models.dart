@@ -119,6 +119,7 @@ class ReceiptCustomizationSettings {
   final ReceiptPaperWidth paperWidth;
   final PrintMode printMode;
   final String customShopName;
+  final String customSlogan;
   final String customBranchName;
   final String storeAddress;
   final String storePhone;
@@ -146,6 +147,7 @@ class ReceiptCustomizationSettings {
     this.paperWidth = ReceiptPaperWidth.mm58,
     this.printMode = PrintMode.normal,
     this.customShopName = '',
+    this.customSlogan = '',
     this.customBranchName = '',
     this.storeAddress = '',
     this.storePhone = '',
@@ -168,6 +170,7 @@ class ReceiptCustomizationSettings {
     ReceiptPaperWidth? paperWidth,
     PrintMode? printMode,
     String? customShopName,
+    String? customSlogan,
     String? customBranchName,
     String? storeAddress,
     String? storePhone,
@@ -189,6 +192,7 @@ class ReceiptCustomizationSettings {
       paperWidth: paperWidth ?? this.paperWidth,
       printMode: printMode ?? this.printMode,
       customShopName: customShopName ?? this.customShopName,
+      customSlogan: customSlogan ?? this.customSlogan,
       customBranchName: customBranchName ?? this.customBranchName,
       storeAddress: storeAddress ?? this.storeAddress,
       storePhone: storePhone ?? this.storePhone,
@@ -212,6 +216,7 @@ class ReceiptCustomizationSettings {
     'paperWidth': paperWidth.name,
     'printMode': printMode.name,
     'customShopName': customShopName,
+    'customSlogan': customSlogan,
     'customBranchName': customBranchName,
     'storeAddress': storeAddress,
     'storePhone': storePhone,
@@ -234,6 +239,7 @@ class ReceiptCustomizationSettings {
     paperWidth: ReceiptPaperWidth.fromName(json['paperWidth']?.toString()),
     printMode: PrintMode.fromName(json['printMode']?.toString()),
     customShopName: json['customShopName']?.toString() ?? '',
+    customSlogan: json['customSlogan']?.toString() ?? '',
     customBranchName: json['customBranchName']?.toString() ?? '',
     storeAddress: json['storeAddress']?.toString() ?? '',
     storePhone: json['storePhone']?.toString() ?? '',

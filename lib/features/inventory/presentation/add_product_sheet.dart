@@ -199,52 +199,133 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
 
   void _showQuickAddCategoryDialog() {
     final catNameController = TextEditingController();
+    bool isSubmitting = false;
+    String? localError;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Kategori Baru', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-        content: TextField(
-          controller: catNameController,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Misal: Drone & Gimbal / Audio',
-            filled: true,
-            fillColor: AppColors.surfaceMuted,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.obsidian,
-              foregroundColor: Colors.white,
+      barrierDismissible: !isSubmitting,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Kategori Baru', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: catNameController,
+                  autofocus: true,
+                  enabled: !isSubmitting,
+                  decoration: InputDecoration(
+                    hintText: 'Misal: Drone & Gimbal / Audio',
+                    filled: true,
+                    fillColor: AppColors.surfaceMuted,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
+                ),
+                if (localError != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            localError!,
+                            style: const TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
-            onPressed: () async {
-              final name = catNameController.text.trim();
-              if (name.isEmpty) return;
-              Navigator.pop(ctx);
-              try {
-                final repo = ref.read(assetRepositoryProvider);
-                final res = await repo.createCategory({'name': name});
-                ref.invalidate(categoriesProvider);
-                if (res['id'] != null) {
-                  setState(() => _selectedCategoryId = res['id'] as int);
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal membuat kategori: $e'), backgroundColor: AppColors.danger),
-                  );
-                }
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.obsidian,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(88, 40),
+                ),
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final name = catNameController.text.trim();
+                        if (name.isEmpty) {
+                          setDialogState(() => localError = 'Nama kategori wajib diisi.');
+                          return;
+                        }
+
+                        setDialogState(() {
+                          isSubmitting = true;
+                          localError = null;
+                        });
+
+                        try {
+                          final repo = ref.read(assetRepositoryProvider);
+                          final res = await repo.createCategory({'name': name});
+                          final newId = int.tryParse(res['id']?.toString() ?? '');
+
+                          await ref.refresh(categoriesProvider.future);
+
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                          }
+
+                          if (mounted && newId != null) {
+                            setState(() {
+                              _selectedCategoryId = newId;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Kategori "$name" berhasil ditambahkan!'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          String errorMsg = 'Gagal membuat kategori.';
+                          if (e.toString().contains('403') || e.toString().contains('FORBIDDEN')) {
+                            errorMsg = 'Hanya Owner bisnis atau Admin yang berwenang membuat kategori.';
+                          } else if (e.toString().contains('422')) {
+                            errorMsg = 'Nama kategori "$name" sudah digunakan.';
+                          } else {
+                            errorMsg = 'Gagal membuat kategori: $e';
+                          }
+
+                          if (ctx.mounted) {
+                            setDialogState(() {
+                              isSubmitting = false;
+                              localError = errorMsg;
+                            });
+                          }
+                        }
+                      },
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Simpan'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -423,7 +504,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                 error: (e, _) => Text('Gagal memuat kategori: $e', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
                 data: (cats) {
                   return DropdownButtonFormField<int>(
-                    initialValue: _selectedCategoryId,
+                    value: cats.any((c) => c['id'] == _selectedCategoryId) ? _selectedCategoryId : null,
                     isExpanded: true,
                     decoration: InputDecoration(
                       filled: true,

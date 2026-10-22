@@ -16,11 +16,17 @@ class ApiConstants {
   static const String googleSignIn = '/auth/google';
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';
+  static const String updateProfile = '/auth/profile';
+  static const String updatePassword = '/auth/password';
 
   // Multi-Tenant Businesses
   static const String businesses = '/businesses';
   static String businessDetail(dynamic id) => '/businesses/$id';
   static String businessMembers(dynamic id) => '/businesses/$id/members';
+  static String businessMember(dynamic bizId, dynamic memberId) => '/businesses/$bizId/members/$memberId';
+  static String reassignMemberBranch(dynamic bizId, dynamic memberId) => '/businesses/$bizId/members/$memberId/reassign-branch';
+  static String removeMemberBranch(dynamic bizId, dynamic memberId, dynamic branchId) => '/businesses/$bizId/members/$memberId/branches/$branchId';
+  static String memberManagerPin(dynamic bizId, dynamic memberId) => '/businesses/$bizId/members/$memberId/pin';
   static String businessBranches(dynamic id) => '/businesses/$id/branches';
   static String businessRentalRules(dynamic id) => '/businesses/$id/rental-rules';
 
@@ -60,6 +66,7 @@ class ApiConstants {
   static String cashierReceipt(dynamic id) => '/cashier/transactions/$id/receipt';
   static const String cashierExpenses = '/cashier/expenses';
   static String approveExpense(dynamic id) => '/cashier/expenses/$id/approve';
+  static String voidExpense(dynamic id) => '/cashier/expenses/$id/void';
   static const String currentShift = '/cashier/shift/current';
   static const String openShift = '/cashier/shift/open';
   static const String closeShift = '/cashier/shift/close';
@@ -73,6 +80,7 @@ class ApiConstants {
   static String receiveTransfer(dynamic id) => '/transfers/$id/receive';
   static String cancelTransfer(dynamic id) => '/transfers/$id/cancel';
   static String updateAsset(dynamic id) => '/assets/$id';
+  static String deleteAsset(dynamic id) => '/assets/$id';
 
   // Customers & Identity Verification
   static const String customers = '/customers';

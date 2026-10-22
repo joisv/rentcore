@@ -149,6 +149,22 @@ class AuthRepository {
     return data;
   }
 
+  Future<Map<String, dynamic>> updateBusiness(
+    int businessId,
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _client.dio.put(
+      ApiConstants.businessDetail(businessId),
+      data: payload,
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    final prefs = await SharedPreferences.getInstance();
+    if (data.containsKey('name')) {
+      await prefs.setString('active_business_name', data['name']);
+    }
+    return data;
+  }
+
   Future<Map<String, dynamic>> createBranch(
     int businessId, {
     required String name,
@@ -205,6 +221,60 @@ class AuthRepository {
       data: payload,
     );
     return response.data['data'];
+  }
+
+  Future<Map<String, dynamic>> reassignMemberBranch(
+    int businessId,
+    int memberId, {
+    int? fromBranchId,
+    required int toBranchId,
+    String? reason,
+  }) async {
+    final payload = <String, dynamic>{
+      'to_branch_id': toBranchId,
+    };
+    if (fromBranchId != null) payload['from_branch_id'] = fromBranchId;
+    if (reason != null && reason.isNotEmpty) payload['reason'] = reason;
+
+    final response = await _client.dio.post(
+      ApiConstants.reassignMemberBranch(businessId, memberId),
+      data: payload,
+    );
+    final data = response.data['data'];
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {};
+  }
+
+  Future<void> removeMemberBranch(int businessId, int memberId, int branchId) async {
+    await _client.dio.delete(
+      ApiConstants.removeMemberBranch(businessId, memberId, branchId),
+    );
+  }
+
+  Future<void> updateMemberRole(int businessId, int memberId, String role) async {
+    await _client.dio.put(
+      ApiConstants.businessMember(businessId, memberId),
+      data: {'role': role},
+    );
+  }
+
+  Future<void> removeMember(int businessId, int memberId) async {
+    await _client.dio.delete(
+      ApiConstants.businessMember(businessId, memberId),
+    );
+  }
+
+  Future<void> setManagerPin(int businessId, int memberId, String pin) async {
+    await _client.dio.put(
+      ApiConstants.memberManagerPin(businessId, memberId),
+      data: {'pin': pin},
+    );
+  }
+
+  Future<void> revokeManagerPin(int businessId, int memberId) async {
+    await _client.dio.delete(
+      ApiConstants.memberManagerPin(businessId, memberId),
+    );
   }
 
   Future<void> setActiveContext({required int businessId, required String businessName, int? branchId, String? branchName}) async {
@@ -280,6 +350,54 @@ class AuthRepository {
     );
     final data = response.data['data'];
     return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    required String name,
+    String? phone,
+  }) async {
+    final payload = <String, dynamic>{
+      'name': name,
+    };
+    if (phone != null) {
+      payload['phone'] = phone;
+    }
+
+    final response = await _client.dio.put(
+      ApiConstants.updateProfile,
+      data: payload,
+    );
+
+    final resData = response.data['data'];
+    final user = resData['user'];
+
+    final prefs = await SharedPreferences.getInstance();
+    if (user != null && user['name'] != null) {
+      await prefs.setString('user_name', user['name']);
+    }
+
+    return Map<String, dynamic>.from(resData);
+  }
+
+  Future<Map<String, dynamic>> updatePassword({
+    String? currentPassword,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    final payload = <String, dynamic>{
+      'new_password': newPassword,
+      'new_password_confirmation': newPasswordConfirmation,
+    };
+    if (currentPassword != null && currentPassword.isNotEmpty) {
+      payload['current_password'] = currentPassword;
+    }
+
+    final response = await _client.dio.put(
+      ApiConstants.updatePassword,
+      data: payload,
+    );
+
+    return Map<String, dynamic>.from(response.data);
   }
 
   Future<void> logout() async {

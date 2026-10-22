@@ -5,13 +5,13 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../bookings/presentation/return_wizard_screen.dart';
 import '../../bookings/providers/booking_provider.dart';
+import '../../cashier/presentation/cashier_screen.dart';
 import '../../inventory/presentation/inventory_screen.dart';
-import '../../transfers/presentation/transfers_screen.dart';
+import '../../auth/presentation/user_profile_screen.dart';
 import '../providers/dashboard_provider.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
+import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../auth/providers/business_provider.dart';
-import '../../organization/presentation/manage_organization_screen.dart';
-import '../../printer/presentation/printer_settings_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   final ValueChanged<int> onNavigateTab;
@@ -36,30 +36,6 @@ class HomeScreen extends ConsumerWidget {
     if (parts.isEmpty || parts[0].isEmpty) return 'RC';
     if (parts.length == 1) return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
-  void _confirmLogout(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Konfirmasi Keluar'),
-        content: const Text('Apakah Anda yakin ingin keluar dari sesi aplikasi RentCore?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () {
-              Navigator.pop(ctx);
-              ref.read(authProvider.notifier).logout();
-            },
-            child: const Text('Ya, Keluar'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _processOverdueReturn(BuildContext context, WidgetRef ref, int bookingId) async {
@@ -104,6 +80,15 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: onOpenDirectRental,
+        backgroundColor: AppColors.obsidian,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.add_rounded, size: 20),
+        label: const Text('Sewa Baru', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+      ),
+      floatingActionButtonLocation: const DockFloatingActionButtonLocation(extraOffset: 4),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.obsidian,
@@ -113,7 +98,7 @@ class HomeScreen extends ConsumerWidget {
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 100),
+            padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 120),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -141,11 +126,7 @@ class HomeScreen extends ConsumerWidget {
                   const SizedBox(height: 22),
                 ],
 
-                // 5. Quick Action Bar
-                _buildQuickActionBar(context, ref, user),
-                const SizedBox(height: 22),
-
-                // 6. Dynamic KPI & Operations Content
+                // 5. Dynamic KPI & Operations Content
                 kpiAsync.when(
                   loading: () => _buildSkeletonLoading(),
                   error: (error, _) => _buildErrorCard(context, ref, error),
@@ -248,9 +229,14 @@ class HomeScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Initials Avatar (Tappable to open Business Selector)
+          // User Avatar (Tappable to open User Profile Screen)
           InkWell(
-            onTap: () => BusinessSelectorSheet.show(context),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const UserProfileScreen()),
+              );
+            },
             borderRadius: BorderRadius.circular(14),
             child: Container(
               width: 46,
@@ -299,23 +285,8 @@ class HomeScreen extends ConsumerWidget {
           ),
           IconButton(
             onPressed: () => BusinessSelectorSheet.show(context),
-            tooltip: 'Pilih Usaha / Cabang',
+            tooltip: 'Ganti Cabang',
             icon: const Icon(Icons.storefront_rounded, color: AppColors.textSecondary, size: 20),
-          ),
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
-              );
-            },
-            tooltip: 'Pengaturan Printer Thermal',
-            icon: const Icon(Icons.print_rounded, color: AppColors.textSecondary, size: 20),
-          ),
-          IconButton(
-            onPressed: () => _confirmLogout(context, ref),
-            tooltip: 'Keluar',
-            icon: const Icon(Icons.logout_rounded, color: AppColors.textSecondary, size: 20),
           ),
         ],
       ),
@@ -448,25 +419,6 @@ class HomeScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: () => BusinessSelectorSheet.show(context),
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFFEF3C7),
-                foregroundColor: const Color(0xFF92400E),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                visualDensity: VisualDensity.compact,
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Pilih Cabang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                  SizedBox(width: 2),
-                  Icon(Icons.arrow_forward_ios_rounded, size: 10),
-                ],
-              ),
-            ),
           ],
         ),
       );
@@ -482,98 +434,85 @@ class HomeScreen extends ConsumerWidget {
       businessState.activeBusinessName ?? '',
     ].where((s) => s.isNotEmpty).join(' • ');
 
-    return InkWell(
-      onTap: () => BusinessSelectorSheet.show(context),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isCentral ? AppColors.obsidian : AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isCentral ? AppColors.obsidian : AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                isCentral ? Icons.hub_rounded : Icons.storefront_rounded,
-                color: isCentral ? Colors.white : AppColors.obsidian,
-                size: 20,
-              ),
+            child: Icon(
+              isCentral ? Icons.hub_rounded : Icons.storefront_rounded,
+              color: isCentral ? Colors.white : AppColors.obsidian,
+              size: 20,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isCentral ? AppColors.obsidian : AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          isCentral ? 'CABANG UTAMA' : 'SUB-CABANG',
-                          style: TextStyle(
-                            color: isCentral ? Colors.white : AppColors.textSecondary,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
-                          ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isCentral ? AppColors.obsidian : AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isCentral ? 'CABANG UTAMA' : 'SUB-CABANG',
+                        style: TextStyle(
+                          color: isCentral ? Colors.white : AppColors.textSecondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.4,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          businessState.activeBranchName ?? 'Cabang Terpilih',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                            color: AppColors.textPrimary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    metaParts.isNotEmpty ? metaParts : (businessState.activeBusinessName ?? ''),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        businessState.activeBranchName ?? 'Cabang Terpilih',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  metaParts.isNotEmpty ? metaParts : (businessState.activeBusinessName ?? ''),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
                   ),
-                ],
-              ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.swap_horiz_rounded, size: 16, color: AppColors.textSecondary),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -625,138 +564,6 @@ class HomeScreen extends ConsumerWidget {
             child: const Text('Coba Lagi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
           ),
         ],
-      ),
-    );
-  }
-
-  // --- Quick Actions Bar ---
-  Widget _buildQuickActionBar(BuildContext context, WidgetRef ref, Map<String, dynamic>? user) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _buildQuickAction(
-            icon: Icons.add_circle_outline_rounded,
-            label: 'Sewa Baru',
-            isPrimary: true,
-            onTap: onOpenDirectRental,
-          ),
-          const SizedBox(width: 10),
-          _buildQuickAction(
-            icon: Icons.assignment_return_outlined,
-            label: 'Pengembalian',
-            onTap: () => onNavigateTab(1),
-          ),
-          const SizedBox(width: 10),
-          _buildQuickAction(
-            icon: Icons.inventory_2_outlined,
-            label: 'Inventaris',
-            onTap: () => onNavigateTab(2),
-          ),
-          const SizedBox(width: 10),
-          _buildQuickAction(
-            icon: Icons.swap_horiz_rounded,
-            label: 'Transfer Unit',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TransfersScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: 10),
-          _buildQuickAction(
-            icon: Icons.confirmation_number_outlined,
-            label: 'Voucher',
-            onTap: () => onNavigateTab(3),
-          ),
-          const SizedBox(width: 10),
-          _buildQuickAction(
-            icon: Icons.point_of_sale_outlined,
-            label: 'Kasir',
-            onTap: () => onNavigateTab(4),
-          ),
-          const SizedBox(width: 10),
-          _buildQuickAction(
-            icon: Icons.print_outlined,
-            label: 'Printer',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
-              );
-            },
-          ),
-          if (ref.watch(businessProvider).activeBusinessId != null) ...[
-            const SizedBox(width: 10),
-            _buildQuickAction(
-              icon: Icons.people_outline_rounded,
-              label: 'Kelola Tim',
-              onTap: () {
-                final bState = ref.read(businessProvider);
-                if (bState.activeBusinessId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ManageOrganizationScreen(
-                        businessId: bState.activeBusinessId!,
-                        businessName: bState.activeBusinessName ?? 'Bisnis Rental',
-                      ),
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickAction({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isPrimary = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isPrimary ? AppColors.obsidian : AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isPrimary ? AppColors.obsidian : AppColors.border,
-          ),
-          boxShadow: isPrimary
-              ? [
-                  BoxShadow(
-                    color: AppColors.obsidian.withValues(alpha: 0.12),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isPrimary ? Colors.white : AppColors.obsidian,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: isPrimary ? Colors.white : AppColors.obsidian,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1219,7 +1026,12 @@ class HomeScreen extends ConsumerWidget {
 
           // Financial Cashier Summary Banner
           InkWell(
-            onTap: () => onNavigateTab(3), // Open Cashier Tab
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CashierScreen()),
+              );
+            },
             borderRadius: BorderRadius.circular(14),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

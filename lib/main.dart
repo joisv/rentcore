@@ -6,14 +6,13 @@ import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/bookings/presentation/bookings_screen.dart';
 import 'features/bookings/presentation/direct_rental_screen.dart';
-import 'features/cashier/presentation/cashier_screen.dart';
 import 'features/home/presentation/home_screen.dart';
 import 'features/inventory/presentation/inventory_screen.dart';
+import 'features/organization/presentation/store_settings_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'core/network/api_client.dart';
 import 'core/constants/app_colors.dart';
 import 'core/network/network_status_provider.dart';
-import 'features/vouchers/presentation/voucher_screen.dart';
 import 'shared/widgets/floating_capsule_dock.dart';
 
 void main() async {
@@ -50,7 +49,7 @@ class MainShellScreen extends ConsumerStatefulWidget {
 }
 
 class _MainShellScreenState extends ConsumerState<MainShellScreen> {
-  int _currentTabIndex = 2;
+  int _currentTabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -142,8 +141,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
                 ),
                 const BookingsScreen(),
                 const InventoryScreen(),
-                const VoucherScreen(),
-                const CashierScreen(),
+                const StoreSettingsScreen(),
               ],
             ),
           ),

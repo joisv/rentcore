@@ -107,6 +107,29 @@ class CashierRepository {
     return {};
   }
 
+  Future<Map<String, dynamic>> voidExpense({
+    required int expenseId,
+    required String reason,
+    String? managerPin,
+  }) async {
+    final payload = <String, dynamic>{
+      'reason': reason,
+    };
+    if (managerPin != null && managerPin.isNotEmpty) {
+      payload['manager_pin'] = managerPin;
+    }
+
+    final response = await _client.dio.post(
+      ApiConstants.voidExpense(expenseId),
+      data: payload,
+    );
+    final data = response.data['data'];
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {};
+  }
+
   Future<Map<String, dynamic>> fetchReceipt(dynamic transactionOrReceiptId) async {
     final response = await _client.dio.get(ApiConstants.cashierReceipt(transactionOrReceiptId));
     final data = response.data['data'];

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/thermal_printer_models.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/printer_provider.dart';
 import 'receipt_customization_screen.dart';
 
@@ -28,11 +29,8 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Pengaturan Printer Thermal',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-        ),
+      appBar: RentCoreAppBar(
+        title: 'Pengaturan Printer Thermal',
         actions: [
           IconButton(
             icon: state.isScanning

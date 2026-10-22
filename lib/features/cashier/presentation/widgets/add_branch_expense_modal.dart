@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/currency_formatter.dart';
 import '../../../auth/providers/business_provider.dart';
 import '../../providers/cashier_provider.dart';
 
@@ -54,7 +55,14 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
     return double.tryParse(raw) ?? 0.0;
   }
 
-  bool get _requiresManagerPin => _currentAmount > 100000.0;
+  double get _threshold {
+    final bizState = ref.read(businessProvider);
+    final activeBiz = bizState.businesses.where((b) => b['id'] == bizState.activeBusinessId).firstOrNull;
+    final dynamic thresholdVal = activeBiz?['expense_pin_threshold'];
+    return thresholdVal != null ? (double.tryParse(thresholdVal.toString()) ?? 100000.0) : 100000.0;
+  }
+
+  bool get _requiresManagerPin => _currentAmount > _threshold;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -337,7 +345,7 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Pengeluaran di atas Rp 100.000 wajib diverifikasi dengan PIN Manager Cabang.',
+                        'Pengeluaran di atas ${CurrencyFormatter.format(_threshold)} wajib diverifikasi dengan PIN Manager Cabang.',
                         style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
                       ),
                       const SizedBox(height: 10),
@@ -356,7 +364,7 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                         ),
                         validator: (val) {
                           if (_requiresManagerPin && (val == null || val.trim().isEmpty)) {
-                            return 'PIN Manager wajib diisi untuk nominal > Rp 100.000.';
+                            return 'PIN Manager wajib diisi untuk nominal > ${CurrencyFormatter.format(_threshold)}.';
                           }
                           return null;
                         },

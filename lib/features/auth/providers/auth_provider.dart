@@ -171,6 +171,63 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  Future<bool> updateProfile({
+    required String name,
+    String? phone,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final resData = await _repository.updateProfile(
+        name: name,
+        phone: phone,
+      );
+      final updatedUser = resData['user'];
+      state = state.copyWith(
+        isLoading: false,
+        user: updatedUser is Map<String, dynamic> ? updatedUser : state.user,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> updatePassword({
+    String? currentPassword,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _repository.updatePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        newPasswordConfirmation: newPasswordConfirmation,
+      );
+      if (state.user != null) {
+        final updatedUser = Map<String, dynamic>.from(state.user!);
+        updatedUser['has_password'] = true;
+        state = state.copyWith(
+          isLoading: false,
+          user: updatedUser,
+        );
+      } else {
+        state = state.copyWith(isLoading: false);
+      }
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {

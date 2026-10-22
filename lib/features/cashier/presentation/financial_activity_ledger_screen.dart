@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/cashier_provider.dart';
 import 'pos_transaction_detail_sheet.dart';
 
@@ -29,9 +30,8 @@ class _FinancialActivityLedgerScreenState extends ConsumerState<FinancialActivit
     final expensesAsync = ref.watch(cashierExpensesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Buku Aktivitas Keuangan (Ledger)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-        elevation: 0,
+      appBar: const RentCoreAppBar(
+        title: 'Buku Aktivitas Keuangan (Ledger)',
       ),
       body: Column(
         children: [
@@ -66,6 +66,8 @@ class _FinancialActivityLedgerScreenState extends ConsumerState<FinancialActivit
                   onChanged: (val) => setState(() => _searchFilter = val.trim().toLowerCase()),
                 ),
                 const SizedBox(height: 12),
+                _buildDateFilterRow(),
+                const SizedBox(height: 10),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -203,6 +205,221 @@ class _FinancialActivityLedgerScreenState extends ConsumerState<FinancialActivit
     );
   }
 
+  Widget _buildDateFilterRow() {
+    final dateState = ref.watch(posDateRangeProvider);
+    final activeLabel = dateState.label;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildDateChip('Hari Ini', activeLabel == 'Hari Ini', () {
+            final nowStr = DateTime.now().toIso8601String().substring(0, 10);
+            ref.read(posDateRangeProvider.notifier).setDateRange(
+              label: 'Hari Ini',
+              startDate: nowStr,
+              endDate: nowStr,
+            );
+          }),
+          const SizedBox(width: 8),
+          _buildDateChip('Kemarin', activeLabel == 'Kemarin', () {
+            final now = DateTime.now();
+            final yesterday = DateTime(now.year, now.month, now.day - 1);
+            final yStr = yesterday.toIso8601String().substring(0, 10);
+            ref.read(posDateRangeProvider.notifier).setDateRange(
+              label: 'Kemarin',
+              startDate: yStr,
+              endDate: yStr,
+            );
+          }),
+          const SizedBox(width: 8),
+          _buildDateChip('Bulan Ini', activeLabel == 'Bulan Ini', () {
+            final now = DateTime.now();
+            final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+            final todayStr = now.toIso8601String().substring(0, 10);
+            ref.read(posDateRangeProvider.notifier).setDateRange(
+              label: 'Bulan Ini',
+              startDate: startOfMonth,
+              endDate: todayStr,
+            );
+          }),
+          const SizedBox(width: 8),
+          ActionChip(
+            avatar: const Icon(Icons.date_range_rounded, size: 14),
+            label: Text(
+              activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini'
+                  ? activeLabel
+                  : 'Rentang Kustom',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: (activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini')
+                    ? Colors.white
+                    : AppColors.textPrimary,
+              ),
+            ),
+            backgroundColor: (activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini')
+                ? AppColors.obsidian
+                : AppColors.background,
+            onPressed: () async {
+              final picked = await showDateRangePicker(
+                context: context,
+                firstDate: DateTime(2024),
+                lastDate: DateTime.now().add(const Duration(days: 30)),
+              );
+              if (picked != null) {
+                final startStr = picked.start.toIso8601String().substring(0, 10);
+                final endStr = picked.end.toIso8601String().substring(0, 10);
+                ref.read(posDateRangeProvider.notifier).setDateRange(
+                  label: '$startStr s/d $endStr',
+                  startDate: startStr,
+                  endDate: endStr,
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateChip(String label, bool isSelected, VoidCallback onTap) {
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          color: isSelected ? Colors.white : AppColors.textPrimary,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: AppColors.obsidian,
+      backgroundColor: AppColors.background,
+      onSelected: (_) => onTap(),
+    );
+  }
+
+  void _showExpenseOptionsDialog(BuildContext context, Map<String, dynamic> item) {
+    final expenseId = item['id'] as int;
+    final expNum = item['expense_number'] ?? 'EXP';
+    final title = item['title'] ?? 'Beban';
+    final amount = CurrencyFormatter.format(item['amount']);
+
+    final reasonCtrl = TextEditingController();
+    final pinCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.receipt_long_rounded, color: AppColors.obsidian),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '$expNum • $amount',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Item: $title', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            const SizedBox(height: 14),
+            const Text(
+              'Batalkan Pengeluaran (Void)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.danger),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: reasonCtrl,
+              decoration: InputDecoration(
+                labelText: 'Alasan Pembatalan (Wajib)',
+                hintText: 'Contoh: Salah input nominal',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: pinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(
+                labelText: 'PIN Manager (Jika Staf)',
+                hintText: '6 digit angka',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                counterText: '',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final reason = reasonCtrl.text.trim();
+              if (reason.length < 5) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Alasan pembatalan minimal 5 karakter.'),
+                    backgroundColor: AppColors.danger,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              try {
+                final repo = ref.read(cashierRepositoryProvider);
+                await repo.voidExpense(
+                  expenseId: expenseId,
+                  reason: reason,
+                  managerPin: pinCtrl.text.trim().isNotEmpty ? pinCtrl.text.trim() : null,
+                );
+
+                ref.invalidate(closingSummaryProvider);
+                ref.invalidate(cashierExpensesProvider);
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Pengeluaran $expNum berhasil dibatalkan (void).'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Gagal membatalkan pengeluaran: $e'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Void Pengeluaran'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLedgerTile(BuildContext context, Map<String, dynamic> item) {
     final isExpense = item['item_kind'] == 'expense';
     final amount = CurrencyFormatter.parse(item['amount']);
@@ -236,6 +453,8 @@ class _FinancialActivityLedgerScreenState extends ConsumerState<FinancialActivit
             backgroundColor: Colors.transparent,
             builder: (_) => PosTransactionDetailSheet(booking: item),
           );
+        } else if (isExpense && !isVoid) {
+          _showExpenseOptionsDialog(context, item);
         }
       },
       child: Container(

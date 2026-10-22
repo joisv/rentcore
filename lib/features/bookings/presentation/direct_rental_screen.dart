@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
@@ -506,8 +507,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Transaksi Sewa Baru di Meja Kasir'),
+      appBar: const RentCoreAppBar(
+        title: 'Transaksi Sewa Baru di Meja Kasir',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

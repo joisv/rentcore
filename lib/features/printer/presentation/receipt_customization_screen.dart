@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/business_provider.dart';
 import '../providers/printer_provider.dart';
 import 'printer_settings_screen.dart';
@@ -121,11 +122,8 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Desain & Layout Struk',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-        ),
+      appBar: RentCoreAppBar(
+        title: 'Desain & Layout Struk',
         actions: [
           TextButton(
             onPressed: _resetToDefault,

@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
-import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../auth/providers/business_provider.dart';
-import '../data/asset_repository.dart';
 import '../providers/asset_provider.dart';
 import 'add_product_sheet.dart';
+import 'widgets/expandable_inventory_fab.dart';
+import 'widgets/tarif_sewa_sheet.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   final String? initialStatusFilter;
@@ -24,8 +25,11 @@ class InventoryScreen extends ConsumerStatefulWidget {
 }
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTickerProviderStateMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  final GlobalKey<ExpandableInventoryFabState> _fabKey = GlobalKey();
+  bool _isFabExpanded = false;
 
   @override
   void initState() {
@@ -35,6 +39,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       vsync: this,
       initialIndex: widget.initialTabIndex.clamp(0, 1),
     );
+
+    _tabController.addListener(() {
+      if (_isFabExpanded) {
+        _collapseFab();
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialStatusFilter != null) {
@@ -49,6 +59,31 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _collapseFab() {
+    _fabKey.currentState?.collapse();
+  }
+
+  void _openTarifSewaFlow(BuildContext context) {
+    if (_tabController.index != 1) {
+      _tabController.animateTo(1);
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => TarifSewaSheet(
+        onSelectProduct: (product) {
+          Navigator.pop(ctx);
+          _openEditProductSheet(context, product);
+        },
+        onAddNewModel: () {
+          Navigator.pop(ctx);
+          _openAddProductSheet(context);
+        },
+      ),
+    );
   }
 
   void _refreshAll() {
@@ -72,88 +107,125 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     final assetsAsync = ref.watch(inventoryListProvider);
     final productsAsync = ref.watch(productsProvider);
 
-    print('>>> [INVENTORY_SCREEN_BUILD] tabController.index: ${_tabController.index}, anim: ${_tabController.animation?.value}');
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Inventaris & Katalog Unit',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-        ),
-        elevation: 0,
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
-        bottom: hasBusiness
-            ? TabBar(
-                controller: _tabController,
-                labelColor: AppColors.obsidian,
-                unselectedLabelColor: AppColors.textSecondary,
-                indicatorColor: AppColors.obsidian,
-                indicatorWeight: 3,
-                labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                tabs: const [
-                  Tab(icon: Icon(Icons.inventory_2_outlined, size: 18), text: 'Unit Fisik (Inventaris)'),
-                  Tab(icon: Icon(Icons.style_outlined, size: 18), text: 'Katalog & Tarif'),
-                ],
+    return PopScope(
+      canPop: !_isFabExpanded,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _isFabExpanded) {
+          _collapseFab();
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: AppColors.background,
+        drawer: hasBusiness
+            ? _buildFilterDrawer(
+                context,
+                ref,
+                categoriesAsync,
+                categoryFilter,
+                statusFilter,
               )
             : null,
-        actions: [
-          if (hasBusiness) ...[
-            IconButton(
-              icon: const Icon(Icons.post_add_rounded),
-              tooltip: 'Tambah Model Baru',
-              onPressed: () => _openAddProductSheet(context),
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Segarkan',
-              onPressed: _refreshAll,
-            ),
-          ],
-        ],
-      ),
-      floatingActionButton: hasBusiness
-          ? FloatingActionButton.extended(
-              backgroundColor: AppColors.obsidian,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Registrasi Unit', style: TextStyle(fontWeight: FontWeight.w700)),
-              onPressed: () => _openAddAssetSheet(context),
-            )
-          : null,
-      body: !hasBusiness
-          ? _buildNoBusinessView(context)
-          : Column(
-              children: [
-                _buildBranchBar(context, bizState),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
+        appBar: hasBusiness
+            ? AppBar(
+                backgroundColor: Colors.white,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                surfaceTintColor: Colors.transparent,
+                centerTitle: false,
+                automaticallyImplyLeading: false,
+                title: const Text(
+                  'Daftar Aset',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: AppColors.obsidian,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(48),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      labelColor: const Color(0xFF0F172A),
+                      unselectedLabelColor: const Color(0xFF94A3B8),
+                      indicatorColor: const Color(0xFF0F172A),
+                      indicatorWeight: 2.5,
+                      labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                      tabs: const [
+                        Tab(text: 'Unit Fisik (Inventaris)'),
+                        Tab(text: 'Katalog & Tarif'),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            : null,
+        floatingActionButton: hasBusiness
+            ? ExpandableInventoryFab(
+                key: _fabKey,
+                onExpansionChanged: (expanded) {
+                  if (mounted && _isFabExpanded != expanded) {
+                    setState(() => _isFabExpanded = expanded);
+                  }
+                },
+                onRegisterUnit: () => _openAddAssetSheet(context),
+                onAddModel: () => _openAddProductSheet(context),
+              )
+            : null,
+        floatingActionButtonLocation: const DockFloatingActionButtonLocation(),
+        body: !hasBusiness
+            ? _buildNoBusinessView(context)
+            : Stack(
+                children: [
+                  Column(
                     children: [
-                      // TAB 0: UNIT FISIK
-                      _buildUnitsView(
-                        context,
-                        bizState,
-                        statusFilter,
-                        categoryFilter,
-                        searchQuery,
-                        categoriesAsync,
-                        assetsAsync,
-                      ),
-                      // TAB 1: KATALOG & TARIF
-                      _buildCatalogView(
-                        context,
-                        categoryFilter,
-                        searchQuery,
-                        categoriesAsync,
-                        productsAsync,
+                      if (bizState.isConsolidated) _buildBranchBar(context, bizState),
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            // TAB 0: UNIT FISIK
+                            _buildUnitsView(
+                              context,
+                              bizState,
+                              statusFilter,
+                              categoryFilter,
+                              searchQuery,
+                              categoriesAsync,
+                              assetsAsync,
+                            ),
+                            // TAB 1: KATALOG & TARIF
+                            _buildCatalogView(
+                              context,
+                              categoryFilter,
+                              searchQuery,
+                              categoriesAsync,
+                              productsAsync,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
+                  if (_isFabExpanded)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _collapseFab,
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.28),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -240,120 +312,67 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   ) {
     return Column(
       children: [
-        // Search & Filter Section
+        // Search & Drawer Section
         Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-          child: Column(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
             children: [
-              TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Cari kode unit, serial number, atau nama tipe...',
-                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textSecondary),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, size: 18),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                            ref.read(assetSearchQueryProvider.notifier).setSearch('');
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-                onChanged: (val) {
-                  setState(() {});
-                  ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
-                },
-              ),
-              const SizedBox(height: 8),
-              // Category chips
-              categoriesAsync.when(
-                data: (categories) => SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildChip(
-                        selected: categoryFilter == null,
-                        label: 'Semua Kategori',
-                        onTap: () => ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null),
+              _buildDrawerButton(hasActiveFilter: statusFilter != null || categoryFilter != null),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                    decoration: InputDecoration(
+                      hintText: 'Cari kode unit, serial number, atau nama ti...',
+                      hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                                ref.read(assetSearchQueryProvider.notifier).setSearch('');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
                       ),
-                      ...categories.map((cat) {
-                        final catId = cat['id'] as int?;
-                        final catName = cat['name']?.toString() ?? '';
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 6),
-                          child: _buildChip(
-                            selected: categoryFilter == catId,
-                            label: catName,
-                            onTap: () => ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(catId),
-                          ),
-                        );
-                      }),
-                    ],
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.2),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setState(() {});
+                      ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                    },
                   ),
-                ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
-              const SizedBox(height: 6),
-              // Status chips
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildChip(
-                      selected: statusFilter == null,
-                      label: 'Semua Status',
-                      onTap: () => ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(null),
-                    ),
-                    const SizedBox(width: 6),
-                    _buildChip(
-                      selected: statusFilter == 'ready',
-                      label: 'Siap Sewa',
-                      onTap: () => ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('ready'),
-                    ),
-                    const SizedBox(width: 6),
-                    _buildChip(
-                      selected: statusFilter == 'rented',
-                      label: 'Sedang Sewa',
-                      onTap: () => ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('rented'),
-                    ),
-                    const SizedBox(width: 6),
-                    _buildChip(
-                      selected: statusFilter == 'maintenance',
-                      label: 'Perawatan',
-                      onTap: () => ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('maintenance'),
-                    ),
-                    const SizedBox(width: 6),
-                    _buildChip(
-                      selected: statusFilter == 'in_transit',
-                      label: 'Dalam Mutasi',
-                      onTap: () => ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('in_transit'),
-                    ),
-                  ],
                 ),
               ),
             ],
           ),
         ),
-        const Divider(height: 1, color: AppColors.border),
 
         // List Area
         Expanded(
           child: assetsAsync.when(
-            loading: () {
-              print('>>> [UI_UNITS_VIEW] assetsAsync: LOADING');
-              return const Center(child: CircularProgressIndicator());
-            },
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (err, st) {
-              print('>>> [UI_UNITS_VIEW] assetsAsync: ERROR: $err\n$st');
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
@@ -374,10 +393,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
               );
             },
             data: (assets) {
-              print('>>> [UI_UNITS_VIEW] assetsAsync: DATA length=${assets.length}');
-              for (var i = 0; i < assets.length; i++) {
-                print('>>> [UI_UNITS_VIEW] asset[$i]: ${assets[i]['asset_code']} (${assets[i]['status']})');
-              }
               if (assets.isEmpty) {
                 final hasSearch = searchQuery.isNotEmpty;
                 final hasFilter = statusFilter != null || categoryFilter != null;
@@ -556,7 +571,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                   itemCount: assets.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final asset = assets[index];
                     return _buildAssetCard(context, asset);
@@ -574,7 +589,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   // ASSET CARD
   // ==========================================
   Widget _buildAssetCard(BuildContext context, Map<String, dynamic> asset) {
-    print('>>> [UI_CARD] Building card for: ${asset['asset_code']}');
     final rawModel = asset['model'];
     final model = rawModel is Map ? Map<String, dynamic>.from(rawModel) : null;
     final rawCat = model?['category'];
@@ -605,14 +619,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
-          boxShadow: [
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: const [
             BoxShadow(
-              color: const Color(0x0A000000),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Color(0x06000000),
+              blurRadius: 6,
+              offset: Offset(0, 2),
             ),
           ],
         ),
@@ -620,48 +634,69 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header Row: Model Title & Specs (flush left) + Status Pill (right)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.phone_iphone_rounded, size: 24, color: AppColors.obsidian),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        modelName,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        specs.join(' • '),
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       Text(
+                         modelName,
+                         style: const TextStyle(
+                           fontWeight: FontWeight.w700,
+                           fontSize: 16,
+                           color: Color(0xFF0F172A),
+                         ),
+                       ),
+                       const SizedBox(height: 3),
+                       Text(
+                         specs.join(' • '),
+                         style: const TextStyle(
+                           color: Color(0xFF64748B),
+                           fontSize: 12.5,
+                           fontWeight: FontWeight.w400,
+                           height: 1.35,
+                         ),
+                         maxLines: 2,
+                         overflow: TextOverflow.ellipsis,
+                       ),
+                     ],
+                   ),
                 ),
-                StatusBadge.inventory(status),
+                const SizedBox(width: 8),
+                _buildStatusPill(status),
               ],
             ),
-            const SizedBox(height: 12),
-            const Divider(height: 1, color: AppColors.borderSubtle),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
+            // Specs Row: Kode Unit, Serial Number, Grade Badge, Battery Badge
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Kode Unit', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                      Text(assetCode, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      const Text(
+                        'Kode Unit',
+                        style: TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        assetCode,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
                 ),
@@ -669,42 +704,137 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Serial Number', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                      Text(serialNum, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      const Text(
+                        'Serial Number',
+                        style: TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        serialNum,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(6)),
-                  child: Text('Grade $grade', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                ),
+                if (grade.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Text(
+                      'Grade $grade',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
                 if (battery != null && battery > 0) ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(6)),
-                    child: Text('🔋 $battery%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF86EFAC)),
+                    ),
+                    child: Text(
+                      '$battery%',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF16A34A),
+                      ),
+                    ),
                   ),
                 ],
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+            const SizedBox(height: 12),
+            // Action Buttons: Square outline trash & edit buttons aligned to right
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                    visualDensity: VisualDensity.compact,
-                    foregroundColor: AppColors.obsidian,
-                    side: const BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                InkWell(
+                  onTap: () => _confirmDeleteFromCard(context, asset),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFECDD3), width: 1),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                        Opacity(
+                          opacity: 0,
+                          child: SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: Center(
+                              child: Text(
+                                'Hapus',
+                                style: const TextStyle(fontSize: 1),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  icon: const Icon(Icons.edit_outlined, size: 14),
-                  label: const Text('Edit Unit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                  onPressed: () => _openEditAssetSheet(context, asset),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => _openEditAssetSheet(context, asset),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF334155)),
+                        Opacity(
+                          opacity: 0,
+                          child: SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: Center(
+                              child: Text(
+                                'Edit Unit',
+                                style: const TextStyle(fontSize: 1),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -726,70 +856,61 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   ) {
     return Column(
       children: [
+        // Search & Drawer Section
         Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-          child: Column(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
             children: [
-              TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Cari model, merk, atau spesifikasi...',
-                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textSecondary),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, size: 18),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                            ref.read(assetSearchQueryProvider.notifier).setSearch('');
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-                onChanged: (val) {
-                  setState(() {});
-                  ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
-                },
-              ),
-              const SizedBox(height: 8),
-              categoriesAsync.when(
-                data: (categories) => SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildChip(
-                        selected: categoryFilter == null,
-                        label: 'Semua Kategori',
-                        onTap: () => ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null),
+              _buildDrawerButton(hasActiveFilter: categoryFilter != null),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                    decoration: InputDecoration(
+                      hintText: 'Cari model, merk, atau spesifikasi...',
+                      hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                                ref.read(assetSearchQueryProvider.notifier).setSearch('');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
                       ),
-                      ...categories.map((cat) {
-                        final catId = cat['id'] as int?;
-                        final catName = cat['name']?.toString() ?? '';
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 6),
-                          child: _buildChip(
-                            selected: categoryFilter == catId,
-                            label: catName,
-                            onTap: () => ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(catId),
-                          ),
-                        );
-                      }),
-                    ],
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.2),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setState(() {});
+                      ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                    },
                   ),
                 ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
               ),
             ],
           ),
         ),
-        const Divider(height: 1, color: AppColors.border),
 
         Expanded(
           child: productsAsync.when(
@@ -975,7 +1096,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                   itemCount: products.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final product = products[index];
                     return _buildProductCard(context, product);
@@ -1091,8 +1212,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
           const SizedBox(height: 12),
           const Divider(height: 1, color: AppColors.borderSubtle),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               if (totalUnitsCount == 0)
                 TextButton.icon(
@@ -1106,7 +1230,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                   label: const Text('Registrasi Unit Tipe Ini', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                   onPressed: () => _openAddAssetSheet(context, initialModelId: int.tryParse(product['id']?.toString() ?? '')),
                 ),
-              const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(0, 32),
@@ -1130,18 +1253,334 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   // ==========================================
   // HELPERS & SHEETS
   // ==========================================
-  Widget _buildChip({required bool selected, required String label, required VoidCallback onTap}) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      selectedColor: AppColors.obsidian,
-      backgroundColor: AppColors.surfaceMuted,
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : AppColors.textPrimary,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-        fontSize: 12,
+  Widget _buildDrawerButton({required bool hasActiveFilter}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _scaffoldKey.currentState?.openDrawer(),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: hasActiveFilter ? const Color(0xFF0F172A) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: hasActiveFilter ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+              width: 1,
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(
+                Icons.tune_rounded,
+                size: 20,
+                color: hasActiveFilter ? Colors.white : const Color(0xFF334155),
+              ),
+              if (hasActiveFilter)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: AppColors.success,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
-      onSelected: (_) => onTap(),
+    );
+  }
+
+  Widget _buildFilterDrawer(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
+    int? categoryFilter,
+    String? statusFilter,
+  ) {
+    final hasActiveFilter = categoryFilter != null || statusFilter != null;
+
+    return Drawer(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drawer Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.tune_rounded, size: 20, color: Color(0xFF0F172A)),
+                      SizedBox(width: 8),
+                      Text(
+                        'Filter Aset',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 22, color: Color(0xFF64748B)),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+            // Scrollable Filter Sections
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                children: [
+                  // Section 1: Status Unit
+                  const Text(
+                    'Status Unit',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildChip(
+                        selected: statusFilter == null,
+                        label: 'Semua Status',
+                        onTap: () {
+                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(null);
+                        },
+                      ),
+                      _buildChip(
+                        selected: statusFilter == 'ready',
+                        label: 'Siap Sewa',
+                        onTap: () {
+                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('ready');
+                        },
+                      ),
+                      _buildChip(
+                        selected: statusFilter == 'rented',
+                        label: 'Sedang Sewa',
+                        onTap: () {
+                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('rented');
+                        },
+                      ),
+                      _buildChip(
+                        selected: statusFilter == 'maintenance',
+                        label: 'Perawatan',
+                        onTap: () {
+                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('maintenance');
+                        },
+                      ),
+                      _buildChip(
+                        selected: statusFilter == 'in_transit',
+                        label: 'Dalam Mutasi',
+                        onTap: () {
+                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('in_transit');
+                        },
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 20),
+
+                  // Section 2: Kategori
+                  const Text(
+                    'Kategori',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  categoriesAsync.when(
+                    data: (categories) => Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildChip(
+                          selected: categoryFilter == null,
+                          label: 'Semua Kategori',
+                          onTap: () {
+                            ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null);
+                          },
+                        ),
+                        ...categories.map((cat) {
+                          final catId = cat['id'] as int?;
+                          final catName = cat['name']?.toString() ?? '';
+                          return _buildChip(
+                            selected: categoryFilter == catId,
+                            label: catName,
+                            onTap: () {
+                              ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(catId);
+                            },
+                          );
+                        }),
+                      ],
+                    ),
+                    loading: () => const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+                    error: (_, _) => const Text(
+                      'Gagal memuat kategori',
+                      style: TextStyle(fontSize: 12, color: AppColors.danger),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Footer Actions
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasActiveFilter) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF64748B),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () {
+                          ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null);
+                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(null);
+                        },
+                        child: const Text('Reset Filter', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        elevation: 0,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Terapkan Filter', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  Widget _buildStatusPill(String status) {
+    final (String label, Color bg, Color border, Color text) = switch (status.toLowerCase()) {
+      'ready' || 'siap sewa' => (
+          'Siap Sewa',
+          const Color(0xFFF0FDF4),
+          const Color(0xFFBBF7D0),
+          const Color(0xFF15803D),
+        ),
+      'maintenance' || 'perawatan' => (
+          'Perawatan',
+          const Color(0xFFFEF2F2),
+          const Color(0xFFFECDD3),
+          const Color(0xFFDC2626),
+        ),
+      'rented' || 'sedang sewa' => (
+          'Sedang Sewa',
+          const Color(0xFFEFF6FF),
+          const Color(0xFFBFDBFE),
+          const Color(0xFF2563EB),
+        ),
+      'in_transit' || 'dalam mutasi' => (
+          'Dalam Mutasi',
+          const Color(0xFFFAF5FF),
+          const Color(0xFFE9D5FF),
+          const Color(0xFF9333EA),
+        ),
+      _ => (
+          status,
+          const Color(0xFFF1F5F9),
+          const Color(0xFFE2E8F0),
+          const Color(0xFF475569),
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: text,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChip({required bool selected, required String label, required VoidCallback onTap}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(100),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF0F172A) : Colors.white,
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(
+              color: selected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : const Color(0xFF334155),
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 12.5,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1212,6 +1651,66 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _EditAssetSheet(asset: asset, onSuccess: _refreshAll),
+    );
+  }
+
+  void _confirmDeleteFromCard(BuildContext context, Map<String, dynamic> asset) {
+    final assetCode = asset['asset_code']?.toString() ?? '-';
+    final assetId = asset['id'] as int;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 24),
+            SizedBox(width: 8),
+            Text('Hapus Unit Inventaris', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus unit "$assetCode"?\n\n'
+          'Unit yang belum pernah disewa akan dihapus permanen. Unit dengan riwayat sewa akan otomatis diarsipkan (status Retired) demi menjaga integritas data akuntansi.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              final messenger = ScaffoldMessenger.of(context);
+
+              try {
+                final repo = ref.read(assetRepositoryProvider);
+                final res = await repo.deleteAsset(assetId);
+                _refreshAll();
+                final msg = res['message']?.toString() ?? 'Unit inventaris berhasil diproses.';
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(msg),
+                    backgroundColor: AppColors.obsidian,
+                  ),
+                );
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Gagal menghapus unit: $e'),
+                    backgroundColor: AppColors.danger,
+                  ),
+                );
+              }
+            },
+            child: const Text('Ya, Hapus'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1802,10 +2301,91 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                       : const Text('Simpan Perubahan', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                 ),
               ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: const BorderSide(color: AppColors.danger),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  label: const Text('Hapus / Arsipkan Unit', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  onPressed: _isLoading ? null : () => _confirmDelete(context),
+                ),
+              ),
               const SizedBox(height: 24),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    final assetCode = widget.asset['asset_code']?.toString() ?? '-';
+    final assetId = widget.asset['id'] as int;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 24),
+            SizedBox(width: 8),
+            Text('Hapus Unit Inventaris', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus unit "$assetCode"?\n\n'
+          'Unit yang belum pernah disewa akan dihapus permanen. Unit dengan riwayat sewa akan otomatis diarsipkan (status Retired) demi menjaga integritas data akuntansi.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              setState(() => _isLoading = true);
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(context);
+
+              try {
+                final repo = ref.read(assetRepositoryProvider);
+                final res = await repo.deleteAsset(assetId);
+                nav.pop();
+                widget.onSuccess();
+                final msg = res['message']?.toString() ?? 'Unit inventaris berhasil diproses.';
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(msg),
+                    backgroundColor: AppColors.obsidian,
+                  ),
+                );
+              } catch (e) {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Gagal menghapus unit: $e'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Ya, Hapus'),
+          ),
+        ],
       ),
     );
   }

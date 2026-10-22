@@ -57,32 +57,6 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Kasir POS & Laporan Closing'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.menu_book_rounded),
-            tooltip: 'Buku Kas & Ledger Finansial',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const FinancialActivityLedgerScreen(),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Pengaturan Server',
-            onPressed: () => _showServerSettings(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Segarkan Data',
-            onPressed: () {
-              ref.invalidate(closingSummaryProvider);
-              ref.invalidate(cashierBookingsProvider(_searchQuery));
-            },
-          ),
-        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.obsidian,
@@ -91,14 +65,8 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
           indicatorWeight: 3,
           labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           tabs: const [
-            Tab(
-              icon: Icon(Icons.point_of_sale_rounded, size: 20),
-              text: 'Meja Kasir POS',
-            ),
-            Tab(
-              icon: Icon(Icons.assessment_outlined, size: 20),
-              text: 'Rekap Shift & Closing',
-            ),
+            Tab(text: 'Meja Kasir POS'),
+            Tab(text: 'Rekap Shift & Closing'),
           ],
         ),
       ),
@@ -1539,99 +1507,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                 );
               },
             ),
-            const SizedBox(height: 24),
-
-            // Printer & Hardware Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'PERANGKAT PRINTER BLUETOOTH',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(
-                        ref.watch(printerProvider).settings.printMode == PrintMode.echo
-                            ? Icons.visibility_rounded
-                            : (ref.watch(printerProvider).status == PrinterConnectionStatus.connected
-                                ? Icons.print_rounded
-                                : Icons.bluetooth_disabled_rounded),
-                        size: 24,
-                        color: ref.watch(printerProvider).settings.printMode == PrintMode.echo
-                            ? AppColors.info
-                            : (ref.watch(printerProvider).status == PrinterConnectionStatus.connected
-                                ? AppColors.success
-                                : AppColors.textMuted),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              ref.watch(printerProvider).settings.printMode == PrintMode.echo
-                                  ? 'Mode Echo (Virtual Audit)'
-                                  : (ref.watch(printerProvider).connectedDevice?.name ?? 'Tidak Ada Printer Terhubung'),
-                              style: const TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            Text(
-                              ref.watch(printerProvider).settings.printMode == PrintMode.echo
-                                  ? 'Simulasi Layar • ${ref.watch(printerProvider).settings.paperWidth.label}'
-                                  : (ref.watch(printerProvider).status == PrinterConnectionStatus.connected
-                                      ? 'Status: Siap Mencetak (${ref.watch(printerProvider).settings.paperWidth.label})'
-                                      : 'Status: Terputus / Offline'),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: ref.watch(printerProvider).settings.printMode == PrintMode.echo
-                                    ? AppColors.info
-                                    : (ref.watch(printerProvider).status == PrinterConnectionStatus.connected
-                                        ? AppColors.success
-                                        : AppColors.textMuted),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.tune_rounded, size: 16),
-                        label: const Text('Atur', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.receipt_outlined, size: 18),
-                    label: const Text('Test Print Struk Kasir'),
-                    onPressed: () {
-                      closingAsync.whenData((data) {
-                        _printClosingReceipt(context, ref, data);
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
             // User Info & Logout
             ElevatedButton.icon(
@@ -1686,11 +1562,17 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
       child: Row(
         children: [
           _buildDateFilterChip('Hari Ini', activeLabel == 'Hari Ini', () {
-            ref.read(posDateRangeProvider.notifier).setDateRange(label: 'Hari Ini');
+            final nowStr = DateTime.now().toIso8601String().substring(0, 10);
+            ref.read(posDateRangeProvider.notifier).setDateRange(
+              label: 'Hari Ini',
+              startDate: nowStr,
+              endDate: nowStr,
+            );
           }),
           const SizedBox(width: 8),
           _buildDateFilterChip('Kemarin', activeLabel == 'Kemarin', () {
-            final yesterday = DateTime.now().subtract(const Duration(days: 1));
+            final now = DateTime.now();
+            final yesterday = DateTime(now.year, now.month, now.day - 1);
             final yStr = yesterday.toIso8601String().substring(0, 10);
             ref.read(posDateRangeProvider.notifier).setDateRange(
               label: 'Kemarin',

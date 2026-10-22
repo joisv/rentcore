@@ -54,15 +54,9 @@ class FloatingCapsuleDock extends StatelessWidget {
           ),
           _buildDockItem(
             index: 3,
-            icon: Icons.confirmation_number_outlined,
-            activeIcon: Icons.confirmation_number_rounded,
-            label: 'Voucher',
-          ),
-          _buildDockItem(
-            index: 4,
-            icon: Icons.point_of_sale_outlined,
-            activeIcon: Icons.point_of_sale_rounded,
-            label: 'Kasir',
+            icon: Icons.settings_outlined,
+            activeIcon: Icons.settings_rounded,
+            label: 'Pengaturan',
           ),
         ],
       ),

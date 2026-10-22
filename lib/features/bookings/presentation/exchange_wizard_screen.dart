@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/status_badge.dart';
@@ -162,8 +163,8 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('Tukar Unit: $bookingCode'),
+      appBar: RentCoreAppBar(
+        title: 'Tukar Unit: $bookingCode',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/organization_provider.dart';
 
 class ManageOrganizationScreen extends ConsumerStatefulWidget {
@@ -67,22 +68,17 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
+      appBar: RentCoreAppBar(
+        titleWidget: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               widget.businessName,
               style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+                color: AppColors.obsidian,
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                letterSpacing: -0.3,
               ),
             ),
             const Text(
@@ -96,7 +92,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.obsidian),
             tooltip: 'Segarkan',
             onPressed: () => ref.read(organizationProvider.notifier).refresh(),
           ),
@@ -472,6 +468,54 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                       ),
                     ),
                     _buildRoleBadge(role),
+                    if (state.isOwnerOrAdmin && role.toLowerCase() != 'owner') ...[
+                      const SizedBox(width: 4),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondary),
+                        padding: EdgeInsets.zero,
+                        onSelected: (val) {
+                          if (val == 'reassign') {
+                            _showReassignBranchDialog(context, member, state.branches);
+                          } else if (val == 'pin') {
+                            _showSetManagerPinDialog(context, member);
+                          } else if (val == 'deactivate') {
+                            _confirmDeactivateMember(context, member);
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          const PopupMenuItem(
+                            value: 'reassign',
+                            child: Row(
+                              children: [
+                                Icon(Icons.swap_horiz_rounded, size: 18, color: AppColors.obsidian),
+                                SizedBox(width: 8),
+                                Text('Pindah Cabang', style: TextStyle(fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'pin',
+                            child: Row(
+                              children: [
+                                Icon(Icons.pin_rounded, size: 18, color: AppColors.obsidian),
+                                SizedBox(width: 8),
+                                Text('Atur PIN Manager', style: TextStyle(fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'deactivate',
+                            child: Row(
+                              children: [
+                                Icon(Icons.person_remove_rounded, size: 18, color: AppColors.danger),
+                                SizedBox(width: 8),
+                                Text('Nonaktifkan', style: TextStyle(fontSize: 13, color: AppColors.danger)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -551,6 +595,320 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     }).where((n) => n.isNotEmpty).toList();
 
     return 'Ditugaskan di: ${branchNames.join(', ')}';
+  }
+
+  void _showReassignBranchDialog(
+    BuildContext context,
+    Map<String, dynamic> member,
+    List<dynamic> branches,
+  ) {
+    final memberId = member['id'] as int;
+    final user = (member['user'] as Map<String, dynamic>?) ?? {};
+    final name = user['name'] ?? 'Staf';
+    final branchMembers = (member['branch_members'] as List<dynamic>?) ?? [];
+    final currentBranchId = branchMembers.isNotEmpty
+        ? (branchMembers.first as Map<String, dynamic>)['affiliate_id'] as int?
+        : null;
+
+    int? selectedToBranchId;
+    final reasonController = TextEditingController();
+
+    // Available target branches (filter out current branch)
+    final availableBranches = branches.where((b) {
+      final bId = b['id'] as int?;
+      return bId != null && bId != currentBranchId;
+    }).toList();
+
+    if (availableBranches.isNotEmpty) {
+      selectedToBranchId = availableBranches.first['id'] as int;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.swap_horiz_rounded, color: AppColors.obsidian),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Pindah Cabang: $name',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih cabang tujuan baru untuk staf ini:',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              if (availableBranches.isEmpty)
+                const Text(
+                  'Tidak ada cabang lain yang tersedia di bisnis ini.',
+                  style: TextStyle(color: AppColors.danger, fontSize: 13),
+                )
+              else
+                DropdownButtonFormField<int>(
+                  value: selectedToBranchId,
+                  decoration: InputDecoration(
+                    labelText: 'Cabang Tujuan',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  items: availableBranches.map((b) {
+                    final bId = b['id'] as int;
+                    final bName = b['name'] ?? 'Cabang #$bId';
+                    final bCode = b['code'] ?? '';
+                    return DropdownMenuItem<int>(
+                      value: bId,
+                      child: Text('$bName ($bCode)'),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => selectedToBranchId = val);
+                  },
+                ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: reasonController,
+                decoration: InputDecoration(
+                  labelText: 'Alasan Pemindahan (Opsional)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.obsidian,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: selectedToBranchId == null
+                  ? null
+                  : () async {
+                      Navigator.pop(ctx);
+                      final success = await ref
+                          .read(organizationProvider.notifier)
+                          .reassignMemberBranch(
+                            memberId: memberId,
+                            fromBranchId: currentBranchId,
+                            toBranchId: selectedToBranchId!,
+                            reason: reasonController.text.trim(),
+                          );
+
+                      if (context.mounted) {
+                        final orgState = ref.read(organizationProvider);
+                        if (success) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Penugasan $name berhasil dipindahkan.'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        } else if (orgState.error != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(orgState.error!),
+                              backgroundColor: AppColors.danger,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: const Text('Pindahkan'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSetManagerPinDialog(BuildContext context, Map<String, dynamic> member) {
+    final memberId = member['id'] as int;
+    final user = (member['user'] as Map<String, dynamic>?) ?? {};
+    final name = user['name'] ?? 'Staf';
+    final pinController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.pin_rounded, color: AppColors.obsidian),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Atur PIN Manager: $name',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'PIN Manager digunakan untuk otorisasi pengeluaran kas di atas ambang batas dan pembatalan transaksi.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'PIN 6-Digit Angka',
+                hintText: 'Contoh: 123456',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await ref
+                  .read(organizationProvider.notifier)
+                  .revokeManagerPin(memberId);
+              if (context.mounted && success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('PIN Manager $name berhasil dicabut.')),
+                );
+              }
+            },
+            child: const Text('Cabut PIN'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.obsidian,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final pin = pinController.text.trim();
+              if (pin.length != 6 || int.tryParse(pin) == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('PIN harus berupa 6 digit angka.'),
+                    backgroundColor: AppColors.danger,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final success = await ref
+                  .read(organizationProvider.notifier)
+                  .setManagerPin(memberId: memberId, pin: pin);
+
+              if (context.mounted) {
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('PIN Manager $name berhasil disimpan.'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                } else {
+                  final err = ref.read(organizationProvider).error;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(err ?? 'Gagal menyimpan PIN.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Simpan PIN'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeactivateMember(BuildContext context, Map<String, dynamic> member) {
+    final memberId = member['id'] as int;
+    final user = (member['user'] as Map<String, dynamic>?) ?? {};
+    final name = user['name'] ?? 'Staf';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.danger),
+            SizedBox(width: 10),
+            Text('Nonaktifkan Staf?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menonaktifkan $name dari bisnis ini? '
+          'Staf tidak akan dapat mengakses data bisnis lagi. Riwayat transaksi sebelumnya tetap tersimpan aman.',
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await ref
+                  .read(organizationProvider.notifier)
+                  .removeMember(memberId);
+
+              if (context.mounted) {
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('$name berhasil dinonaktifkan.'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                } else {
+                  final err = ref.read(organizationProvider).error;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(err ?? 'Gagal menonaktifkan staf.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Nonaktifkan'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildErrorState(String error) {

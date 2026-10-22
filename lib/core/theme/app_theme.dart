@@ -20,12 +20,14 @@ class AppTheme {
         backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         centerTitle: false,
-        iconTheme: IconThemeData(color: AppColors.obsidian),
+        iconTheme: IconThemeData(color: AppColors.obsidian, size: 20),
         titleTextStyle: TextStyle(
           color: AppColors.obsidian,
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.3,
         ),
       ),
       cardTheme: CardThemeData(
@@ -42,7 +44,7 @@ class AppTheme {
           backgroundColor: AppColors.obsidian,
           foregroundColor: AppColors.textOnObsidian,
           elevation: 0,
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(64, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -56,7 +58,7 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.obsidian,
           side: const BorderSide(color: AppColors.border, width: 1.5),
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(64, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),

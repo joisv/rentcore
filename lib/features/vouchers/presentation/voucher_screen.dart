@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -102,8 +104,8 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: _isSearchExpanded
+      appBar: RentCoreAppBar(
+        titleWidget: _isSearchExpanded
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
@@ -117,7 +119,15 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                   ref.read(voucherProvider.notifier).setSearchQuery(val.trim());
                 },
               )
-            : const Text('Voucher & Barcode 2D'),
+            : const Text(
+                'Voucher & Barcode 2D',
+                style: TextStyle(
+                  color: AppColors.obsidian,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
         actions: [
           IconButton(
             icon: Icon(_isSearchExpanded ? Icons.close_rounded : Icons.search_rounded),
@@ -152,6 +162,7 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
               ),
             )
           : null,
+      floatingActionButtonLocation: const DockFloatingActionButtonLocation(),
       body: Column(
         children: [
           // Owner Filter Chips

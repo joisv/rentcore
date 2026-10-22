@@ -31,6 +31,30 @@ extension DockEdgeInsetsExtension on EdgeInsets {
   }
 }
 
+/// Floating action button location that positions the FAB right above
+/// the floating capsule bottom dock, respecting device safe area.
+class DockFloatingActionButtonLocation extends FloatingActionButtonLocation {
+  final double extraOffset;
+
+  const DockFloatingActionButtonLocation({this.extraOffset = 0.0});
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    final double fabX = scaffoldGeometry.scaffoldSize.width -
+        scaffoldGeometry.floatingActionButtonSize.width -
+        kFloatingActionButtonMargin;
+
+    final double bottomInset = scaffoldGeometry.minViewPadding.bottom;
+    final double fabY = scaffoldGeometry.scaffoldSize.height -
+        scaffoldGeometry.floatingActionButtonSize.height -
+        kDockHeight -
+        bottomInset -
+        extraOffset;
+
+    return Offset(fabX, fabY);
+  }
+}
+
 /// A wrapper layout that ensures content within tabbed screens has proper
 /// scrolling clearance above the floating capsule navigation dock.
 class DockAwareScaffold extends StatelessWidget {
@@ -59,7 +83,8 @@ class DockAwareScaffold extends StatelessWidget {
       appBar: appBar,
       backgroundColor: backgroundColor,
       floatingActionButton: floatingActionButton,
-      floatingActionButtonLocation: floatingActionButtonLocation,
+      floatingActionButtonLocation: floatingActionButtonLocation ??
+          (floatingActionButton != null ? const DockFloatingActionButtonLocation() : null),
       bottomSheet: bottomSheet,
       resizeToAvoidBottomInset: resizeToAvoidBottomInset,
       body: body,

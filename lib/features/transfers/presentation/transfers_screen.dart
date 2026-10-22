@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -43,14 +44,8 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Mutasi Unit Antar Cabang',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-        ),
-        elevation: 0,
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
+      appBar: RentCoreAppBar(
+        title: 'Mutasi Unit Antar Cabang',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),

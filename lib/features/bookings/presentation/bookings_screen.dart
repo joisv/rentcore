@@ -12,6 +12,18 @@ import 'exchange_history_sheet.dart';
 import 'exchange_wizard_screen.dart';
 import 'return_wizard_screen.dart';
 
+class _ExtensionOption {
+  final int hours;
+  final double price;
+  final String label;
+
+  const _ExtensionOption({
+    required this.hours,
+    required this.price,
+    required this.label,
+  });
+}
+
 class BookingsScreen extends ConsumerWidget {
   const BookingsScreen({super.key});
 
@@ -475,17 +487,73 @@ class BookingsScreen extends ConsumerWidget {
   }
 
   void _showExtendDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> item) {
-    int selectedHours = 6;
     final bookingId = (item['id'] as num).toInt();
     final bookingCode = item['booking_code']?.toString() ?? '#$bookingId';
     final customer = (item['customer'] as Map?) ?? {};
     final customerName = customer['name']?.toString() ?? 'Pelanggan';
-    final primaryAsset = (item['primary_asset'] as Map?) ??
-        (item['active_asset'] as Map?) ??
-        (item['device'] as Map?) ?? {};
-    final model = (primaryAsset['model'] as Map?) ?? (primaryAsset['asset_model'] as Map?) ?? {};
-    final deviceModel = model['name']?.toString() ?? 'Unit Sewa';
-    final hourlyRate = ((model['tier']?['hourly_rate'] ?? 15000) as num).toInt();
+
+    Map<String, dynamic>? resolvedModel;
+    final items = item['items'] as List?;
+    if (items != null && items.isNotEmpty) {
+      final first = items.first;
+      if (first is Map) {
+        final asset = first['asset'] as Map?;
+        if (asset != null && asset['model'] is Map) {
+          resolvedModel = Map<String, dynamic>.from(asset['model']);
+        }
+      }
+    }
+    if (resolvedModel == null) {
+      final primaryAsset = (item['primary_asset'] as Map?) ??
+          (item['active_asset'] as Map?) ??
+          (item['device'] as Map?) ?? {};
+      if (primaryAsset['model'] is Map) {
+        resolvedModel = Map<String, dynamic>.from(primaryAsset['model']);
+      } else if (primaryAsset['asset_model'] is Map) {
+        resolvedModel = Map<String, dynamic>.from(primaryAsset['asset_model']);
+      }
+    }
+
+    final deviceModel = resolvedModel?['name']?.toString() ?? 'Unit Sewa';
+
+    // Extract rates configured on the model
+    final rawTiers = (resolvedModel?['pricing_tiers'] as List?) ??
+        (resolvedModel?['pricingTiers'] as List?) ?? [];
+    final options = <_ExtensionOption>[];
+
+    for (final t in rawTiers) {
+      if (t is Map) {
+        final hours = int.tryParse(t['duration_hours']?.toString() ?? '0') ?? 0;
+        final price = (t['price'] is num)
+            ? (t['price'] as num).toDouble()
+            : (double.tryParse(t['price']?.toString() ?? '0') ?? 0.0);
+        final isActive = t['is_active'] != false;
+        if (hours > 0 && isActive) {
+          options.add(_ExtensionOption(
+            hours: hours,
+            price: price,
+            label: '$hours Jam',
+          ));
+        }
+      }
+    }
+
+    options.sort((a, b) => a.hours.compareTo(b.hours));
+
+    // Fallback if no specific pricing tiers configured
+    if (options.isEmpty) {
+      final hourlyRate = ((resolvedModel?['tier']?['hourly_rate'] ?? 15000) as num).toDouble();
+      for (final h in [6, 12, 24]) {
+        options.add(_ExtensionOption(
+          hours: h,
+          price: h * hourlyRate,
+          label: '$h Jam',
+        ));
+      }
+    }
+
+    int selectedHours = options.first.hours;
+    final currentEndAt = DateTime.tryParse(item['end_at']?.toString() ?? '')?.toLocal();
 
     showModalBottomSheet(
       context: context,
@@ -495,7 +563,12 @@ class BookingsScreen extends ConsumerWidget {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            final fee = selectedHours * hourlyRate;
+            final selectedOption = options.firstWhere(
+              (o) => o.hours == selectedHours,
+              orElse: () => options.first,
+            );
+            final fee = selectedOption.price;
+            final newEndAt = currentEndAt?.add(Duration(hours: selectedHours));
 
             return Padding(
               padding: const EdgeInsets.all(24),
@@ -507,40 +580,74 @@ class BookingsScreen extends ConsumerWidget {
                     'Perpanjang Masa Sewa Unit',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
-                    'Tarif perpanjangan: ${CurrencyFormatter.format(hourlyRate)} / jam.',
+                    'Perangkat: $deviceModel • $bookingCode',
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [6, 12, 24].map((hours) {
-                      final isSel = selectedHours == hours;
-                      return ChoiceChip(
-                        label: Text('$hours Jam'),
-                        selected: isSel,
-                        onSelected: (_) => setModalState(() => selectedHours = hours),
-                        selectedColor: AppColors.obsidian,
-                        labelStyle: TextStyle(color: isSel ? Colors.white : AppColors.textPrimary),
-                      );
-                    }).toList(),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Pilihan Durasi Perpanjangan (Sesuai Tarif Model):',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: options.map((opt) {
+                        final isSel = selectedHours == opt.hours;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text('${opt.label} • ${CurrencyFormatter.format(opt.price)}'),
+                            selected: isSel,
+                            onSelected: (_) => setModalState(() => selectedHours = opt.hours),
+                            selectedColor: AppColors.obsidian,
+                            labelStyle: TextStyle(
+                              color: isSel ? Colors.white : AppColors.textPrimary,
+                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 12,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted,
                       borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
                       children: [
-                        const Text('Biaya Tambahan:', style: TextStyle(fontWeight: FontWeight.w600)),
-                        Text(
-                          CurrencyFormatter.format(fee),
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Biaya Perpanjangan:', style: TextStyle(fontWeight: FontWeight.w600)),
+                            Text(
+                              CurrencyFormatter.format(fee),
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.obsidian),
+                            ),
+                          ],
                         ),
+                        if (newEndAt != null) ...[
+                          const SizedBox(height: 8),
+                          const Divider(height: 1, color: AppColors.borderSubtle),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Batas Waktu Baru:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                              Text(
+                                DateFormatter.formatFull(newEndAt),
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textPrimary),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -558,7 +665,7 @@ class BookingsScreen extends ConsumerWidget {
                               customerName: customerName,
                               deviceModel: deviceModel,
                               additionalHours: selectedHours,
-                              extensionFee: fee.toDouble(),
+                              extensionFee: fee,
                             ),
                           ),
                         ),

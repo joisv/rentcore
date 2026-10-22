@@ -160,6 +160,80 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
     }
   }
 
+  Future<bool> reassignMemberBranch({
+    required int memberId,
+    int? fromBranchId,
+    required int toBranchId,
+    String? reason,
+  }) async {
+    final bizId = state.businessId;
+    if (bizId == null) return false;
+
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      await _repository.reassignMemberBranch(
+        bizId,
+        memberId,
+        fromBranchId: fromBranchId,
+        toBranchId: toBranchId,
+        reason: reason,
+      );
+
+      final members = await _repository.fetchMembers(bizId);
+      state = state.copyWith(isSubmitting: false, members: members);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> removeMember(int memberId) async {
+    final bizId = state.businessId;
+    if (bizId == null) return false;
+
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      await _repository.removeMember(bizId, memberId);
+      final members = await _repository.fetchMembers(bizId);
+      state = state.copyWith(isSubmitting: false, members: members);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> setManagerPin({required int memberId, required String pin}) async {
+    final bizId = state.businessId;
+    if (bizId == null) return false;
+
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      await _repository.setManagerPin(bizId, memberId, pin);
+      state = state.copyWith(isSubmitting: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> revokeManagerPin(int memberId) async {
+    final bizId = state.businessId;
+    if (bizId == null) return false;
+
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      await _repository.revokeManagerPin(bizId, memberId);
+      state = state.copyWith(isSubmitting: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString());
+      return false;
+    }
+  }
+
   Future<bool> updateRentalRules(Map<String, dynamic> payload) async {
     final bizId = state.businessId;
     if (bizId == null) return false;

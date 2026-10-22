@@ -1,17 +1,17 @@
-# Graph Report - rentcore  (2026-10-21)
+# Graph Report - rentcore  (2026-10-22)
 
 ## Corpus Check
-- 133 files · ~325,081 words
+- 141 files · ~125,655 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 53 file(s) not represented in the graph (top: .xml 8, .xcconfig 8, (none) 7)
+- Unclassified: 52 file(s) not represented in the graph (top: .xml 8, .xcconfig 8, (none) 7)
 
 ## Summary
-- 2092 nodes · 3125 edges · 140 communities (90 shown, 50 thin omitted)
+- 2272 nodes · 3442 edges · 144 communities (94 shown, 50 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 24 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a1930885`
+- Built from commit: `423c557b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -39,61 +39,61 @@
 - Payment Gateway & Processing
 - Windows Native Desktop Runner
 - Printer Bluetooth Driver Module
-- Payment Page Test Module
+- package:flutter/material.dart
 - Home Dashboard & Analytics
 - voucher_management_test.dart
 - Rental Return Processing
 - App Colors Module
 - Cashier POS & Register
-- AuthNotifier
+- logout
 - cash_drawer_shift_modal.dart
 - Organization & Branch Management
 - business_provider.dart
-- ../../auth/providers/business_provider.dart
-- voucher_detail_dialog.dart
-- status_badge.dart
+- expandable_inventory_fab.dart
+- voucher_screen.dart
+- dock_aware_scaffold.dart
 - inventory_editing_test.dart
 - Windows Native Desktop Runner
 - business_selector_sheet.dart
 - Win32Window
-- logout_and_inventory_detail_test.dart
-- auth_lifecycle_relogin_test.dart
+- inventory_empty_state_test.dart
+- BusinessNotifier
 - Size
 - Inventory & Asset Catalog
 - inventory_live_payload_test.dart
 - Booking Management System
 - Authentication & User Session
-- organization_test.dart
-- auth_provider.dart
+- rentcore_app_bar.dart
+- status_badge.dart
 - Windows Native Desktop Runner
-- _CashierScreenState
+- authProvider
 - login_screen.dart
 - pos_transaction_detail_sheet.dart
 - Inventory & Asset Catalog
 - booking_provider.dart
-- package:flutter_test/flutter_test.dart
+- package:rentcore_mobile/features/auth/providers/business_provider.dart
 - pos_numpad.dart
-- businessProvider
+- auth_provider.dart
 - bookings_screen.dart
 - exchange_wizard_screen.dart
-- late_return_penalty_pos_test.dart
+- store_profile_screen.dart
 - Asset Transfer Workflow
 - Flutter Web Shell Platform
 - Core API & Network Client
 - Voucher & Discount Rules
-- payment_repository.dart
-- branch_aware_booking_test.dart
+- expandable_inventory_fab_test.dart
+- rental_addons_and_policies_test.dart
 - ConsumerState
 - add_branch_expense_modal.dart
 - Customer Profile Management
 - ../../../core/constants/api_constants.dart
-- authProvider
+- store_settings_screen.dart
 - ../../../core/utils/currency_formatter.dart
-- cashierRepositoryProvider
+- paymentMethodsProvider
 - Cashier POS & Register
-- test_dio_fetch.dart
+- currency_formatter.dart
 - Windows Native Desktop Runner
-- string
+- StatelessWidget
 - Q: Why does businessProvider connect Cashier POS & Register to Authentication & User Session, Asset Transfer Workflow, Voucher & Discount Rules, Business Selector Sheet Module, Booking Management System, and Inventory & Asset Catalog?
 - Windows Native Desktop Runner
 - Mainactivity Module
@@ -132,52 +132,56 @@
 - Flutter Web Shell Platform
 - Flutter Web Shell Platform
 - Flutter Web Shell Platform
-- ../../core/constants/app_colors.dart
-- pos_revenue_consolidation_widget_test.dart
-- organizationProvider
-- printer_settings_screen.dart
 - package:flutter_riverpod/flutter_riverpod.dart
+- pos_revenue_consolidation_widget_test.dart
+- AuthNotifier
+- printer_settings_screen.dart
+- payment_repository.dart
 - exchange_history_sheet.dart
-- paymentMethodsProvider
-- AuthRepository
-- voucher_screen.dart
-- package:flutter/material.dart
-- toPluginPayload
+- ../../auth/providers/business_provider.dart
+- businessProvider
+- bookingRepositoryProvider
+- ExpandableInventoryFabState
+- ../../core/constants/app_colors.dart
 - assetRepositoryProvider
-- dart:convert
+- thermal_printer_service_test.dart
+- AuthRepository
+- cash_suggestion_helper.dart
+- string
+- navigation_keys.dart
 
 ## God Nodes (most connected - your core abstractions)
-1. `businessProvider` - 36 edges
-2. `printerProvider` - 26 edges
-3. `BusinessNotifier` - 22 edges
-4. `Win32Window` - 21 edges
-5. `authProvider` - 20 edges
-6. `AuthNotifier` - 19 edges
-7. `BusinessState` - 17 edges
-8. `organizationProvider` - 16 edges
-9. `logout` - 13 edges
-10. `cashierRepositoryProvider` - 13 edges
+1. `businessProvider` - 41 edges
+2. `authProvider` - 29 edges
+3. `BusinessNotifier` - 25 edges
+4. `printerProvider` - 24 edges
+5. `AuthNotifier` - 21 edges
+6. `Win32Window` - 21 edges
+7. `organizationProvider` - 19 edges
+8. `BusinessState` - 17 edges
+9. `cashierRepositoryProvider` - 15 edges
+10. `logout` - 13 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `_MockCategoryBizNotifier` --inherits--> `BusinessNotifier`  [EXTRACTED]
+  test/add_category_workflow_test.dart → lib/features/auth/providers/business_provider.dart
 - `_TestBusinessNotifier` --inherits--> `BusinessNotifier`  [EXTRACTED]
   test/bookings_queue_overdue_test.dart → lib/features/auth/providers/business_provider.dart
 - `_TestBusinessNotifier` --inherits--> `BusinessNotifier`  [EXTRACTED]
   test/branch_revenue_and_dashboard_test.dart → lib/features/auth/providers/business_provider.dart
 - `_TestBusinessNotifier` --inherits--> `BusinessNotifier`  [EXTRACTED]
   test/cash_payment_suggestion_test.dart → lib/features/auth/providers/business_provider.dart
-- `_ActiveBusinessNotifier` --inherits--> `BusinessNotifier`  [EXTRACTED]
-  test/home_dashboard_kpi_test.dart → lib/features/auth/providers/business_provider.dart
-- `_TestBusinessNotifier` --inherits--> `BusinessNotifier`  [EXTRACTED]
-  test/late_return_penalty_pos_test.dart → lib/features/auth/providers/business_provider.dart
+- `_MockCashierBizNotifier` --inherits--> `BusinessNotifier`  [EXTRACTED]
+  test/cashier_and_header_standardization_test.dart → lib/features/auth/providers/business_provider.dart
 
 ## Import Cycles
 - None detected.
 
-## Communities (140 total, 50 thin omitted)
+## Communities (144 total, 50 thin omitted)
 
 ### Community 0 - "Thermal Printer Data Models"
 Cohesion: 0.02
-Nodes (88): accessoriesNotes, address, alignment, bookingCode, branchName, cashChange, cashierName, cashReceived (+80 more)
+Nodes (89): accessoriesNotes, address, alignment, bookingCode, branchName, cashChange, cashierName, cashReceived (+81 more)
 
 ### Community 1 - "transfers_screen.dart"
 Cohesion: 0.06
@@ -185,7 +189,7 @@ Nodes (45): _bookingRepo, build, _buildDirectionChip, _buildStatusChip, _buildTr
 
 ### Community 2 - "Core API & Network Client"
 Cohesion: 0.03
-Nodes (58): ApiConstants, approveExpense, approveTransfer, assetAvailability, assetModels, assets, availableReplacements, bookingDetail (+50 more)
+Nodes (66): ApiConstants, approveExpense, approveTransfer, assetAvailability, assetModels, assets, availableReplacements, bookingDetail (+58 more)
 
 ### Community 3 - "Direct Rental Booking"
 Cohesion: 0.03
@@ -200,8 +204,8 @@ Cohesion: 0.05
 Nodes (35): _appendFooter, _appendHeader, buildClosingShiftSlipBytes, buildPosPaymentSlipBytes, _buildQrCodeEscPos, buildReceiptDocument, buildRentalBookingSlipBytes, buildRentalReturnSlipBytes (+27 more)
 
 ### Community 6 - "Organization & Branch Management"
-Cohesion: 0.06
-Nodes (31): _addonsEnabled, _addressController, branches, _buildCard, _buildRoleBadge, _buildRoleChoice, businessId, businessName (+23 more)
+Cohesion: 0.05
+Nodes (42): _addonsEnabled, _addressController, branches, build, _buildBranchesTab, _buildCard, _buildErrorState, _buildMembersTab (+34 more)
 
 ### Community 7 - "Payment Gateway & Processing"
 Cohesion: 0.06
@@ -209,11 +213,11 @@ Nodes (33): additionalHours, amountPaid, assetCode, booking, bookingCode, bookin
 
 ### Community 8 - "Inventory & Asset Catalog"
 Cohesion: 0.06
-Nodes (30): _accessoriesController, _addPresetRate, AddProductSheet, _AddProductSheetState, _addRateRow, _brandController, _buildPresetChip, _colorController (+22 more)
+Nodes (31): _accessoriesController, _addPresetRate, AddProductSheet, _AddProductSheetState, _addRateRow, _brandController, build, _buildPresetChip (+23 more)
 
 ### Community 9 - "Voucher & Discount Rules"
-Cohesion: 0.05
-Nodes (37): CurrencyFormatter, format, _formatter, parse, DateFormatter, formatFull, formatRelative, formatShort (+29 more)
+Cohesion: 0.07
+Nodes (28): _barcodeType, branches, build, _codeController, createState, _customerQuotaController, _descController, _discountPercentController (+20 more)
 
 ### Community 10 - "Linux Native Desktop Runner"
 Cohesion: 0.08
@@ -228,32 +232,32 @@ Cohesion: 0.13
 Nodes (11): branchName, content, createState, escposBytes, _handlePrint, _isPrinting, _printerService, qrData (+3 more)
 
 ### Community 13 - "main.dart"
-Cohesion: 0.05
-Nodes (19): networkStatusProvider, MockPrinterDriver, build, createState, _currentTabIndex, initializeDateFormatting, main, MainShellScreen (+11 more)
+Cohesion: 0.08
+Nodes (15): build, checkConnectivity, NetworkStatus, NetworkStatusNotifier, networkStatusProvider, setOffline, setOnline, build (+7 more)
 
 ### Community 14 - "AuthNotifier"
-Cohesion: 0.09
-Nodes (19): BusinessNotifier, BusinessState, _TestBusinessNotifier, build, _initial, main, _StaticBusinessNotifier, _TestBusinessNotifier (+11 more)
+Cohesion: 0.06
+Nodes (26): BusinessNotifier, BusinessState, _TestBusinessNotifier, build, fakeDashboardData, lastCurrentPassword, lastNewPassword, lastUpdatedName (+18 more)
 
 ### Community 15 - "bookings_queue_overdue_test.dart"
-Cohesion: 0.06
-Nodes (29): BookingRepository, _FakeBookingRepository, build, changeBranch, _FakeBookingRepository, fetchBookings, initialState, lastAllBranches (+21 more)
+Cohesion: 0.05
+Nodes (37): BookingRepository, _FakeBookingRepository, build, changeBranch, _FakeBookingRepository, fetchBookings, initialState, lastAllBranches (+29 more)
 
 ### Community 16 - "Receipt Customization Settings"
 Cohesion: 0.07
-Nodes (26): PrintMode, _addressCtrl, _branchNameCtrl, build, _buildChoiceChip, _buildEchoThermalPreview, _buildFieldTogglesCard, _buildFooterSettingsCard (+18 more)
+Nodes (28): PrintMode, _addressCtrl, _branchNameCtrl, build, _buildChoiceChip, _buildEchoThermalPreview, _buildFieldTogglesCard, _buildFooterSettingsCard (+20 more)
 
 ### Community 17 - "Inventory & Asset Catalog"
-Cohesion: 0.06
-Nodes (31): asset, _assetCodeController, _batteryHealthController, _buildAssetCard, _buildBranchBar, _buildChip, _buildNoBusinessView, _buildProductCard (+23 more)
+Cohesion: 0.05
+Nodes (36): asset, _assetCodeController, _batteryHealthController, _buildAssetCard, _buildBranchBar, _buildChip, _buildDrawerButton, _buildNoBusinessView (+28 more)
 
 ### Community 18 - "Voucher & Discount Rules"
-Cohesion: 0.07
-Nodes (28): VoucherRepository, build, copyWith, createVoucher, deleteVoucher, error, fetchVouchers, isLoading (+20 more)
+Cohesion: 0.08
+Nodes (25): build, copyWith, createVoucher, deleteVoucher, error, fetchVouchers, isLoading, isSubmitting (+17 more)
 
 ### Community 19 - "Cashier POS & Register"
-Cohesion: 0.07
-Nodes (25): booking, _buildBookingPosCard, _buildDateFilterChip, _calcCashTotal, _calcNonCashTotal, _cashReceivedController, createState, dispose (+17 more)
+Cohesion: 0.06
+Nodes (27): booking, _buildBookingPosCard, _buildDateFilterChip, _calcCashTotal, _calcNonCashTotal, _cashReceivedController, createState, dispose (+19 more)
 
 ### Community 20 - "Payment Gateway & Processing"
 Cohesion: 0.08
@@ -264,24 +268,24 @@ Cohesion: 0.13
 Nodes (6): EnableFullDpiSupportIfAvailable(), Scale(), Win32Window::Win32Window(), WindowClassRegistrar, class_registered_, instance_
 
 ### Community 22 - "Printer Bluetooth Driver Module"
-Cohesion: 0.10
-Nodes (16): checkAndRequestPermissions, connect, _connected, _connectedAddress, disconnect, _fallbackMock, getBondedDevices, isBluetoothAvailable (+8 more)
+Cohesion: 0.09
+Nodes (17): checkAndRequestPermissions, connect, _connected, _connectedAddress, disconnect, _fallbackMock, getBondedDevices, isBluetoothAvailable (+9 more)
 
-### Community 23 - "Payment Page Test Module"
-Cohesion: 0.06
-Nodes (24): main, attempts, main, voidTransaction, build, businessState, createRental, extendRental (+16 more)
+### Community 23 - "package:flutter/material.dart"
+Cohesion: 0.04
+Nodes (37): AppTheme, main, build, fetchBookingDetail, fetchBookingsForCashier, fetchClosingSummary, fetchPaymentMethods, _initialState (+29 more)
 
 ### Community 24 - "Home Dashboard & Analytics"
-Cohesion: 0.07
-Nodes (19): _buildActiveContextBanner, _buildAllClearStatusCard, _buildDailySummary, _buildDashboardContent, _buildErrorCard, _buildImminentReturnsSection, _buildInventoryOverview, _buildKpiCard (+11 more)
+Cohesion: 0.08
+Nodes (21): build, _buildActiveContextBanner, _buildAllClearStatusCard, _buildDailySummary, _buildDashboardContent, _buildErrorCard, _buildImminentReturnsSection, _buildInventoryOverview (+13 more)
 
 ### Community 25 - "voucher_management_test.dart"
-Cohesion: 0.11
-Nodes (15): build, createVoucher, deleteVoucher, fetchVouchers, isOwner, lastCreatedPayload, lastDeletedId, lastToggledId (+7 more)
+Cohesion: 0.06
+Nodes (29): VoucherRepository, currentUserEmail, _FakeVoucherRepository, fetchAssets, fetchBookings, fetchBusinesses, fetchKpi, fetchVouchers (+21 more)
 
 ### Community 26 - "Rental Return Processing"
-Cohesion: 0.10
-Nodes (19): _showExtendDialog, _executeExchangeSubmission, _loadAvailableReplacements, _adapterReturned, booking, build, _cableReturned, _cameraOk (+11 more)
+Cohesion: 0.11
+Nodes (14): _adapterReturned, booking, build, _cableReturned, _cameraOk, _conditionGrade, createState, _icloudRemoved (+6 more)
 
 ### Community 27 - "App Colors Module"
 Cohesion: 0.09
@@ -291,37 +295,37 @@ Nodes (20): AppColors, background, border, borderSubtle, danger, dangerLight, in
 Cohesion: 0.09
 Nodes (21): bizState, build, currentShiftProvider, dateRange, effectiveBranchId, endDate, fetchBookingDetail, fetchBookingsForCashier (+13 more)
 
-### Community 29 - "AuthNotifier"
-Cohesion: 0.29
-Nodes (13): logout, build, build, _buildCatalogView, _buildUnitsView, initState, _InventoryScreenState, assetSearchQueryProvider (+5 more)
+### Community 29 - "logout"
+Cohesion: 0.25
+Nodes (15): logout, build, _buildCatalogView, _buildFilterDrawer, _buildUnitsView, initState, _InventoryScreenState, build (+7 more)
 
 ### Community 30 - "cash_drawer_shift_modal.dart"
 Cohesion: 0.07
-Nodes (28): activeShift, branchId, build, _buildCloseShiftContent, _buildDenominationRow, _buildOpenShiftContent, CashDrawerShiftModal, _CashDrawerShiftModalState (+20 more)
+Nodes (26): activeShift, branchId, build, _buildCloseShiftContent, _buildDenominationRow, _buildOpenShiftContent, _closeNotesController, _coinController (+18 more)
 
 ### Community 31 - "Organization & Branch Management"
-Cohesion: 0.10
-Nodes (18): branches, businessId, businessName, copyWith, createBranch, error, inviteMember, isLoading (+10 more)
+Cohesion: 0.08
+Nodes (22): branches, businessId, businessName, copyWith, createBranch, error, inviteMember, isLoading (+14 more)
 
 ### Community 32 - "business_provider.dart"
 Cohesion: 0.10
 Nodes (19): activeBranchId, activeBranchName, activeBusinessId, activeBusinessName, businesses, copyWith, error, isCentralBranch (+11 more)
 
-### Community 33 - "../../auth/providers/business_provider.dart"
-Cohesion: 0.29
-Nodes (4): bizState, dashboardRepositoryProvider, fetchKpi, repo
+### Community 33 - "expandable_inventory_fab.dart"
+Cohesion: 0.11
+Nodes (16): build, _buildActionRow, _buildMainFab, collapse, _controller, createState, dispose, expand (+8 more)
 
-### Community 34 - "voucher_detail_dialog.dart"
-Cohesion: 0.12
-Nodes (14): checkCurrentSession, login, branches, build, _buildDetailRow, _confirmDelete, isOwner, onPrintThermal (+6 more)
+### Community 34 - "voucher_screen.dart"
+Cohesion: 0.08
+Nodes (19): checkCurrentSession, login, branches, build, _buildDetailRow, _confirmDelete, isOwner, onPrintThermal (+11 more)
 
-### Community 35 - "status_badge.dart"
-Cohesion: 0.05
-Nodes (32): appBar, backgroundColor, body, bottomSheet, build, DockAwareScaffold, DockClearance, DockEdgeInsetsExtension (+24 more)
+### Community 35 - "dock_aware_scaffold.dart"
+Cohesion: 0.11
+Nodes (15): appBar, backgroundColor, body, bottomSheet, build, DockEdgeInsetsExtension, DockFloatingActionButtonLocation, extra (+7 more)
 
 ### Community 36 - "inventory_editing_test.dart"
-Cohesion: 0.13
-Nodes (14): build, fetchCategories, fetchModels, fetchProducts, _initial, lastUpdatedAssetId, lastUpdatedAssetPayload, lastUpdatedProductId (+6 more)
+Cohesion: 0.07
+Nodes (21): clearToken, getToken, _instance, _keyToken, saveToken, SecureTokenStorage, _storage, build (+13 more)
 
 ### Community 37 - "Windows Native Desktop Runner"
 Cohesion: 0.12
@@ -335,13 +339,13 @@ Nodes (15): _addressCtrl, _BusinessOnboardingDialog, _BusinessOnboardingDialogSt
 Cohesion: 0.24
 Nodes (4): Win32Window, child_content_, quit_on_close_, window_handle_
 
-### Community 40 - "logout_and_inventory_detail_test.dart"
-Cohesion: 0.09
-Nodes (16): clearToken, getToken, _instance, _keyToken, saveToken, SecureTokenStorage, _storage, build (+8 more)
-
-### Community 41 - "auth_lifecycle_relogin_test.dart"
+### Community 40 - "inventory_empty_state_test.dart"
 Cohesion: 0.08
-Nodes (22): DashboardRepository, _FakeDashboardRepository, build, changeBranch, _FakeDashboardRepository, fetchBookingsForCashier, fetchClosingSummary, fetchKpi (+14 more)
+Nodes (23): AssetRepository, _MockCategoryAssetRepo, _FakeAssetRepository, _FakeAssetRepository, _MockAssetRepo, _TrackingAssetRepository, assetsToReturn, baseBusinessState (+15 more)
+
+### Community 41 - "BusinessNotifier"
+Cohesion: 0.10
+Nodes (18): build, changeBranch, fetchBookingsForCashier, fetchClosingSummary, fetchKpi, initialState, main, recordedBookingsBranchRequests (+10 more)
 
 ### Community 42 - "Size"
 Cohesion: 0.50
@@ -352,72 +356,72 @@ Cohesion: 0.13
 Nodes (13): AssetSearchQueryNotifier, bizState, build, catalogModelsProvider, categoryId, fetchCategories, fetchModels, fetchProducts (+5 more)
 
 ### Community 44 - "inventory_live_payload_test.dart"
-Cohesion: 0.07
-Nodes (27): AssetRepository, _FakeAssetRepository, _FakeAssetRepository, _TrackingAssetRepository, _ConfigurableAssetRepository, build, fetchAssets, fetchCategories (+19 more)
+Cohesion: 0.14
+Nodes (13): bizState, build, buildScreen, fetchAssets, fetchCategories, fetchModels, fetchProducts, _initial (+5 more)
 
 ### Community 45 - "Booking Management System"
-Cohesion: 0.20
-Nodes (9): _client, createRental, exchangeRentalUnit, extendRental, fetchAvailableReplacements, fetchBookingDetail, fetchBookings, fetchReadyAssets (+1 more)
+Cohesion: 0.14
+Nodes (12): ApiClient, _client, createRental, exchangeRentalUnit, extendRental, fetchAvailableReplacements, fetchBookingDetail, fetchBookings (+4 more)
 
 ### Community 46 - "Authentication & User Session"
-Cohesion: 0.12
-Nodes (14): checkSession, _client, createBranch, createBusiness, fetchBranches, fetchBusinesses, fetchMembers, fetchRentalRules (+6 more)
+Cohesion: 0.08
+Nodes (23): checkSession, _client, createBranch, createBusiness, fetchBranches, fetchBusinesses, fetchMembers, fetchRentalRules (+15 more)
 
-### Community 47 - "organization_test.dart"
-Cohesion: 0.13
-Nodes (15): OrganizationNotifier, OrganizationState, build, loadOrganization, main, _mockInitialState, _MockOrganizationNotifier, refresh (+7 more)
+### Community 47 - "rentcore_app_bar.dart"
+Cohesion: 0.11
+Nodes (15): actions, automaticallyImplyLeading, backgroundColor, bottom, build, centerTitle, color, leading (+7 more)
 
-### Community 48 - "auth_provider.dart"
-Cohesion: 0.09
-Nodes (17): AuthNotifier, authRepositoryProvider, AuthState, build, copyWith, errorMessage, googleSignIn, isAuthenticated (+9 more)
+### Community 48 - "status_badge.dart"
+Cohesion: 0.11
+Nodes (15): backgroundColor, borderColor, borderRadius, build, fontSize, icon, inventory, isLineThrough (+7 more)
 
 ### Community 49 - "Windows Native Desktop Runner"
 Cohesion: 0.17
 Nodes (4): wWinMain(), CreateAndAttachConsole(), GetCommandLineArguments(), Utf8FromUtf16()
 
-### Community 50 - "_CashierScreenState"
-Cohesion: 0.18
-Nodes (12): _buildBranchSelectorHeader, _buildClosingShiftTab, _buildDateFilterChips, _buildPosTerminalTab, CashierScreen, _CashierScreenState, _showBranchFilterModal, _submit (+4 more)
+### Community 50 - "authProvider"
+Cohesion: 0.08
+Nodes (27): build, _handleGoogleSignIn, _login, build, _confirmPasswordController, createState, _currentPasswordController, dispose (+19 more)
 
 ### Community 51 - "login_screen.dart"
-Cohesion: 0.15
-Nodes (10): createState, dispose, _emailController, _getEffectiveServerClientId, _obscurePassword, _passwordController, _quickFill, _showConfigGoogleClientIdDialog (+2 more)
+Cohesion: 0.14
+Nodes (12): createState, dispose, _emailController, _getEffectiveServerClientId, LoginScreen, _LoginScreenState, _obscurePassword, _passwordController (+4 more)
 
 ### Community 52 - "pos_transaction_detail_sheet.dart"
-Cohesion: 0.08
-Nodes (22): booking, bookingId, _buildContent, _buildPriceRow, _buildStatusChip, _buildTimelineRow, _countdownTimer, createState (+14 more)
+Cohesion: 0.06
+Nodes (33): _executePayment, _fetchAndShowReceipt, _showExpenseOptionsDialog, booking, bookingId, build, _buildContent, _buildPriceRow (+25 more)
 
 ### Community 53 - "Inventory & Asset Catalog"
-Cohesion: 0.13
-Nodes (14): calculatePrice, checkAssetAvailability, _client, createAsset, createCategory, createProduct, _extractList, fetchAssets (+6 more)
+Cohesion: 0.12
+Nodes (15): calculatePrice, checkAssetAvailability, _client, createAsset, createCategory, createProduct, deleteAsset, _extractList (+7 more)
 
 ### Community 54 - "booking_provider.dart"
 Cohesion: 0.15
 Nodes (11): build, DirectRentalScreen, _DirectRentalScreenState, bizState, build, fetchBookings, fetchReadyAssets, readyAssetsProvider (+3 more)
 
-### Community 55 - "package:flutter_test/flutter_test.dart"
-Cohesion: 0.08
-Nodes (18): assetsToReturn, baseBusinessState, build, categoriesToReturn, createTestWidget, fetchAssets, fetchCategories, fetchModels (+10 more)
+### Community 55 - "package:rentcore_mobile/features/auth/providers/business_provider.dart"
+Cohesion: 0.09
+Nodes (14): main, build, fetchBusinesses, fetchCategories, fetchProducts, _initial, logout, main (+6 more)
 
 ### Community 56 - "pos_numpad.dart"
 Cohesion: 0.13
 Nodes (14): build, _buildActionKey, _buildKey, controller, exactAmount, _handleBackspace, _handleClear, _handleDigit (+6 more)
 
-### Community 57 - "businessProvider"
-Cohesion: 0.11
-Nodes (22): businessProvider, _proceedToPayment, _printExchangeReceipt, _printExchangeReceipt, _showReturnSuccessDialog, _showClosingPrintDialog, _buildBusinessErrorCard, _buildHeader (+14 more)
+### Community 57 - "auth_provider.dart"
+Cohesion: 0.12
+Nodes (9): copyWith, errorMessage, googleSignIn, isAuthenticated, isLoading, _repository, updatePassword, updateProfile (+1 more)
 
 ### Community 58 - "bookings_screen.dart"
 Cohesion: 0.16
-Nodes (6): BookingsScreen, build, _buildFilterChip, bookingFilterStatusProvider, bookingsListProvider, PaymentResult
+Nodes (9): BookingsScreen, build, _buildFilterChip, _ExtensionOption, hours, label, price, bookingFilterStatusProvider (+1 more)
 
 ### Community 59 - "exchange_wizard_screen.dart"
 Cohesion: 0.05
 Nodes (42): booking, build, _buildBillingRow, _buildBottomNavigationBar, _buildCandidateFilterChip, _buildCashChip, _buildCurrentUnitHeader, _buildHandoverRow (+34 more)
 
-### Community 60 - "late_return_penalty_pos_test.dart"
+### Community 60 - "store_profile_screen.dart"
 Cohesion: 0.14
-Nodes (12): build, fetchBookingDetail, fetchBookingsForCashier, fetchClosingSummary, fetchPaymentMethods, _initialState, lastAmount, lastPaymentType (+4 more)
+Nodes (13): _addressController, build, createState, dispose, _formKey, initState, _isInitLoaded, _isLoading (+5 more)
 
 ### Community 62 - "Asset Transfer Workflow"
 Cohesion: 0.18
@@ -428,60 +432,60 @@ Cohesion: 0.18
 Nodes (10): background_color, description, display, icons, name, orientation, prefer_related_applications, short_name (+2 more)
 
 ### Community 64 - "Core API & Network Client"
-Cohesion: 0.17
+Cohesion: 0.18
 Nodes (6): _baseUrl, currentBaseUrl, dio, init, _instance, updateBaseUrl
 
 ### Community 65 - "Voucher & Discount Rules"
-Cohesion: 0.18
-Nodes (10): ApiClient, _client, createVoucher, deleteVoucher, fetchPrintSlip, fetchVouchers, getVoucher, toggleVoucherStatus (+2 more)
+Cohesion: 0.20
+Nodes (9): _client, createVoucher, deleteVoucher, fetchPrintSlip, fetchVouchers, getVoucher, toggleVoucherStatus, updateVoucher (+1 more)
 
-### Community 66 - "payment_repository.dart"
-Cohesion: 0.18
-Nodes (5): _bookingRepo, _cashierRepo, executePayment, fetchPaymentMethods, PaymentRepository
+### Community 66 - "expandable_inventory_fab_test.dart"
+Cohesion: 0.05
+Nodes (28): build, _categories, createCategory, fetchCategories, main, _MockCategoryBizNotifier, build, fetchBookingsForCashier (+20 more)
 
-### Community 67 - "branch_aware_booking_test.dart"
-Cohesion: 0.07
-Nodes (20): currentUserEmail, fetchAssets, fetchBookings, fetchBusinesses, fetchKpi, fetchVouchers, isLoggedOut, login (+12 more)
+### Community 67 - "rental_addons_and_policies_test.dart"
+Cohesion: 0.13
+Nodes (15): OrganizationNotifier, OrganizationState, build, loadOrganization, main, _mockInitialState, _MockOrganizationNotifier, refresh (+7 more)
 
 ### Community 68 - "ConsumerState"
 Cohesion: 0.18
-Nodes (13): LoginScreen, _LoginScreenState, _PosPaymentModalSheet, _PosPaymentModalSheetState, InventoryScreen, _AddBranchBottomSheet, _AddBranchBottomSheetState, _InviteMemberBottomSheet (+5 more)
+Nodes (13): CashDrawerShiftModal, _CashDrawerShiftModalState, InventoryScreen, _AddBranchBottomSheet, _AddBranchBottomSheetState, _InviteMemberBottomSheet, _InviteMemberBottomSheetState, ManageOrganizationScreen (+5 more)
 
 ### Community 69 - "add_branch_expense_modal.dart"
-Cohesion: 0.07
-Nodes (24): banknoteDenominations, calculateChange, calculateShortage, CashPaymentSuggestionHelper, format, getSuggestedAmounts, AddBranchExpenseModal, _AddBranchExpenseModalState (+16 more)
+Cohesion: 0.11
+Nodes (18): AddBranchExpenseModal, _AddBranchExpenseModalState, _amountController, branchId, build, _categories, createState, dispose (+10 more)
 
 ### Community 70 - "Customer Profile Management"
-Cohesion: 0.22
-Nodes (7): build, customerRepositoryProvider, customerSearchResultsProvider, query, repo, searchCustomers, setQuery
+Cohesion: 0.18
+Nodes (9): CustomerRepository, build, customerRepositoryProvider, customerSearchQueryProvider, customerSearchResultsProvider, query, repo, searchCustomers (+1 more)
 
 ### Community 71 - "../../../core/constants/api_constants.dart"
-Cohesion: 0.18
-Nodes (8): CustomerRepository, _dio, lookupCustomer, searchCustomers, toggleBlacklist, uploadIdentityDocument, _client, fetchKpi
+Cohesion: 0.25
+Nodes (5): _dio, lookupCustomer, searchCustomers, toggleBlacklist, uploadIdentityDocument
 
-### Community 72 - "authProvider"
-Cohesion: 0.18
-Nodes (12): build, _handleGoogleSignIn, _login, authProvider, ExchangeHistorySheet, _printClosingReceipt, build, _confirmLogout (+4 more)
+### Community 72 - "store_settings_screen.dart"
+Cohesion: 0.12
+Nodes (7): _buildDivider, _buildGroupHeader, _buildListTile, _buildSettingsCard, _getInitials, SettingsScreen, StoreSettingsScreen
 
 ### Community 73 - "../../../core/utils/currency_formatter.dart"
-Cohesion: 0.15
-Nodes (11): build, _buildFilterChip, _buildLedgerTile, createState, dispose, FinancialActivityLedgerScreen, _FinancialActivityLedgerScreenState, _searchController (+3 more)
+Cohesion: 0.12
+Nodes (15): _buildDateFilterChips, build, _buildDateChip, _buildDateFilterRow, _buildFilterChip, _buildLedgerTile, createState, dispose (+7 more)
 
-### Community 74 - "cashierRepositoryProvider"
+### Community 74 - "paymentMethodsProvider"
 Cohesion: 0.20
-Nodes (10): _executePayment, _fetchAndShowReceipt, build, _handleVoidSubmit, PosTransactionDetailSheet, _printBookingReceipt, _submitCloseShift, _submitOpenShift (+2 more)
+Nodes (10): _buildStep3FinancialAndAuth, ExchangeWizardScreen, _ExchangeWizardScreenState, build, paymentMethodsProvider, paymentRepositoryProvider, build, PaymentPage (+2 more)
 
 ### Community 75 - "Cashier POS & Register"
-Cohesion: 0.14
-Nodes (13): _client, closeShift, createExpense, fetchBookingDetail, fetchBookingsForCashier, fetchClosingSummary, fetchCurrentShift, fetchExpenses (+5 more)
+Cohesion: 0.13
+Nodes (14): _client, closeShift, createExpense, fetchBookingDetail, fetchBookingsForCashier, fetchClosingSummary, fetchCurrentShift, fetchExpenses (+6 more)
 
-### Community 77 - "test_dio_fetch.dart"
-Cohesion: 0.20
-Nodes (9): authedDio, dio, loginRes, main, res1, resAll, resBranch1, resBranch2 (+1 more)
+### Community 77 - "currency_formatter.dart"
+Cohesion: 0.15
+Nodes (9): CurrencyFormatter, format, _formatter, parse, DateFormatter, formatFull, formatRelative, formatShort (+1 more)
 
-### Community 79 - "string"
-Cohesion: 0.47
-Nodes (4): BookingFilterNotifier, CustomerSearchQueryNotifier, AssetStatusFilterNotifier, TransferStatusNotifier
+### Community 79 - "StatelessWidget"
+Cohesion: 0.29
+Nodes (6): DockAwareScaffold, DockClearance, FloatingCapsuleDock, PosNumpad, RentCoreBackButton, StatusBadge
 
 ### Community 80 - "Q: Why does businessProvider connect Cashier POS & Register to Authentication & User Session, Asset Transfer Workflow, Voucher & Discount Rules, Business Selector Sheet Module, Booking Management System, and Inventory & Asset Catalog?"
 Cohesion: 0.40
@@ -491,69 +495,85 @@ Nodes (4): Answer, Outcome, Q: Why does businessProvider connect Cashier POS & R
 Cohesion: 0.50
 Nodes (3): Point, x, y
 
-### Community 127 - "../../core/constants/app_colors.dart"
-Cohesion: 0.29
-Nodes (4): build, _buildDockItem, currentIndex, onTabSelected
+### Community 127 - "package:flutter_riverpod/flutter_riverpod.dart"
+Cohesion: 0.09
+Nodes (11): bookings, build, fetchBookingsForCashier, fetchClosingSummary, fetchPaymentMethods, _initialState, main, _TestBusinessNotifier (+3 more)
 
 ### Community 128 - "pos_revenue_consolidation_widget_test.dart"
-Cohesion: 0.05
-Nodes (41): CashierRepository, PosFilterBranchIdNotifier, AssetCategoryFilterNotifier, _FakeCashierRepository, bookings, build, _FakeCashierRepoForSuggestions, fetchBookingsForCashier (+33 more)
+Cohesion: 0.06
+Nodes (32): CashierRepository, _FakeCashierRepository, _FakeCashierRepoForSuggestions, _MockCashierRepository, _FakeCashierRepository, _FakeFailingPinCashierRepository, _FakeCashierRepo, build (+24 more)
 
-### Community 129 - "organizationProvider"
-Cohesion: 0.18
-Nodes (10): build, _buildBranchesTab, _buildErrorState, _buildMembersTab, initState, ManageOrganizationScreen, _ManageOrganizationScreenState, _saveRules (+2 more)
+### Community 129 - "AuthNotifier"
+Cohesion: 0.17
+Nodes (12): AuthNotifier, authRepositoryProvider, AuthState, build, build, _saveStoreProfile, build, _MockGoogleAuthNotifier (+4 more)
 
 ### Community 130 - "printer_settings_screen.dart"
-Cohesion: 0.18
-Nodes (8): _buildChoiceChip, _buildConnectionStatusCard, _buildDiscoveredDevicesSection, _buildHardwareOptionsCard, createState, initState, PrinterSettingsScreen, _PrinterSettingsScreenState
+Cohesion: 0.12
+Nodes (16): _printExchangeReceipt, _printExchangeReceipt, _showReturnSuccessDialog, _showClosingPrintDialog, _printPaymentReceipt, build, _buildChoiceChip, _buildConnectionStatusCard (+8 more)
 
-### Community 131 - "package:flutter_riverpod/flutter_riverpod.dart"
-Cohesion: 0.25
-Nodes (6): build, checkConnectivity, NetworkStatus, NetworkStatusNotifier, setOffline, setOnline
+### Community 131 - "payment_repository.dart"
+Cohesion: 0.18
+Nodes (5): _bookingRepo, _cashierRepo, executePayment, fetchPaymentMethods, PaymentRepository
 
 ### Community 132 - "exchange_history_sheet.dart"
+Cohesion: 0.13
+Nodes (10): booking, build, _buildEmptyState, _buildExchangeCard, _categoryIcons, _categoryLabels, ExchangeHistorySheet, show (+2 more)
+
+### Community 133 - "../../auth/providers/business_provider.dart"
+Cohesion: 0.18
+Nodes (8): DashboardRepository, bizState, dashboardRepositoryProvider, fetchKpi, repo, _FakeDashboardRepository, _FakeDashboardRepository, _CapturingDashboardRepository
+
+### Community 134 - "businessProvider"
+Cohesion: 0.11
+Nodes (24): businessProvider, _proceedToPayment, _buildBranchSelectorHeader, _buildClosingShiftTab, _buildPosTerminalTab, CashierScreen, _CashierScreenState, _showBranchFilterModal (+16 more)
+
+### Community 135 - "bookingRepositoryProvider"
+Cohesion: 0.33
+Nodes (6): _showExtendDialog, _executeExchangeSubmission, _loadAvailableReplacements, _processReturn, bookingRepositoryProvider, _processOverdueReturn
+
+### Community 137 - "../../core/constants/app_colors.dart"
 Cohesion: 0.17
-Nodes (7): booking, build, _buildEmptyState, _buildExchangeCard, _categoryIcons, _categoryLabels, show
+Nodes (6): onAddNewModel, onSelectProduct, build, _buildDockItem, currentIndex, onTabSelected
 
-### Community 133 - "paymentMethodsProvider"
+### Community 138 - "assetRepositoryProvider"
 Cohesion: 0.20
-Nodes (10): _buildStep3FinancialAndAuth, ExchangeWizardScreen, _ExchangeWizardScreenState, build, paymentMethodsProvider, paymentRepositoryProvider, build, PaymentPage (+2 more)
+Nodes (10): _showQuickAddCategoryDialog, _submitProduct, _AddAssetSheet, _AddAssetSheetState, _confirmDelete, _confirmDeleteFromCard, _EditAssetSheet, _EditAssetSheetState (+2 more)
 
-### Community 134 - "AuthRepository"
+### Community 139 - "thermal_printer_service_test.dart"
+Cohesion: 0.18
+Nodes (7): MockPrinterDriver, connect, _FailingConnectMockDriver, _FailingWriteMockDriver, isConnected, main, writeBytes
+
+### Community 140 - "AuthRepository"
 Cohesion: 0.50
 Nodes (4): AuthRepository, _FakeAuthRepository, _ThrowingAuthRepository, _FakeAuthRepository
 
-### Community 135 - "voucher_screen.dart"
-Cohesion: 0.20
-Nodes (5): createState, dispose, _isSearchExpanded, _searchController, _showThermalSlipModal
+### Community 145 - "cash_suggestion_helper.dart"
+Cohesion: 0.22
+Nodes (6): banknoteDenominations, calculateChange, calculateShortage, CashPaymentSuggestionHelper, format, getSuggestedAmounts
 
-### Community 138 - "assetRepositoryProvider"
-Cohesion: 0.33
-Nodes (6): _showQuickAddCategoryDialog, _submitProduct, _AddAssetSheet, _AddAssetSheetState, allCatalogModelsProvider, assetRepositoryProvider
-
-### Community 139 - "dart:convert"
-Cohesion: 0.33
-Nodes (4): decoded, listFromDio, main, mapFromDio
+### Community 146 - "string"
+Cohesion: 0.27
+Nodes (7): BookingFilterNotifier, PosFilterBranchIdNotifier, CustomerSearchQueryNotifier, AssetCategoryFilterNotifier, AssetStatusFilterNotifier, TransferStatusNotifier, _TestPosFilterBranchIdNotifier
 
 ## Knowledge Gaps
-- **1295 isolated node(s):** `ApiConstants`, `defaultBaseUrl`, `lanPcBaseUrl`, `currentLanPcBaseUrl`, `usbReverseBaseUrl` (+1290 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1491 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **1409 isolated node(s):** `ApiConstants`, `defaultBaseUrl`, `lanPcBaseUrl`, `currentLanPcBaseUrl`, `usbReverseBaseUrl` (+1404 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1618 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **50 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Win32Window` connect `Win32Window` to `Windows Native Desktop Runner`, `Size`, `Windows Native Desktop Runner`, `Windows Native Desktop Runner`, `Windows Native Desktop Runner`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
 - **What connects `ApiConstants`, `defaultBaseUrl`, `lanPcBaseUrl` to the rest of the system?**
-  _1295 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1409 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Thermal Printer Data Models` be split into smaller, more focused modules?**
-  _Cohesion score 0.021505376344086023 - nodes in this community are weakly interconnected._
-- **Why does `AssetRepository` connect `inventory_live_payload_test.dart` to `Inventory & Asset Catalog`, `Inventory & Asset Catalog`?**
-  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+  _Cohesion score 0.02127659574468085 - nodes in this community are weakly interconnected._
+- **Why does `AssetRepository` connect `inventory_empty_state_test.dart` to `Inventory & Asset Catalog`, `Inventory & Asset Catalog`?**
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
 - **Should `transfers_screen.dart` be split into smaller, more focused modules?**
   _Cohesion score 0.05551020408163265 - nodes in this community are weakly interconnected._
-- **Why does `BookingRepository` connect `bookings_queue_overdue_test.dart` to `transfers_screen.dart`, `payment_repository.dart`, `Booking Management System`, `booking_provider.dart`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
+- **Why does `businessProvider` connect `businessProvider` to `business_provider.dart`, `AuthNotifier`, `voucher_screen.dart`, `printer_settings_screen.dart`, `rental_addons_and_policies_test.dart`, `add_branch_expense_modal.dart`, `transfers_screen.dart`, `ConsumerState`, `store_settings_screen.dart`, `business_selector_sheet.dart`, `assetRepositoryProvider`, `Receipt Customization Settings`, `booking_provider.dart`, `Home Dashboard & Analytics`, `Rental Return Processing`, `store_profile_screen.dart`, `logout`?**
+  _High betweenness centrality (0.007) - this node is a cross-community bridge._
 - **Should `Core API & Network Client` be split into smaller, more focused modules?**
-  _Cohesion score 0.03333333333333333 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.029411764705882353 - nodes in this community are weakly interconnected._

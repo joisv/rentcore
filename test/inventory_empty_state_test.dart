@@ -203,8 +203,12 @@ void main() {
 
       expect(find.text('CAM-001'), findsOneWidget);
 
-      // Tap 'Sedang Sewa' filter chip (which has 0 units)
+      // Open filter drawer and tap 'Sedang Sewa' filter chip (which has 0 units)
+      await tester.tap(find.byIcon(Icons.tune_rounded).first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Sedang Sewa'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Terapkan Filter'));
       await tester.pumpAndSettle();
 
       expect(find.text('Tidak Ada Unit Sesuai Filter'), findsOneWidget);
@@ -335,8 +339,12 @@ void main() {
 
       expect(find.text('MacBook Pro M3'), findsOneWidget);
 
-      // Filter by Kamera (which has 0 products)
+      // Open filter drawer and filter by Kamera (which has 0 products)
+      await tester.tap(find.byIcon(Icons.tune_rounded).first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Kamera'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Terapkan Filter'));
       await tester.pumpAndSettle();
 
       expect(find.text('Tidak Ada Katalog Dalam Kategori Ini'), findsOneWidget);

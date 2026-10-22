@@ -33,7 +33,14 @@ class PosDateRangeState {
 
 class PosDateRangeNotifier extends Notifier<PosDateRangeState> {
   @override
-  PosDateRangeState build() => const PosDateRangeState(label: 'Hari Ini');
+  PosDateRangeState build() {
+    final nowStr = DateTime.now().toIso8601String().substring(0, 10);
+    return PosDateRangeState(
+      label: 'Hari Ini',
+      startDate: nowStr,
+      endDate: nowStr,
+    );
+  }
 
   void setDateRange({required String label, String? startDate, String? endDate}) {
     state = PosDateRangeState(label: label, startDate: startDate, endDate: endDate);
