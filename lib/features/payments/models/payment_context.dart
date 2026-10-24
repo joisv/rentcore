@@ -125,8 +125,9 @@ class PaymentContext {
     final payments = (booking['payments'] as List?) ?? [];
     double totalPaid = 0.0;
     for (final p in payments) {
+      if (p['status']?.toString().toLowerCase() == 'void') continue;
       final pType = p['type']?.toString().toLowerCase();
-      if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental') {
+      if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental' || pType == 'exchange') {
         totalPaid += CurrencyFormatter.parse(p['amount']);
       }
     }
@@ -183,10 +184,15 @@ class PaymentContext {
     final payments = (b['payments'] as List?) ?? [];
     double penaltyPaid = 0.0;
     for (final p in payments) {
+      if (p['status']?.toString().toLowerCase() == 'void') continue;
       if (p['type']?.toString().toLowerCase() == 'penalty') {
         penaltyPaid += CurrencyFormatter.parse(p['amount']);
       }
     }
+    // Server-persisted penalty is authoritative; client estimate is fallback only.
+    final effectiveRemaining = totalPenalty > 0
+        ? (totalPenalty - penaltyPaid).clamp(0.0, double.infinity).toDouble()
+        : penaltyDue;
 
     return PaymentContext(
       transactionType: PaymentTransactionType.penalty,
@@ -199,7 +205,7 @@ class PaymentContext {
       assetCode: assetCode,
       totalAmountDue: totalPenalty > 0 ? totalPenalty : penaltyDue,
       previouslyPaidAmount: penaltyPaid,
-      remainingDue: penaltyDue,
+      remainingDue: effectiveRemaining,
       branchId: branchId ?? affiliate['id'] ?? b['affiliate_id'],
       branchName: branchName ?? affiliate['name']?.toString(),
       isCentral: isCentral || affiliate['is_central'] == true,

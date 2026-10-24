@@ -414,9 +414,17 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
         },
       };
 
-      await ref.read(bookingRepositoryProvider).processReturn(widget.booking['id'], payload);
+      final inspection = await ref.read(bookingRepositoryProvider).processReturn(widget.booking['id'], payload);
       ref.invalidate(bookingsListProvider);
       ref.invalidate(closingSummaryProvider);
+
+      // Server-persisted penalty is authoritative (client value was only a preview).
+      final serverPenalty = inspection['total_penalty'];
+      if (serverPenalty != null) {
+        penaltyAmount = CurrencyFormatter.parse(serverPenalty);
+      }
+      final paymentBooking = Map<String, dynamic>.from(widget.booking)
+        ..['return_inspection'] = inspection;
 
       if (!mounted) return;
 
@@ -428,7 +436,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
           MaterialPageRoute(
             builder: (_) => PaymentPage(
               paymentContext: PaymentContext.penalty(
-                booking: widget.booking,
+                booking: paymentBooking,
                 penaltyDue: penaltyAmount,
               ),
             ),

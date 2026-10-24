@@ -150,6 +150,8 @@ class BookingsScreen extends ConsumerWidget {
 
                       final endAt = item['end_at'] != null ? DateTime.tryParse(item['end_at']) : null;
                       final isReturned = item['status'] == 'returned';
+                      final paymentStatus = (item['payment_status'] ?? 'paid').toString().toLowerCase();
+                      final hasUnpaidPenalty = isReturned && paymentStatus != 'paid';
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -212,17 +214,23 @@ class BookingsScreen extends ConsumerWidget {
                                   ],
                                 ),
                                 StatusBadge(
-                                  label: isReturned ? 'SELESAI' : DateFormatter.formatRelative(endAt),
-                                  textColor: isReturned
-                                      ? AppColors.textSecondary
-                                      : (endAt != null && endAt.isBefore(DateTime.now()))
-                                          ? AppColors.danger
-                                          : AppColors.info,
-                                  backgroundColor: isReturned
-                                      ? AppColors.surfaceMuted
-                                      : (endAt != null && endAt.isBefore(DateTime.now()))
-                                          ? AppColors.dangerLight
-                                          : AppColors.infoLight,
+                                  label: isReturned
+                                      ? (hasUnpaidPenalty ? 'SELESAI (DENDA BELUM LUNAS)' : 'SELESAI')
+                                      : DateFormatter.formatRelative(endAt),
+                                  textColor: hasUnpaidPenalty
+                                      ? AppColors.warning
+                                      : isReturned
+                                          ? AppColors.textSecondary
+                                          : (endAt != null && endAt.isBefore(DateTime.now()))
+                                              ? AppColors.danger
+                                              : AppColors.info,
+                                  backgroundColor: hasUnpaidPenalty
+                                      ? AppColors.warningLight
+                                      : isReturned
+                                          ? AppColors.surfaceMuted
+                                          : (endAt != null && endAt.isBefore(DateTime.now()))
+                                              ? AppColors.dangerLight
+                                              : AppColors.infoLight,
                                   borderRadius: 12,
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 ),
@@ -377,9 +385,19 @@ class BookingsScreen extends ConsumerWidget {
                                   )
                                 else
                                   const SizedBox(),
-                                Text(
-                                  'Total: ${CurrencyFormatter.format(item['total_bill'] ?? item['total_amount'] ?? 0)}',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.obsidian),
+                                Builder(
+                                  builder: (_) {
+                                    final totalBill = CurrencyFormatter.parse(item['total_bill'] ?? item['total_amount'] ?? 0);
+                                    final returnInspection = item['return_inspection'] as Map? ?? item['returnInspection'] as Map? ?? {};
+                                    final penaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+                                    final effectiveTotal = totalBill + penaltyDue;
+                                    return Text(
+                                      penaltyDue > 0
+                                          ? 'Total: ${CurrencyFormatter.format(effectiveTotal)} (+ Denda)'
+                                          : 'Total: ${CurrencyFormatter.format(totalBill)}',
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.obsidian),
+                                    );
+                                  },
                                 ),
                               ],
                             ),

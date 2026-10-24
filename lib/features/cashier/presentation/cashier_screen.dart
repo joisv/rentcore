@@ -266,7 +266,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
       backgroundColor: Colors.transparent,
       builder: (ctx) => PosTransactionDetailSheet(
         booking: booking,
-        onPaymentRequested: () => _openPosPaymentModal(context, booking),
+        onPaymentRequested: (activeBooking) => _openPosPaymentModal(context, activeBooking),
       ),
     );
   }
@@ -683,6 +683,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
     final payments = (booking['payments'] as List?) ?? [];
     double penaltyPaid = 0.0;
     for (final p in payments) {
+      if (p['status']?.toString().toLowerCase() == 'void') continue;
       if (p['type']?.toString().toLowerCase() == 'penalty') {
         penaltyPaid += CurrencyFormatter.parse(p['amount']);
       }
@@ -692,8 +693,9 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
     final totalBill = CurrencyFormatter.parse(booking['total_bill']);
     double rentalPaid = 0.0;
     for (final p in payments) {
+      if (p['status']?.toString().toLowerCase() == 'void') continue;
       final pt = p['type']?.toString().toLowerCase();
-      if (pt == 'settlement' || pt == 'dp' || pt == 'extension' || pt == 'rental') {
+      if (pt == 'settlement' || pt == 'dp' || pt == 'extension' || pt == 'rental' || pt == 'exchange') {
         rentalPaid += CurrencyFormatter.parse(p['amount']);
       }
     }
@@ -1832,8 +1834,9 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
     double rentalPaid = 0.0;
     double penaltyPaid = 0.0;
     for (final p in payments) {
+      if (p['status']?.toString().toLowerCase() == 'void') continue;
       final pType = p['type']?.toString().toLowerCase();
-      if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental') {
+      if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental' || pType == 'exchange') {
         rentalPaid += CurrencyFormatter.parse(p['amount']);
       } else if (pType == 'penalty') {
         penaltyPaid += CurrencyFormatter.parse(p['amount']);

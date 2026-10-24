@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
+import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
+import 'package:rentcore_mobile/features/bookings/presentation/bookings_screen.dart';
+import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
 import 'package:rentcore_mobile/features/cashier/presentation/cashier_screen.dart';
 import 'package:rentcore_mobile/features/cashier/presentation/pos_transaction_detail_sheet.dart';
@@ -194,6 +197,21 @@ class _TestBusinessNotifier extends BusinessNotifier {
   BusinessState build() => _initialState;
 }
 
+class _FakeBookingRepositoryForQueue extends BookingRepository {
+  final List<Map<String, dynamic>> returnData;
+  _FakeBookingRepositoryForQueue(this.returnData);
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchBookings({
+    String? status,
+    String? search,
+    int? branchId,
+    bool allBranches = false,
+  }) async {
+    return returnData;
+  }
+}
+
 void main() {
   group('Late Return Penalty Revenue UI & Flow Tests', () {
     testWidgets('Closing shift tab displays breakdown by income type including late penalty and badge', (tester) async {
@@ -306,6 +324,134 @@ void main() {
 
       // Verify 'Bayar di Kasir' button is present because remainingDue (Rp 75.000) > 0
       expect(find.text('Bayar di Kasir'), findsOneWidget);
+    });
+
+    testWidgets('PosTransactionDetailSheet passes deep resolved booking with return_inspection to onPaymentRequested callback', (tester) async {
+      final fakeRepo = _FakeCashierRepository();
+      Map<String, dynamic>? receivedBooking;
+
+      // Pass an initial booking that lacks return_inspection (simulating stale list data)
+      final initialBooking = {
+        'id': 2,
+        'booking_code': 'BK-LATE-001',
+        'customer': {'name': 'Siti Rahma', 'phone': '08123456789'},
+        'items': [
+          {
+            'asset': {
+              'asset_code': 'IPD-01',
+              'model': {'name': 'iPad Air M2'},
+            }
+          }
+        ],
+        'duration_hours': 24,
+        'subtotal_amount': 150000.0,
+        'discount_amount': 0.0,
+        'total_bill': 150000.0,
+        'payment_status': 'partial',
+      };
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            cashierRepositoryProvider.overrideWithValue(fakeRepo),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: PosTransactionDetailSheet(
+                booking: initialBooking,
+                onPaymentRequested: (b) => receivedBooking = b,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Scroll until 'Bayar di Kasir' button is visible, then tap
+      final payBtn = find.text('Bayar di Kasir');
+      await tester.scrollUntilVisible(payBtn, 200);
+      expect(payBtn, findsOneWidget);
+      await tester.tap(payBtn);
+      await tester.pumpAndSettle();
+
+      // Assert that receivedBooking contains the deep return_inspection data from fetchBookingDetail
+      expect(receivedBooking, isNotNull);
+      expect(receivedBooking!['return_inspection'], isNotNull);
+      expect(receivedBooking!['return_inspection']['total_penalty'], 75000.0);
+    });
+
+    testWidgets('BookingsScreen renders SELESAI (DENDA BELUM LUNAS) warning badge and (+ Denda) total for returned booking with partial payment status', (tester) async {
+      final returnedBookingWithPenalty = {
+        'id': 105,
+        'booking_code': 'RC-RET-PEN-01',
+        'affiliate_id': 1,
+        'business_id': 1,
+        'status': 'returned',
+        'payment_status': 'partial',
+        'start_at': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
+        'end_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+        'total_bill': 150000.0,
+        'customer': {
+          'id': 5,
+          'name': 'Dewi Lestari',
+          'phone': '081299998888',
+        },
+        'items': [
+          {
+            'id': 10,
+            'asset': {
+              'id': 80,
+              'asset_code': 'MAC-01',
+              'model': {'id': 9, 'name': 'MacBook Pro M3'},
+            },
+          },
+        ],
+        'return_inspection': {
+          'late_minutes': 120,
+          'late_fee': 50000.0,
+          'damage_fee': 0.0,
+          'total_penalty': 50000.0,
+        },
+      };
+
+      final fakeBookingRepo = _FakeBookingRepositoryForQueue([returnedBookingWithPenalty]);
+      final businessState = BusinessState(
+        activeBusinessId: 1,
+        activeBusinessName: 'RentCore Central Business',
+        activeBranchId: 1,
+        activeBranchName: 'Cabang Utama',
+        businesses: [
+          {
+            'id': 1,
+            'name': 'RentCore Central Business',
+            'branches': [
+              {'id': 1, 'name': 'Cabang Utama', 'is_central': true},
+            ],
+          },
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            bookingRepositoryProvider.overrideWithValue(fakeBookingRepo),
+            businessProvider.overrideWith(() => _TestBusinessNotifier(businessState)),
+          ],
+          child: const MaterialApp(
+            home: BookingsScreen(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify that badge says 'SELESAI (DENDA BELUM LUNAS)'
+      expect(find.text('SELESAI (DENDA BELUM LUNAS)'), findsOneWidget);
+
+      // Verify that total includes the late penalty (+ Denda) -> Rp 200.000 (+ Denda)
+      expect(find.textContaining('(+ Denda)'), findsOneWidget);
+      expect(find.textContaining('200.000'), findsOneWidget);
     });
   });
 }

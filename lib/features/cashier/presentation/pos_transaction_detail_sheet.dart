@@ -14,7 +14,7 @@ import '../providers/cashier_provider.dart';
 
 class PosTransactionDetailSheet extends ConsumerWidget {
   final Map<String, dynamic> booking;
-  final VoidCallback? onPaymentRequested;
+  final ValueChanged<Map<String, dynamic>>? onPaymentRequested;
 
   const PosTransactionDetailSheet({
     super.key,
@@ -115,8 +115,9 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     double totalPaid = 0.0;
     double penaltyPaid = 0.0;
     for (final p in payments) {
+      if (p['status']?.toString().toLowerCase() == 'void') continue;
       final pType = p['type']?.toString().toLowerCase();
-      if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental') {
+      if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental' || pType == 'exchange') {
         totalPaid += CurrencyFormatter.parse(p['amount']);
       } else if (pType == 'penalty') {
         penaltyPaid += CurrencyFormatter.parse(p['amount']);
@@ -728,7 +729,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                     label: const Text('Bayar di Kasir', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     onPressed: () {
                       Navigator.pop(context);
-                      onPaymentRequested?.call();
+                      onPaymentRequested?.call(b);
                     },
                   ),
                 ),
