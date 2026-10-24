@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/bookings_screen.dart": {
-    "mtime": 1792761755.3947103,
-    "seen": 1792761763.4548378,
-    "ast_hash": "712195aa021e731fb01349421f58230f",
+    "mtime": 1792831469.5018487,
+    "seen": 1792831558.0340514,
+    "ast_hash": "dc7b36abc0fedf90d8bae8b98737eb02",
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/direct_rental_screen.dart": {
@@ -186,10 +186,10 @@
     "semantic_hash": ""
   },
   "lib/features/bookings/providers/booking_provider.dart": {
-    "mtime": 1792159400.8559487,
-    "seen": 1792470611.008431,
-    "ast_hash": "359ecae1ae71266c2ae2d5833abe53f0",
-    "semantic_hash": "359ecae1ae71266c2ae2d5833abe53f0"
+    "mtime": 1792831349.008166,
+    "seen": 1792831558.034059,
+    "ast_hash": "04d29ab1751e7ac852f2b5bd644db8f2",
+    "semantic_hash": ""
   },
   "lib/features/cashier/data/cashier_repository.dart": {
     "mtime": 1792670440.4028308,
@@ -1107,6 +1107,12 @@
     "mtime": 1792668182.8110664,
     "seen": 1792668423.4799094,
     "ast_hash": "4476b6f037e04d77b53088c12de9865d",
+    "semantic_hash": ""
+  },
+  "test/bookings_queue_search_test.dart": {
+    "mtime": 1792831517.6152754,
+    "seen": 1792831558.03413,
+    "ast_hash": "97b4fd9eb8f12ec586e8e1fbe5d5c056",
     "semantic_hash": ""
   }
 }

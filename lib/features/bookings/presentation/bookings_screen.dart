@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
@@ -24,13 +25,55 @@ class _ExtensionOption {
   });
 }
 
-class BookingsScreen extends ConsumerWidget {
+class BookingsScreen extends ConsumerStatefulWidget {
   const BookingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookingsScreen> createState() => _BookingsScreenState();
+}
+
+class _BookingsScreenState extends ConsumerState<BookingsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialQuery = ref.read(bookingSearchQueryProvider);
+    if (initialQuery.isNotEmpty) {
+      _searchController.text = initialQuery;
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        ref.read(bookingSearchQueryProvider.notifier).setQuery(val.trim());
+      }
+    });
+    setState(() {});
+  }
+
+  void _clearSearch() {
+    _debounceTimer?.cancel();
+    _searchController.clear();
+    ref.read(bookingSearchQueryProvider.notifier).clear();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final currentFilter = ref.watch(bookingFilterStatusProvider);
     final bookingsAsync = ref.watch(bookingsListProvider);
+    final currentSearch = ref.watch(bookingSearchQueryProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -55,10 +98,55 @@ class BookingsScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+            child: SizedBox(
+              height: 44,
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(fontSize: 13, color: AppColors.obsidian),
+                textInputAction: TextInputAction.search,
+                onSubmitted: (val) {
+                  _debounceTimer?.cancel();
+                  ref.read(bookingSearchQueryProvider.notifier).setQuery(val.trim());
+                },
+                decoration: InputDecoration(
+                  hintText: 'Cari kode booking, nama, telp, atau unit...',
+                  hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, size: 18),
+                          onPressed: _clearSearch,
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.obsidian, width: 1.2),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                  ),
+                ),
+                onChanged: _onSearchChanged,
+              ),
+            ),
+          ),
+
           // Filter Capsule Selector
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
                 _buildFilterChip(ref, 'Sedang Sewa', 'rented', currentFilter),
@@ -84,17 +172,47 @@ class BookingsScreen extends ConsumerWidget {
               ),
               data: (bookings) {
                 if (bookings.isEmpty) {
+                  final isSearching = currentSearch.isNotEmpty;
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.inbox_outlined, size: 48, color: AppColors.textMuted),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Tidak ada data sewa untuk filter ini.',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isSearching ? Icons.search_off_rounded : Icons.inbox_outlined,
+                            size: 48,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            isSearching
+                                ? 'Tidak ditemukan transaksi sewa yang cocok.'
+                                : 'Tidak ada data sewa untuk filter ini.',
+                            style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                            textAlign: TextAlign.center,
+                          ),
+                          if (isSearching) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Kata kunci: "$currentSearch"',
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              onPressed: _clearSearch,
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: const Text('Reset Pencarian', style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.obsidian,
+                                side: const BorderSide(color: AppColors.border),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   );
                 }
