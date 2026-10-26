@@ -6,7 +6,10 @@ final bookingRepositoryProvider = Provider<BookingRepository>((ref) => BookingRe
 
 class BookingFilterNotifier extends Notifier<String?> {
   @override
-  String? build() => 'rented';
+  String? build() {
+    ref.watch(businessProvider.select((s) => s.activeBusinessId));
+    return 'rented';
+  }
 
   void setFilter(String? status) {
     state = status;
@@ -19,7 +22,10 @@ final bookingFilterStatusProvider = NotifierProvider<BookingFilterNotifier, Stri
 
 class BookingSearchQueryNotifier extends Notifier<String> {
   @override
-  String build() => '';
+  String build() {
+    ref.watch(businessProvider.select((s) => s.activeBusinessId));
+    return '';
+  }
 
   void setQuery(String query) {
     state = query;

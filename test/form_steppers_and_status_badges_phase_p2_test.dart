@@ -224,7 +224,7 @@ void main() {
       expect(find.text('RINGKASAN SEWA & IDENTITAS PENYEWA'), findsOneWidget);
       expect(find.text('TOTAL TAGIHAN POS:'), findsOneWidget);
       expect(find.text('Ubah Data'), findsOneWidget);
-      expect(find.text('Lanjut ke Pembayaran POS 💳'), findsOneWidget);
+      expect(find.text('Proses pembayaran'), findsOneWidget);
 
       // Test "Ubah Data" backward navigation to Step 2
       await tester.tap(find.text('Ubah Data'));

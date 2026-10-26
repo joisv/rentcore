@@ -156,7 +156,7 @@ void main() {
 
       // Verify card rendered
       expect(find.text('IP15-001'), findsOneWidget);
-      expect(find.text('Sedang Disewa'), findsOneWidget);
+      expect(find.text('Sedang Sewa'), findsOneWidget);
 
       // Tap device card
       await tester.tap(find.text('IP15-001'));

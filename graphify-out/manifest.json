@@ -60,9 +60,9 @@
     "semantic_hash": "0c3e86af131f6a9e547c80b5ed058914"
   },
   "lib/core/constants/api_constants.dart": {
-    "mtime": 1792670281.2447498,
-    "seen": 1792670597.864561,
-    "ast_hash": "fecfd7651dd95a651d70453fa7caac03",
+    "mtime": 1792913154.9479783,
+    "seen": 1792913901.8383296,
+    "ast_hash": "bd68bcd7fccb3d99bdb5a8bfb84a6cfa",
     "semantic_hash": ""
   },
   "lib/core/constants/app_colors.dart": {
@@ -138,9 +138,9 @@
     "semantic_hash": ""
   },
   "lib/features/auth/data/auth_repository.dart": {
-    "mtime": 1792670294.7124465,
-    "seen": 1792670597.8645787,
-    "ast_hash": "bcaf962b8a997a6b490c4914981d3a2a",
+    "mtime": 1792903802.2415974,
+    "seen": 1792904081.2214966,
+    "ast_hash": "bdb17d2c6416fd5d97b0de82b492575d",
     "semantic_hash": ""
   },
   "lib/features/auth/presentation/login_screen.dart": {
@@ -156,27 +156,27 @@
     "semantic_hash": ""
   },
   "lib/features/auth/providers/business_provider.dart": {
-    "mtime": 1792492690.5987937,
-    "seen": 1792493082.9221506,
-    "ast_hash": "57025f6b4ed65663cdbe61b8f4328f9f",
+    "mtime": 1792905914.170187,
+    "seen": 1792905978.3002222,
+    "ast_hash": "0cd0267f4532347211f8e48d488bdc4e",
     "semantic_hash": ""
   },
   "lib/features/bookings/data/booking_repository.dart": {
-    "mtime": 1792561564.7682583,
-    "seen": 1792562233.1249766,
-    "ast_hash": "9414de3d2a0c212003d586e917f220e2",
+    "mtime": 1792915448.1378236,
+    "seen": 1792915746.183462,
+    "ast_hash": "81d521431f167229321b926dda29a930",
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/bookings_screen.dart": {
-    "mtime": 1792831469.5018487,
-    "seen": 1792831558.0340514,
-    "ast_hash": "dc7b36abc0fedf90d8bae8b98737eb02",
+    "mtime": 1792917216.7955244,
+    "seen": 1792917505.800899,
+    "ast_hash": "7a2dadf662c6fe82f755287b2b17430e",
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/direct_rental_screen.dart": {
-    "mtime": 1792667736.116224,
-    "seen": 1792668423.4797952,
-    "ast_hash": "d710c707fa2d463e0018e6229326ed89",
+    "mtime": 1792917209.0052428,
+    "seen": 1792917505.800902,
+    "ast_hash": "1ef7e8a19f159521e80b6f4edce3bb55",
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/return_wizard_screen.dart": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "lib/features/bookings/providers/booking_provider.dart": {
-    "mtime": 1792831349.008166,
-    "seen": 1792831558.034059,
-    "ast_hash": "04d29ab1751e7ac852f2b5bd644db8f2",
+    "mtime": 1792905728.2660768,
+    "seen": 1792905978.3002324,
+    "ast_hash": "8d5ed9cbd27f9f8a7987037da0694175",
     "semantic_hash": ""
   },
   "lib/features/cashier/data/cashier_repository.dart": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "lib/features/cashier/presentation/cashier_screen.dart": {
-    "mtime": 1792761755.3972192,
-    "seen": 1792761763.454848,
-    "ast_hash": "602fe894fec13f735134205569aed835",
+    "mtime": 1792917313.0846338,
+    "seen": 1792917505.8009162,
+    "ast_hash": "d55ee564efe814dc70f9dbf593067b0b",
     "semantic_hash": ""
   },
   "lib/features/cashier/presentation/pos_transaction_detail_sheet.dart": {
@@ -210,9 +210,9 @@
     "semantic_hash": ""
   },
   "lib/features/cashier/providers/cashier_provider.dart": {
-    "mtime": 1792670412.1410272,
-    "seen": 1792670597.8646026,
-    "ast_hash": "ba3d38736e6506f2af32237160ec116b",
+    "mtime": 1792905707.3047795,
+    "seen": 1792905978.300242,
+    "ast_hash": "d34ef66a4d476a4cd1b662e9a7f10796",
     "semantic_hash": ""
   },
   "lib/features/customers/data/customer_repository.dart": {
@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "lib/features/home/presentation/home_screen.dart": {
-    "mtime": 1792647712.339628,
-    "seen": 1792647795.52292,
-    "ast_hash": "7df1ae2283b4769a13a508baa220b957",
+    "mtime": 1792911924.1612003,
+    "seen": 1792912097.152451,
+    "ast_hash": "a43df8b3c37b306bf4ec8725c7fc5aca",
     "semantic_hash": ""
   },
   "lib/features/home/providers/dashboard_provider.dart": {
@@ -264,39 +264,39 @@
     "semantic_hash": ""
   },
   "lib/features/inventory/providers/asset_provider.dart": {
-    "mtime": 1792577811.7874217,
-    "seen": 1792588010.8622108,
-    "ast_hash": "a24f546aee0a577b53358a07d15c8bad",
+    "mtime": 1792905715.6949883,
+    "seen": 1792905978.3002565,
+    "ast_hash": "8a0d871dea329e347df81c1c18d60625",
     "semantic_hash": ""
   },
   "lib/features/organization/presentation/manage_organization_screen.dart": {
-    "mtime": 1792670547.864228,
-    "seen": 1792670597.8646176,
-    "ast_hash": "c21e27c920cf66a9260077e089242608",
+    "mtime": 1792903966.7677429,
+    "seen": 1792904081.2215345,
+    "ast_hash": "55e55270283389346c8d43faf61ba3e7",
     "semantic_hash": ""
   },
   "lib/features/organization/providers/organization_provider.dart": {
-    "mtime": 1792670306.5583365,
-    "seen": 1792670597.8646214,
-    "ast_hash": "31754bc771f47d2f1093631877ae40e5",
+    "mtime": 1792903845.1712358,
+    "seen": 1792904081.2215397,
+    "ast_hash": "0f02fc840463709e0ceb5393fba011b7",
     "semantic_hash": ""
   },
   "lib/features/payments/data/payment_repository.dart": {
-    "mtime": 1792331196.876459,
-    "seen": 1792470611.0084467,
-    "ast_hash": "2609f423149f20c5c175244931c07bc9",
-    "semantic_hash": "2609f423149f20c5c175244931c07bc9"
+    "mtime": 1792917354.8446245,
+    "seen": 1792917505.8009772,
+    "ast_hash": "9f2bcc8eba994ea920c27376ffffd2c1",
+    "semantic_hash": ""
   },
   "lib/features/payments/models/payment_context.dart": {
-    "mtime": 1792761755.3995914,
-    "seen": 1792761763.4548757,
-    "ast_hash": "60a758e10095834390d6c455fcb4be30",
+    "mtime": 1792913282.9025376,
+    "seen": 1792913901.8383958,
+    "ast_hash": "43fc6b6b57ab1eaf96bb683d06b3430a",
     "semantic_hash": ""
   },
   "lib/features/payments/presentation/payment_page.dart": {
-    "mtime": 1792496415.9780462,
-    "seen": 1792496623.9313247,
-    "ast_hash": "3865173c04fc7ed1dc5a5cb079dc500e",
+    "mtime": 1792917309.8282595,
+    "seen": 1792917505.8009815,
+    "ast_hash": "994c1b641df28c0ac34fc46c6e8a856f",
     "semantic_hash": ""
   },
   "lib/features/printer/presentation/printer_settings_screen.dart": {
@@ -330,10 +330,10 @@
     "semantic_hash": ""
   },
   "lib/features/transfers/providers/transfer_provider.dart": {
-    "mtime": 1791897730.6824465,
-    "seen": 1792470611.008454,
-    "ast_hash": "033db28ecca0be3844530f68c9ca2748",
-    "semantic_hash": "033db28ecca0be3844530f68c9ca2748"
+    "mtime": 1792905755.313838,
+    "seen": 1792905978.3002748,
+    "ast_hash": "b2535cded9d60e91909a4c31d73d0128",
+    "semantic_hash": ""
   },
   "lib/features/vouchers/data/voucher_repository.dart": {
     "mtime": 1792073586.375526,
@@ -360,10 +360,10 @@
     "semantic_hash": ""
   },
   "lib/features/vouchers/providers/voucher_provider.dart": {
-    "mtime": 1792468333.1157885,
-    "seen": 1792470611.0084589,
-    "ast_hash": "58ba53e3e19f4f3b1bd6ce14a2eb7fd7",
-    "semantic_hash": "58ba53e3e19f4f3b1bd6ce14a2eb7fd7"
+    "mtime": 1792905744.163587,
+    "seen": 1792905978.300281,
+    "ast_hash": "5309db5d8ef332d05c79d64234301fdc",
+    "semantic_hash": ""
   },
   "lib/main.dart": {
     "mtime": 1792646510.1482816,
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "lib/shared/widgets/business_selector_sheet.dart": {
-    "mtime": 1792492808.183288,
-    "seen": 1792493082.922199,
-    "ast_hash": "3bdc5cfebd7838cba65536c357164d39",
+    "mtime": 1792905944.862844,
+    "seen": 1792905978.3002837,
+    "ast_hash": "167b6ada73e15858db1be75218a265fc",
     "semantic_hash": ""
   },
   "lib/shared/widgets/floating_capsule_dock.dart": {
@@ -456,10 +456,10 @@
     "semantic_hash": ""
   },
   "test/bookings_queue_overdue_test.dart": {
-    "mtime": 1792159626.7371955,
-    "seen": 1792470611.0084732,
-    "ast_hash": "3b8476731856f7e7e4b162cb109794aa",
-    "semantic_hash": "3b8476731856f7e7e4b162cb109794aa"
+    "mtime": 1792917156.0397513,
+    "seen": 1792917505.8010583,
+    "ast_hash": "01b1b71f412e1cb14e3ac99ff2bed558",
+    "semantic_hash": ""
   },
   "test/branch_aware_booking_test.dart": {
     "mtime": 1792564059.922086,
@@ -486,10 +486,10 @@
     "semantic_hash": ""
   },
   "test/logout_and_inventory_detail_test.dart": {
-    "mtime": 1792240684.4815693,
-    "seen": 1792470611.0084777,
-    "ast_hash": "3aec4b712da7da301038bb0bc00db393",
-    "semantic_hash": "3aec4b712da7da301038bb0bc00db393"
+    "mtime": 1792989937.405043,
+    "seen": 1792989958.8433294,
+    "ast_hash": "489d9a1ba9ad0ce0ded43ba98a69e2a6",
+    "semantic_hash": ""
   },
   "test/multi_tenant_test.dart": {
     "mtime": 1791885444.5535429,
@@ -504,9 +504,9 @@
     "semantic_hash": ""
   },
   "test/payment_page_test.dart": {
-    "mtime": 1792478550.3772092,
-    "seen": 1792478989.8543165,
-    "ast_hash": "35b5d4f680ad33b6b39ed9284441c674",
+    "mtime": 1792917433.474387,
+    "seen": 1792917505.8011186,
+    "ast_hash": "8c86dae4296406c11624772bede36488",
     "semantic_hash": ""
   },
   "test/pos_all_branches_filter_test.dart": {
@@ -942,15 +942,15 @@
     "semantic_hash": ""
   },
   "test/home_active_context_banner_test.dart": {
-    "mtime": 1792493048.1644166,
-    "seen": 1792493082.9222226,
-    "ast_hash": "5ecef3595d07b9088f370ad9622d4052",
+    "mtime": 1792989940.9834435,
+    "seen": 1792989958.8433204,
+    "ast_hash": "28f6f75bd9f1423d9d95775428f7964f",
     "semantic_hash": ""
   },
   "test/operational_hardening_phase_p1_test.dart": {
-    "mtime": 1792495167.7167807,
-    "seen": 1792495204.5689,
-    "ast_hash": "31fb7830dfc63f91a2de552d91a99cf4",
+    "mtime": 1792989933.7351427,
+    "seen": 1792989958.843333,
+    "ast_hash": "f07e128d76b973105aeea76b07ac022a",
     "semantic_hash": ""
   },
   "lib/shared/widgets/dock_aware_scaffold.dart": {
@@ -966,9 +966,9 @@
     "semantic_hash": ""
   },
   "test/form_steppers_and_status_badges_phase_p2_test.dart": {
-    "mtime": 1792496006.0024266,
-    "seen": 1792496050.9982083,
-    "ast_hash": "0e62392dc2fe71c4ac1ca0333712db56",
+    "mtime": 1792917223.8591282,
+    "seen": 1792917505.801087,
+    "ast_hash": "74558fecbe6c593ad3b04776388613d0",
     "semantic_hash": ""
   },
   "lib/shared/widgets/pos_numpad.dart": {
@@ -978,9 +978,9 @@
     "semantic_hash": ""
   },
   "test/pos_numpad_and_counter_ergonomics_phase_p3_test.dart": {
-    "mtime": 1792496576.9775646,
-    "seen": 1792496623.9313796,
-    "ast_hash": "3fd55925cbba0174735c6209bf93f339",
+    "mtime": 1792917343.9892676,
+    "seen": 1792917505.8011231,
+    "ast_hash": "d789910247626d6f85d3d0fde0099bb9",
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/exchange_wizard_screen.dart": {
@@ -1050,9 +1050,9 @@
     "semantic_hash": ""
   },
   "lib/features/organization/presentation/store_settings_screen.dart": {
-    "mtime": 1792667582.0239139,
-    "seen": 1792668423.479847,
-    "ast_hash": "55340bf442499add908f2ec64ecf81d0",
+    "mtime": 1792903896.775341,
+    "seen": 1792904081.221537,
+    "ast_hash": "8ec7aeffee196434f140ed77745eca6e",
     "semantic_hash": ""
   },
   "lib/features/auth/presentation/user_profile_screen.dart": {
@@ -1113,6 +1113,54 @@
     "mtime": 1792831517.6152754,
     "seen": 1792831558.03413,
     "ast_hash": "97b4fd9eb8f12ec586e8e1fbe5d5c056",
+    "semantic_hash": ""
+  },
+  "lib/features/organization/presentation/widgets/staff_resignation_sheet.dart": {
+    "mtime": 1792903874.7843492,
+    "seen": 1792904081.2215385,
+    "ast_hash": "071238707035c1819f6022b6c039beef",
+    "semantic_hash": ""
+  },
+  "test/staff_resignation_test.dart": {
+    "mtime": 1792904010.1866832,
+    "seen": 1792904081.2216182,
+    "ast_hash": "6fa2d363ce2788d6a06571dae686cdee",
+    "semantic_hash": ""
+  },
+  "test/context_switching_lifecycle_test.dart": {
+    "mtime": 1792905902.6807783,
+    "seen": 1792905978.3003163,
+    "ast_hash": "88dbe1ae58cb8eb9e51bcefb0958f8f0",
+    "semantic_hash": ""
+  },
+  "lib/features/notifications/models/notification_item.dart": {
+    "mtime": 1792911819.4490747,
+    "seen": 1792912097.1524742,
+    "ast_hash": "91a817c657d34de9e1040eab27128150",
+    "semantic_hash": ""
+  },
+  "lib/features/notifications/presentation/notification_center_screen.dart": {
+    "mtime": 1792912017.0750163,
+    "seen": 1792912097.1524768,
+    "ast_hash": "6b3c3a7bd672b0e6b7e4c08e889f9b4e",
+    "semantic_hash": ""
+  },
+  "lib/features/notifications/providers/notification_provider.dart": {
+    "mtime": 1792911969.9265091,
+    "seen": 1792912097.1524787,
+    "ast_hash": "211c05bf76f2f8febf1b20367fcb6e7d",
+    "semantic_hash": ""
+  },
+  "test/notification_center_test.dart": {
+    "mtime": 1792912072.3991213,
+    "seen": 1792912097.1526532,
+    "ast_hash": "75f4c36f8e7a4179906f3960aa635116",
+    "semantic_hash": ""
+  },
+  "test/rental_duration_adjustment_test.dart": {
+    "mtime": 1792917389.4250133,
+    "seen": 1792917505.801132,
+    "ast_hash": "5409e13c66dd817f245b8107bdcb8a03",
     "semantic_hash": ""
   }
 }

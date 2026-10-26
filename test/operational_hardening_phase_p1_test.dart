@@ -49,8 +49,7 @@ void main() {
       expect(find.byIcon(Icons.dashboard_rounded), findsOneWidget);
       expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
       expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.confirmation_number_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.point_of_sale_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
 
       // Tap index 2 (Aset / Inventaris)
       await tester.tap(find.byIcon(Icons.inventory_2_outlined));

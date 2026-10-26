@@ -11,6 +11,7 @@ class OrganizationState {
   final String? userRole;
   final List<dynamic> branches;
   final List<dynamic> members;
+  final List<dynamic> resignationRequests;
   final Map<String, dynamic>? rentalRules;
   final String? error;
 
@@ -22,11 +23,14 @@ class OrganizationState {
     this.userRole,
     this.branches = const [],
     this.members = const [],
+    this.resignationRequests = const [],
     this.rentalRules,
     this.error,
   });
 
   bool get isOwnerOrAdmin => userRole == 'owner' || userRole == 'admin';
+  List<dynamic> get pendingResignations => resignationRequests.where((r) => r['status'] == 'pending').toList();
+  Map<String, dynamic>? get myActiveResignation => resignationRequests.where((r) => r['status'] == 'pending').firstOrNull;
 
   OrganizationState copyWith({
     bool? isLoading,
@@ -36,6 +40,7 @@ class OrganizationState {
     String? userRole,
     List<dynamic>? branches,
     List<dynamic>? members,
+    List<dynamic>? resignationRequests,
     Map<String, dynamic>? rentalRules,
     String? error,
   }) {
@@ -47,6 +52,7 @@ class OrganizationState {
       userRole: userRole ?? this.userRole,
       branches: branches ?? this.branches,
       members: members ?? this.members,
+      resignationRequests: resignationRequests ?? this.resignationRequests,
       rentalRules: rentalRules ?? this.rentalRules,
       error: error,
     );
@@ -78,6 +84,10 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
 
       final branches = await _repository.fetchBranches(businessId);
       final members = await _repository.fetchMembers(businessId);
+      List<dynamic> resignations = [];
+      try {
+        resignations = await _repository.fetchResignationRequests(businessId);
+      } catch (_) {}
       Map<String, dynamic>? rentalRules;
       try {
         rentalRules = await _repository.fetchRentalRules(businessId);
@@ -89,6 +99,7 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
         userRole: role,
         branches: branches,
         members: members,
+        resignationRequests: resignations,
         rentalRules: rentalRules,
       );
     } catch (e) {
@@ -245,6 +256,69 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
       return true;
     } catch (e) {
       state = state.copyWith(isSubmitting: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<void> loadResignations() async {
+    final bizId = state.businessId;
+    if (bizId == null) return;
+    try {
+      final resignations = await _repository.fetchResignationRequests(bizId);
+      state = state.copyWith(resignationRequests: resignations);
+    } catch (_) {}
+  }
+
+  Future<bool> submitResignation({String? reason}) async {
+    final bizId = state.businessId;
+    if (bizId == null) return false;
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      await _repository.submitResignation(bizId, reason: reason);
+      final resignations = await _repository.fetchResignationRequests(bizId);
+      state = state.copyWith(isSubmitting: false, resignationRequests: resignations);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString().replaceAll('Exception: ', ''));
+      return false;
+    }
+  }
+
+  Future<bool> cancelResignation(int requestId) async {
+    final bizId = state.businessId;
+    if (bizId == null) return false;
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      await _repository.cancelResignation(bizId, requestId);
+      final resignations = await _repository.fetchResignationRequests(bizId);
+      state = state.copyWith(isSubmitting: false, resignationRequests: resignations);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString().replaceAll('Exception: ', ''));
+      return false;
+    }
+  }
+
+  Future<bool> reviewResignation(int requestId, {required bool approve, String? decisionNotes}) async {
+    final bizId = state.businessId;
+    if (bizId == null) return false;
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      if (approve) {
+        await _repository.approveResignation(bizId, requestId, decisionNotes: decisionNotes);
+      } else {
+        await _repository.rejectResignation(bizId, requestId, decisionNotes: decisionNotes);
+      }
+      final members = await _repository.fetchMembers(bizId);
+      final resignations = await _repository.fetchResignationRequests(bizId);
+      state = state.copyWith(
+        isSubmitting: false,
+        members: members,
+        resignationRequests: resignations,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString().replaceAll('Exception: ', ''));
       return false;
     }
   }

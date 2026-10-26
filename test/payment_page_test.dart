@@ -113,6 +113,48 @@ class _FakeBookingRepo extends BookingRepository {
       },
     };
   }
+
+  int? lastAdjustBookingId;
+  int? lastAdjustBookingItemId;
+  String? lastAdjustDirection;
+  int? lastAdjustHoursDelta;
+  double? lastAdjustAdditionalFee;
+  int? lastAdjustPaymentMethodId;
+  double? lastAdjustCashReceived;
+
+  @override
+  Future<Map<String, dynamic>> adjustDuration({
+    required int bookingId,
+    int? bookingItemId,
+    required String direction,
+    required int hoursDelta,
+    double? additionalFee,
+    int? paymentMethodId,
+    double? cashReceived,
+    String? managerPin,
+    String? reason,
+    String? notes,
+  }) async {
+    lastAdjustBookingId = bookingId;
+    lastAdjustBookingItemId = bookingItemId;
+    lastAdjustDirection = direction;
+    lastAdjustHoursDelta = hoursDelta;
+    lastAdjustAdditionalFee = additionalFee;
+    lastAdjustPaymentMethodId = paymentMethodId;
+    lastAdjustCashReceived = cashReceived;
+
+    return {
+      'message': 'Adjustment recorded',
+      'adjustment': {'id': 101, 'booking_item_id': bookingItemId, 'hours_delta': hoursDelta},
+      'payment': {
+        'id': 3,
+        'transaction_code': 'TX-EXT-002',
+        'receipt_number': 'REC-EXT-002',
+        'amount': additionalFee ?? 50000.0,
+        'cash_change': (cashReceived != null && additionalFee != null && cashReceived >= additionalFee) ? (cashReceived - additionalFee) : 0.0,
+      },
+    };
+  }
 }
 
 class _TestBusinessNotifier extends BusinessNotifier {
@@ -210,7 +252,7 @@ void main() {
       expect(find.text('Rp 50.000'), findsAtLeastNWidgets(1));
 
       // Submit Payment
-      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 350.000) 🖨️');
+      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 350.000)');
       expect(submitButton, findsOneWidget);
       await tester.ensureVisible(submitButton);
       await tester.tap(submitButton);
@@ -266,7 +308,7 @@ void main() {
       expect(find.textContaining('Konfirmasi pembayaran non-tunai'), findsOneWidget);
 
       // Submit QRIS Payment
-      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 75.000) 🖨️');
+      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 75.000)');
       await tester.ensureVisible(submitButton);
       await tester.tap(submitButton);
       await tester.pumpAndSettle();
@@ -308,7 +350,7 @@ void main() {
       expect(find.text('Rp 90.000'), findsAtLeastNWidgets(1));
 
       // Submit payment
-      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 90.000) 🖨️');
+      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 90.000)');
       await tester.ensureVisible(submitButton);
       await tester.tap(submitButton);
       await tester.pumpAndSettle();
@@ -381,7 +423,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Button becomes enabled
-      final enabledButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 200.000) 🖨️');
+      final enabledButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 200.000)');
       expect(enabledButton, findsOneWidget);
       await tester.ensureVisible(enabledButton);
       await tester.tap(enabledButton);
@@ -391,6 +433,51 @@ void main() {
       expect(fakeCashierRepo.lastBookingId, 33);
       expect(fakeCashierRepo.lastPaymentType, 'settlement');
       expect(fakeCashierRepo.lastAmount, 200000.0);
+    });
+
+    testWidgets('5. Add-on Extension Payment: Passes booking_item_id and processes add-on payment correctly', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final context = PaymentContext.extension(
+        bookingId: 20,
+        bookingCode: 'BK-EXT-020',
+        customerName: 'Siti Rahma',
+        deviceModel: 'Tripod Bluetooth',
+        additionalHours: 12,
+        extensionFee: 50000.0,
+        extraPayload: {'booking_item_id': 88},
+      );
+
+      await tester.pumpWidget(createTestWidget(context));
+      await tester.pumpAndSettle();
+
+      // Verify Header & Add-on details
+      expect(find.text('PERPANJANGAN'), findsOneWidget);
+      expect(find.textContaining('12 Jam'), findsOneWidget);
+      expect(find.text('Tripod Bluetooth'), findsOneWidget);
+      expect(find.text('Rp 50.000'), findsAtLeastNWidgets(1));
+
+      // Submit payment
+      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 50.000)');
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      await tester.pumpAndSettle();
+
+      // Verify adjustDuration was called on booking repo with booking_item_id
+      expect(fakeBookingRepo.lastAdjustBookingId, 20);
+      expect(fakeBookingRepo.lastAdjustBookingItemId, 88);
+      expect(fakeBookingRepo.lastAdjustDirection, 'increase');
+      expect(fakeBookingRepo.lastAdjustHoursDelta, 12);
+      expect(fakeBookingRepo.lastAdjustAdditionalFee, 50000.0);
+      expect(fakeBookingRepo.lastAdjustPaymentMethodId, 1);
+
+      // Verify Success Screen
+      expect(find.text('Pembayaran Berhasil Dicatat!'), findsOneWidget);
     });
   });
 }

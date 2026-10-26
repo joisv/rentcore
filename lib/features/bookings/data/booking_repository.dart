@@ -82,6 +82,41 @@ class BookingRepository {
     return response.data['data'];
   }
 
+  Future<Map<String, dynamic>> adjustDuration({
+    required int bookingId,
+    int? bookingItemId,
+    required String direction,
+    required int hoursDelta,
+    double? additionalFee,
+    int? paymentMethodId,
+    double? cashReceived,
+    String? managerPin,
+    String? reason,
+    String? notes,
+  }) async {
+    final data = <String, dynamic>{
+      'direction': direction,
+      'hours_delta': hoursDelta,
+    };
+    if (bookingItemId != null) data['booking_item_id'] = bookingItemId;
+    if (additionalFee != null) data['additional_fee'] = additionalFee;
+    if (paymentMethodId != null) data['payment_method_id'] = paymentMethodId;
+    if (cashReceived != null) data['cash_received'] = cashReceived;
+    if (managerPin != null && managerPin.isNotEmpty) data['manager_pin'] = managerPin;
+    if (reason != null && reason.isNotEmpty) data['reason'] = reason;
+    if (notes != null && notes.isNotEmpty) data['notes'] = notes;
+
+    final response = await _client.dio.post(
+      ApiConstants.adjustBookingDuration(bookingId),
+      data: data,
+    );
+    final res = response.data;
+    if (res is Map<String, dynamic>) {
+      return (res['data'] is Map<String, dynamic>) ? res['data'] : res;
+    }
+    return {};
+  }
+
   Future<Map<String, dynamic>> processReturn(int bookingId, Map<String, dynamic> returnData) async {
     final response = await _client.dio.post(
       ApiConstants.returnBooking(bookingId),

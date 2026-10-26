@@ -12,6 +12,8 @@ import '../providers/dashboard_provider.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../auth/providers/business_provider.dart';
+import '../../notifications/presentation/notification_center_screen.dart';
+import '../../notifications/providers/notification_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   final ValueChanged<int> onNavigateTab;
@@ -94,6 +96,7 @@ class HomeScreen extends ConsumerWidget {
           color: AppColors.obsidian,
           onRefresh: () async {
             await ref.read(businessProvider.notifier).refresh();
+            ref.read(notificationProvider.notifier).fetchUnreadCountOnly();
             ref.invalidate(dashboardKpiProvider);
           },
           child: SingleChildScrollView(
@@ -287,6 +290,49 @@ class HomeScreen extends ConsumerWidget {
             onPressed: () => BusinessSelectorSheet.show(context),
             tooltip: 'Ganti Cabang',
             icon: const Icon(Icons.storefront_rounded, color: AppColors.textSecondary, size: 20),
+          ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+                  );
+                },
+                tooltip: 'Pusat Pemberitahuan',
+                icon: const Icon(Icons.notifications_outlined, color: AppColors.textSecondary, size: 22),
+              ),
+              Builder(
+                builder: (context) {
+                  final unreadCount = ref.watch(notificationProvider.select((s) => s.unreadCount));
+                  if (unreadCount <= 0) return const SizedBox.shrink();
+                  return Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.danger,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          height: 1.0,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ],
       ),

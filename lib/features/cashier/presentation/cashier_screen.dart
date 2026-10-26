@@ -2120,6 +2120,7 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                     return ChoiceChip(
                       label: Text(m['name'] ?? m['code'] ?? 'Metode'),
                       selected: isSel,
+                      showCheckmark: false,
                       onSelected: (_) {
                         setState(() {
                           _selectedMethodId = m['id'];
@@ -2148,7 +2149,19 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                   decoration: InputDecoration(
                     labelText: 'Jumlah Uang Diterima (Rp)',
                     hintText: 'Nominal tunai pelanggan',
-                    prefixIcon: const Icon(Icons.attach_money_rounded, size: 20),
+                    prefixIcon: const SizedBox(
+                      width: 44,
+                      child: Center(
+                        child: Text(
+                          'Rp',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.check_circle_outline_rounded),
                       tooltip: 'Uang Pas',
@@ -2281,7 +2294,7 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                     : Text(
                         _selectedMethodCode == 'CASH' && cashShortage > 0
                             ? 'Uang Tunai Kurang (${CurrencyFormatter.format(cashShortage)})'
-                            : 'Konfirmasi Bayar ${_paymentTarget == 'penalty' ? 'Denda' : 'Sewa'} (${CurrencyFormatter.format(currentTargetDue)}) 🖨️',
+                            : 'Konfirmasi Bayar ${_paymentTarget == 'penalty' ? 'Denda' : 'Sewa'} (${CurrencyFormatter.format(currentTargetDue)})',
                         style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                       ),
               ),

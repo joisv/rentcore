@@ -85,6 +85,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   String? _voucherMessage;
 
   // Customer Search & Auto-Fill
+  bool _isNavigatingToPayment = false;
   bool _isSearchingCustomer = false;
   Map<String, dynamic>? _foundCustomer;
   String? _customerLookupMessage;
@@ -412,6 +413,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   }
 
   void _proceedToPayment() async {
+    if (_isNavigatingToPayment) return;
+
     final address = _addressController.text.trim();
 
     if (_selectedAssetId == null || _selectedDuration == null) {
@@ -429,71 +432,79 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       return;
     }
 
-    final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
-    final activeBranchId = ref.read(businessProvider).activeBranchId;
-    final activeBranchName = ref.read(businessProvider).activeBranchName;
-    final payload = <String, dynamic>{
-      'customer_name': _nameController.text.trim(),
-      'customer_phone': _phoneController.text.trim(),
-      'customer_address': address,
-      'identity_photo_base64': _identityPhotoBase64,
-      'asset_ids': [_selectedAssetId],
-      if (_selectedAddons.isNotEmpty)
-        'addon_asset_ids': _selectedAddons.map((a) => a['id']).toList(),
-      'duration_hours': _selectedDuration,
-      'duration_unit': _selectedDurationUnit,
-      'duration_value': _selectedDurationValue,
-      'collateral_type': 'KTP Asli',
-      'collateral_storage_slot': _slotController.text.trim(),
-      'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
-      'unit_prices': {
-        if (_selectedAssetId != null)
-          _selectedAssetId.toString(): _basePrice,
-        for (final a in _selectedAddons)
-          if (a['id'] != null)
-            a['id'].toString(): _computeAddonPrice(a),
-      },
-    };
-    if (activeBranchId != null) {
-      payload['affiliate_id'] = activeBranchId;
-    }
+    setState(() => _isNavigatingToPayment = true);
 
-    final model = _selectedAsset?['model'] as Map?;
-    final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
+    try {
+      final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
+      final activeBranchId = ref.read(businessProvider).activeBranchId;
+      final activeBranchName = ref.read(businessProvider).activeBranchName;
+      final payload = <String, dynamic>{
+        'customer_name': _nameController.text.trim(),
+        'customer_phone': _phoneController.text.trim(),
+        'customer_address': address,
+        'identity_photo_base64': _identityPhotoBase64,
+        'asset_ids': [_selectedAssetId],
+        if (_selectedAddons.isNotEmpty)
+          'addon_asset_ids': _selectedAddons.map((a) => a['id']).toList(),
+        'duration_hours': _selectedDuration,
+        'duration_unit': _selectedDurationUnit,
+        'duration_value': _selectedDurationValue,
+        'collateral_type': 'KTP Asli',
+        'collateral_storage_slot': _slotController.text.trim(),
+        'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
+        'unit_prices': {
+          if (_selectedAssetId != null)
+            _selectedAssetId.toString(): _basePrice,
+          for (final a in _selectedAddons)
+            if (a['id'] != null)
+              a['id'].toString(): _computeAddonPrice(a),
+        },
+      };
+      if (activeBranchId != null) {
+        payload['affiliate_id'] = activeBranchId;
+      }
 
-    final result = await Navigator.push<PaymentResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PaymentPage(
-          paymentContext: PaymentContext.booking(
-            customerName: _nameController.text.trim(),
-            customerPhone: _phoneController.text.trim(),
-            customerAddress: address,
-            deviceName: deviceModelName,
-            assetCode: _selectedAsset?['asset_code']?.toString(),
-            totalAmount: totalPayable,
-            branchId: activeBranchId,
-            branchName: activeBranchName,
-            extraPayload: payload,
+      final model = _selectedAsset?['model'] as Map?;
+      final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
+
+      final result = await Navigator.push<PaymentResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentPage(
+            paymentContext: PaymentContext.booking(
+              customerName: _nameController.text.trim(),
+              customerPhone: _phoneController.text.trim(),
+              customerAddress: address,
+              deviceName: deviceModelName,
+              assetCode: _selectedAsset?['asset_code']?.toString(),
+              totalAmount: totalPayable,
+              branchId: activeBranchId,
+              branchName: activeBranchName,
+              extraPayload: payload,
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    if (result != null && result.isSuccess) {
-      ref.invalidate(bookingsListProvider);
-      ref.invalidate(closingSummaryProvider);
-      ref.invalidate(readyAssetsProvider);
-      ref.invalidate(inventoryListProvider);
+      if (result != null && result.isSuccess) {
+        ref.invalidate(bookingsListProvider);
+        ref.invalidate(closingSummaryProvider);
+        ref.invalidate(readyAssetsProvider);
+        ref.invalidate(inventoryListProvider);
 
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sewa ${result.transactionCode ?? ''} berhasil aktif & dibayar!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      }
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sewa ${result.transactionCode ?? ''} berhasil aktif & dibayar!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-        Navigator.pop(context);
+        setState(() => _isNavigatingToPayment = false);
       }
     }
   }
@@ -1841,19 +1852,24 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             const SizedBox(width: 12),
             Expanded(
               flex: 2,
-              child: ElevatedButton.icon(
-                onPressed: !isUnitSelected ? null : _proceedToPayment,
+              child: ElevatedButton(
+                onPressed: (!isUnitSelected || _isNavigatingToPayment) ? null : _proceedToPayment,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.obsidian,
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                icon: const Icon(Icons.payment_rounded, size: 18),
-                label: const Text(
-                  'Lanjut ke Pembayaran POS 💳',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
+                child: _isNavigatingToPayment
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Proses pembayaran',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
               ),
             ),
           ],

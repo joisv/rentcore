@@ -217,7 +217,7 @@ void main() {
       expect(find.text('RC-RET-003'), findsNothing);
 
       // Verify action buttons exist for overdue booking
-      expect(find.text('+ Tambah Jam'), findsOneWidget);
+      expect(find.text('Tambah Jam'), findsOneWidget);
       expect(find.text('Pengembalian'), findsOneWidget);
     });
 

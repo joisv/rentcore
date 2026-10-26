@@ -224,6 +224,7 @@ class PaymentContext {
     int? branchId,
     String? branchName,
     bool isCentral = false,
+    Map<String, dynamic>? extraPayload,
   }) {
     final b = booking ?? {};
     final bId = bookingId ?? b['id'] as int?;
@@ -260,7 +261,7 @@ class PaymentContext {
       branchId: branchId ?? affiliate['id'] ?? b['affiliate_id'],
       branchName: branchName ?? affiliate['name']?.toString(),
       isCentral: isCentral || affiliate['is_central'] == true,
-      extraPayload: b,
+      extraPayload: extraPayload ?? b,
     );
   }
 }

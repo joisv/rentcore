@@ -39,7 +39,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   bool _nonCashConfirmed = true;
   bool _isProcessing = false;
   bool _methodInitialized = false;
-  bool _showNumpad = true;
+  bool _showNumpad = false;
   PaymentResult? _completedResult;
 
   @override
@@ -289,6 +289,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                 return ChoiceChip(
                   label: Text(mName),
                   selected: isSelected,
+                  showCheckmark: false,
                   onSelected: (_) {
                     setState(() {
                       _selectedMethodId = mId;
@@ -318,7 +319,19 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
               decoration: InputDecoration(
                 labelText: 'Jumlah Uang Diterima (Rp)',
                 hintText: 'Nominal tunai pelanggan',
-                prefixIcon: const Icon(Icons.attach_money_rounded, size: 20),
+                prefixIcon: const SizedBox(
+                  width: 44,
+                  child: Center(
+                    child: Text(
+                      'Rp',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.check_circle_outline_rounded),
                   tooltip: 'Uang Pas',
@@ -490,7 +503,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                 : Text(
                     isCash && cashShortage > 0
                         ? 'Uang Tunai Kurang (${CurrencyFormatter.format(cashShortage)})'
-                        : 'Konfirmasi Bayar (${CurrencyFormatter.format(amountDue)}) 🖨️',
+                        : 'Konfirmasi Bayar (${CurrencyFormatter.format(amountDue)})',
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                   ),
           ),

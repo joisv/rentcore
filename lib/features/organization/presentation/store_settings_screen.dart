@@ -11,6 +11,7 @@ import '../../transfers/presentation/transfers_screen.dart';
 import '../../vouchers/presentation/voucher_screen.dart';
 import 'manage_organization_screen.dart';
 import 'store_profile_screen.dart';
+import 'widgets/staff_resignation_sheet.dart';
 
 typedef SettingsScreen = StoreSettingsScreen;
 
@@ -197,6 +198,24 @@ class StoreSettingsScreen extends ConsumerWidget {
                 );
               },
             ),
+            if (userRole != 'owner' && bState.activeBusinessId != null) ...[
+              _buildDivider(),
+              _buildListTile(
+                icon: Icons.badge_outlined,
+                title: 'Status Kepegawaian & Resign',
+                subtitle: 'Penugasan cabang dan pengajuan pengunduran diri',
+                badge: 'Kepegawaian',
+                badgeColor: const Color(0xFFFEF3C7),
+                badgeTextColor: const Color(0xFFD97706),
+                onTap: () {
+                  StaffResignationSheet.show(
+                    context,
+                    businessId: bState.activeBusinessId!,
+                    businessName: bState.activeBusinessName ?? 'Bisnis Rental',
+                  );
+                },
+              ),
+            ],
           ]),
           const SizedBox(height: 18),
 

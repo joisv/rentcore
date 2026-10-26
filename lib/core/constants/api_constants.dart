@@ -29,6 +29,10 @@ class ApiConstants {
   static String memberManagerPin(dynamic bizId, dynamic memberId) => '/businesses/$bizId/members/$memberId/pin';
   static String businessBranches(dynamic id) => '/businesses/$id/branches';
   static String businessRentalRules(dynamic id) => '/businesses/$id/rental-rules';
+  static String resignationRequests(dynamic id) => '/businesses/$id/resignation-requests';
+  static String cancelResignation(dynamic bizId, dynamic reqId) => '/businesses/$bizId/resignation-requests/$reqId/cancel';
+  static String approveResignation(dynamic bizId, dynamic reqId) => '/businesses/$bizId/resignation-requests/$reqId/approve';
+  static String rejectResignation(dynamic bizId, dynamic reqId) => '/businesses/$bizId/resignation-requests/$reqId/reject';
 
   // Dashboard
   static const String dashboardKpi = '/dashboard/kpi';
@@ -53,6 +57,7 @@ class ApiConstants {
   static const String bookings = '/bookings';
   static String bookingDetail(dynamic id) => '/bookings/$id';
   static String extendBooking(dynamic id) => '/bookings/$id/extend';
+  static String adjustBookingDuration(dynamic id) => '/bookings/$id/adjust-duration';
   static String returnBooking(dynamic id) => '/bookings/$id/return';
   static String availableReplacements(dynamic id, {dynamic assetId}) =>
       assetId != null ? '/bookings/$id/available-replacements?asset_id=$assetId' : '/bookings/$id/available-replacements';

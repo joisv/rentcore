@@ -150,7 +150,6 @@ void main() {
       expect(find.text('KONSOLIDASI'), findsOneWidget);
       expect(find.text('SkyRental Studio'), findsWidgets);
       expect(find.textContaining('Mode Konsolidasi'), findsOneWidget);
-      expect(find.text('Pilih Cabang'), findsOneWidget);
     });
 
     testWidgets('Displays CABANG UTAMA badge when central branch is active', (tester) async {

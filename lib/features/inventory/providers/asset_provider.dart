@@ -8,7 +8,10 @@ final assetRepositoryProvider = Provider<AssetRepository>((ref) {
 
 class AssetStatusFilterNotifier extends Notifier<String?> {
   @override
-  String? build() => null;
+  String? build() {
+    ref.watch(businessProvider.select((s) => s.activeBusinessId));
+    return null;
+  }
 
   void setFilter(String? status) {
     state = status;
@@ -21,7 +24,10 @@ final selectedAssetStatusFilterProvider = NotifierProvider<AssetStatusFilterNoti
 
 class AssetCategoryFilterNotifier extends Notifier<int?> {
   @override
-  int? build() => null;
+  int? build() {
+    ref.watch(businessProvider.select((s) => s.activeBusinessId));
+    return null;
+  }
 
   void setFilter(int? categoryId) {
     state = categoryId;
@@ -34,7 +40,10 @@ final selectedAssetCategoryFilterProvider = NotifierProvider<AssetCategoryFilter
 
 class AssetSearchQueryNotifier extends Notifier<String> {
   @override
-  String build() => '';
+  String build() {
+    ref.watch(businessProvider.select((s) => s.activeBusinessId));
+    return '';
+  }
 
   void setSearch(String query) {
     state = query;

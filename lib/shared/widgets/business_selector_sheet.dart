@@ -223,11 +223,11 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                   final role = biz['role'] ?? 'owner';
                   final branches = (biz['branches'] as List<dynamic>?) ?? [];
 
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.infoLight : AppColors.surfaceMuted,
+                  return Material(
+                    color: isSelected ? AppColors.infoLight : AppColors.surfaceMuted,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
+                      side: BorderSide(
                         color: isSelected ? AppColors.info : AppColors.border,
                         width: isSelected ? 1.5 : 1,
                       ),
@@ -333,10 +333,12 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                             trailing: isSelected && businessState.activeBranchId == null
                                 ? const Icon(Icons.check_circle_rounded, color: AppColors.warning, size: 18)
                                 : null,
-                            onTap: () {
-                              ref.read(businessProvider.notifier).selectBusiness(biz);
-                              ref.read(businessProvider.notifier).selectBranch(null);
+                            onTap: () async {
                               Navigator.pop(context);
+                              await ref.read(businessProvider.notifier).selectContext(
+                                business: biz,
+                                isConsolidated: true,
+                              );
                             },
                           ),
                           const Divider(height: 1, indent: 32, endIndent: 16),
@@ -388,10 +390,12 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                             trailing: isBranchActive
                                 ? const Icon(Icons.check_circle_rounded, color: AppColors.info, size: 18)
                                 : null,
-                            onTap: () {
-                              ref.read(businessProvider.notifier).selectBusiness(biz);
-                              ref.read(businessProvider.notifier).selectBranch(branchMap);
+                            onTap: () async {
                               Navigator.pop(context);
+                              await ref.read(businessProvider.notifier).selectContext(
+                                business: biz,
+                                branch: branchMap,
+                              );
                             },
                           );
                         }),

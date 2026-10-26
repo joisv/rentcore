@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../auth/providers/business_provider.dart';
 import '../data/voucher_repository.dart';
 
 final voucherRepositoryProvider = Provider<VoucherRepository>((ref) => VoucherRepository());
@@ -50,6 +51,7 @@ class VoucherNotifier extends Notifier<VoucherState> {
   @override
   VoucherState build() {
     _repository = ref.watch(voucherRepositoryProvider);
+    ref.watch(businessProvider.select((s) => s.activeBusinessId));
     Future.microtask(() => loadVouchers());
     return const VoucherState();
   }

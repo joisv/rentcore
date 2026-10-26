@@ -10,7 +10,11 @@ final cashierRepositoryProvider = Provider<CashierRepository>((ref) => CashierRe
 /// > 0 = specific branch ID
 class PosFilterBranchIdNotifier extends Notifier<int?> {
   @override
-  int? build() => null;
+  int? build() {
+    // Automatically reset branch filter whenever active business changes
+    ref.watch(businessProvider.select((s) => s.activeBusinessId));
+    return null;
+  }
 
   void setBranchId(int? branchId) => state = branchId;
 }

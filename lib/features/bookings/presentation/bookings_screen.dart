@@ -13,16 +13,85 @@ import 'exchange_history_sheet.dart';
 import 'exchange_wizard_screen.dart';
 import 'return_wizard_screen.dart';
 
-class _ExtensionOption {
+class _AdjustmentTarget {
+  final int? itemId;
+  final String label;
+  final String shortName;
+  final bool isPrimary;
+  final int currentDurationHours;
+  final double currentPrice;
+  final Map<String, dynamic>? model;
+
+  const _AdjustmentTarget({
+    this.itemId,
+    required this.label,
+    required this.shortName,
+    required this.isPrimary,
+    required this.currentDurationHours,
+    required this.currentPrice,
+    this.model,
+  });
+}
+
+class _DurationOption {
   final int hours;
   final double price;
   final String label;
 
-  const _ExtensionOption({
+  const _DurationOption({
     required this.hours,
     required this.price,
     required this.label,
   });
+}
+
+List<_DurationOption> _getDurationOptionsForTarget(Map<String, dynamic>? model) {
+  final rawTiers = (model?['pricing_tiers'] as List?) ??
+      (model?['pricingTiers'] as List?) ?? [];
+  final options = <_DurationOption>[];
+
+  for (final t in rawTiers) {
+    if (t is Map) {
+      final hours = int.tryParse(t['duration_hours']?.toString() ?? '0') ?? 0;
+      final price = (t['price'] is num)
+          ? (t['price'] as num).toDouble()
+          : (double.tryParse(t['price']?.toString() ?? '0') ?? 0.0);
+      final isActive = t['is_active'] != false;
+      if (hours > 0 && isActive) {
+        final val = int.tryParse(t['duration_value']?.toString() ?? '') ?? hours;
+        final unit = (t['duration_unit']?.toString() ?? 'hour').toLowerCase();
+        String lbl;
+        if (unit == 'day') {
+          lbl = '$val Hari ($hours Jam)';
+        } else if (unit == 'week') {
+          lbl = '$val Minggu ($hours Jam)';
+        } else {
+          lbl = '$hours Jam';
+        }
+        options.add(_DurationOption(
+          hours: hours,
+          price: price,
+          label: lbl,
+        ));
+      }
+    }
+  }
+
+  options.sort((a, b) => a.hours.compareTo(b.hours));
+
+  // Fallback if no specific pricing tiers configured
+  if (options.isEmpty) {
+    final hourlyRate = ((model?['tier']?['hourly_rate'] ?? 15000) as num).toDouble();
+    for (final h in [6, 12, 24]) {
+      options.add(_DurationOption(
+        hours: h,
+        price: h * hourlyRate,
+        label: '$h Jam',
+      ));
+    }
+  }
+
+  return options;
 }
 
 class BookingsScreen extends ConsumerStatefulWidget {
@@ -535,7 +604,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                         padding: EdgeInsets.zero,
                                       ),
                                       onPressed: () => _showExtendDialog(context, ref, item),
-                                      child: const Text('+ Tambah Jam', style: TextStyle(fontSize: 11)),
+                                      child: const Text('Tambah Jam', style: TextStyle(fontSize: 11)),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
@@ -623,15 +692,20 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   }
 
   void _showExtendDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> item) {
+    _showDurationAdjustmentDialog(context, ref, item);
+  }
+
+  void _showDurationAdjustmentDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> item) {
     final bookingId = (item['id'] as num).toInt();
     final bookingCode = item['booking_code']?.toString() ?? '#$bookingId';
     final customer = (item['customer'] as Map?) ?? {};
     final customerName = customer['name']?.toString() ?? 'Pelanggan';
 
+    // 1. Resolve Primary Model
     Map<String, dynamic>? resolvedModel;
-    final items = item['items'] as List?;
-    if (items != null && items.isNotEmpty) {
-      final first = items.first;
+    final rawItems = item['items'] as List?;
+    if (rawItems != null && rawItems.isNotEmpty) {
+      final first = rawItems.first;
       if (first is Map) {
         final asset = first['asset'] as Map?;
         if (asset != null && asset['model'] is Map) {
@@ -651,202 +725,667 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     }
 
     final deviceModel = resolvedModel?['name']?.toString() ?? 'Unit Sewa';
+    final currentEndAt = DateTime.tryParse(item['end_at']?.toString() ?? '')?.toLocal();
 
-    // Extract rates configured on the model
-    final rawTiers = (resolvedModel?['pricing_tiers'] as List?) ??
-        (resolvedModel?['pricingTiers'] as List?) ?? [];
-    final options = <_ExtensionOption>[];
+    // 2. Build Targets (Primary + Addons)
+    final targets = <_AdjustmentTarget>[];
+    if (rawItems != null && rawItems.isNotEmpty) {
+      Map? primaryItem;
+      for (final it in rawItems) {
+        if (it is Map && it['item_type'] == 'primary') {
+          primaryItem = it;
+          break;
+        }
+      }
+      primaryItem ??= rawItems.first is Map ? (rawItems.first as Map) : null;
+      if (primaryItem != null) {
+        final pAsset = primaryItem['asset'] as Map? ?? {};
+        final pModel = pAsset['model'] as Map? ?? resolvedModel;
+        final pName = pModel?['name']?.toString() ?? deviceModel;
+        final pDur = int.tryParse(primaryItem['duration_value']?.toString() ?? '') ??
+            int.tryParse(item['duration_hours']?.toString() ?? '24') ?? 24;
+        final pPrice = (primaryItem['unit_price'] != null)
+            ? CurrencyFormatter.parse(primaryItem['unit_price'])
+            : CurrencyFormatter.parse(item['primary_subtotal'] ?? item['total_bill'] ?? 0);
 
-    for (final t in rawTiers) {
-      if (t is Map) {
-        final hours = int.tryParse(t['duration_hours']?.toString() ?? '0') ?? 0;
-        final price = (t['price'] is num)
-            ? (t['price'] as num).toDouble()
-            : (double.tryParse(t['price']?.toString() ?? '0') ?? 0.0);
-        final isActive = t['is_active'] != false;
-        if (hours > 0 && isActive) {
-          options.add(_ExtensionOption(
-            hours: hours,
-            price: price,
-            label: '$hours Jam',
+        targets.add(_AdjustmentTarget(
+          itemId: primaryItem['id'] as int?,
+          label: 'Utama: $pName',
+          shortName: pName,
+          isPrimary: true,
+          currentDurationHours: pDur,
+          currentPrice: pPrice,
+          model: pModel != null ? Map<String, dynamic>.from(pModel) : null,
+        ));
+      }
+
+      for (final it in rawItems) {
+        if (it is Map && it['item_type'] == 'addon') {
+          final aAsset = it['asset'] as Map? ?? {};
+          final aModel = aAsset['model'] as Map?;
+          final aName = aModel?['name']?.toString() ?? 'Aksesoris';
+          final aDur = int.tryParse(it['duration_value']?.toString() ?? '') ??
+              int.tryParse(item['duration_hours']?.toString() ?? '24') ?? 24;
+          final aPrice = CurrencyFormatter.parse(it['unit_price'] ?? 0);
+
+          targets.add(_AdjustmentTarget(
+            itemId: it['id'] as int?,
+            label: 'Add-on: $aName',
+            shortName: aName,
+            isPrimary: false,
+            currentDurationHours: aDur,
+            currentPrice: aPrice,
+            model: aModel != null ? Map<String, dynamic>.from(aModel) : null,
           ));
         }
       }
     }
 
-    options.sort((a, b) => a.hours.compareTo(b.hours));
+    if (targets.isEmpty) {
+      final pDur = int.tryParse(item['duration_hours']?.toString() ?? '24') ?? 24;
+      final pPrice = CurrencyFormatter.parse(item['primary_subtotal'] ?? item['total_bill'] ?? 0);
+      targets.add(_AdjustmentTarget(
+        itemId: null,
+        label: 'Utama: $deviceModel',
+        shortName: deviceModel,
+        isPrimary: true,
+        currentDurationHours: pDur,
+        currentPrice: pPrice,
+        model: resolvedModel,
+      ));
+    }
 
-    // Fallback if no specific pricing tiers configured
-    if (options.isEmpty) {
-      final hourlyRate = ((resolvedModel?['tier']?['hourly_rate'] ?? 15000) as num).toDouble();
-      for (final h in [6, 12, 24]) {
-        options.add(_ExtensionOption(
-          hours: h,
-          price: h * hourlyRate,
-          label: '$h Jam',
-        ));
+    int selectedTargetIndex = 0;
+    String direction = 'increase';
+    int selectedHours = 6;
+    final pinController = TextEditingController();
+    final reasonController = TextEditingController();
+    bool isSubmitting = false;
+
+    // Calculate Net Payments Paid so far
+    final payments = (item['payments'] as List?) ?? [];
+    double alreadyPaidNet = 0.0;
+    for (final p in payments) {
+      if (p is Map) {
+        if (p['status']?.toString().toLowerCase() == 'void') continue;
+        final dir = p['direction']?.toString().toLowerCase();
+        final type = p['type']?.toString().toLowerCase();
+        final amt = CurrencyFormatter.parse(p['amount'] ?? 0);
+        if (dir == 'inflow' || type == 'settlement' || type == 'dp' || type == 'rental' || type == 'extension') {
+          alreadyPaidNet += amt;
+        } else if (dir == 'outflow' || type == 'refund') {
+          alreadyPaidNet -= amt;
+        }
       }
     }
 
-    int selectedHours = options.first.hours;
-    final currentEndAt = DateTime.tryParse(item['end_at']?.toString() ?? '')?.toLocal();
+    final originalTotalBill = CurrencyFormatter.parse(item['total_bill'] ?? item['total_amount'] ?? 0);
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            final selectedOption = options.firstWhere(
+            final activeTarget = targets[selectedTargetIndex];
+            final isIncrease = direction == 'increase';
+
+            // Available duration options configured on the model
+            final durationOptions = _getDurationOptionsForTarget(activeTarget.model);
+            if (!durationOptions.any((o) => o.hours == selectedHours)) {
+              selectedHours = durationOptions.isNotEmpty ? durationOptions.first.hours : 6;
+            }
+
+            final selectedOption = durationOptions.firstWhere(
               (o) => o.hours == selectedHours,
-              orElse: () => options.first,
+              orElse: () => durationOptions.isNotEmpty
+                  ? durationOptions.first
+                  : const _DurationOption(hours: 6, price: 90000, label: '6 Jam'),
             );
             final fee = selectedOption.price;
-            final newEndAt = currentEndAt?.add(Duration(hours: selectedHours));
+            final deltaFee = isIncrease ? fee : -fee;
+
+            // Compute Boundary Checks
+            DateTime? newEndAt;
+            bool isEndAtInPast = false;
+            if (activeTarget.isPrimary && currentEndAt != null) {
+              if (isIncrease) {
+                newEndAt = currentEndAt.add(Duration(hours: selectedHours));
+              } else {
+                newEndAt = currentEndAt.subtract(Duration(hours: selectedHours));
+                isEndAtInPast = newEndAt.isBefore(DateTime.now());
+              }
+            } else if (currentEndAt != null) {
+              newEndAt = currentEndAt;
+            }
+
+            final isBelowMinimumDuration = !isIncrease &&
+                (activeTarget.currentDurationHours - selectedHours < 1);
+
+            // Check if Overpayment / Refund is produced
+            final estimatedNewTotal = (originalTotalBill + deltaFee).clamp(0.0, double.infinity);
+            final refundDue = (!isIncrease && alreadyPaidNet > estimatedNewTotal)
+                ? (alreadyPaidNet - estimatedNewTotal)
+                : 0.0;
+
+            final hasBoundaryError = isEndAtInPast || isBelowMinimumDuration;
+            final canSubmitReduction = !hasBoundaryError &&
+                (!isIncrease && (refundDue == 0 || pinController.text.trim().length >= 4));
 
             return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Perpanjang Masa Sewa Unit',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Perangkat: $deviceModel • $bookingCode',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Pilihan Durasi Perpanjangan (Sesuai Tarif Model):',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: options.map((opt) {
-                        final isSel = selectedHours == opt.hours;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text('${opt.label} • ${CurrencyFormatter.format(opt.price)}'),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Handle Bar
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Atur Durasi Sewa',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceMuted,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Text(
+                            bookingCode,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.obsidian),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Pelanggan: $customerName',
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Target Selector (if add-ons exist)
+                    if (targets.length > 1) ...[
+                      const Text(
+                        'Pilih Item yang Disesuaikan:',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: List.generate(targets.length, (idx) {
+                          final t = targets[idx];
+                          final isSel = selectedTargetIndex == idx;
+                          return ChoiceChip(
+                            label: Text('${t.label} (${t.currentDurationHours}j)'),
                             selected: isSel,
-                            onSelected: (_) => setModalState(() => selectedHours = opt.hours),
+                            onSelected: (_) => setModalState(() => selectedTargetIndex = idx),
                             selectedColor: AppColors.obsidian,
                             labelStyle: TextStyle(
                               color: isSel ? Colors.white : AppColors.textPrimary,
-                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
                               fontSize: 12,
                             ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    // Direction Toggle (+ Tambah vs - Kurangi)
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setModalState(() => direction = 'increase'),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isIncrease ? AppColors.obsidian : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '+ Tambah Jam',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isIncrease ? FontWeight.w800 : FontWeight.w600,
+                                    color: isIncrease ? Colors.white : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                        );
-                      }).toList(),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setModalState(() => direction = 'decrease'),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: !isIncrease ? AppColors.obsidian : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '- Kurangi Jam',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: !isIncrease ? FontWeight.w800 : FontWeight.w600,
+                                    color: !isIncrease ? Colors.white : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.border),
+                    const SizedBox(height: 14),
+
+                    // Duration Options from Model
+                    Text(
+                      isIncrease
+                          ? 'Pilihan Durasi Perpanjangan (Sesuai Tarif Model):'
+                          : 'Pilihan Durasi Pengurangan (Sesuai Tarif Model):',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                     ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    const SizedBox(height: 6),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: durationOptions.map((opt) {
+                          final isSel = selectedHours == opt.hours;
+                          final wouldBePast = !isIncrease &&
+                              activeTarget.isPrimary &&
+                              currentEndAt != null &&
+                              currentEndAt.subtract(Duration(hours: opt.hours)).isBefore(DateTime.now());
+                          final wouldBeBelowOne = !isIncrease && (activeTarget.currentDurationHours - opt.hours < 1);
+                          final isDisabled = wouldBePast || wouldBeBelowOne;
+
+                          final priceFormatted = CurrencyFormatter.format(opt.price);
+                          final chipText = isIncrease
+                              ? '${opt.label} • $priceFormatted'
+                              : '${opt.label} • -$priceFormatted';
+
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(chipText),
+                              selected: isSel && !isDisabled,
+                              onSelected: isDisabled
+                                  ? null
+                                  : (_) => setModalState(() => selectedHours = opt.hours),
+                              selectedColor: AppColors.obsidian,
+                              disabledColor: AppColors.surfaceMuted,
+                              labelStyle: TextStyle(
+                                color: isSel && !isDisabled
+                                    ? Colors.white
+                                    : (isDisabled ? AppColors.textMuted : AppColors.textPrimary),
+                                fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Boundary Warning Banner
+                    if (isEndAtInPast) ...[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.dangerLight,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.danger),
+                        ),
+                        child: Row(
                           children: [
-                            const Text('Biaya Perpanjangan:', style: TextStyle(fontWeight: FontWeight.w600)),
-                            Text(
-                              CurrencyFormatter.format(fee),
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.obsidian),
+                            const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Pengurangan $selectedHours jam menghasilkan batas waktu di masa lalu (${newEndAt != null ? DateFormatter.formatFull(newEndAt) : ""}).',
+                                style: const TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.w600),
+                              ),
                             ),
                           ],
                         ),
-                        if (newEndAt != null) ...[
+                      ),
+                      const SizedBox(height: 10),
+                    ] else if (isBelowMinimumDuration) ...[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.dangerLight,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.danger),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Durasi sewa tidak dapat dikurangi hingga kurang dari 1 jam.',
+                                style: TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    // Financial & Deadline Preview Box
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                isIncrease ? 'Biaya Tambahan:' : 'Selisih Pengurangan Biaya:',
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                              ),
+                              Text(
+                                isIncrease
+                                    ? CurrencyFormatter.format(deltaFee.abs())
+                                    : '- ${CurrencyFormatter.format(deltaFee.abs())}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: isIncrease ? AppColors.obsidian : AppColors.success,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (newEndAt != null) ...[
+                            const SizedBox(height: 8),
+                            const Divider(height: 1, color: AppColors.borderSubtle),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Batas Waktu Pengembalian Baru:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                                Text(
+                                  DateFormatter.formatFull(newEndAt),
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.textPrimary),
+                                ),
+                              ],
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           const Divider(height: 1, color: AppColors.borderSubtle),
                           const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Batas Waktu Baru:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                              const Text('Estimasi Total Tagihan Baru:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                               Text(
-                                DateFormatter.formatFull(newEndAt),
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textPrimary),
+                                CurrencyFormatter.format(estimatedNewTotal),
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.obsidian),
                               ),
                             ],
                           ),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      final result = await Navigator.push<PaymentResult>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PaymentPage(
-                            paymentContext: PaymentContext.extension(
-                              bookingId: bookingId,
-                              bookingCode: bookingCode,
-                              customerName: customerName,
-                              deviceModel: deviceModel,
-                              additionalHours: selectedHours,
-                              extensionFee: fee,
-                            ),
-                          ),
-                        ),
-                      );
+                    const SizedBox(height: 14),
 
-                      if (result != null && result.isSuccess) {
-                        ref.invalidate(bookingsListProvider);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Perpanjangan sewa $selectedHours jam berhasil dibayar & diperbarui!'),
-                              backgroundColor: AppColors.success,
+                    // Overpayment / Refund Notice & PIN Required
+                    if (refundDue > 0) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warningLight,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.warning),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.payments_outlined, size: 18, color: AppColors.warning),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Pengembalian Dana (Refund): ${CurrencyFormatter.format(refundDue)}',
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.warning),
+                                  ),
+                                ),
+                              ],
                             ),
-                          );
-                        }
-                      }
-                    },
-                    child: const Text('Lanjut ke Pembayaran POS 💳'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      try {
-                        await ref.read(bookingRepositoryProvider).extendRental(bookingId, selectedHours);
-                        ref.invalidate(bookingsListProvider);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Sewa diperpanjang $selectedHours jam (tagihan dicatat).')),
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.danger),
-                          );
-                        }
-                      }
-                    },
-                    child: const Text(
-                      'Perpanjang Tanpa Bayar Langsung (Catat ke Tagihan)',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ),
-                ],
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Pelanggan telah membayar lebih dari total tagihan baru. Otorisasi PIN Manager diperlukan untuk mencatat pengeluaran kas (refund).',
+                              style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: pinController,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        onChanged: (_) => setModalState(() {}),
+                        decoration: InputDecoration(
+                          labelText: 'PIN Manager *',
+                          hintText: '6 digit PIN Manager',
+                          prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          counterText: '',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    // Reason Input (for decrease)
+                    if (!isIncrease) ...[
+                      TextField(
+                        controller: reasonController,
+                        decoration: InputDecoration(
+                          labelText: 'Alasan Pengurangan Durasi (Opsional)',
+                          hintText: 'mis. Pelanggan selesai lebih awal',
+                          prefixIcon: const Icon(Icons.notes_rounded, size: 20),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Action Buttons
+                    if (isIncrease) ...[
+                      ElevatedButton(
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                Navigator.pop(ctx);
+                                final result = await Navigator.push<PaymentResult>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PaymentPage(
+                                      paymentContext: PaymentContext.extension(
+                                        booking: item,
+                                        bookingId: bookingId,
+                                        bookingCode: bookingCode,
+                                        customerName: customerName,
+                                        deviceModel: activeTarget.shortName,
+                                        additionalHours: selectedHours,
+                                        extensionFee: fee,
+                                        extraPayload: activeTarget.itemId != null
+                                            ? {'booking_item_id': activeTarget.itemId}
+                                            : null,
+                                      ),
+                                    ),
+                                  ),
+                                );
+
+                                if (result != null && result.isSuccess) {
+                                  ref.invalidate(bookingsListProvider);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Perpanjangan sewa $selectedHours jam berhasil dibayar & diperbarui!'),
+                                        backgroundColor: AppColors.success,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        child: const Text('Proses pembayaran'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                setModalState(() => isSubmitting = true);
+                                try {
+                                  await ref.read(bookingRepositoryProvider).adjustDuration(
+                                    bookingId: bookingId,
+                                    bookingItemId: activeTarget.itemId,
+                                    direction: 'increase',
+                                    hoursDelta: selectedHours,
+                                    additionalFee: fee,
+                                  );
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  ref.invalidate(bookingsListProvider);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Sewa diperpanjang $selectedHours jam (tagihan dicatat).')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setModalState(() => isSubmitting = false);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.danger),
+                                    );
+                                  }
+                                }
+                              },
+                        child: isSubmitting
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text(
+                                'Perpanjang Tanpa Bayar Langsung (Catat ke Tagihan)',
+                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                      ),
+                    ] else ...[
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: canSubmitReduction ? AppColors.obsidian : AppColors.surfaceMuted,
+                        ),
+                        onPressed: (!canSubmitReduction || isSubmitting)
+                            ? null
+                            : () async {
+                                setModalState(() => isSubmitting = true);
+                                try {
+                                  await ref.read(bookingRepositoryProvider).adjustDuration(
+                                    bookingId: bookingId,
+                                    bookingItemId: activeTarget.itemId,
+                                    direction: 'decrease',
+                                    hoursDelta: selectedHours,
+                                    additionalFee: fee,
+                                    managerPin: refundDue > 0 ? pinController.text.trim() : null,
+                                    reason: reasonController.text.trim().isNotEmpty
+                                        ? reasonController.text.trim()
+                                        : null,
+                                  );
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  ref.invalidate(bookingsListProvider);
+                                  if (context.mounted) {
+                                    final refundText = refundDue > 0
+                                        ? ' Refund ${CurrencyFormatter.format(refundDue)} dicatat.'
+                                        : '';
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Durasi sewa berhasil dikurangi $selectedHours jam.$refundText'),
+                                        backgroundColor: AppColors.success,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setModalState(() => isSubmitting = false);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.danger),
+                                    );
+                                  }
+                                }
+                              },
+                        child: isSubmitting
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text('Konfirmasi Pengurangan Durasi'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             );
           },

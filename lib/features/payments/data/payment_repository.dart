@@ -62,14 +62,27 @@ class PaymentRepository {
         );
 
       case PaymentTransactionType.extension:
-        final data = await _bookingRepo.extendRental(
-          context.bookingId ?? 0,
-          context.additionalHours ?? 6,
-          fee: amountToPay,
-          paymentMethodId: paymentMethodId,
-          cashReceived: isCash ? cashReceived : amountToPay,
-          notes: notes,
-        );
+        final extra = context.extraPayload ?? {};
+        final bookingItemId = (extra['booking_item_id'] as num?)?.toInt();
+        final data = bookingItemId != null
+            ? await _bookingRepo.adjustDuration(
+                bookingId: context.bookingId ?? 0,
+                bookingItemId: bookingItemId,
+                direction: 'increase',
+                hoursDelta: context.additionalHours ?? 6,
+                additionalFee: amountToPay,
+                paymentMethodId: paymentMethodId,
+                cashReceived: isCash ? cashReceived : amountToPay,
+                notes: notes,
+              )
+            : await _bookingRepo.extendRental(
+                context.bookingId ?? 0,
+                context.additionalHours ?? 6,
+                fee: amountToPay,
+                paymentMethodId: paymentMethodId,
+                cashReceived: isCash ? cashReceived : amountToPay,
+                notes: notes,
+              );
 
         final payment = data['payment'] as Map?;
         final change = (payment?['cash_change'] != null)
@@ -78,8 +91,8 @@ class PaymentRepository {
 
         return PaymentResult(
           status: PaymentStatus.completed,
-          transactionCode: payment?['transaction_code'] ?? data['extension']?['id']?.toString(),
-          receiptNumber: data['receipt_number'] ?? payment?['receipt_number'],
+          transactionCode: payment?['transaction_code'] ?? data['adjustment']?['id']?.toString() ?? data['extension']?['id']?.toString(),
+          receiptNumber: payment?['receipt_number'] ?? data['receipt_number'],
           amountPaid: amountToPay,
           cashReceived: isCash ? cashReceived : amountToPay,
           cashChange: change,

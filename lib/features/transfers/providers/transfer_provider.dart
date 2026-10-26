@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../auth/providers/business_provider.dart';
 import '../data/transfer_repository.dart';
 
 final transferRepositoryProvider = Provider<TransferRepository>((ref) {
@@ -32,6 +33,7 @@ final selectedTransferStatusProvider = NotifierProvider<TransferStatusNotifier, 
 );
 
 final transfersListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  ref.watch(businessProvider.select((s) => s.activeBusinessId));
   final repo = ref.watch(transferRepositoryProvider);
   final direction = ref.watch(selectedTransferDirectionProvider);
   final status = ref.watch(selectedTransferStatusProvider);

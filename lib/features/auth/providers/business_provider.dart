@@ -170,16 +170,31 @@ class BusinessNotifier extends Notifier<BusinessState> {
     }
   }
 
-  Future<void> selectBusiness(Map<String, dynamic> business) async {
+  /// Atomically selects a business and branch context, persisting to local storage
+  /// and updating in-memory state in a single synchronous operation to avoid race conditions.
+  Future<void> selectContext({
+    required Map<String, dynamic> business,
+    Map<String, dynamic>? branch,
+    bool isConsolidated = false,
+  }) async {
     final bizId = business['id'] as int;
     final bizName = business['name'] as String;
     int? branchId;
     String? branchName;
 
-    final branches = business['branches'] as List<dynamic>?;
-    if (branches != null && branches.isNotEmpty) {
-      branchId = branches.first['id'] as int;
-      branchName = branches.first['name'] as String;
+    if (isConsolidated) {
+      branchId = null;
+      branchName = null;
+    } else if (branch != null) {
+      branchId = branch['id'] as int;
+      branchName = branch['name'] as String;
+    } else {
+      final branches = business['branches'] as List<dynamic>?;
+      final resolved = resolveAuthorizedBranch(branches, null);
+      if (resolved != null) {
+        branchId = resolved['id'] as int;
+        branchName = resolved['name'] as String;
+      }
     }
 
     await _repository.setActiveContext(
@@ -195,30 +210,32 @@ class BusinessNotifier extends Notifier<BusinessState> {
       activeBusinessName: bizName,
       activeBranchId: branchId,
       activeBranchName: branchName,
+      clearBranch: branchId == null,
       clearError: true,
     );
   }
 
-  Future<void> selectBranch(Map<String, dynamic>? branch) async {
-    final branchId = branch?['id'] as int?;
-    final branchName = branch?['name'] as String?;
+  Future<void> selectBusiness(
+    Map<String, dynamic> business, {
+    Map<String, dynamic>? branch,
+    bool isConsolidated = false,
+  }) =>
+      selectContext(
+        business: business,
+        branch: branch,
+        isConsolidated: isConsolidated,
+      );
 
-    if (state.activeBusinessId != null) {
-      await _repository.setActiveContext(
-        businessId: state.activeBusinessId!,
-        businessName: state.activeBusinessName ?? '',
-        branchId: branchId,
-        branchName: branchName,
+  Future<void> selectBranch(Map<String, dynamic>? branch) {
+    final current = state.currentBusiness;
+    if (current != null) {
+      return selectContext(
+        business: current,
+        branch: branch,
+        isConsolidated: branch == null && (current['role'] as String?) == 'owner',
       );
     }
-
-    if (!ref.mounted) return;
-    state = state.copyWith(
-      activeBranchId: branchId,
-      activeBranchName: branchName,
-      clearBranch: branchId == null,
-      clearError: true,
-    );
+    return Future.value();
   }
 
   Future<bool> registerNewBusiness({
@@ -238,7 +255,9 @@ class BusinessNotifier extends Notifier<BusinessState> {
 
       final list = await _repository.fetchBusinesses();
       if (!ref.mounted) return false;
-      await selectBusiness(newBiz);
+
+      final targetBiz = list.where((b) => b['id'] == newBiz['id']).firstOrNull ?? newBiz;
+      await selectContext(business: targetBiz);
 
       if (!ref.mounted) return false;
       state = state.copyWith(

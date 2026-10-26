@@ -277,6 +277,61 @@ class AuthRepository {
     );
   }
 
+  Future<List<dynamic>> fetchResignationRequests(int businessId, {String? status}) async {
+    final queryParams = <String, dynamic>{};
+    if (status != null && status.isNotEmpty) {
+      queryParams['status'] = status;
+    }
+    final response = await _client.dio.get(
+      ApiConstants.resignationRequests(businessId),
+      queryParameters: queryParams.isNotEmpty ? queryParams : null,
+    );
+    return response.data['data'] ?? [];
+  }
+
+  Future<Map<String, dynamic>> submitResignation(int businessId, {String? reason}) async {
+    final payload = <String, dynamic>{};
+    if (reason != null && reason.trim().isNotEmpty) {
+      payload['reason'] = reason.trim();
+    }
+    final response = await _client.dio.post(
+      ApiConstants.resignationRequests(businessId),
+      data: payload,
+    );
+    return response.data['data'] ?? {};
+  }
+
+  Future<Map<String, dynamic>> cancelResignation(int businessId, int requestId) async {
+    final response = await _client.dio.post(
+      ApiConstants.cancelResignation(businessId, requestId),
+    );
+    return response.data['data'] ?? {};
+  }
+
+  Future<Map<String, dynamic>> approveResignation(int businessId, int requestId, {String? decisionNotes}) async {
+    final payload = <String, dynamic>{};
+    if (decisionNotes != null && decisionNotes.trim().isNotEmpty) {
+      payload['decision_notes'] = decisionNotes.trim();
+    }
+    final response = await _client.dio.post(
+      ApiConstants.approveResignation(businessId, requestId),
+      data: payload,
+    );
+    return response.data['data'] ?? {};
+  }
+
+  Future<Map<String, dynamic>> rejectResignation(int businessId, int requestId, {String? decisionNotes}) async {
+    final payload = <String, dynamic>{};
+    if (decisionNotes != null && decisionNotes.trim().isNotEmpty) {
+      payload['decision_notes'] = decisionNotes.trim();
+    }
+    final response = await _client.dio.post(
+      ApiConstants.rejectResignation(businessId, requestId),
+      data: payload,
+    );
+    return response.data['data'] ?? {};
+  }
+
   Future<void> setActiveContext({required int businessId, required String businessName, int? branchId, String? branchName}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('active_business_id', businessId);

@@ -97,23 +97,24 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Numpad is visible by default in cash mode
+      // Numpad is closed by default in cash mode
       expect(find.text('KEYPAD NUMERIK POS'), findsOneWidget);
+      expect(find.text('Buka Keypad'), findsOneWidget);
+      expect(find.byType(PosNumpad), findsNothing);
+
+      // Toggle open
+      await tester.tap(find.text('Buka Keypad'));
+      await tester.pumpAndSettle();
+
       expect(find.text('Sembunyikan'), findsOneWidget);
       expect(find.byType(PosNumpad), findsOneWidget);
 
-      // Toggle off
+      // Toggle back closed
       await tester.tap(find.text('Sembunyikan'));
       await tester.pumpAndSettle();
 
       expect(find.text('Buka Keypad'), findsOneWidget);
       expect(find.byType(PosNumpad), findsNothing);
-
-      // Toggle back on
-      await tester.tap(find.text('Buka Keypad'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(PosNumpad), findsOneWidget);
     });
   });
 

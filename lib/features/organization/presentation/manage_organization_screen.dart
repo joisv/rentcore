@@ -412,21 +412,29 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
       onRefresh: () => ref.read(organizationProvider.notifier).refresh(),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-        itemCount: state.members.length,
+        itemCount: state.members.length + (state.isOwnerOrAdmin && state.pendingResignations.isNotEmpty ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final member = state.members[index] as Map<String, dynamic>;
+          if (state.isOwnerOrAdmin && state.pendingResignations.isNotEmpty && index == 0) {
+            return _buildPendingResignationBanner(context, state);
+          }
+          final memberIndex = (state.isOwnerOrAdmin && state.pendingResignations.isNotEmpty) ? index - 1 : index;
+          final member = state.members[memberIndex] as Map<String, dynamic>;
           final user = (member['user'] as Map<String, dynamic>?) ?? {};
           final role = (member['role'] ?? 'staff').toString();
           final name = user['name'] ?? 'Pengguna';
           final email = user['email'] ?? '';
           final branchMembers = (member['branch_members'] as List<dynamic>?) ?? [];
+          final pendingResignation = state.pendingResignations.where((r) => r['user_id'] == user['id']).firstOrNull as Map<String, dynamic>?;
 
           return Container(
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(
+                color: pendingResignation != null ? const Color(0xFFF59E0B) : AppColors.border,
+                width: pendingResignation != null ? 1.5 : 1,
+              ),
             ),
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -436,7 +444,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: AppColors.obsidian,
+                      backgroundColor: pendingResignation != null ? const Color(0xFFD97706) : AppColors.obsidian,
                       child: Text(
                         (name.isNotEmpty ? name[0] : 'U').toUpperCase(),
                         style: const TextStyle(
@@ -468,13 +476,37 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                       ),
                     ),
                     _buildRoleBadge(role),
+                    if (pendingResignation != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFFF59E0B)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.hourglass_top_rounded, size: 10, color: Color(0xFFB45309)),
+                            SizedBox(width: 3),
+                            Text(
+                              'Resign',
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (state.isOwnerOrAdmin && role.toLowerCase() != 'owner') ...[
                       const SizedBox(width: 4),
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondary),
                         padding: EdgeInsets.zero,
                         onSelected: (val) {
-                          if (val == 'reassign') {
+                          if (val == 'review_resignation') {
+                            _showReviewResignationDialog(context, pendingResignation!, member);
+                          } else if (val == 'reassign') {
                             _showReassignBranchDialog(context, member, state.branches);
                           } else if (val == 'pin') {
                             _showSetManagerPinDialog(context, member);
@@ -483,6 +515,17 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                           }
                         },
                         itemBuilder: (ctx) => [
+                          if (pendingResignation != null)
+                            const PopupMenuItem(
+                              value: 'review_resignation',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.assignment_ind_outlined, size: 18, color: Color(0xFFD97706)),
+                                  SizedBox(width: 8),
+                                  Text('Tinjau Resign', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
+                                ],
+                              ),
+                            ),
                           const PopupMenuItem(
                             value: 'reassign',
                             child: Row(
@@ -595,6 +638,244 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     }).where((n) => n.isNotEmpty).toList();
 
     return 'Ditugaskan di: ${branchNames.join(', ')}';
+  }
+
+  Widget _buildPendingResignationBanner(BuildContext context, OrganizationState state) {
+    final count = state.pendingResignations.length;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF59E0B)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.notification_important_rounded, color: Color(0xFFB45309), size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$count Permohonan Resign Menunggu Peninjauan',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF92400E)),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Tinjau dan proses permohonan pengunduran diri staf.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final first = state.pendingResignations.first as Map<String, dynamic>;
+              final member = state.members.where((m) => m['id'] == first['business_member_id']).firstOrNull as Map<String, dynamic>?;
+              _showReviewResignationDialog(context, first, member ?? {});
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD97706),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: const Text('Tinjau', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReviewResignationDialog(
+    BuildContext context,
+    Map<String, dynamic> resignation,
+    Map<String, dynamic> member,
+  ) {
+    final user = (member['user'] as Map<String, dynamic>?) ?? (resignation['user'] as Map<String, dynamic>?) ?? {};
+    final name = user['name'] ?? 'Staf';
+    final email = user['email'] ?? '';
+    final reason = resignation['reason'] ?? 'Tidak ada alasan dicantumkan.';
+    final decisionNotesController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.assignment_late_outlined, color: Color(0xFFB45309), size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Tinjau Permohonan Resign',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text(email, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    const SizedBox(height: 8),
+                    const Text('Alasan Pengunduran Diri:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text('"$reason"', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: decisionNotesController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Catatan Keputusan (Opsional)',
+                  hintText: 'Pesan untuk staf...',
+                  hintStyle: const TextStyle(fontSize: 12),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Menyetujui resign akan mencabut seluruh akses cabang staf ini secara permanen. '
+                'Riwayat transaksi terdahulu tetap tersimpan.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.35),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+          ),
+          OutlinedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await ref.read(organizationProvider.notifier).reviewResignation(
+                    resignation['id'] as int,
+                    approve: false,
+                    decisionNotes: decisionNotesController.text.trim(),
+                  );
+              if (context.mounted) {
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Permohonan resign ditolak.'), backgroundColor: AppColors.obsidian),
+                  );
+                } else {
+                  final err = ref.read(organizationProvider).error ?? 'Gagal memproses permohonan.';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(err), backgroundColor: AppColors.danger),
+                  );
+                }
+              }
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.danger,
+              side: const BorderSide(color: AppColors.danger),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Tolak'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmApproveResignation(context, resignation['id'] as int, name, decisionNotesController.text.trim());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: const Text('Setujui Resign', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmApproveResignation(BuildContext context, int requestId, String staffName, String decisionNotes) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
+            SizedBox(width: 8),
+            Text('Konfirmasi Persetujuan', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menyetujui pengunduran diri $staffName? '
+          'Akses staf ke seluruh cabang rental akan langsung dicabut seketika.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await ref.read(organizationProvider.notifier).reviewResignation(
+                    requestId,
+                    approve: true,
+                    decisionNotes: decisionNotes,
+                  );
+              if (context.mounted) {
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Pengunduran diri $staffName telah disetujui.'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                } else {
+                  final err = ref.read(organizationProvider).error ?? 'Gagal menyetujui pengunduran diri.';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(err), backgroundColor: AppColors.danger),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: const Text('Ya, Setujui & Cabut Akses', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showReassignBranchDialog(
