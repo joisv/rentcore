@@ -205,14 +205,17 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Akun iCloud / Apple ID / Google telah logout & Find My dinonaktifkan',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    Material(
+                      type: MaterialType.transparency,
+                      child: SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Akun iCloud / Apple ID / Google telah logout & Find My dinonaktifkan',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        value: _icloudRemoved,
+                        onChanged: (val) => setState(() => _icloudRemoved = val),
                       ),
-                      value: _icloudRemoved,
-                      onChanged: (val) => setState(() => _icloudRemoved = val),
                     ),
                   ],
                 ),
@@ -277,23 +280,30 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                     }).toList(),
                   ),
                   const SizedBox(height: 10),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Layar sentuh & kamera berfungsi normal', style: TextStyle(fontSize: 13)),
-                    value: _screenOk,
-                    onChanged: (v) => setState(() => _screenOk = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Kabel charger dikembalikan', style: TextStyle(fontSize: 13)),
-                    value: _cableReturned,
-                    onChanged: (v) => setState(() => _cableReturned = v ?? false),
-                  ),
-                    CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Adaptor charger dikembalikan', style: TextStyle(fontSize: 13)),
-                    value: _adapterReturned,
-                    onChanged: (v) => setState(() => _adapterReturned = v ?? false),
+                  Material(
+                    type: MaterialType.transparency,
+                    child: Column(
+                      children: [
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Layar sentuh & kamera berfungsi normal', style: TextStyle(fontSize: 13)),
+                          value: _screenOk,
+                          onChanged: (v) => setState(() => _screenOk = v ?? false),
+                        ),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Kabel charger dikembalikan', style: TextStyle(fontSize: 13)),
+                          value: _cableReturned,
+                          onChanged: (v) => setState(() => _cableReturned = v ?? false),
+                        ),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Adaptor charger dikembalikan', style: TextStyle(fontSize: 13)),
+                          value: _adapterReturned,
+                          onChanged: (v) => setState(() => _adapterReturned = v ?? false),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -398,22 +408,65 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       return;
     }
 
+    final payload = {
+      'returned_at': DateTime.now().toIso8601String(),
+      'condition_grade': _conditionGrade,
+      'checklist_results': {
+        if (_requiresFrpCheck) 'icloud_removed': _icloudRemoved,
+        'screen_ok': _screenOk,
+        'camera_ok': _cameraOk,
+      },
+      'accessories_returned': {
+        'cable': _cableReturned,
+        'adapter': _adapterReturned,
+      },
+    };
+
+    if (penaltyAmount > 0 && _payPenaltyNow) {
+      // 1. Counter settlement: Launch Shared Payment Page FIRST to settle penalty atomically.
+      final result = await Navigator.push<PaymentResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentPage(
+            paymentContext: PaymentContext.penalty(
+              booking: widget.booking,
+              penaltyDue: penaltyAmount,
+              extraPayload: {
+                'is_return_workflow': true,
+                'return_payload': payload,
+              },
+            ),
+          ),
+        ),
+      );
+
+      // If user aborted/closed with X or payment failed, DO NOT mark as returned!
+      if (result == null || !result.isSuccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pembayaran denda dibatalkan. Pengembalian unit belum diproses.'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Succeeded: Unit returned and penalty paid atomically in one transaction
+      ref.invalidate(bookingsListProvider);
+      ref.invalidate(closingSummaryProvider);
+
+      if (mounted) {
+        _showReturnSuccessDialog(penaltyAmount, true);
+      }
+      return;
+    }
+
+    // 2. On-time return (penaltyAmount <= 0) OR explicit cashier deferral (_payPenaltyNow == false)
     setState(() => _isSubmitting = true);
 
     try {
-      final payload = {
-        'condition_grade': _conditionGrade,
-        'checklist_results': {
-          if (_requiresFrpCheck) 'icloud_removed': _icloudRemoved,
-          'screen_ok': _screenOk,
-          'camera_ok': _cameraOk,
-        },
-        'accessories_returned': {
-          'cable': _cableReturned,
-          'adapter': _adapterReturned,
-        },
-      };
-
       final inspection = await ref.read(bookingRepositoryProvider).processReturn(widget.booking['id'], payload);
       ref.invalidate(bookingsListProvider);
       ref.invalidate(closingSummaryProvider);
@@ -423,35 +476,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       if (serverPenalty != null) {
         penaltyAmount = CurrencyFormatter.parse(serverPenalty);
       }
-      final paymentBooking = Map<String, dynamic>.from(widget.booking)
-        ..['return_inspection'] = inspection;
-
-      if (!mounted) return;
-
-      bool penaltyPaid = false;
-      if (penaltyAmount > 0 && _payPenaltyNow) {
-        // Launch Shared Payment Page for Authoritative Penalty Settlement
-        final result = await Navigator.push<PaymentResult>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PaymentPage(
-              paymentContext: PaymentContext.penalty(
-                booking: paymentBooking,
-                penaltyDue: penaltyAmount,
-              ),
-            ),
-          ),
-        );
-
-        if (result != null && result.isSuccess) {
-          penaltyPaid = true;
-          ref.invalidate(bookingsListProvider);
-          ref.invalidate(closingSummaryProvider);
-        }
-      }
 
       if (mounted) {
-        _showReturnSuccessDialog(penaltyAmount, penaltyPaid);
+        _showReturnSuccessDialog(penaltyAmount, false);
       }
     } catch (e) {
       if (mounted) {

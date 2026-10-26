@@ -103,6 +103,45 @@ class PaymentRepository {
 
       case PaymentTransactionType.penalty:
       case PaymentTransactionType.settlement:
+        if (context.transactionType == PaymentTransactionType.penalty &&
+            context.extraPayload?['is_return_workflow'] == true) {
+          final returnPayload = Map<String, dynamic>.from(context.extraPayload?['return_payload'] ?? {});
+          returnPayload['penalty_payment_method_id'] = paymentMethodId;
+          returnPayload['cash_received'] = isCash ? cashReceived : amountToPay;
+          if (notes != null && notes.isNotEmpty) {
+            returnPayload['staff_notes'] = notes;
+          }
+
+          final data = await _bookingRepo.processReturn(
+            context.bookingId ?? 0,
+            returnPayload,
+          );
+
+          final booking = data['booking'] as Map?;
+          final payments = (booking?['payments'] as List?) ?? [];
+          Map? latestPenaltyPayment;
+          for (final p in payments.reversed) {
+            if (p is Map && p['type']?.toString().toLowerCase() == 'penalty') {
+              latestPenaltyPayment = p;
+              break;
+            }
+          }
+
+          final change = isCash ? (cashReceived - amountToPay).clamp(0.0, double.infinity) : 0.0;
+
+          return PaymentResult(
+            status: PaymentStatus.completed,
+            transactionCode: latestPenaltyPayment?['transaction_code'] ?? data['id']?.toString(),
+            receiptNumber: latestPenaltyPayment?['receipt_number'],
+            amountPaid: amountToPay,
+            cashReceived: isCash ? cashReceived : amountToPay,
+            cashChange: change,
+            paymentMethodCode: paymentMethodCode,
+            paymentMethodName: paymentMethodName,
+            responseData: data,
+          );
+        }
+
         final data = await _cashierRepo.processPayment(
           bookingId: context.bookingId ?? 0,
           paymentMethodId: paymentMethodId,

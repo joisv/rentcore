@@ -130,7 +130,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
               IconButton(
                 icon: const Icon(Icons.close_rounded),
                 onPressed: () {
-                  Navigator.pop(context, const PaymentResult(status: PaymentStatus.cancelled));
+                  Navigator.pop(
+                    context,
+                    _completedResult ?? const PaymentResult(status: PaymentStatus.cancelled),
+                  );
                 },
               ),
             ],
@@ -516,31 +519,51 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         : content;
 
     if (widget.isModal) {
-      return Container(
-        decoration: const BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      return PopScope<PaymentResult>(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          Navigator.pop(
+            context,
+            _completedResult ?? const PaymentResult(status: PaymentStatus.cancelled),
+          );
+        },
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: contentBody,
         ),
-        child: contentBody,
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(ctx.transactionTypeTitle),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          tooltip: _completedResult != null ? 'Tutup' : 'Batalkan Pembayaran',
-          onPressed: () {
-            Navigator.pop(
-              context,
-              _completedResult ?? const PaymentResult(status: PaymentStatus.cancelled),
-            );
-          },
+    return PopScope<PaymentResult>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pop(
+          context,
+          _completedResult ?? const PaymentResult(status: PaymentStatus.cancelled),
+        );
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(ctx.transactionTypeTitle),
+          leading: IconButton(
+            icon: const Icon(Icons.close_rounded),
+            tooltip: _completedResult != null ? 'Tutup' : 'Batalkan Pembayaran',
+            onPressed: () {
+              Navigator.pop(
+                context,
+                _completedResult ?? const PaymentResult(status: PaymentStatus.cancelled),
+              );
+            },
+          ),
         ),
+        body: contentBody,
       ),
-      body: contentBody,
     );
   }
 
