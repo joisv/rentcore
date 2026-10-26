@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../models/thermal_printer_models.dart';
@@ -107,6 +106,11 @@ class ThermalPrinterService {
     required int totalTransactions,
     required double totalRevenue,
     required Map<String, double> paymentBreakdown,
+    double? openingCashFloat,
+    double? netCashRevenue,
+    double? cashDrawerExpenses,
+    double? expectedCashInDrawer,
+    String? shiftNumber,
   }) {
     final builder = BytesBuilder();
     builder.add(cmdInit);
@@ -117,6 +121,9 @@ class ThermalPrinterService {
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
     builder.add(utf8.encode('$branchName\n'));
+    if (shiftNumber != null && shiftNumber.isNotEmpty) {
+      builder.add(utf8.encode('Shift: $shiftNumber\n'));
+    }
     builder.add(utf8.encode('================================\n'));
 
     builder.add(cmdAlignLeft);
@@ -135,6 +142,27 @@ class ThermalPrinterService {
       final line = _formatTwoColumn(method, 'Rp ${_formatNumber(amount)}', 32);
       builder.add(utf8.encode('$line\n'));
     });
+
+    if (expectedCashInDrawer != null) {
+      builder.add(utf8.encode('--------------------------------\n'));
+      builder.add(cmdBoldOn);
+      builder.add(utf8.encode('REKONSILIASI KAS LACI:\n'));
+      builder.add(cmdBoldOff);
+      if (openingCashFloat != null && openingCashFloat > 0) {
+        builder.add(utf8.encode('${_formatTwoColumn("Modal Awal Laci", "Rp ${_formatNumber(openingCashFloat)}", 32)}\n'));
+      }
+      if (netCashRevenue != null) {
+        builder.add(utf8.encode('${_formatTwoColumn("Kas Masuk Bersih", "Rp ${_formatNumber(netCashRevenue)}", 32)}\n'));
+      }
+      if (cashDrawerExpenses != null && cashDrawerExpenses > 0) {
+        builder.add(utf8.encode('${_formatTwoColumn("Beban Kas Laci", "-Rp ${_formatNumber(cashDrawerExpenses)}", 32)}\n'));
+      }
+      builder.add(utf8.encode('--------------------------------\n'));
+      builder.add(cmdBoldOn);
+      builder.add(utf8.encode('${_formatTwoColumn("FISIK KAS LACI", "Rp ${_formatNumber(expectedCashInDrawer)}", 32)}\n'));
+      builder.add(cmdBoldOff);
+    }
+
     builder.add(utf8.encode('================================\n'));
 
     builder.add(cmdAlignCenter);

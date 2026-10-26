@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../auth/providers/business_provider.dart';
+import '../../bookings/presentation/bookings_screen.dart';
+import '../../bookings/providers/booking_provider.dart';
+import '../../inventory/presentation/inventory_screen.dart';
 import '../../organization/presentation/manage_organization_screen.dart';
 import '../../transfers/presentation/transfers_screen.dart';
-import '../../bookings/presentation/bookings_screen.dart';
 import '../models/notification_item.dart';
 import '../providers/notification_provider.dart';
 
@@ -277,7 +279,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
 
   Widget _buildNotificationCard(NotificationItem item) {
     final isUnread = !item.isRead;
-    final categoryDetails = _getCategoryDetails(item.category);
+    final categoryDetails = _getCategoryDetails(item.category, item.type);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -430,7 +432,20 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     );
   }
 
-  Map<String, dynamic> _getCategoryDetails(String category) {
+  Map<String, dynamic> _getCategoryDetails(String category, [String? type]) {
+    if (type == 'rental.overdue') {
+      return {
+        'icon': Icons.alarm_on_rounded,
+        'color': const Color(0xFFE11D48), // Rose Red
+      };
+    }
+    if (type == 'inventory.low_stock') {
+      return {
+        'icon': Icons.warning_amber_rounded,
+        'color': const Color(0xFFD97706), // Amber
+      };
+    }
+
     switch (category) {
       case 'transfer':
         return {
@@ -452,6 +467,11 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
           'icon': Icons.point_of_sale_rounded,
           'color': const Color(0xFF059669), // Emerald
         };
+      case 'inventory':
+        return {
+          'icon': Icons.inventory_2_outlined,
+          'color': const Color(0xFF0D9488), // Teal
+        };
       default:
         return {
           'icon': Icons.notifications_outlined,
@@ -461,22 +481,51 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   }
 
   bool _hasAction(NotificationItem item) {
-    return item.actionRoute != null || item.category == 'transfer' || item.category == 'membership' || item.category == 'rental';
+    return item.actionRoute != null ||
+        item.type == 'rental.overdue' ||
+        item.type == 'inventory.low_stock' ||
+        item.category == 'transfer' ||
+        item.category == 'membership' ||
+        item.category == 'rental' ||
+        item.category == 'inventory';
   }
 
   String _getActionLabel(NotificationItem item) {
-    if (item.category == 'transfer') {
+    if (item.type == 'rental.overdue') {
+      return 'Proses Pengembalian / Antrean';
+    } else if (item.type == 'inventory.low_stock') {
+      return 'Cek Stok Unit Siap';
+    } else if (item.category == 'transfer') {
       return 'Lihat Mutasi Unit';
     } else if (item.category == 'membership') {
       return 'Tinjau Organisasi';
     } else if (item.category == 'rental') {
       return 'Lihat Antrean Sewa';
+    } else if (item.category == 'inventory') {
+      return 'Lihat Inventaris Unit';
     }
     return 'Buka Detail';
   }
 
   void _handleAction(NotificationItem item) {
-    if (item.category == 'transfer') {
+    if (item.type == 'rental.overdue' || item.category == 'rental' || item.actionRoute == '/bookings') {
+      final bookingCode = item.actionPayload?['booking_code']?.toString();
+      if (bookingCode != null && bookingCode.isNotEmpty) {
+        ref.read(bookingFilterStatusProvider.notifier).setFilter('all');
+        ref.read(bookingSearchQueryProvider.notifier).setQuery(bookingCode);
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const BookingsScreen()),
+      );
+    } else if (item.type == 'inventory.low_stock' || item.category == 'inventory' || item.actionRoute == '/inventory') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const InventoryScreen(initialStatusFilter: 'ready'),
+        ),
+      );
+    } else if (item.category == 'transfer') {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const TransfersScreen()),
@@ -494,11 +543,6 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
           ),
         );
       }
-    } else if (item.category == 'rental') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const BookingsScreen()),
-      );
     }
   }
 }

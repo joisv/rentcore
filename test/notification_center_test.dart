@@ -194,6 +194,67 @@ void main() {
       expect(fakeNotifier.state.unreadCount, 0);
     });
 
+    testWidgets('Renders rental overdue and inventory low stock notifications with specialized action buttons', (tester) async {
+      final now = DateTime.now();
+      final overdueItems = [
+        NotificationItem(
+          id: 301,
+          businessId: 1,
+          category: 'rental',
+          type: 'rental.overdue',
+          title: 'Unit Sewa Overdue (2 Jam)',
+          body: 'Booking BKG-20261026-001 oleh John Doe telah melewati batas waktu.',
+          actionRoute: '/bookings',
+          actionPayload: {'booking_code': 'BKG-20261026-001', 'overdue_hours': 2},
+          readAt: null,
+          createdAt: now.subtract(const Duration(minutes: 5)),
+        ),
+        NotificationItem(
+          id: 302,
+          businessId: 1,
+          category: 'system',
+          type: 'inventory.low_stock',
+          title: 'Stok Siap Sewa Menipis (Cabang Utama)',
+          body: 'Cabang Utama saat ini hanya memiliki 0 unit siap sewa.',
+          actionRoute: '/inventory',
+          actionPayload: {'branch_id': 1, 'ready_count': 0},
+          readAt: null,
+          createdAt: now.subtract(const Duration(minutes: 15)),
+        ),
+      ];
+
+      final fakeNotifier = _FakeNotificationNotifier(
+        NotificationState(
+          notifications: overdueItems,
+          unreadCount: 2,
+          isLoading: false,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            notificationProvider.overrideWith(() => fakeNotifier),
+          ],
+          child: const MaterialApp(
+            home: NotificationCenterScreen(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Check overdue notification card
+      expect(find.text('Unit Sewa Overdue (2 Jam)'), findsOneWidget);
+      expect(find.text('Proses Pengembalian / Antrean'), findsOneWidget);
+      expect(find.byIcon(Icons.alarm_on_rounded), findsOneWidget);
+
+      // Check low stock notification card
+      expect(find.text('Stok Siap Sewa Menipis (Cabang Utama)'), findsOneWidget);
+      expect(find.text('Cek Stok Unit Siap'), findsOneWidget);
+      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+    });
+
     testWidgets('Notification Bell Icon with badge counter renders properly on HomeScreen header', (tester) async {
       final fakeNotifier = _FakeNotificationNotifier(
         const NotificationState(

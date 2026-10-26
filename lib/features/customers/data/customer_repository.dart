@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
+import '../../../core/models/paginated_result.dart';
 import '../../../core/network/api_client.dart';
 
 class CustomerRepository {
@@ -30,7 +31,7 @@ class CustomerRepository {
     try {
       final params = <String, dynamic>{};
       if (query != null && query.isNotEmpty) params['search'] = query;
-      if (isBlacklisted != null) params['is_blacklisted'] = isBlacklisted;
+      if (isBlacklisted != null) params['is_blacklisted'] = isBlacklisted ? 1 : 0;
 
       final response = await _dio.get(
         ApiConstants.customers,
@@ -46,6 +47,85 @@ class CustomerRepository {
       throw Exception(e.error ?? 'Gagal mengambil daftar pelanggan.');
     } catch (e) {
       throw Exception('Gagal mengambil daftar pelanggan: $e');
+    }
+  }
+
+  /// Paginated customer retrieval for infinite scrolling directory.
+  Future<PaginatedResult<Map<String, dynamic>>> fetchCustomersPaginated({
+    int page = 1,
+    String? search,
+    bool? isBlacklisted,
+  }) async {
+    try {
+      final params = <String, dynamic>{'page': page};
+      if (search != null && search.isNotEmpty) params['search'] = search;
+      if (isBlacklisted != null) params['is_blacklisted'] = isBlacklisted ? 1 : 0;
+
+      final response = await _dio.get(
+        ApiConstants.customers,
+        queryParameters: params,
+      );
+
+      if (response.data['success'] == true && response.data['data'] != null) {
+        final data = response.data['data'];
+        final items = (data['data'] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+
+        return PaginatedResult<Map<String, dynamic>>(
+          items: items,
+          currentPage: data['current_page'] ?? page,
+          lastPage: data['last_page'] ?? page,
+          total: data['total'] ?? items.length,
+          hasMore: (data['current_page'] ?? page) < (data['last_page'] ?? page),
+        );
+      }
+      return PaginatedResult.empty();
+    } on DioException catch (e) {
+      throw Exception(e.error ?? 'Gagal mengambil data pelanggan.');
+    } catch (e) {
+      throw Exception('Gagal mengambil data pelanggan: $e');
+    }
+  }
+
+  /// Register new customer.
+  Future<Map<String, dynamic>> createCustomer({
+    required String name,
+    required String phone,
+    String? email,
+    String? address,
+    String? identityNumber,
+    String? identityType,
+    String? identityPhotoBase64,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'name': name,
+        'phone': phone,
+      };
+      if (email != null && email.isNotEmpty) payload['email'] = email;
+      if (address != null && address.isNotEmpty) payload['address'] = address;
+      if (identityNumber != null && identityNumber.isNotEmpty) {
+        payload['identity_number'] = identityNumber;
+        payload['identity_type'] = identityType ?? 'KTP';
+      }
+      if (identityPhotoBase64 != null && identityPhotoBase64.isNotEmpty) {
+        payload['identity_photo'] = identityPhotoBase64;
+      }
+
+      final response = await _dio.post(
+        ApiConstants.customers,
+        data: payload,
+      );
+
+      if (response.data['success'] == true) {
+        return Map<String, dynamic>.from(response.data['data']);
+      }
+      throw Exception(response.data['message'] ?? 'Gagal mendaftarkan pelanggan.');
+    } on DioException catch (e) {
+      throw Exception(e.error ?? 'Gagal mendaftarkan pelanggan.');
+    } catch (e) {
+      throw Exception('Gagal mendaftarkan pelanggan: $e');
     }
   }
 
@@ -82,14 +162,18 @@ class CustomerRepository {
     required int customerId,
     required bool isBlacklisted,
     String? reason,
+    String? managerPin,
   }) async {
     try {
+      final payload = <String, dynamic>{
+        'is_blacklisted': isBlacklisted,
+      };
+      if (reason != null && reason.isNotEmpty) payload['blacklist_reason'] = reason;
+      if (managerPin != null && managerPin.isNotEmpty) payload['manager_pin'] = managerPin;
+
       final response = await _dio.put(
         ApiConstants.toggleCustomerBlacklist(customerId),
-        data: {
-          'is_blacklisted': isBlacklisted,
-          'blacklist_reason': reason,
-        },
+        data: payload,
       );
 
       if (response.data['success'] == true) {
@@ -97,9 +181,9 @@ class CustomerRepository {
       }
       throw Exception(response.data['message'] ?? 'Gagal memperbarui status blacklist.');
     } on DioException catch (e) {
-      throw Exception(e.error ?? 'Gagal memperbarui blacklist.');
+      throw Exception(e.error ?? 'Gagal memperbarui status blacklist.');
     } catch (e) {
-      throw Exception('Gagal memperbarui blacklist: $e');
+      throw Exception('Gagal memperbarui status blacklist: $e');
     }
   }
 }

@@ -316,6 +316,37 @@ void main() {
       expect(stdBytes, isNotEmpty);
       expect(echoBytes, isNotEmpty);
     });
+
+    test('buildClosingShiftSlipBytes encodes shift and cash drawer reconciliation accurately', () {
+      final bytes = service.buildClosingShiftSlipBytes(
+        branchName: 'Cabang Utama Mataram',
+        cashierName: 'Budi Kasir',
+        date: '26 Okt 2026 20:00',
+        totalTransactions: 15,
+        totalRevenue: 2500000,
+        paymentBreakdown: {
+          'Tunai': 1500000,
+          'QRIS': 1000000,
+        },
+        openingCashFloat: 500000,
+        netCashRevenue: 1500000,
+        cashDrawerExpenses: 100000,
+        expectedCashInDrawer: 1900000,
+        shiftNumber: 'SHIFT-001',
+      );
+
+      final rawString = utf8.decode(bytes, allowMalformed: true);
+      expect(rawString, contains('RENTCORE CLOSING SHIFT'));
+      expect(rawString, contains('Cabang Utama Mataram'));
+      expect(rawString, contains('Shift: SHIFT-001'));
+      expect(rawString, contains('Budi Kasir'));
+      expect(rawString, contains('Total Transaksi : 15'));
+      expect(rawString, contains('REKONSILIASI KAS LACI'));
+      expect(rawString, contains('Modal Awal Laci'));
+      expect(rawString, contains('Kas Masuk Bersih'));
+      expect(rawString, contains('Beban Kas Laci'));
+      expect(rawString, contains('FISIK KAS LACI'));
+    });
   });
 }
 

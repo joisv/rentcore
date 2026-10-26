@@ -6,6 +6,7 @@ import '../../auth/presentation/user_profile_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/presentation/cashier_screen.dart';
+import '../../customers/presentation/customer_directory_screen.dart';
 import '../../printer/presentation/printer_settings_screen.dart';
 import '../../transfers/presentation/transfers_screen.dart';
 import '../../vouchers/presentation/voucher_screen.dart';
@@ -266,6 +267,18 @@ class StoreSettingsScreen extends ConsumerWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const CashierScreen()),
+                );
+              },
+            ),
+            _buildDivider(),
+            _buildListTile(
+              icon: Icons.people_alt_outlined,
+              title: 'Direktori Pelanggan & Blacklist',
+              subtitle: 'Pencarian penyewa, verifikasi KTP, dan status risiko',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CustomerDirectoryScreen()),
                 );
               },
             ),

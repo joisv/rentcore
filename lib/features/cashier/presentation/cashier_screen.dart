@@ -10,7 +10,6 @@ import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/direct_rental_screen.dart';
-import '../../printer/presentation/printer_settings_screen.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
@@ -1731,6 +1730,16 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
     }
 
     final dateStr = DateTime.now().toLocal().toString().substring(0, 16);
+    final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
+    final activeShift = recon['active_shift'] is Map ? (recon['active_shift'] as Map) : null;
+    final shiftNum = activeShift?['shift_number']?.toString();
+    final openingFloat = CurrencyFormatter.parse(recon['opening_cash_float']);
+    final netCash = CurrencyFormatter.parse(recon['net_cash_revenue']);
+    final cashExpenses = CurrencyFormatter.parse(recon['cash_drawer_expenses']);
+    final expectedDrawerCash = recon.containsKey('expected_cash_in_drawer')
+        ? CurrencyFormatter.parse(recon['expected_cash_in_drawer'])
+        : null;
+
     final printerService = ThermalPrinterService();
     final escposBytes = printerService.buildClosingShiftSlipBytes(
       branchName: branchName,
@@ -1739,6 +1748,11 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
       totalTransactions: totalTx,
       totalRevenue: totalRev,
       paymentBreakdown: breakdownMap,
+      openingCashFloat: openingFloat > 0 ? openingFloat : null,
+      netCashRevenue: netCash,
+      cashDrawerExpenses: cashExpenses > 0 ? cashExpenses : null,
+      expectedCashInDrawer: expectedDrawerCash,
+      shiftNumber: shiftNum,
     );
 
     showDialog(
@@ -1750,6 +1764,8 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
         content: Column(
           children: [
             const Text('LAPORAN CLOSING SHIFT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            if (shiftNum != null)
+              Text('Shift: #$shiftNum', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.info)),
             Text('Kasir: $cashierName', style: const TextStyle(fontSize: 11)),
             Text('Waktu: $dateStr', style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
             const Divider(height: 16),
@@ -1768,6 +1784,45 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                 Text(CurrencyFormatter.format(totalRev), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ],
             ),
+            if (expectedDrawerCash != null) ...[
+              const Divider(height: 16),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('REKONSILIASI KAS LACI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: AppColors.textMuted)),
+              ),
+              const SizedBox(height: 4),
+              if (openingFloat > 0)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Modal Awal Laci:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    Text(CurrencyFormatter.format(openingFloat), style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Kas Masuk Bersih:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Text(CurrencyFormatter.format(netCash), style: const TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              if (cashExpenses > 0)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Beban Kas Laci:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    Text('-${CurrencyFormatter.format(cashExpenses)}', style: const TextStyle(fontSize: 11, color: AppColors.danger)),
+                  ],
+                ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('FISIK KAS LACI:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  Text(CurrencyFormatter.format(expectedDrawerCash), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.obsidian)),
+                ],
+              ),
+            ],
           ],
         ),
       ),
