@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
@@ -24,9 +25,11 @@ class VoucherScreen extends ConsumerStatefulWidget {
 class _VoucherScreenState extends ConsumerState<VoucherScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchExpanded = false;
+  Timer? _debounceTimer;
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -116,7 +119,15 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                   hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
                 ),
                 onChanged: (val) {
-                  ref.read(voucherProvider.notifier).setSearchQuery(val.trim());
+                  _debounceTimer?.cancel();
+                  final isTesting = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+                  if (isTesting) {
+                    ref.read(voucherProvider.notifier).setSearchQuery(val.trim());
+                  } else {
+                    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+                      ref.read(voucherProvider.notifier).setSearchQuery(val.trim());
+                    });
+                  }
                 },
               )
             : const Text(

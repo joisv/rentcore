@@ -1,4 +1,5 @@
 import '../../../core/constants/api_constants.dart';
+import '../../../core/models/paginated_result.dart';
 import '../../../core/network/api_client.dart';
 
 class BookingRepository {
@@ -31,6 +32,68 @@ class BookingRepository {
       return (rawData['data'] as List).whereType<Map<String, dynamic>>().toList();
     }
     return [];
+  }
+
+  Future<PaginatedResult<Map<String, dynamic>>> fetchBookingsPaginated({
+    String? status,
+    String? search,
+    int? branchId,
+    bool allBranches = false,
+    int page = 1,
+    int perPage = 15,
+  }) async {
+    final queryParams = <String, dynamic>{
+      'page': page.toString(),
+      'per_page': perPage.toString(),
+    };
+    if (status != null) queryParams['status'] = status;
+    if (search != null) queryParams['search'] = search;
+    if (allBranches) {
+      queryParams['all_branches'] = '1';
+    } else if (branchId != null) {
+      queryParams['branch_id'] = branchId.toString();
+    }
+
+    try {
+      final response = await _client.dio.get(
+        ApiConstants.bookings,
+        queryParameters: queryParams,
+      );
+
+      final rawData = response.data['data'];
+      if (rawData is Map) {
+        final items = (rawData['data'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList() ?? [];
+        final currentPage = (rawData['current_page'] as num?)?.toInt() ?? page;
+        final lastPage = (rawData['last_page'] as num?)?.toInt() ?? 1;
+        final total = (rawData['total'] as num?)?.toInt() ?? items.length;
+        final actualPerPage = (rawData['per_page'] as num?)?.toInt() ?? perPage;
+        return PaginatedResult(
+          items: items,
+          currentPage: currentPage,
+          lastPage: lastPage,
+          total: total,
+          perPage: actualPerPage,
+          hasMore: currentPage < lastPage,
+        );
+      }
+      if (rawData is List) {
+        final items = rawData.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        return PaginatedResult(
+          items: items,
+          currentPage: 1,
+          lastPage: 1,
+          total: items.length,
+          perPage: items.length,
+          hasMore: false,
+        );
+      }
+      return PaginatedResult.empty();
+    } catch (e) {
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchReadyAssets({int? branchId}) async {

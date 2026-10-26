@@ -80,9 +80,7 @@ final productsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>(
 
 final inventoryListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final bizState = ref.watch(businessProvider);
-  print('>>> [INVENTORY_PROVIDER] bizState: activeBusinessId=${bizState.activeBusinessId}, activeBranchId=${bizState.activeBranchId}, isConsolidated=${bizState.isConsolidated}');
   if (bizState.activeBusinessId == null) {
-    print('>>> [INVENTORY_PROVIDER] activeBusinessId is null, returning []');
     return [];
   }
   final repo = ref.watch(assetRepositoryProvider);
@@ -90,7 +88,6 @@ final inventoryListProvider = FutureProvider.autoDispose<List<Map<String, dynami
   final categoryId = ref.watch(selectedAssetCategoryFilterProvider);
   final search = ref.watch(assetSearchQueryProvider);
 
-  print('>>> [INVENTORY_PROVIDER] calling repo.fetchAssets with status=$status, cat=$categoryId, search=$search, branch=${bizState.activeBranchId}');
   try {
     final list = await repo.fetchAssets(
       status: status,
@@ -99,10 +96,8 @@ final inventoryListProvider = FutureProvider.autoDispose<List<Map<String, dynami
       branchId: bizState.activeBranchId,
       allBranches: bizState.isConsolidated,
     );
-    print('>>> [INVENTORY_PROVIDER] fetchAssets returned ${list.length} items');
     return list;
-  } catch (e, st) {
-    print('>>> [INVENTORY_PROVIDER] fetchAssets error: $e\n$st');
+  } catch (e) {
     rethrow;
   }
 });

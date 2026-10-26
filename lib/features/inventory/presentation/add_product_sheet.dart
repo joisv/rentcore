@@ -166,23 +166,19 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ActionChip(
-        avatar: Icon(
-          isAlreadyAdded ? Icons.check_circle_rounded : Icons.add_rounded,
-          size: 16,
-          color: isAlreadyAdded ? AppColors.success : AppColors.obsidian,
-        ),
         label: Text(
-          isAlreadyAdded ? '$label (Ada)' : '+ $label',
+          isAlreadyAdded ? '$label (Ada)' : label,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            color: isAlreadyAdded ? AppColors.textMuted : AppColors.obsidian,
+            color: isAlreadyAdded ? const Color(0xFF047857) : const Color(0xFF1E293B),
           ),
         ),
-        backgroundColor: isAlreadyAdded ? AppColors.surfaceMuted : Colors.white,
+        backgroundColor: isAlreadyAdded ? const Color(0xFFECFDF5) : Colors.white,
         side: BorderSide(
-          color: isAlreadyAdded ? AppColors.borderSubtle : AppColors.obsidian.withValues(alpha: 0.3),
+          color: isAlreadyAdded ? const Color(0xFFA7F3D0) : const Color(0xFFCBD5E1),
         ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onPressed: isAlreadyAdded ? null : () => _addPresetRate(unit, value),
       ),
     );
@@ -275,12 +271,13 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           localError = null;
                         });
 
+                        final messenger = ScaffoldMessenger.of(context);
                         try {
                           final repo = ref.read(assetRepositoryProvider);
                           final res = await repo.createCategory({'name': name});
                           final newId = int.tryParse(res['id']?.toString() ?? '');
 
-                          await ref.refresh(categoriesProvider.future);
+                          final _ = await ref.refresh(categoriesProvider.future);
 
                           if (ctx.mounted) {
                             Navigator.pop(ctx);
@@ -290,7 +287,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                             setState(() {
                               _selectedCategoryId = newId;
                             });
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 content: Text('Kategori "$name" berhasil ditambahkan!'),
                                 backgroundColor: AppColors.success,
@@ -434,410 +431,305 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
     }
   }
 
+  InputDecoration _inputDecoration({
+    String? hintText,
+    Widget? prefixIcon,
+    BoxConstraints? prefixIconConstraints,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.normal),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      prefixIcon: prefixIcon,
+      prefixIconConstraints: prefixIconConstraints,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFF43F5E)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFF43F5E), width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesProvider);
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
+        maxHeight: MediaQuery.of(context).size.height * 0.92,
       ),
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Form(
         key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top Drag Handle & Sticky Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 10, 12, 14),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _isEditing ? 'Edit Model & Tarif Sewa' : 'Tambah Model & Tarif Sewa',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _isEditing ? 'Perbarui informasi katalog & konfigurasi paket harga' : 'Katalog produk baru & konfigurasi paket harga',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
+                  // iOS Drag handle bar
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(height: 1, color: AppColors.borderSubtle),
-              const SizedBox(height: 16),
-
-              // Category Selector with quick-add button
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Kategori Perangkat *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  TextButton.icon(
-                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Kategori Baru', style: TextStyle(fontSize: 12)),
-                    onPressed: _showQuickAddCategoryDialog,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              categoriesAsync.when(
-                loading: () => const LinearProgressIndicator(),
-                error: (e, _) => Text('Gagal memuat kategori: $e', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
-                data: (cats) {
-                  return DropdownButtonFormField<int>(
-                    value: cats.any((c) => c['id'] == _selectedCategoryId) ? _selectedCategoryId : null,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: AppColors.surfaceMuted,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                    hint: const Text('Pilih Kategori (Kamera, Laptop, Konsol, dll)'),
-                    items: cats.map((c) {
-                      return DropdownMenuItem<int>(
-                        value: c['id'] as int,
-                        child: Text(c['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      setState(() {
-                        _selectedCategoryId = val;
-                        // Auto-toggle FRP check default based on category slug
-                        if (val != null) {
-                          final selected = cats.firstWhere((x) => x['id'] == val, orElse: () => {});
-                          final slug = (selected['slug'] ?? '').toString().toLowerCase();
-                          _requiresFrpCheck = slug.contains('phone') || slug.contains('tablet');
-                        }
-                      });
-                    },
-                    validator: (v) => v == null ? 'Kategori wajib dipilih' : null,
-                  );
-                },
-              ),
-              const SizedBox(height: 14),
-
-              // Brand & Model Name
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Merk / Brand *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _brandController,
-                          decoration: InputDecoration(
-                            hintText: 'Sony / DJI / Canon',
-                            filled: true,
-                            fillColor: AppColors.surfaceMuted,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Nama Model *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: InputDecoration(
-                            hintText: 'Alpha A7 IV Body',
-                            filled: true,
-                            fillColor: AppColors.surfaceMuted,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                          validator: (v) => (v == null || v.trim().isEmpty) ? 'Nama model wajib' : null,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Color & Storage (Optional)
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Warna (Opsional)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _colorController,
-                          decoration: InputDecoration(
-                            hintText: 'Hitam / Silver / Space Grey',
-                            filled: true,
-                            fillColor: AppColors.surfaceMuted,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Kapasitas / Memori (Opsional)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _storageController,
-                          decoration: InputDecoration(
-                            hintText: '512GB / 1TB / 32GB RAM',
-                            filled: true,
-                            fillColor: AppColors.surfaceMuted,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Description
-              const Text('Deskripsi Singkat', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _descriptionController,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: 'Spesifikasi ringkas, sensor, resolusi, port...',
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Standard Accessories
-              const Text('Kelengkapan Standar Bawaan', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              const SizedBox(height: 4),
-              const Text('Pisahkan dengan tanda koma (misal: 2x Baterai, Dual Charger, Tas, SD Card 128GB)', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _accessoriesController,
-                decoration: InputDecoration(
-                  hintText: 'Charger, Kabel HDMI, Tas, Baterai Cadangan',
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // FRP / iCloud switch
-              Material(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(14),
-                child: Ink(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.borderSubtle),
-                  ),
-                  child: SwitchListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    title: const Text('Wajib Cek Akun (iCloud / Google FRP)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                    subtitle: const Text(
-                      'Aktifkan hanya untuk smartphone/tablet. Untuk kamera, proyektor, laptop, dan konsol game sebaiknya matikan.',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                    value: _requiresFrpCheck,
-                    onChanged: (val) => setState(() => _requiresFrpCheck = val),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Add-on / Aksesoris switch
-              Material(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(14),
-                child: Ink(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.borderSubtle),
-                  ),
-                  child: SwitchListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    title: const Text('Item Add-on / Aksesoris Sewa', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                    subtitle: const Text(
-                      'Tandai produk ini sebagai aksesoris tambahan (Power Bank, Charger, Tripod, dll) yang dapat disewa bersama perangkat utama.',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                    value: _isAddon,
-                    onChanged: (val) => setState(() => _isAddon = val),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // RATE CARDS BUILDER
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.payments_outlined, size: 20, color: AppColors.obsidian),
-                        SizedBox(width: 8),
-                        Text('Paket Tarif Sewa *', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Tentukan harga sewa per jam, hari, minggu, atau bulan. Minimal 1 paket wajib diisi.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Rate rows
-              ..._rates.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final rate = entry.value;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Card Header Badge & Delete Action
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isEditing ? 'Edit Model & Tarif Sewa' : 'Tambah Model & Tarif Sewa',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _isEditing
+                                  ? 'Perbarui informasi katalog & konfigurasi paket harga'
+                                  : 'Katalog produk baru & konfigurasi paket harga sewa',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        style: IconButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          foregroundColor: const Color(0xFF94A3B8),
+                        ),
+                        icon: const Icon(Icons.close_rounded, size: 22),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Scrollable Form Body
+            Expanded(
+              child: Container(
+                color: const Color(0xFFF8FAFC),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // SECTION 1: IDENTITAS UNIT
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.obsidian,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.sell_outlined, size: 13, color: Colors.white),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Paket #${idx + 1}: ${rate.valueController.text.isEmpty ? "1" : rate.valueController.text} ${_formatUnitName(rate.unit)}',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: Colors.white),
-                                ),
-                              ],
+                          const Text(
+                            '1. IDENTITAS UNIT',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: Color(0xFF94A3B8),
                             ),
                           ),
-                          if (_rates.length > 1)
-                            TextButton.icon(
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.danger,
-                                visualDensity: VisualDensity.compact,
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                              ),
-                              icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                              label: const Text('Hapus Paket', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                              onPressed: () => _removeRateRow(idx),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF1F2),
+                              borderRadius: BorderRadius.circular(6),
                             ),
+                            child: const Text(
+                              '* Wajib diisi',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFF43F5E),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
 
-                      // Duration Value & Duration Unit
+                      // Kategori Perangkat
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Kategori Perangkat *',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                          ),
+                          InkWell(
+                            onTap: _showQuickAddCategoryDialog,
+                            borderRadius: BorderRadius.circular(6),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.add_rounded, size: 15, color: Color(0xFF2563EB)),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Kategori Baru',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      categoriesAsync.when(
+                        loading: () => const LinearProgressIndicator(),
+                        error: (e, _) => Text('Gagal memuat kategori: $e', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+                        data: (cats) {
+                          return DropdownButtonFormField<int>(
+                            // ignore: deprecated_member_use
+                            value: cats.any((c) => c['id'] == _selectedCategoryId) ? _selectedCategoryId : null,
+                            isExpanded: true,
+                            decoration: _inputDecoration(),
+                            hint: const Text(
+                              'Pilih Kategori (Kamera, Laptop, Lensa, Drone...)',
+                              style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                            ),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
+                            items: cats.map((c) {
+                              return DropdownMenuItem<int>(
+                                value: c['id'] as int,
+                                child: Text(c['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedCategoryId = val;
+                                if (val != null) {
+                                  final selected = cats.firstWhere((x) => x['id'] == val, orElse: () => {});
+                                  final slug = (selected['slug'] ?? '').toString().toLowerCase();
+                                  _requiresFrpCheck = slug.contains('phone') || slug.contains('tablet');
+                                }
+                              });
+                            },
+                            validator: (v) => v == null ? 'Kategori wajib dipilih' : null,
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Merk / Brand
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Merk / Brand *',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _brandController,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                            decoration: _inputDecoration(hintText: 'Misal: Sony, Apple, DJI'),
+                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Nama Model
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Nama Model *',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _nameController,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                            decoration: _inputDecoration(hintText: 'Misal: Alpha A7 IV Body'),
+                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Nama model wajib' : null,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Warna & Kapasitas / RAM (2 Columns Optional)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            flex: 2,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Durasi *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                const Text(
+                                  'Warna (Opsional)',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 const SizedBox(height: 6),
                                 TextField(
-                                  controller: rate.valueController,
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    hintText: '1, 3, 7...',
-                                    filled: true,
-                                    fillColor: AppColors.surface,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  ),
-                                  onChanged: (_) => setState(() {}),
+                                  controller: _colorController,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                  decoration: _inputDecoration(hintText: 'Hitam / Silver'),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            flex: 3,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Satuan *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                const Text(
+                                  'Kapasitas / RAM (Opsional)',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 const SizedBox(height: 6),
-                                DropdownButtonFormField<String>(
-                                  initialValue: rate.unit,
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: AppColors.surface,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  ),
-                                  items: const [
-                                    DropdownMenuItem(value: 'day', child: Text('Hari (day)')),
-                                    DropdownMenuItem(value: 'hour', child: Text('Jam (hour)')),
-                                    DropdownMenuItem(value: 'week', child: Text('Minggu (week)')),
-                                    DropdownMenuItem(value: 'month', child: Text('Bulan (month)')),
-                                  ],
-                                  onChanged: (val) {
-                                    if (val != null) setState(() => rate.unit = val);
-                                  },
+                                TextField(
+                                  controller: _storageController,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                  decoration: _inputDecoration(hintText: '512GB / 16GB RAM'),
                                 ),
                               ],
                             ),
@@ -846,111 +738,521 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Price
+                      // Deskripsi Singkat & Spesifikasi
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Harga Sewa Paket *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                          const Text(
+                            'Deskripsi Singkat & Spesifikasi',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                          ),
                           const SizedBox(height: 6),
                           TextField(
-                            controller: rate.priceController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              prefixText: 'Rp ',
-                              prefixStyle: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.obsidian, fontSize: 13),
-                              hintText: 'Misal: 300000',
-                              filled: true,
-                              fillColor: AppColors.surface,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            controller: _descriptionController,
+                            maxLines: 2,
+                            style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+                            decoration: _inputDecoration(
+                              hintText: 'Spesifikasi ringkas, sensor, resolusi, port input/output...',
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
 
-                      // Extension rate per hour
+                      // Kelengkapan Standar Bawaan
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
-                            children: [
-                              Text('Denda / Perpanjangan per Jam:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                              SizedBox(width: 4),
-                              Text('(Opsional)', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
-                            ],
+                          const Text(
+                            'Kelengkapan Standar Bawaan',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Pisahkan dengan koma: 2x Baterai, Dual Charger, Tas Kamera, SD Card 128GB',
+                            style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
                           ),
                           const SizedBox(height: 6),
                           TextField(
-                            controller: rate.extensionRateController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              prefixText: 'Rp ',
-                              prefixStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textPrimary),
-                              hintText: '20000',
-                              filled: true,
-                              fillColor: AppColors.surface,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            controller: _accessoriesController,
+                            style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+                            decoration: _inputDecoration(
+                              hintText: 'Charger, Kabel HDMI, Tas, Baterai Cadangan...',
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 20),
+
+                      // SECTION 2: PROTEKSI & TIPE UNIT
+                      const Text(
+                        '2. PROTEKSI & TIPE UNIT',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Toggle 1: Wajib Cek Akun (iCloud / FRP)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 1)),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        'Wajib Cek Akun (iCloud / FRP)',
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFEF3C7),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          'Penting',
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF92400E)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  const Text(
+                                    'Wajibkan kasir verifikasi pelepasan akun iCloud/Google saat unit dikembalikan.',
+                                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Switch(
+                              value: _requiresFrpCheck,
+                              activeThumbColor: Colors.white,
+                              activeTrackColor: const Color(0xFF0F172A),
+                              inactiveThumbColor: Colors.white,
+                              inactiveTrackColor: const Color(0xFFE2E8F0),
+                              onChanged: (val) => setState(() => _requiresFrpCheck = val),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Toggle 2: Tandai sebagai Aksesoris Tambahan
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 1)),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Tandai sebagai Aksesoris Tambahan',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                  ),
+                                  SizedBox(height: 3),
+                                  Text(
+                                    'Power bank, tripod, charger, dll. yang dapat disewa berdampingan dengan unit utama.',
+                                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Switch(
+                              value: _isAddon,
+                              activeThumbColor: Colors.white,
+                              activeTrackColor: const Color(0xFF0F172A),
+                              inactiveThumbColor: Colors.white,
+                              inactiveTrackColor: const Color(0xFFE2E8F0),
+                              onChanged: (val) => setState(() => _isAddon = val),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // SECTION 3: PAKET TARIF SEWA *
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.sell_outlined, size: 14, color: Colors.white),
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Paket Tarif Sewa *',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Tentukan harga sewa per jam, hari, minggu, atau bulan. Minimal 1 paket wajib aktif.',
+                                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Rate cards
+                      ..._rates.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final rate = entry.value;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFCBD5E1), width: 1.2),
+                            boxShadow: const [
+                              BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Card Header Badge & Delete Action
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0F172A),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.sell_outlined, size: 12, color: Colors.white),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Paket #${idx + 1}: ${rate.valueController.text.isEmpty ? "1" : rate.valueController.text} ${_formatUnitName(rate.unit)}',
+                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (idx == 0) ...[
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFECFDF5),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: const Color(0xFFA7F3D0)),
+                                          ),
+                                          child: const Text(
+                                            'Paket Utama',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF047857),
+                                            ),
+                                          ),
+                                        ),
+                                        if (_rates.length > 1) const SizedBox(width: 8),
+                                      ],
+                                      if (_rates.length > 1)
+                                        InkWell(
+                                          onTap: () => _removeRateRow(idx),
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: const Padding(
+                                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.delete_outline_rounded, size: 15, color: Color(0xFFF43F5E)),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  'Hapus Paket',
+                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFF43F5E)),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Duration Value & Duration Unit (2 Columns)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    flex: 4,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Durasi *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
+                                        const SizedBox(height: 6),
+                                        TextField(
+                                          controller: rate.valueController,
+                                          keyboardType: TextInputType.number,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A)),
+                                          decoration: InputDecoration(
+                                            hintText: '1',
+                                            filled: true,
+                                            fillColor: Colors.white,
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+                                            ),
+                                          ),
+                                          onChanged: (_) => setState(() {}),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    flex: 7,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Satuan *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
+                                        const SizedBox(height: 6),
+                                        DropdownButtonFormField<String>(
+                                          // ignore: deprecated_member_use
+                                          value: rate.unit,
+                                          isExpanded: true,
+                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                          decoration: InputDecoration(
+                                            filled: true,
+                                            fillColor: Colors.white,
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 2),
+                                            ),
+                                          ),
+                                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF0F172A)),
+                                          items: const [
+                                            DropdownMenuItem(value: 'day', child: Text('Hari (day)')),
+                                            DropdownMenuItem(value: 'hour', child: Text('Jam (hour)')),
+                                            DropdownMenuItem(value: 'week', child: Text('Minggu (week)')),
+                                            DropdownMenuItem(value: 'month', child: Text('Bulan (month)')),
+                                          ],
+                                          onChanged: (val) {
+                                            if (val != null) setState(() => rate.unit = val);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Price
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Harga Sewa Paket *',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: rate.priceController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
+                                    decoration: InputDecoration(
+                                      prefixIcon: const Padding(
+                                        padding: EdgeInsets.only(left: 14, right: 8),
+                                        child: Text('Rp', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF64748B), fontSize: 14)),
+                                      ),
+                                      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                      hintText: 'Misal: 300000',
+                                      hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8), fontWeight: FontWeight.normal),
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Extension rate per hour
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Denda / Overtime per Jam',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                                      ),
+                                      Text(
+                                        'Opsional',
+                                        style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: rate.extensionRateController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B)),
+                                    decoration: InputDecoration(
+                                      prefixIcon: const Padding(
+                                        padding: EdgeInsets.only(left: 14, right: 8),
+                                        child: Text('Rp', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B), fontSize: 13)),
+                                      ),
+                                      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                      hintText: '20000',
+                                      hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+
+                      // Quick presets section
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Pintasan Tambah Cepat Paket Populer:',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildPresetChip('1 Hari', 'day', 1),
+                            _buildPresetChip('3 Hari', 'day', 3),
+                            _buildPresetChip('1 Minggu', 'week', 1),
+                            _buildPresetChip('1 Bulan', 'month', 1),
+                            _buildPresetChip('12 Jam', 'hour', 12),
+                            _buildPresetChip('6 Jam', 'hour', 6),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Prominent UX-Friendly Add Button
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF0F172A),
+                          backgroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                        label: const Text(
+                          '+ Tambah Paket Tarif Baru (Kustom)',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                        ),
+                        onPressed: _addRateRow,
+                      ),
                     ],
                   ),
-                );
-              }),
+                ),
+              ),
+            ),
 
-              // Quick presets section
-              const SizedBox(height: 6),
-              const Row(
-                children: [
-                  Icon(Icons.bolt_rounded, size: 16, color: AppColors.warning),
-                  SizedBox(width: 4),
-                  Text('Pintasan Tambah Cepat Paket Populer:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            // Sticky Footer Action Bar
+            Container(
+              padding: EdgeInsets.fromLTRB(18, 12, 18, bottomInset > 0 ? bottomInset + 12 : 16),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x0A0F172A),
+                    blurRadius: 10,
+                    offset: Offset(0, -4),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildPresetChip('1 Hari', 'day', 1),
-                    _buildPresetChip('3 Hari', 'day', 3),
-                    _buildPresetChip('1 Minggu', 'week', 1),
-                    _buildPresetChip('1 Bulan', 'month', 1),
-                    _buildPresetChip('12 Jam', 'hour', 12),
-                    _buildPresetChip('6 Jam', 'hour', 6),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Prominent UX-Friendly Add Button
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.obsidian,
-                  backgroundColor: AppColors.surface,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: AppColors.obsidian, width: 1.5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
-                label: const Text(
-                  '+ Tambah Paket Tarif Baru (Kustom)',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                ),
-                onPressed: _addRateRow,
-              ),
-              const SizedBox(height: 20),
-
-              // Submit button
-              ElevatedButton(
+              child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
+                  backgroundColor: const Color(0xFF0F172A),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 2,
+                  shadowColor: const Color(0x330F172A),
                 ),
                 onPressed: _isLoading ? null : _submitProduct,
                 child: _isLoading
@@ -960,8 +1262,8 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                         style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                       ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

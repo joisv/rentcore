@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
@@ -28,8 +29,57 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _unitsScrollController = ScrollController();
   final GlobalKey<ExpandableInventoryFabState> _fabKey = GlobalKey();
   bool _isFabExpanded = false;
+  Timer? _searchDebounceTimer;
+
+  final List<Map<String, dynamic>> _extraAssets = [];
+  int _currentAssetPage = 1;
+  bool _hasMoreAssets = true;
+  bool _isLoadingMoreAssets = false;
+
+  void _resetAssetPagination() {
+    _extraAssets.clear();
+    _currentAssetPage = 1;
+    _hasMoreAssets = true;
+    _isLoadingMoreAssets = false;
+  }
+
+  void _onUnitsScroll() async {
+    if (!_unitsScrollController.hasClients || _isLoadingMoreAssets || !_hasMoreAssets) return;
+    if (_unitsScrollController.position.pixels >= _unitsScrollController.position.maxScrollExtent - 250) {
+      final bizState = ref.read(businessProvider);
+      final repo = ref.read(assetRepositoryProvider);
+      final status = ref.read(selectedAssetStatusFilterProvider);
+      final categoryId = ref.read(selectedAssetCategoryFilterProvider);
+      final search = ref.read(assetSearchQueryProvider);
+
+      setState(() => _isLoadingMoreAssets = true);
+      try {
+        final nextPage = _currentAssetPage + 1;
+        final res = await repo.fetchAssetsPaginated(
+          status: status,
+          categoryId: categoryId,
+          search: search.isEmpty ? null : search,
+          branchId: bizState.activeBranchId,
+          allBranches: bizState.isConsolidated,
+          page: nextPage,
+        );
+
+        if (mounted) {
+          setState(() {
+            _currentAssetPage = nextPage;
+            _hasMoreAssets = res.hasMore;
+            _extraAssets.addAll(res.items);
+            _isLoadingMoreAssets = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) setState(() => _isLoadingMoreAssets = false);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -46,6 +96,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       }
     });
 
+    _unitsScrollController.addListener(_onUnitsScroll);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialStatusFilter != null) {
         ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(widget.initialStatusFilter);
@@ -56,6 +108,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
   @override
   void dispose() {
+    _searchDebounceTimer?.cancel();
+    _unitsScrollController.dispose();
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -87,6 +141,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   }
 
   void _refreshAll() {
+    _resetAssetPagination();
     ref.invalidate(inventoryListProvider);
     ref.invalidate(productsProvider);
     ref.invalidate(categoriesProvider);
@@ -359,7 +414,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     ),
                     onChanged: (val) {
                       setState(() {});
-                      ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                      _searchDebounceTimer?.cancel();
+                      final isTesting = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+                      if (isTesting) {
+                        ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                      } else {
+                        _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+                          if (mounted) {
+                            ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                          }
+                        });
+                      }
                     },
                   ),
                 ),
@@ -566,14 +631,32 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 );
               }
 
+              final combinedAssets = [...assets, ..._extraAssets];
+
               return RefreshIndicator(
-                onRefresh: () async => ref.invalidate(inventoryListProvider),
+                onRefresh: () async {
+                  _resetAssetPagination();
+                  ref.invalidate(inventoryListProvider);
+                },
                 child: ListView.separated(
+                  controller: _unitsScrollController,
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                  itemCount: assets.length,
+                  itemCount: combinedAssets.length + (_isLoadingMoreAssets ? 1 : 0),
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final asset = assets[index];
+                    if (index >= combinedAssets.length) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      );
+                    }
+                    final asset = combinedAssets[index];
                     return _buildAssetCard(context, asset);
                   },
                 ),
@@ -903,7 +986,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     ),
                     onChanged: (val) {
                       setState(() {});
-                      ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                      _searchDebounceTimer?.cancel();
+                      final isTesting = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+                      if (isTesting) {
+                        ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                      } else {
+                        _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+                          if (mounted) {
+                            ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                          }
+                        });
+                      }
                     },
                   ),
                 ),

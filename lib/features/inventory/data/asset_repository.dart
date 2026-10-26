@@ -1,4 +1,5 @@
 import '../../../core/constants/api_constants.dart';
+import '../../../core/models/paginated_result.dart';
 import '../../../core/network/api_client.dart';
 
 class AssetRepository {
@@ -66,6 +67,73 @@ class AssetRepository {
       return extractedFallback;
     } catch (e, st) {
       print('>>> [ASSET_REPO] dio get error: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<PaginatedResult<Map<String, dynamic>>> fetchAssetsPaginated({
+    String? status,
+    String? search,
+    int? categoryId,
+    int? branchId,
+    bool allBranches = false,
+    int page = 1,
+    int perPage = 20,
+  }) async {
+    final queryParams = <String, dynamic>{
+      'page': page,
+      'per_page': perPage,
+    };
+    if (status != null && status.isNotEmpty) queryParams['status'] = status;
+    if (search != null && search.isNotEmpty) queryParams['search'] = search;
+    if (categoryId != null) queryParams['category_id'] = categoryId;
+    if (branchId != null) queryParams['branch_id'] = branchId;
+    if (allBranches) queryParams['all_branches'] = 1;
+
+    try {
+      final response = await _client.dio.get(
+        ApiConstants.assets,
+        queryParameters: queryParams,
+      );
+
+      final data = response.data;
+      if (data is Map && data.containsKey('data')) {
+        final inner = data['data'];
+        if (inner is Map) {
+          final items = _extractList(inner['data']);
+          final currentPage = (inner['current_page'] as num?)?.toInt() ?? page;
+          final lastPage = (inner['last_page'] as num?)?.toInt() ?? 1;
+          final total = (inner['total'] as num?)?.toInt() ?? items.length;
+          final actualPerPage = (inner['per_page'] as num?)?.toInt() ?? perPage;
+          return PaginatedResult(
+            items: items,
+            currentPage: currentPage,
+            lastPage: lastPage,
+            total: total,
+            perPage: actualPerPage,
+            hasMore: currentPage < lastPage,
+          );
+        }
+        final items = _extractList(inner);
+        return PaginatedResult(
+          items: items,
+          currentPage: 1,
+          lastPage: 1,
+          total: items.length,
+          perPage: items.length,
+          hasMore: false,
+        );
+      }
+      final items = _extractList(data);
+      return PaginatedResult(
+        items: items,
+        currentPage: 1,
+        lastPage: 1,
+        total: items.length,
+        perPage: items.length,
+        hasMore: false,
+      );
+    } catch (e) {
       rethrow;
     }
   }

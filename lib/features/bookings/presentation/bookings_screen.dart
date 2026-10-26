@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
 import '../providers/booking_provider.dart';
@@ -103,7 +104,53 @@ class BookingsScreen extends ConsumerStatefulWidget {
 
 class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   Timer? _debounceTimer;
+
+  final List<Map<String, dynamic>> _extraBookings = [];
+  int _currentBookingPage = 1;
+  bool _hasMoreBookings = true;
+  bool _isLoadingMoreBookings = false;
+
+  void _resetBookingPagination() {
+    _extraBookings.clear();
+    _currentBookingPage = 1;
+    _hasMoreBookings = true;
+    _isLoadingMoreBookings = false;
+  }
+
+  void _onBookingsScroll() async {
+    if (!_scrollController.hasClients || _isLoadingMoreBookings || !_hasMoreBookings) return;
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 250) {
+      final bizState = ref.read(businessProvider);
+      final repo = ref.read(bookingRepositoryProvider);
+      final status = ref.read(bookingFilterStatusProvider);
+      final searchQuery = ref.read(bookingSearchQueryProvider);
+
+      setState(() => _isLoadingMoreBookings = true);
+      try {
+        final nextPage = _currentBookingPage + 1;
+        final res = await repo.fetchBookingsPaginated(
+          status: status == 'all' ? null : status,
+          search: searchQuery.trim().isEmpty ? null : searchQuery.trim(),
+          branchId: bizState.activeBranchId,
+          allBranches: bizState.isConsolidated,
+          page: nextPage,
+        );
+
+        if (mounted) {
+          setState(() {
+            _currentBookingPage = nextPage;
+            _hasMoreBookings = res.hasMore;
+            _extraBookings.addAll(res.items);
+            _isLoadingMoreBookings = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) setState(() => _isLoadingMoreBookings = false);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -112,16 +159,20 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     if (initialQuery.isNotEmpty) {
       _searchController.text = initialQuery;
     }
+
+    _scrollController.addListener(_onBookingsScroll);
   }
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   void _onSearchChanged(String val) {
+    _resetBookingPagination();
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
       if (mounted) {
@@ -132,6 +183,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   }
 
   void _clearSearch() {
+    _resetBookingPagination();
     _debounceTimer?.cancel();
     _searchController.clear();
     ref.read(bookingSearchQueryProvider.notifier).clear();
@@ -286,13 +338,31 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                   );
                 }
 
+                final combinedBookings = [...bookings, ..._extraBookings];
+
                 return RefreshIndicator(
-                  onRefresh: () => ref.refresh(bookingsListProvider.future),
+                  onRefresh: () async {
+                    _resetBookingPagination();
+                    return ref.refresh(bookingsListProvider.future);
+                  },
                   child: ListView.builder(
+                    controller: _scrollController,
                     padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 100),
-                    itemCount: bookings.length,
+                    itemCount: combinedBookings.length + (_isLoadingMoreBookings ? 1 : 0),
                     itemBuilder: (context, index) {
-                      final item = bookings[index];
+                      if (index >= combinedBookings.length) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
+                      final item = combinedBookings[index];
                       final customer = item['customer'] ?? {};
                       final items = (item['items'] as List?) ?? [];
                       final exchanges = (item['exchanges'] as List?) ?? [];
@@ -672,6 +742,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
       label: Text(label),
       selected: isSelected,
       onSelected: (_) {
+        _resetBookingPagination();
         ref.read(bookingFilterStatusProvider.notifier).setFilter(value);
       },
       selectedColor: AppColors.obsidian,
