@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "lib/features/customers/presentation/customer_directory_screen.dart": {
-    "mtime": 1793020198.8157094,
-    "seen": 1793020770.6057935,
-    "ast_hash": "2338ad2a0d38441624c322f0d79ecf70",
+    "mtime": 1793021730.0371108,
+    "seen": 1793021804.4898958,
+    "ast_hash": "351fa01ce6c1b4e1e99dc557f93dbe8c",
     "semantic_hash": ""
   },
   "lib/features/customers/presentation/widgets/add_customer_sheet.dart": {
@@ -1182,9 +1182,9 @@
     "semantic_hash": ""
   },
   "lib/features/customers/presentation/widgets/customer_detail_sheet.dart": {
-    "mtime": 1793020174.2845442,
-    "seen": 1793020770.605796,
-    "ast_hash": "80e1d6846eecd87b33b527aef588ee75",
+    "mtime": 1793021776.1746583,
+    "seen": 1793021804.489899,
+    "ast_hash": "405d032b887b0c6e7c339e907c17ef68",
     "semantic_hash": ""
   },
   "test/customer_directory_and_governance_test.dart": {

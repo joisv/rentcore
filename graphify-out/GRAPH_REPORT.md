@@ -1,7 +1,7 @@
 # Graph Report - rentcore  (2026-10-26)
 
 ## Corpus Check
-- 155 files · ~143,439 words
+- 155 files · ~143,467 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 52 file(s) not represented in the graph (top: .xml 8, .xcconfig 8, (none) 7)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `fa293a9b`
+- Built from commit: `2cc286b3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

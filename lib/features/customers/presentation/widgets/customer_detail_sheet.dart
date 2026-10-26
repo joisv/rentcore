@@ -41,86 +41,98 @@ class _CustomerDetailSheetState extends ConsumerState<CustomerDetailSheet> {
   Future<void> _handleBlacklistToggle(bool blacklist) async {
     final reasonController = TextEditingController();
     final pinController = TextEditingController();
+    String? reasonText;
+    String? pinText;
+    bool confirmed = false;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          blacklist ? 'Tandai Sebagai Blacklist' : 'Cabut Status Blacklist',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: blacklist ? AppColors.danger : AppColors.obsidian,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              blacklist
-                  ? 'Pelanggan yang masuk daftar hitam tidak akan dapat menyewa unit baru sebelum status dicabut oleh Owner/Admin.'
-                  : 'Pelanggan akan dipulihkan ke status aktif dan dapat kembali melakukan transaksi sewa.',
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+    try {
+      final dialogResult = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(
+            blacklist ? 'Tandai Sebagai Blacklist' : 'Cabut Status Blacklist',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: blacklist ? AppColors.danger : AppColors.obsidian,
             ),
-            const SizedBox(height: 14),
-            if (blacklist) ...[
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                blacklist
+                    ? 'Pelanggan yang masuk daftar hitam tidak akan dapat menyewa unit baru sebelum status dicabut oleh Owner/Admin.'
+                    : 'Pelanggan akan dipulihkan ke status aktif dan dapat kembali melakukan transaksi sewa.',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 14),
+              if (blacklist) ...[
+                TextField(
+                  controller: reasonController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'Alasan Blacklist *',
+                    hintText: 'Misal: Terlambat > 7 hari tanpa kabar',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               TextField(
-                controller: reasonController,
-                maxLines: 2,
+                controller: pinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'Alasan Blacklist *',
-                  hintText: 'Misal: Terlambat > 7 hari tanpa kabar',
+                  labelText: 'PIN Manager (Jika Staf)',
+                  hintText: '6 digit PIN',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 10),
             ],
-            TextField(
-              controller: pinController,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'PIN Manager (Jika Staf)',
-                hintText: '6 digit PIN',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: blacklist ? AppColors.danger : AppColors.success,
+                foregroundColor: Colors.white,
               ),
+              onPressed: () {
+                if (blacklist && reasonController.text.trim().length < 5) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Alasan blacklist wajib diisi minimal 5 karakter.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: Text(blacklist ? 'Ya, Blacklist' : 'Pulihkan'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: blacklist ? AppColors.danger : AppColors.success,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              if (blacklist && reasonController.text.trim().length < 5) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(
-                    content: Text('Alasan blacklist wajib diisi minimal 5 karakter.'),
-                    backgroundColor: AppColors.danger,
-                  ),
-                );
-                return;
-              }
-              Navigator.pop(ctx, true);
-            },
-            child: Text(blacklist ? 'Ya, Blacklist' : 'Pulihkan'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirmed == true && mounted) {
+      confirmed = dialogResult == true;
+      reasonText = reasonController.text.trim();
+      pinText = pinController.text.trim();
+    } finally {
+      reasonController.dispose();
+      pinController.dispose();
+    }
+
+    if (confirmed && mounted) {
       final success = await ref.read(customerProvider.notifier).toggleBlacklist(
         customerId: _customer['id'],
         isBlacklisted: blacklist,
-        reason: blacklist ? reasonController.text.trim() : null,
-        managerPin: pinController.text.trim().isEmpty ? null : pinController.text.trim(),
+        reason: blacklist ? reasonText : null,
+        managerPin: pinText.isNotEmpty ? pinText : null,
       );
 
       if (mounted) {
@@ -128,7 +140,7 @@ class _CustomerDetailSheetState extends ConsumerState<CustomerDetailSheet> {
           setState(() {
             _customer['is_blacklisted'] = blacklist;
             if (blacklist) {
-              _customer['blacklist_reason'] = reasonController.text.trim();
+              _customer['blacklist_reason'] = reasonText;
             } else {
               _customer['blacklist_reason'] = null;
             }
