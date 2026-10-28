@@ -74,7 +74,15 @@ final closingSummaryProvider = FutureProvider.autoDispose<Map<String, dynamic>>(
 
 final paymentMethodsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final repo = ref.watch(cashierRepositoryProvider);
-  return repo.fetchPaymentMethods();
+  final bizState = ref.watch(businessProvider);
+  final posBranchFilter = ref.watch(posFilterBranchIdProvider);
+  final branchId = posBranchFilter == -1 ? null : (posBranchFilter ?? bizState.activeBranchId);
+  return repo.fetchPaymentMethods(branchId: branchId);
+});
+
+final paymentSettingsProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, int?>((ref, branchId) async {
+  final repo = ref.watch(cashierRepositoryProvider);
+  return repo.fetchPaymentSettings(branchId: branchId);
 });
 
 final cashierBookingsProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String?>((ref, search) async {
@@ -123,4 +131,9 @@ final currentShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>>((r
   final int? effectiveBranchId = isConsolidated ? null : (posBranchFilter ?? bizState.activeBranchId);
 
   return repo.fetchCurrentShift(branchId: effectiveBranchId);
+});
+
+final shiftScheduleProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, int?>((ref, branchId) async {
+  final repo = ref.watch(cashierRepositoryProvider);
+  return repo.fetchShiftSchedule(branchId: branchId);
 });

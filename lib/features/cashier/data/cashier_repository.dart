@@ -41,13 +41,44 @@ class CashierRepository {
     return {};
   }
 
-  Future<List<Map<String, dynamic>>> fetchPaymentMethods() async {
-    final response = await _client.dio.get(ApiConstants.paymentMethods);
+  Future<List<Map<String, dynamic>>> fetchPaymentMethods({int? branchId}) async {
+    final queryParams = <String, dynamic>{};
+    if (branchId != null) queryParams['branch_id'] = branchId;
+    final response = await _client.dio.get(
+      ApiConstants.paymentMethods,
+      queryParameters: queryParams.isNotEmpty ? queryParams : null,
+    );
     final data = response.data['data'];
     if (data is List) {
       return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     return [];
+  }
+
+  Future<Map<String, dynamic>> fetchPaymentSettings({int? branchId}) async {
+    final queryParams = <String, dynamic>{};
+    if (branchId != null) queryParams['branch_id'] = branchId;
+    final response = await _client.dio.get(
+      ApiConstants.paymentSettings,
+      queryParameters: queryParams.isNotEmpty ? queryParams : null,
+    );
+    final data = response.data['data'];
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>> updatePaymentSettings(Map<String, dynamic> payload) async {
+    final response = await _client.dio.put(
+      ApiConstants.paymentSettings,
+      data: payload,
+    );
+    final data = response.data['data'];
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {};
   }
 
   Future<Map<String, dynamic>> processPayment({
@@ -322,6 +353,38 @@ class CashierRepository {
       ApiConstants.closeShift,
       data: payload,
       options: headers.isNotEmpty ? Options(headers: headers) : null,
+    );
+    final data = response.data['data'];
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>> fetchShiftSchedule({int? branchId}) async {
+    final queryParams = <String, dynamic>{};
+    final headers = <String, dynamic>{};
+    if (branchId != null) {
+      queryParams['branch_id'] = branchId;
+      headers['X-Branch-Id'] = branchId.toString();
+    }
+
+    final response = await _client.dio.get(
+      ApiConstants.shiftSchedule,
+      queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      options: headers.isNotEmpty ? Options(headers: headers) : null,
+    );
+    final data = response.data['data'];
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>> updateShiftSchedule(Map<String, dynamic> payload) async {
+    final response = await _client.dio.put(
+      ApiConstants.shiftSchedule,
+      data: payload,
     );
     final data = response.data['data'];
     if (data is Map) {

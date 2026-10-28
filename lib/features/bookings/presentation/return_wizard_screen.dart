@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
-import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/services/thermal_printer_service.dart';
@@ -24,7 +23,45 @@ class ReturnWizardScreen extends ConsumerStatefulWidget {
 }
 
 class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
-  bool _icloudRemoved = false; // CRITICAL GUARD
+  bool _accountCleared = false; // CRITICAL GUARD
+  bool _isQuarantined = false; // QUARANTINE GUARD
+  final _staffNotesController = TextEditingController();
+
+  @override
+  void dispose() {
+    _staffNotesController.dispose();
+    super.dispose();
+  }
+
+  bool get _isAppleDevice {
+    final items = (widget.booking['items'] as List?) ?? [];
+    for (final it in items) {
+      final model = it['asset']?['model'];
+      if (model != null) {
+        final brand = (model['brand']?.toString() ?? '').toLowerCase();
+        final name = (model['name']?.toString() ?? '').toLowerCase();
+        if (brand == 'apple' || name.contains('iphone') || name.contains('ipad')) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool get _isAndroidDevice {
+    final items = (widget.booking['items'] as List?) ?? [];
+    for (final it in items) {
+      final model = it['asset']?['model'];
+      if (model != null) {
+        final brand = (model['brand']?.toString() ?? '').toLowerCase();
+        final name = (model['name']?.toString() ?? '').toLowerCase();
+        if (brand == 'samsung' || brand == 'google' || brand == 'xiaomi' || brand == 'oppo' || brand == 'vivo' || name.contains('galaxy') || name.contains('pixel')) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
   bool _screenOk = true;
   final bool _cameraOk = true;
   bool _cableReturned = true;
@@ -59,14 +96,40 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     final endAt = booking['end_at'] != null ? DateTime.tryParse(booking['end_at']) : null;
     final now = DateTime.now();
 
-    // Calculate late penalty (60-minute grace period formula)
+    // Calculate late penalty (60-minute grace period formula with dynamic hourly rate)
     int lateMinutes = 0;
+    int billableHours = 0;
+    double hourlyLateRate = 15000.0;
     double penaltyAmount = 0.0;
+
+    // Resolve dynamic hourly late rate from booking / model pricing tier
+    final activeItem = booking['active_item'];
+    if (activeItem != null && activeItem['rate_snapshot'] != null && activeItem['rate_snapshot']['extension_hourly_rate'] != null) {
+      hourlyLateRate = double.tryParse(activeItem['rate_snapshot']['extension_hourly_rate'].toString()) ?? 15000.0;
+    } else {
+      final items = (booking['items'] as List?) ?? [];
+      for (final it in items) {
+        final rateSnap = it['rate_snapshot'];
+        if (rateSnap != null && rateSnap['extension_hourly_rate'] != null) {
+          hourlyLateRate = double.tryParse(rateSnap['extension_hourly_rate'].toString()) ?? hourlyLateRate;
+          break;
+        }
+        final tiers = it['asset']?['model']?['pricing_tiers'] as List?;
+        if (tiers != null && tiers.isNotEmpty) {
+          final firstTier = tiers.first;
+          if (firstTier['extension_hourly_rate'] != null) {
+            hourlyLateRate = double.tryParse(firstTier['extension_hourly_rate'].toString()) ?? hourlyLateRate;
+            break;
+          }
+        }
+      }
+    }
+
     if (endAt != null && now.isAfter(endAt)) {
       lateMinutes = now.difference(endAt).inMinutes;
       if (lateMinutes > 60) {
-        final billableHours = ((lateMinutes - 60) / 60).ceil();
-        penaltyAmount = billableHours * 15000.0;
+        billableHours = ((lateMinutes - 60) / 60).ceil();
+        penaltyAmount = billableHours * hourlyLateRate;
       }
     }
 
@@ -169,15 +232,19 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
             ),
             const SizedBox(height: 16),
 
-            // CRITICAL GUARD: iCloud / Google Sign-Out Check (Only when required)
+            // CRITICAL GUARD: Device Account & Handover Protection (iCloud / Google FRP / Privacy)
             if (_requiresFrpCheck)
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: _icloudRemoved ? AppColors.successLight : AppColors.dangerLight,
+                  color: _accountCleared
+                      ? AppColors.successLight
+                      : (_isQuarantined ? Colors.amber.withValues(alpha: 0.15) : AppColors.dangerLight),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _icloudRemoved ? AppColors.success : AppColors.danger,
+                    color: _accountCleared
+                        ? AppColors.success
+                        : (_isQuarantined ? Colors.amber.shade700 : AppColors.danger),
                     width: 1.5,
                   ),
                 ),
@@ -187,14 +254,22 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                     Row(
                       children: [
                         Icon(
-                          _icloudRemoved ? Icons.verified_user_rounded : Icons.gpp_bad_rounded,
-                          color: _icloudRemoved ? AppColors.success : AppColors.danger,
+                          _accountCleared
+                              ? Icons.verified_user_rounded
+                              : (_isQuarantined ? Icons.warning_amber_rounded : Icons.gpp_bad_rounded),
+                          color: _accountCleared
+                        ? AppColors.success
+                        : (_isQuarantined ? Colors.amber.shade700 : AppColors.danger),
                           size: 22,
                         ),
                         const SizedBox(width: 8),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'iCLOUD / GOOGLE FRP GUARD (WAJIB)',
+                            _isAppleDevice
+                                ? 'iCLOUD & APPLE ACTIVATION GUARD (WAJIB)'
+                                : (_isAndroidDevice
+                                    ? 'GOOGLE ACCOUNT & FRP GUARD (WAJIB)'
+                                    : 'DEVICE PRIVACY & DATA RESET GUARD (WAJIB)'),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
@@ -209,12 +284,69 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       type: MaterialType.transparency,
                       child: SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          'Akun iCloud / Apple ID / Google telah logout & Find My dinonaktifkan',
+                        title: Text(
+                          _isAppleDevice
+                              ? 'Akun iCloud / Apple ID pelanggan telah logout & Find My dinonaktifkan'
+                              : (_isAndroidDevice
+                                  ? 'Akun Google telah dihapus dari Pengaturan & FRP aman'
+                                  : 'Data pribadi telah di-reset & akun pelanggan telah dikeluarkan'),
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                         ),
-                        value: _icloudRemoved,
-                        onChanged: (val) => setState(() => _icloudRemoved = val),
+                        value: _accountCleared,
+                        onChanged: (val) => setState(() {
+                          _accountCleared = val;
+                          if (val) _isQuarantined = false;
+                        }),
+                      ),
+                    ),
+                    const Divider(height: 16),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () {
+                        setState(() {
+                          _isQuarantined = !_isQuarantined;
+                          if (_isQuarantined) _accountCleared = false;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _isQuarantined ? Colors.amber.withValues(alpha: 0.25) : AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _isQuarantined ? Colors.amber.shade700 : AppColors.border,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _isQuarantined ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                              size: 20,
+                              color: _isQuarantined ? Colors.amber.shade900 : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Karantina Unit (Pelanggan Lupa Sandi / Belum Logout)',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: _isQuarantined ? Colors.amber.shade900 : AppColors.obsidian,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Unit akan dialihkan ke status Maintenance. Wajib mengisi catatan staf di bawah.',
+                                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -286,23 +418,72 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       children: [
                         CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Layar sentuh & kamera berfungsi normal', style: TextStyle(fontSize: 13)),
+                          title: Text('Layar sentuh & kamera berfungsi normal', style: TextStyle(fontSize: 13)),
                           value: _screenOk,
                           onChanged: (v) => setState(() => _screenOk = v ?? false),
                         ),
                         CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Kabel charger dikembalikan', style: TextStyle(fontSize: 13)),
+                          title: Text('Kabel charger dikembalikan', style: TextStyle(fontSize: 13)),
                           value: _cableReturned,
                           onChanged: (v) => setState(() => _cableReturned = v ?? false),
                         ),
                         CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Adaptor charger dikembalikan', style: TextStyle(fontSize: 13)),
+                          title: Text('Adaptor charger dikembalikan', style: TextStyle(fontSize: 13)),
                           value: _adapterReturned,
                           onChanged: (v) => setState(() => _adapterReturned = v ?? false),
                         ),
                       ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Staff Notes / Quarantine Follow-Up
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _isQuarantined ? Colors.amber.shade700 : AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.notes_rounded,
+                        size: 18,
+                        color: _isQuarantined ? Colors.amber.shade800 : AppColors.obsidian,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _isQuarantined ? 'CATATAN TINDAK LANJUT KARANTINA (WAJIB)' : 'CATATAN STAF (OPSIONAL)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: _isQuarantined ? Colors.amber.shade800 : AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: _staffNotesController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: _isQuarantined
+                          ? 'Wajib: Catat alasan karantina, kontak pelanggan, dan batas waktu tindak lanjut akun...'
+                          : 'Catatan kondisi tambahan atau pesan pengembalian...',
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
                 ],
@@ -338,6 +519,42 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerLight,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Keterlambatan:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('${lateMinutes ~/ 60} jam ${lateMinutes % 60} mnt ($billableHours jam tagih)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Tarif per jam:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text('${CurrencyFormatter.format(hourlyLateRate)} / jam', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          const Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Grace period:', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                              Text('60 menit bebas biaya', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -398,10 +615,20 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   }
 
   void _processReturn(double penaltyAmount) async {
-    if (_requiresFrpCheck && !_icloudRemoved) {
+    if (_requiresFrpCheck && !_accountCleared && !_isQuarantined) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('PERINGATAN: Akun iCloud / Apple ID / Google wajib dipastikan logout sebelum unit dapat diterima kembali!'),
+          content: Text('PERINGATAN: Akun iCloud / Apple ID / Google wajib dipastikan logout sebelum unit dapat diterima kembali, atau tandai Karantina Unit!'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
+    if (_isQuarantined && _staffNotesController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Catatan staf wajib diisi jika perangkat dikarantina untuk mendokumentasikan tindak lanjut.'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -411,8 +638,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     final payload = {
       'returned_at': DateTime.now().toIso8601String(),
       'condition_grade': _conditionGrade,
+      'staff_notes': _staffNotesController.text.trim().isEmpty ? null : _staffNotesController.text.trim(),
       'checklist_results': {
-        if (_requiresFrpCheck) 'icloud_removed': _icloudRemoved,
+        if (_requiresFrpCheck) ...{
+          'icloud_removed': _accountCleared,
+          'account_quarantined': _isQuarantined,
+          'account_status': _accountCleared ? 'cleared' : (_isQuarantined ? 'quarantined' : 'unverified'),
+          'device_platform': _isAppleDevice ? 'ios' : (_isAndroidDevice ? 'android' : 'generic'),
+        },
         'screen_ok': _screenOk,
         'camera_ok': _cameraOk,
       },
@@ -525,7 +758,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 customerName: widget.booking['customer']?['name']?.toString() ?? 'Pelanggan',
                 unitName: widget.booking['asset']?['name']?.toString() ?? 'Perangkat Gadget',
                 conditionGrade: 'Grade $_conditionGrade',
-                checklistNotes: 'Screen: ${_screenOk ? "OK" : "Minus"} • Kamera: ${_cameraOk ? "OK" : "Minus"}',
+                checklistNotes: _isQuarantined ? 'Status: Karantina (Maintenance) • Screen: ${_screenOk ? "OK" : "Minus"}' : 'Status: Bersih (Logout) • Screen: ${_screenOk ? "OK" : "Minus"}',
                 accessoriesNotes: 'Kabel: ${_cableReturned ? "OK" : "Kurang"} • Adaptor: ${_adapterReturned ? "OK" : "Kurang"}',
                 penaltyAmount: penaltyPaid ? penaltyAmount : 0.0,
                 paymentMethod: penaltyPaid ? 'Lunas Denda' : null,

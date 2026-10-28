@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../models/notification_item.dart';
 
@@ -57,7 +58,7 @@ class NotificationNotifier extends Notifier<NotificationState> {
       }
 
       final response = await ApiClient().dio.get(
-        '/api/v1/notifications',
+        ApiConstants.notifications,
         queryParameters: queryParams,
       );
 
@@ -88,7 +89,7 @@ class NotificationNotifier extends Notifier<NotificationState> {
   Future<void> fetchUnreadCountOnly() async {
     try {
       final response = await ApiClient().dio.get(
-        '/api/v1/notifications',
+        ApiConstants.notifications,
         queryParameters: {'per_page': 1},
       );
 
@@ -104,7 +105,7 @@ class NotificationNotifier extends Notifier<NotificationState> {
   Future<void> markAsRead(int notificationId) async {
     try {
       final response = await ApiClient().dio.patch(
-        '/api/v1/notifications/$notificationId/read',
+        ApiConstants.markNotificationRead(notificationId),
       );
 
       if (response.statusCode == 200 && response.data['success'] == true) {
@@ -131,7 +132,7 @@ class NotificationNotifier extends Notifier<NotificationState> {
   Future<bool> markAllAsRead() async {
     try {
       final response = await ApiClient().dio.post(
-        '/api/v1/notifications/read-all',
+        ApiConstants.markAllNotificationsRead,
       );
 
       if (response.statusCode == 200 && response.data['success'] == true) {

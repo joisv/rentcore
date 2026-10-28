@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../auth/providers/business_provider.dart';
 import '../providers/asset_provider.dart';
 
 class AddProductSheet extends ConsumerStatefulWidget {
@@ -52,6 +53,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
   final _storageController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _accessoriesController = TextEditingController();
+  bool _hasSerialNumber = true;
   bool _requiresFrpCheck = false;
   bool _isAddon = false;
   bool _isLoading = false;
@@ -69,6 +71,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       _colorController.text = p['color']?.toString() ?? '';
       _storageController.text = p['storage_capacity']?.toString() ?? '';
       _descriptionController.text = p['description']?.toString() ?? '';
+      _hasSerialNumber = p['has_serial_number'] != false;
       _requiresFrpCheck = p['requires_frp_check'] == true;
       _isAddon = p['is_addon'] == true || p['is_addon'] == 1;
 
@@ -327,6 +330,75 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
     );
   }
 
+  bool _isStorageRelevant(List<dynamic> categories) {
+    if (_storageController.text.trim().isNotEmpty) return true;
+    if (_selectedCategoryId != null) {
+      final cat = categories.where((c) => c['id'] == _selectedCategoryId).firstOrNull;
+      if (cat != null) {
+        final name = (cat['name'] ?? '').toString().toLowerCase();
+        final slug = (cat['slug'] ?? '').toString().toLowerCase();
+        final combined = '$name $slug';
+        if (combined.contains('phone') ||
+            combined.contains('tablet') ||
+            combined.contains('ipad') ||
+            combined.contains('laptop') ||
+            combined.contains('komputer') ||
+            combined.contains('pc') ||
+            combined.contains('gadget')) {
+          return true;
+        }
+        if (combined.contains('tenda') ||
+            combined.contains('kursi') ||
+            combined.contains('meja') ||
+            combined.contains('mobil') ||
+            combined.contains('motor') ||
+            combined.contains('alat') ||
+            combined.contains('perkakas') ||
+            combined.contains('kamera') ||
+            combined.contains('drone')) {
+          return false;
+        }
+      }
+    }
+    final bizCats = ref.read(businessProvider).activeBusinessCategories;
+    if (bizCats.isEmpty) return true;
+    return bizCats.contains('electronics') || bizCats.contains('other');
+  }
+
+  bool _isFrpRelevant(List<dynamic> categories) {
+    if (_requiresFrpCheck) return true;
+    if (_selectedCategoryId != null) {
+      final cat = categories.where((c) => c['id'] == _selectedCategoryId).firstOrNull;
+      if (cat != null) {
+        final name = (cat['name'] ?? '').toString().toLowerCase();
+        final slug = (cat['slug'] ?? '').toString().toLowerCase();
+        final combined = '$name $slug';
+        if (combined.contains('phone') ||
+            combined.contains('tablet') ||
+            combined.contains('ipad') ||
+            combined.contains('apple') ||
+            combined.contains('iphone') ||
+            combined.contains('android')) {
+          return true;
+        }
+        if (combined.contains('tenda') ||
+            combined.contains('kursi') ||
+            combined.contains('meja') ||
+            combined.contains('mobil') ||
+            combined.contains('motor') ||
+            combined.contains('alat') ||
+            combined.contains('perkakas') ||
+            combined.contains('kamera') ||
+            combined.contains('lensa')) {
+          return false;
+        }
+      }
+    }
+    final bizCats = ref.read(businessProvider).activeBusinessCategories;
+    if (bizCats.isEmpty) return true;
+    return bizCats.contains('electronics') || bizCats.contains('other');
+  }
+
   Future<void> _submitProduct() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategoryId == null) {
@@ -396,6 +468,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
           'storage_capacity': _storageController.text.trim(),
         if (accessories.isNotEmpty)
           'standard_accessories': accessories,
+        'has_serial_number': _hasSerialNumber,
         'requires_frp_check': _requiresFrpCheck,
         'is_addon': _isAddon,
         'rates': formattedRates,
@@ -466,6 +539,9 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
   @override
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesProvider);
+    final cats = categoriesAsync.asData?.value ?? const [];
+    final isStorageApplicable = _isStorageRelevant(cats);
+    final isFrpApplicable = _isFrpRelevant(cats);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
@@ -629,7 +705,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                             isExpanded: true,
                             decoration: _inputDecoration(),
                             hint: const Text(
-                              'Pilih Kategori (Kamera, Laptop, Lensa, Drone...)',
+                              'Pilih Kategori (Elektronik, Kamera, Alat, Kendaraan, Tenda...)',
                               style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                             ),
                             icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
@@ -645,7 +721,13 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                                 if (val != null) {
                                   final selected = cats.firstWhere((x) => x['id'] == val, orElse: () => {});
                                   final slug = (selected['slug'] ?? '').toString().toLowerCase();
-                                  _requiresFrpCheck = slug.contains('phone') || slug.contains('tablet');
+                                  final name = (selected['name'] ?? '').toString().toLowerCase();
+                                  final combined = '$slug $name';
+                                  if (combined.contains('phone') || combined.contains('tablet') || combined.contains('ipad') || combined.contains('iphone')) {
+                                    _requiresFrpCheck = true;
+                                  } else if (!_isEditing) {
+                                    _requiresFrpCheck = false;
+                                  }
                                 }
                               });
                             },
@@ -667,7 +749,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           TextFormField(
                             controller: _brandController,
                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
-                            decoration: _inputDecoration(hintText: 'Misal: Sony, Apple, DJI'),
+                            decoration: _inputDecoration(hintText: 'Misal: Sony, Apple, Bosch, Honda, Yamaha'),
                             validator: (v) => (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
                           ),
                         ],
@@ -686,56 +768,74 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           TextFormField(
                             controller: _nameController,
                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
-                            decoration: _inputDecoration(hintText: 'Misal: Alpha A7 IV Body'),
+                            decoration: _inputDecoration(hintText: 'Misal: Alpha A7 IV, Bor Baterai, Tenda Dome 4P'),
                             validator: (v) => (v == null || v.trim().isEmpty) ? 'Nama model wajib' : null,
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
 
-                      // Warna & Kapasitas / RAM (2 Columns Optional)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Warna (Opsional)',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 6),
-                                TextField(
-                                  controller: _colorController,
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
-                                  decoration: _inputDecoration(hintText: 'Hitam / Silver'),
-                                ),
-                              ],
+                      // Warna & Kapasitas / RAM (Category-Adaptive)
+                      if (isStorageApplicable) ...[
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Warna (Opsional)',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: _colorController,
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                    decoration: _inputDecoration(hintText: 'Hitam / Silver / Merah'),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Kapasitas / RAM (Opsional)',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 6),
-                                TextField(
-                                  controller: _storageController,
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
-                                  decoration: _inputDecoration(hintText: '512GB / 16GB RAM'),
-                                ),
-                              ],
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Kapasitas / RAM (Opsional)',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: _storageController,
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                    decoration: _inputDecoration(hintText: '512GB / 16GB RAM'),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ] else ...[
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Warna (Opsional)',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _colorController,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                              decoration: _inputDecoration(hintText: 'Hitam / Silver / Merah / Hijau'),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 12),
 
                       // Deskripsi Singkat & Spesifikasi
@@ -752,7 +852,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                             maxLines: 2,
                             style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
                             decoration: _inputDecoration(
-                              hintText: 'Spesifikasi ringkas, sensor, resolusi, port input/output...',
+                              hintText: 'Spesifikasi ringkas, dimensi, kapasitas beban, input/output...',
                             ),
                           ),
                         ],
@@ -769,7 +869,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           ),
                           const SizedBox(height: 2),
                           const Text(
-                            'Pisahkan dengan koma: 2x Baterai, Dual Charger, Tas Kamera, SD Card 128GB',
+                            'Pisahkan dengan koma: Kabel, Charger, Tas, Kunci Cadangan, Aksesoris',
                             style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
                           ),
                           const SizedBox(height: 6),
@@ -777,7 +877,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                             controller: _accessoriesController,
                             style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
                             decoration: _inputDecoration(
-                              hintText: 'Charger, Kabel HDMI, Tas, Baterai Cadangan...',
+                              hintText: 'Charger, Tas, Helm, Kunci, Kabel Ekstensi...',
                             ),
                           ),
                         ],
@@ -796,7 +896,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                       ),
                       const SizedBox(height: 10),
 
-                      // Toggle 1: Wajib Cek Akun (iCloud / FRP)
+                      // Toggle 1: Serial Number Fisik (Adaptive)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
@@ -809,33 +909,17 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                         ),
                         child: Row(
                           children: [
-                            Expanded(
+                            const Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      const Text(
-                                        'Wajib Cek Akun (iCloud / FRP)',
-                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFEF3C7),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Text(
-                                          'Penting',
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF92400E)),
-                                        ),
-                                      ),
-                                    ],
+                                  Text(
+                                    'Memiliki Serial Number Fisik (SN)',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                                   ),
-                                  const SizedBox(height: 3),
-                                  const Text(
-                                    'Wajibkan kasir verifikasi pelepasan akun iCloud/Google saat unit dikembalikan.',
+                                  SizedBox(height: 3),
+                                  Text(
+                                    'Nonaktifkan jika barang disewakan tanpa identitas serial unik per unit (misal: kabel, tenda, perlengkapan panggung).',
                                     style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
                                   ),
                                 ],
@@ -843,19 +927,80 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                             ),
                             const SizedBox(width: 8),
                             Switch(
-                              value: _requiresFrpCheck,
+                              value: _hasSerialNumber,
                               activeThumbColor: Colors.white,
                               activeTrackColor: const Color(0xFF0F172A),
                               inactiveThumbColor: Colors.white,
                               inactiveTrackColor: const Color(0xFFE2E8F0),
-                              onChanged: (val) => setState(() => _requiresFrpCheck = val),
+                              onChanged: (val) => setState(() => _hasSerialNumber = val),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 10),
 
-                      // Toggle 2: Tandai sebagai Aksesoris Tambahan
+                      // Toggle 2: Wajib Cek Akun (iCloud / FRP) (Adaptive - Phone/Smart only)
+                      if (isFrpApplicable) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            boxShadow: const [
+                              BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 1)),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          'Wajib Cek Akun (iCloud / FRP)',
+                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFEF3C7),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: const Text(
+                                            'Penting',
+                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF92400E)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 3),
+                                    const Text(
+                                      'Wajibkan kasir verifikasi pelepasan akun iCloud/Google saat unit dikembalikan.',
+                                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Switch(
+                                value: _requiresFrpCheck,
+                                activeThumbColor: Colors.white,
+                                activeTrackColor: const Color(0xFF0F172A),
+                                inactiveThumbColor: Colors.white,
+                                inactiveTrackColor: const Color(0xFFE2E8F0),
+                                onChanged: (val) => setState(() => _requiresFrpCheck = val),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+
+                      // Toggle 3: Tandai sebagai Aksesoris Tambahan
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(

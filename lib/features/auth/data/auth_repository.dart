@@ -125,6 +125,9 @@ class AuthRepository {
     required String city,
     String? address,
     String? phone,
+    List<String>? businessCategories,
+    String? initialBranchName,
+    String? initialBranchCode,
   }) async {
     final payload = <String, dynamic>{
       'name': name,
@@ -132,6 +135,15 @@ class AuthRepository {
     };
     if (address != null && address.isNotEmpty) payload['address'] = address;
     if (phone != null && phone.isNotEmpty) payload['phone'] = phone;
+    if (businessCategories != null && businessCategories.isNotEmpty) {
+      payload['business_categories'] = businessCategories;
+    }
+    if (initialBranchName != null && initialBranchName.isNotEmpty) {
+      payload['initial_branch_name'] = initialBranchName;
+    }
+    if (initialBranchCode != null && initialBranchCode.isNotEmpty) {
+      payload['initial_branch_code'] = initialBranchCode;
+    }
 
     final response = await _client.dio.post(
       ApiConstants.businesses,

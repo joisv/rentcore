@@ -75,6 +75,9 @@ class ApiConstants {
   static const String currentShift = '/cashier/shift/current';
   static const String openShift = '/cashier/shift/open';
   static const String closeShift = '/cashier/shift/close';
+  static const String shiftSchedule = '/cashier/shift/schedule';
+  static const String paymentSettings = '/payment-settings';
+  static const String qrisImage = '/payment-settings/qris-image';
 
   // Inter-Affiliate Stock Transfers
   static const String transfers = '/transfers';
@@ -92,4 +95,9 @@ class ApiConstants {
   static const String customerLookup = '/customers/lookup';
   static String customerIdentityDoc(dynamic id) => '/customers/$id/identity-document';
   static String toggleCustomerBlacklist(dynamic id) => '/customers/$id/blacklist';
+
+  // Tenant Notifications
+  static const String notifications = '/notifications';
+  static String markNotificationRead(dynamic id) => '/notifications/$id/read';
+  static const String markAllNotificationsRead = '/notifications/read-all';
 }

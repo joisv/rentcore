@@ -131,6 +131,19 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     final remainingPenaltyDue = (totalPenaltyDue - penaltyPaid).clamp(0.0, double.infinity);
     final remainingDue = remainingRentalDue + remainingPenaltyDue;
 
+    final lateMinutes = int.tryParse(returnInspection['late_minutes']?.toString() ?? '0') ?? 0;
+    final lateFee = CurrencyFormatter.parse(returnInspection['late_fee']);
+    final billableHours = lateMinutes > 60 ? ((lateMinutes - 60) / 60.0).ceil() : 0;
+    final hourlyRate = billableHours > 0 && lateFee > 0 ? (lateFee / billableHours) : 15000.0;
+    final overdueDurationText = lateMinutes >= 60
+        ? '${lateMinutes ~/ 60} Jam ${lateMinutes % 60} Menit ($lateMinutes Menit)'
+        : '$lateMinutes Menit';
+    final penaltyPaymentStatusText = lateFee > 0
+        ? (remainingPenaltyDue <= 0
+            ? 'Lunas (Terbayar)'
+            : (penaltyPaid > 0 ? 'Sebagian (Sisa ${CurrencyFormatter.format(remainingPenaltyDue)})' : 'Belum Dibayar'))
+        : 'Bebas Denda';
+
     final isCentral = affiliate['is_central'] == true;
     final branchName = affiliate['name'] ?? (isCentral ? 'Pusat (Main Store)' : 'Cabang');
 
@@ -552,6 +565,139 @@ class PosTransactionDetailSheet extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
+
+          // 4b. Audit Keterlambatan Pengembalian (Overdue & Late Fee Audit)
+          if (returnInspection.isNotEmpty && (lateMinutes > 0 || lateFee > 0)) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: lateFee > 0 ? (remainingPenaltyDue <= 0 ? AppColors.success : AppColors.warning) : AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.timer_off_outlined,
+                            size: 18,
+                            color: lateFee > 0 ? (remainingPenaltyDue <= 0 ? AppColors.success : AppColors.warning) : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'AUDIT KETERLAMBATAN & DENDA',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: lateFee > 0
+                              ? (remainingPenaltyDue <= 0 ? AppColors.successLight : AppColors.warningLight)
+                              : AppColors.infoLight,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          lateFee > 0
+                              ? (remainingPenaltyDue <= 0 ? 'LUNAS' : 'BELUM LUNAS')
+                              : 'GRACE PERIOD (BEBAS DENDA)',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: lateFee > 0
+                                ? (remainingPenaltyDue <= 0 ? AppColors.success : AppColors.warning)
+                                : AppColors.info,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTimelineRow('Jadwal Kembali', b['end_at']),
+                  const SizedBox(height: 6),
+                  _buildTimelineRow('Waktu Pengembalian', returnInspection['returned_at']),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Durasi Keterlambatan:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        overdueDurationText,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                          color: lateFee > 0 ? AppColors.danger : AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Toleransi Bebas Denda:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text('60 Menit (Grace Period)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                  const Divider(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Tarif Denda per Jam:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        '${CurrencyFormatter.format(hourlyRate)} / Jam',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Jam Keterlambatan Dihitung:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        '$billableHours Jam Billable',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Denda Keterlambatan:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text(
+                        CurrencyFormatter.format(lateFee),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.danger),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Status Pembayaran Denda:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        penaltyPaymentStatusText,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          color: remainingPenaltyDue <= 0 ? AppColors.success : AppColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // 5. Financial Audit Breakdown
           Container(

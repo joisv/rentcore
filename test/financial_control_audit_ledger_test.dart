@@ -135,6 +135,40 @@ void main() {
     expect(find.text('Tutup Shift & Rekapitulasi Kasir'), findsOneWidget);
   });
 
+  testWidgets('CashDrawerShiftModal accurately displays expected_cash_now and shift inflow movements', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final multiDayActiveShift = {
+      'id': 2,
+      'shift_number': 'SHF-CBG001-261020-0002',
+      'opening_cash_float': 500000.0,
+      'current_cash_inflow': 15000.0,
+      'current_cash_refund': 0.0,
+      'current_cash_expenses': 0.0,
+      'expected_cash_now': 515000.0,
+      'status': 'open',
+    };
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CashDrawerShiftModal(
+            activeShift: multiDayActiveShift,
+            expectedDrawerCash: 500000.0,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.text('Tutup Shift & Rekonsiliasi Kas'), findsOneWidget);
+    expect(find.text('Kas Masuk Shift (Penjualan/Denda)'), findsOneWidget);
+    expect(find.text('+Rp 15.000'), findsOneWidget);
+    expect(find.text('Rp 515.000'), findsOneWidget);
+  });
+
   testWidgets('PosTransactionDetailSheet renders void action button and dialog', (tester) async {
     tester.view.physicalSize = const Size(1000, 2000);
     tester.view.devicePixelRatio = 1.0;

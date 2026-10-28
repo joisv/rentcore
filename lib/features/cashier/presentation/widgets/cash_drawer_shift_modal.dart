@@ -79,8 +79,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     return c100 + c50 + c20 + c10 + c5 + c2 + coin;
   }
 
+  double get _effectiveExpectedCash {
+    if (widget.activeShift != null && widget.activeShift!['expected_cash_now'] != null) {
+      return CurrencyFormatter.parse(widget.activeShift!['expected_cash_now']);
+    }
+    return widget.expectedDrawerCash;
+  }
+
   double get _cashDifference {
-    return _actualCountedTotal - widget.expectedDrawerCash;
+    return _actualCountedTotal - _effectiveExpectedCash;
   }
 
   bool get _hasDiscrepancy => _cashDifference.abs() > 5000.0;
@@ -128,7 +135,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
   Future<void> _submitCloseShift() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_actualCountedTotal <= 0 && widget.expectedDrawerCash > 0) {
+    if (_actualCountedTotal <= 0 && _effectiveExpectedCash > 0) {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -456,6 +463,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     final shiftNum = widget.activeShift?['shift_number'] ?? 'SHF-ACTIVE';
     final openedAt = widget.activeShift?['opened_at'] ?? '';
     final floatAmt = CurrencyFormatter.parse(widget.activeShift?['opening_cash_float']);
+    final inflowAmt = widget.activeShift?['current_cash_inflow'] != null
+        ? CurrencyFormatter.parse(widget.activeShift?['current_cash_inflow'])
+        : 0.0;
+    final refundAmt = widget.activeShift?['current_cash_refund'] != null
+        ? CurrencyFormatter.parse(widget.activeShift?['current_cash_refund'])
+        : 0.0;
+    final expensesAmt = widget.activeShift?['current_cash_expenses'] != null
+        ? CurrencyFormatter.parse(widget.activeShift?['current_cash_expenses'])
+        : 0.0;
     final diff = _cashDifference;
     final isMatch = diff == 0.0;
     final isSurplus = diff > 0.0;
@@ -501,13 +517,43 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
                   Text(CurrencyFormatter.format(floatAmt), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                 ],
               ),
-              const SizedBox(height: 4),
+              if (inflowAmt > 0) ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Kas Masuk Shift (Penjualan/Denda)', style: TextStyle(fontSize: 12, color: AppColors.success)),
+                    Text('+${CurrencyFormatter.format(inflowAmt)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.success)),
+                  ],
+                ),
+              ],
+              if (refundAmt > 0) ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Pengembalian Kas (Refund)', style: TextStyle(fontSize: 12, color: AppColors.danger)),
+                    Text('-${CurrencyFormatter.format(refundAmt)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.danger)),
+                  ],
+                ),
+              ],
+              if (expensesAmt > 0) ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Beban Pengeluaran Laci', style: TextStyle(fontSize: 12, color: AppColors.danger)),
+                    Text('-${CurrencyFormatter.format(expensesAmt)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.danger)),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('FISIK KAS HARUS ADA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
                   Text(
-                    CurrencyFormatter.format(widget.expectedDrawerCash),
+                    CurrencyFormatter.format(_effectiveExpectedCash),
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.obsidian),
                   ),
                 ],

@@ -462,11 +462,76 @@ class _BusinessOnboardingDialog extends ConsumerStatefulWidget {
 }
 
 class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDialog> {
+  int _currentStep = 0; // 0: Info Bisnis, 1: Situasi Cabang, 2: Kategori Rental
+
   final _nameCtrl = TextEditingController();
   final _cityCtrl = TextEditingController(text: 'Denpasar');
   final _addressCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+
+  // Branch situation
+  String _branchSituation = 'single'; // 'single' or 'multi'
+  final _branchNameCtrl = TextEditingController();
+  final _branchCodeCtrl = TextEditingController();
+
+  // Selected categories
+  final Set<String> _selectedCategories = {};
   bool _isSubmitting = false;
+
+  static const List<Map<String, String>> _availableCategories = [
+    {
+      'id': 'smartphones_electronics',
+      'label': 'Smartphone & Gadget',
+      'desc': 'iPhone, Android, tablet, aksesoris charger',
+      'icon': '📱',
+    },
+    {
+      'id': 'cameras_photography',
+      'label': 'Kamera & Fotografi',
+      'desc': 'Mirrorless, DSLR, lensa, lighting, drone',
+      'icon': '📷',
+    },
+    {
+      'id': 'tools_equipment',
+      'label': 'Alat & Perkakas (Tools)',
+      'desc': 'Mesin bor, genset, tangga, scaffolding, perkakas tukang',
+      'icon': '🔧',
+    },
+    {
+      'id': 'vehicles',
+      'label': 'Kendaraan & Transportasi',
+      'desc': 'Rental motor, mobil, sepeda, scooter listrik',
+      'icon': '🚗',
+    },
+    {
+      'id': 'event_supplies',
+      'label': 'Perlengkapan Event & Pesta',
+      'desc': 'Tenda, sound system, panggung, proyektor, kursi',
+      'icon': '🎪',
+    },
+    {
+      'id': 'furniture_household',
+      'label': 'Furnitur & Rumah Tangga',
+      'desc': 'Sofa, kasur lipat, meja event, peralatan bayi',
+      'icon': '🛋️',
+    },
+    {
+      'id': 'other',
+      'label': 'Usaha Rental Lainnya',
+      'desc': 'Kostum, alat camping, konsol game, mainan, dll.',
+      'icon': '📦',
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl.addListener(() {
+      if (_branchSituation == 'single' && _branchNameCtrl.text.isEmpty) {
+        // Auto-update branch preview if not manually typed
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -474,13 +539,43 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
     _cityCtrl.dispose();
     _addressCtrl.dispose();
     _phoneCtrl.dispose();
+    _branchNameCtrl.dispose();
+    _branchCodeCtrl.dispose();
     super.dispose();
+  }
+
+  void _nextStep() {
+    if (_currentStep == 0) {
+      final name = _nameCtrl.text.trim();
+      final city = _cityCtrl.text.trim();
+      if (name.isEmpty || city.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nama usaha rental dan kota domisili wajib diisi.')),
+        );
+        return;
+      }
+      if (_branchNameCtrl.text.trim().isEmpty) {
+        _branchNameCtrl.text = '$name Pusat';
+      }
+      if (_branchCodeCtrl.text.trim().isEmpty) {
+        final clean = name.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
+        _branchCodeCtrl.text = clean.length >= 3 ? clean.substring(0, 3) : 'PST';
+      }
+    }
+    setState(() => _currentStep++);
+  }
+
+  void _prevStep() {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    }
   }
 
   void _submit() async {
     final name = _nameCtrl.text.trim();
     final city = _cityCtrl.text.trim();
     if (name.isEmpty || city.isEmpty) {
+      setState(() => _currentStep = 0);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nama usaha rental dan kota wajib diisi.')),
       );
@@ -493,6 +588,9 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
       city: city,
       address: _addressCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
+      businessCategories: _selectedCategories.isNotEmpty ? _selectedCategories.toList() : null,
+      initialBranchName: _branchNameCtrl.text.trim().isNotEmpty ? _branchNameCtrl.text.trim() : null,
+      initialBranchCode: _branchCodeCtrl.text.trim().isNotEmpty ? _branchCodeCtrl.text.trim() : null,
     );
 
     if (mounted) {
@@ -516,82 +614,359 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Row(
-        children: [
-          Icon(Icons.add_business_rounded, color: AppColors.obsidian),
-          SizedBox(width: 10),
-          Text('Daftar Usaha Rental Baru', style: TextStyle(fontSize: 16)),
-        ],
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Buat ruang bisnis baru untuk mengelola inventaris, tarif sewa, kasir, dan tim cabang Anda secara terisolasi.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nama Usaha Rental *',
-                hintText: 'Contoh: SkyRental Bali',
-                border: OutlineInputBorder(),
-                isDense: true,
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header & Step indicator
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.obsidian,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.add_business_rounded, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Onboarding Bisnis Rental',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                        ),
+                        Text(
+                          'Langkah ${_currentStep + 1} dari 3: ${_getStepTitle()}',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _cityCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Kota / Lokasi Domisili *',
-                hintText: 'Contoh: Denpasar',
-                border: OutlineInputBorder(),
-                isDense: true,
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                value: (_currentStep + 1) / 3,
+                backgroundColor: AppColors.surfaceMuted,
+                color: AppColors.obsidian,
+                minHeight: 4,
+                borderRadius: BorderRadius.circular(2),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _addressCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Alamat Cabang Utama',
-                hintText: 'Jl. Sunset Road No. 88',
-                border: OutlineInputBorder(),
-                isDense: true,
+              const SizedBox(height: 16),
+
+              // Step Content
+              Flexible(
+                child: SingleChildScrollView(
+                  child: _buildCurrentStepBody(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Nomor Telepon / WhatsApp',
-                hintText: '081234567890',
-                border: OutlineInputBorder(),
-                isDense: true,
+              const SizedBox(height: 20),
+
+              // Navigation Action Buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (_currentStep > 0)
+                    TextButton.icon(
+                      onPressed: _isSubmitting ? null : _prevStep,
+                      icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                      label: const Text('Kembali'),
+                    )
+                  else
+                    TextButton(
+                      onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                      child: const Text('Batal'),
+                    ),
+                  Row(
+                    children: [
+                      if (_currentStep == 2) ...[
+                        TextButton(
+                          onPressed: _isSubmitting ? null : _submit,
+                          child: const Text('Lewati Kategori'),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.obsidian,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: _isSubmitting
+                            ? null
+                            : (_currentStep < 2 ? _nextStep : _submit),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text(
+                                _currentStep < 2 ? 'Lanjutkan' : 'Selesai & Masuk',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-          child: const Text('Batal'),
+    );
+  }
+
+  String _getStepTitle() {
+    switch (_currentStep) {
+      case 0:
+        return 'Identitas Usaha';
+      case 1:
+        return 'Situasi Cabang';
+      case 2:
+        return 'Kategori Rental';
+      default:
+        return '';
+    }
+  }
+
+  Widget _buildCurrentStepBody() {
+    switch (_currentStep) {
+      case 0:
+        return _buildStep1Identity();
+      case 1:
+        return _buildStep2Branch();
+      case 2:
+        return _buildStep3Categories();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildStep1Identity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Masukkan identitas nama usaha dan domisili rental Anda.',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
-        ElevatedButton(
-          onPressed: _isSubmitting ? null : _submit,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Simpan & Mulai'),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _nameCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Nama Usaha Rental *',
+            hintText: 'Misal: SkyRental Bali / Sumber Teknik Perkakas',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
         ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _cityCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Kota / Lokasi Domisili *',
+            hintText: 'Contoh: Denpasar / Surabaya / Jakarta',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _addressCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Alamat Operasional',
+            hintText: 'Jl. Sunset Road No. 88 (Opsional)',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _phoneCtrl,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'Nomor WhatsApp / Hotline',
+            hintText: '081234567890 (Opsional)',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStep2Branch() {
+    final businessName = _nameCtrl.text.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Jelaskan situasi operasional outlet atau cabang usaha Anda saat ini.',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 14),
+        RadioListTile<String>(
+          value: 'single',
+          groupValue: _branchSituation,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('1 Lokasi / Toko Utama Tunggal', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          subtitle: const Text('Operasional berpusat di satu toko utama (default central branch).', style: TextStyle(fontSize: 11)),
+          onChanged: (v) {
+            setState(() {
+              _branchSituation = v!;
+              _branchNameCtrl.text = '$businessName Pusat';
+              final clean = businessName.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
+              _branchCodeCtrl.text = clean.length >= 3 ? clean.substring(0, 3) : 'PST';
+            });
+          },
+        ),
+        RadioListTile<String>(
+          value: 'multi',
+          groupValue: _branchSituation,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Memiliki Banyak Cabang / Nama Khusus', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          subtitle: const Text('Atur nama dan kode identifikasi cabang awal secara spesifik.', style: TextStyle(fontSize: 11)),
+          onChanged: (v) => setState(() => _branchSituation = v!),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Konfigurasi Cabang Utama Awal', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _branchNameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Cabang Utama',
+                  hintText: 'Misal: SkyRental Pusat / Cabang Teuku Umar',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _branchCodeCtrl,
+                textCapitalization: TextCapitalization.characters,
+                maxLength: 10,
+                decoration: const InputDecoration(
+                  labelText: 'Kode Cabang (3-6 Huruf)',
+                  hintText: 'PST / TMR',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  counterText: '',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStep3Categories() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Pilih satu atau lebih kategori yang Anda sewakan. Kategori ini digunakan untuk menyesuaikan form katalog produk dan unit Anda.',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        ..._availableCategories.map((cat) {
+          final isSelected = _selectedCategories.contains(cat['id']);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                setState(() {
+                  if (isSelected) {
+                    _selectedCategories.remove(cat['id']);
+                  } else {
+                    _selectedCategories.add(cat['id']!);
+                  }
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF3B82F6) : AppColors.border,
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text(cat['icon']!, style: const TextStyle(fontSize: 22)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            cat['label']!,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: isSelected ? const Color(0xFF1D4ED8) : AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            cat['desc']!,
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Checkbox(
+                      value: isSelected,
+                      activeColor: const Color(0xFF3B82F6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            _selectedCategories.add(cat['id']!);
+                          } else {
+                            _selectedCategories.remove(cat['id']);
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
       ],
     );
   }

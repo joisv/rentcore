@@ -176,7 +176,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Kelola rental gadget & unit iPhone secara mandiri',
+                      'Kelola katalog produk, unit inventaris & rental secara mandiri',
                       style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
@@ -186,7 +186,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           const Text(
-            'Akun Anda belum memiliki bisnis rental terdaftar. Buat bisnis dan cabang utama Anda untuk mulai mengelola katalog produk, tarif rental, dan inventaris perangkat.',
+            'Akun Anda belum memiliki bisnis rental terdaftar. Buat bisnis dan cabang utama Anda untuk mulai mengelola katalog produk, tarif rental, dan inventaris unit.',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 16),

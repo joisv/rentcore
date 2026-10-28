@@ -11,6 +11,8 @@ import '../../printer/presentation/printer_settings_screen.dart';
 import '../../transfers/presentation/transfers_screen.dart';
 import '../../vouchers/presentation/voucher_screen.dart';
 import 'manage_organization_screen.dart';
+import 'payment_method_settings_screen.dart';
+import 'shift_schedule_screen.dart';
 import 'store_profile_screen.dart';
 import 'widgets/staff_resignation_sheet.dart';
 
@@ -267,6 +269,31 @@ class StoreSettingsScreen extends ConsumerWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const CashierScreen()),
+                );
+              },
+            ),
+            _buildDivider(),
+            _buildListTile(
+              icon: Icons.access_time_rounded,
+              title: 'Jadwal & Jam Operasional Shift',
+              subtitle: 'Atur jam operasional, toleransi tutup, dan override cabang',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ShiftScheduleScreen()),
+                );
+              },
+            ),
+            _buildDivider(),
+            _buildListTile(
+              icon: Icons.payments_outlined,
+              title: 'Metode Pembayaran',
+              subtitle: 'Atur E-Wallet, QRIS Statis, dan upload gambar barcode QR',
+              badge: isOwnerOrAdmin ? null : 'Lihat Saja',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PaymentMethodSettingsScreen()),
                 );
               },
             ),

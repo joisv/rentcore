@@ -905,12 +905,24 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                     Builder(builder: (_) {
                       final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
                       final activeShift = recon['active_shift'] is Map ? Map<String, dynamic>.from(recon['active_shift'] as Map) : null;
-                      final hasActiveShift = activeShift != null && activeShift['status'] == 'open';
+                      final currentShiftAsync = ref.watch(currentShiftProvider);
+                      final shiftPayload = currentShiftAsync.asData?.value;
+                      final currentShiftData = shiftPayload?['data']?['shift'] is Map
+                          ? Map<String, dynamic>.from(shiftPayload!['data']['shift'] as Map)
+                          : null;
+                      final effectiveShift = currentShiftData ?? activeShift;
+                      final hasActiveShift = effectiveShift != null && effectiveShift['status'] == 'open';
                       final totalExp = CurrencyFormatter.parse(data['total_expenses']);
                       final cashExp = CurrencyFormatter.parse(data['cash_drawer_expenses']);
-                      final expectedCash = recon.containsKey('expected_cash_in_drawer')
-                          ? CurrencyFormatter.parse(recon['expected_cash_in_drawer'])
-                          : (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
+
+                      final double expectedCash;
+                      if (effectiveShift != null && effectiveShift['expected_cash_now'] != null) {
+                        expectedCash = CurrencyFormatter.parse(effectiveShift['expected_cash_now']);
+                      } else if (recon.containsKey('expected_cash_in_drawer')) {
+                        expectedCash = CurrencyFormatter.parse(recon['expected_cash_in_drawer']);
+                      } else {
+                        expectedCash = (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
+                      }
 
                       final bizState = ref.read(businessProvider);
                       final posBranchFilter = ref.read(posFilterBranchIdProvider);
@@ -953,7 +965,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                                     hasActiveShift ? 'Tutup Shift' : 'Buka Shift',
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                   ),
-                                  onPressed: () => _openShiftModal(context, activeShift, expectedCash, effBranch),
+                                  onPressed: () => _openShiftModal(context, effectiveShift, expectedCash, effBranch),
                                 ),
                               ),
                             ],
@@ -1002,11 +1014,23 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                     if (data['cash_reconciliation'] is Map || (data['total_expenses'] != null && CurrencyFormatter.parse(data['total_expenses']) > 0)) ...[
                       Builder(builder: (_) {
                         final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
+                        final activeShift = recon['active_shift'] is Map ? Map<String, dynamic>.from(recon['active_shift'] as Map) : null;
+                        final currentShiftAsync = ref.watch(currentShiftProvider);
+                        final shiftPayload = currentShiftAsync.asData?.value;
+                        final currentShiftData = shiftPayload?['data']?['shift'] is Map
+                            ? Map<String, dynamic>.from(shiftPayload!['data']['shift'] as Map)
+                            : null;
+                        final effectiveShift = currentShiftData ?? activeShift;
                         final totalExp = CurrencyFormatter.parse(data['total_expenses']);
                         final cashExp = CurrencyFormatter.parse(data['cash_drawer_expenses']);
-                        final expectedCash = recon.containsKey('expected_cash_in_drawer')
-                            ? CurrencyFormatter.parse(recon['expected_cash_in_drawer'])
-                            : (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
+                        final double expectedCash;
+                        if (effectiveShift != null && effectiveShift['expected_cash_now'] != null) {
+                          expectedCash = CurrencyFormatter.parse(effectiveShift['expected_cash_now']);
+                        } else if (recon.containsKey('expected_cash_in_drawer')) {
+                          expectedCash = CurrencyFormatter.parse(recon['expected_cash_in_drawer']);
+                        } else {
+                          expectedCash = (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
+                        }
                         final openingFloat = CurrencyFormatter.parse(recon['opening_cash_float']);
 
                         return Container(
@@ -1032,7 +1056,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                                       ),
                                     ],
                                   ),
-                                  if (recon['active_shift'] is Map)
+                                  if (effectiveShift != null)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
@@ -1040,7 +1064,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        'Shift #${(recon['active_shift'] as Map)['shift_number'] ?? (recon['active_shift'] as Map)['id']} Aktif',
+                                        'Shift #${effectiveShift['shift_number'] ?? effectiveShift['id']} Aktif',
                                         style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.success),
                                       ),
                                     ),
@@ -1850,6 +1874,7 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
   final _cashReceivedController = TextEditingController();
   int _selectedMethodId = 1;
   String _selectedMethodCode = 'CASH';
+  String? _selectedQrisImageUrl;
   bool _nonCashConfirmed = true;
   bool _isProcessing = false;
   String _paymentTarget = 'settlement'; // 'settlement' or 'penalty'
@@ -2180,6 +2205,7 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                         setState(() {
                           _selectedMethodId = m['id'];
                           _selectedMethodCode = (m['code'] ?? 'CASH').toString().toUpperCase();
+                          _selectedQrisImageUrl = m['qris_image_url'] as String?;
                           if (_selectedMethodCode == 'CASH') {
                             _cashReceivedController.text = currentTargetDue.toInt().toString();
                           }
@@ -2298,6 +2324,78 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
                   ),
                 ),
               ] else ...[
+                // QRIS Image Display if QRIS is selected
+                if (_selectedMethodCode == 'QRIS') ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.qr_code_2_rounded, size: 20, color: AppColors.obsidian),
+                            SizedBox(width: 8),
+                            Text(
+                              'Pindai QRIS Statis Toko',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        if (_selectedQrisImageUrl != null) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              constraints: const BoxConstraints(maxHeight: 200),
+                              color: Colors.white,
+                              padding: const EdgeInsets.all(8),
+                              child: Image.network(
+                                _selectedQrisImageUrl!,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) => const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Text('Gagal memuat gambar QRIS.', style: TextStyle(fontSize: 12)),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Arahkan kamera m-Banking atau E-Wallet pelanggan ke kode QR di atas.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ] else ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceMuted,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.info_outline_rounded, size: 18, color: AppColors.textSecondary),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Gambar QRIS belum diunggah di Pengaturan Toko. Harap tunjukkan barcode fisik toko.',
+                                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+
                 // Non-Cash Confirmation
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -2436,6 +2534,11 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
       );
     } catch (e) {
       if (!mounted) return;
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('shift kasir belum dibuka') || errorStr.contains('cash_shift')) {
+        _showOpenShiftPromptDialog(context);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal memproses pembayaran: $e'),
@@ -2447,6 +2550,61 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
         setState(() => _isProcessing = false);
       }
     }
+  }
+
+  void _showOpenShiftPromptDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock_clock_rounded, color: AppColors.warning),
+            SizedBox(width: 8),
+            Text('Shift Kasir Belum Dibuka'),
+          ],
+        ),
+        content: const Text(
+          'Transaksi kasir memerlukan shift kasir yang aktif.\n\n'
+          'Silakan buka shift kasir terlebih dahulu untuk mencatat modal awal dan mengaktifkan laci kasir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.obsidian,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.meeting_room_rounded, size: 18),
+            label: const Text('Buka Shift Sekarang'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => CashDrawerShiftModal(
+                  branchId: widget.booking['affiliate_id'],
+                  onShiftUpdated: () {
+                    ref.invalidate(currentShiftProvider);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Shift kasir berhasil dibuka! Silakan lanjutkan konfirmasi pembayaran.'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   void _fetchAndShowReceipt(dynamic receiptId) async {

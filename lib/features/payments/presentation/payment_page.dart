@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/thermal_printer_models.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/pos_numpad.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../cashier/presentation/widgets/cash_drawer_shift_modal.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../data/payment_repository.dart';
@@ -36,6 +35,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   int? _selectedMethodId;
   String _selectedMethodCode = 'CASH';
   String _selectedMethodName = 'Tunai';
+  String? _selectedQrisImageUrl;
   bool _nonCashConfirmed = true;
   bool _isProcessing = false;
   bool _methodInitialized = false;
@@ -298,6 +298,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       _selectedMethodId = mId;
                       _selectedMethodCode = mCode;
                       _selectedMethodName = mName;
+                      _selectedQrisImageUrl = m['qris_image_url'] as String?;
                       if (mCode == 'CASH') {
                         _cashReceivedController.text = amountDue.toInt().toString();
                       }
@@ -447,6 +448,78 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
               ),
             ],
           ] else ...[
+            // QRIS Static Image Display if QRIS is selected
+            if (_selectedMethodCode == 'QRIS') ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.qr_code_2_rounded, size: 20, color: AppColors.obsidian),
+                        SizedBox(width: 8),
+                        Text(
+                          'Pindai QRIS Statis Toko',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_selectedQrisImageUrl != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          constraints: const BoxConstraints(maxHeight: 220),
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(8),
+                          child: Image.network(
+                            _selectedQrisImageUrl!,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text('Gagal memuat gambar QRIS.', style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Arahkan kamera m-Banking atau E-Wallet pelanggan ke kode QR di atas.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 18, color: AppColors.textSecondary),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Gambar QRIS belum diunggah di Pengaturan Toko. Harap tunjukkan barcode fisik atau gunakan metode lain.',
+                                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
             // Non-Cash Confirmation
             Container(
               padding: const EdgeInsets.all(12),
@@ -632,6 +705,11 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       });
     } catch (e) {
       if (!mounted) return;
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('shift kasir belum dibuka') || errorStr.contains('cash_shift')) {
+        _showOpenShiftPromptDialog(context);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal memproses pembayaran: $e'),
@@ -643,6 +721,61 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         setState(() => _isProcessing = false);
       }
     }
+  }
+
+  void _showOpenShiftPromptDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock_clock_rounded, color: AppColors.warning),
+            SizedBox(width: 8),
+            Text('Shift Kasir Belum Dibuka'),
+          ],
+        ),
+        content: const Text(
+          'Transaksi kasir memerlukan shift kasir yang aktif.\n\n'
+          'Silakan buka shift kasir terlebih dahulu untuk mencatat modal awal dan mengaktifkan laci kasir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.obsidian,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.meeting_room_rounded, size: 18),
+            label: const Text('Buka Shift Sekarang'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => CashDrawerShiftModal(
+                  branchId: widget.paymentContext.branchId,
+                  onShiftUpdated: () {
+                    ref.invalidate(currentShiftProvider);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Shift kasir berhasil dibuka! Silakan lanjutkan konfirmasi pembayaran.'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSuccessView(BuildContext context, PaymentResult result) {

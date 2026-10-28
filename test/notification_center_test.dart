@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:rentcore_mobile/core/constants/api_constants.dart';
+import 'package:rentcore_mobile/core/network/api_client.dart';
 import 'package:rentcore_mobile/features/notifications/models/notification_item.dart';
 import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
 import 'package:rentcore_mobile/features/notifications/presentation/notification_center_screen.dart';
@@ -317,6 +319,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Pusat Pemberitahuan'), findsOneWidget);
+    });
+  });
+
+  group('Notification Endpoint Resolution Tests', () {
+    test('ApiConstants notification endpoints do not contain duplicated api prefixes', () {
+      expect(ApiConstants.notifications, '/notifications');
+      expect(ApiConstants.markNotificationRead(42), '/notifications/42/read');
+      expect(ApiConstants.markAllNotificationsRead, '/notifications/read-all');
+
+      final dio = ApiClient().dio;
+      final fullPath = '${dio.options.baseUrl}${ApiConstants.notifications}';
+      expect(fullPath, isNot(contains('/api/v1/api/v1')));
+      expect(fullPath, endsWith('/api/v1/notifications'));
     });
   });
 }

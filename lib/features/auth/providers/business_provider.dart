@@ -53,6 +53,19 @@ class BusinessState {
   bool get isCentralBranch => currentBranch?['is_central'] == true;
   bool get isConsolidated => activeBusinessId != null && activeBranchId == null;
 
+  List<String> get activeBusinessCategories {
+    final raw = currentBusiness?['business_categories'];
+    if (raw is List) {
+      return raw.map((e) => e.toString()).toList();
+    }
+    return const [];
+  }
+
+  bool isCategoryRelevant(String categoryKey) {
+    if (activeBusinessCategories.isEmpty) return true;
+    return activeBusinessCategories.contains(categoryKey);
+  }
+
   BusinessState copyWith({
     bool? isLoading,
     int? activeBusinessId,
@@ -243,6 +256,9 @@ class BusinessNotifier extends Notifier<BusinessState> {
     required String city,
     String? address,
     String? phone,
+    List<String>? businessCategories,
+    String? initialBranchName,
+    String? initialBranchCode,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
@@ -251,6 +267,9 @@ class BusinessNotifier extends Notifier<BusinessState> {
         city: city,
         address: address,
         phone: phone,
+        businessCategories: businessCategories,
+        initialBranchName: initialBranchName,
+        initialBranchCode: initialBranchCode,
       );
 
       final list = await _repository.fetchBusinesses();

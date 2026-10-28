@@ -129,13 +129,23 @@ class PaymentRepository {
 
           final change = isCash ? (cashReceived - amountToPay).clamp(0.0, double.infinity) : 0.0;
 
+          final double actualAmountPaid = latestPenaltyPayment?['amount'] != null
+              ? (double.tryParse(latestPenaltyPayment!['amount'].toString()) ?? amountToPay)
+              : amountToPay;
+          final double actualCashReceived = latestPenaltyPayment?['cash_received'] != null
+              ? (double.tryParse(latestPenaltyPayment!['cash_received'].toString()) ?? (isCash ? cashReceived : amountToPay))
+              : (isCash ? cashReceived : amountToPay);
+          final double actualChange = latestPenaltyPayment?['cash_change'] != null
+              ? (double.tryParse(latestPenaltyPayment!['cash_change'].toString()) ?? change)
+              : change;
+
           return PaymentResult(
             status: PaymentStatus.completed,
             transactionCode: latestPenaltyPayment?['transaction_code'] ?? data['id']?.toString(),
             receiptNumber: latestPenaltyPayment?['receipt_number'],
-            amountPaid: amountToPay,
-            cashReceived: isCash ? cashReceived : amountToPay,
-            cashChange: change,
+            amountPaid: actualAmountPaid,
+            cashReceived: actualCashReceived,
+            cashChange: actualChange,
             paymentMethodCode: paymentMethodCode,
             paymentMethodName: paymentMethodName,
             responseData: data,

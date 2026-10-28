@@ -28,11 +28,13 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TabController _tabController;
-  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _unitsSearchController = TextEditingController();
+  final TextEditingController _catalogSearchController = TextEditingController();
   final ScrollController _unitsScrollController = ScrollController();
   final GlobalKey<ExpandableInventoryFabState> _fabKey = GlobalKey();
   bool _isFabExpanded = false;
-  Timer? _searchDebounceTimer;
+  Timer? _unitsSearchDebounceTimer;
+  Timer? _catalogSearchDebounceTimer;
 
   final List<Map<String, dynamic>> _extraAssets = [];
   int _currentAssetPage = 1;
@@ -94,6 +96,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       if (_isFabExpanded) {
         _collapseFab();
       }
+      _unitsSearchDebounceTimer?.cancel();
+      _catalogSearchDebounceTimer?.cancel();
     });
 
     _unitsScrollController.addListener(_onUnitsScroll);
@@ -103,15 +107,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
         ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(widget.initialStatusFilter);
       }
       ref.read(assetSearchQueryProvider.notifier).setSearch('');
+      ref.read(catalogSearchQueryProvider.notifier).setSearch('');
     });
   }
 
   @override
   void dispose() {
-    _searchDebounceTimer?.cancel();
+    _unitsSearchDebounceTimer?.cancel();
+    _catalogSearchDebounceTimer?.cancel();
     _unitsScrollController.dispose();
     _tabController.dispose();
-    _searchController.dispose();
+    _unitsSearchController.dispose();
+    _catalogSearchController.dispose();
     super.dispose();
   }
 
@@ -156,7 +163,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
     final statusFilter = ref.watch(selectedAssetStatusFilterProvider);
     final categoryFilter = ref.watch(selectedAssetCategoryFilterProvider);
-    final searchQuery = ref.watch(assetSearchQueryProvider);
+    final unitSearchQuery = ref.watch(assetSearchQueryProvider);
+    final catalogSearchQuery = ref.watch(catalogSearchQueryProvider);
 
     final categoriesAsync = ref.watch(categoriesProvider);
     final assetsAsync = ref.watch(inventoryListProvider);
@@ -251,7 +259,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               bizState,
                               statusFilter,
                               categoryFilter,
-                              searchQuery,
+                              unitSearchQuery,
                               categoriesAsync,
                               assetsAsync,
                             ),
@@ -259,7 +267,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             _buildCatalogView(
                               context,
                               categoryFilter,
-                              searchQuery,
+                              catalogSearchQuery,
                               categoriesAsync,
                               productsAsync,
                             ),
@@ -379,17 +387,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 child: SizedBox(
                   height: 44,
                   child: TextField(
-                    controller: _searchController,
+                    controller: _unitsSearchController,
                     style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
                     decoration: InputDecoration(
-                      hintText: 'Cari kode unit, serial number, atau nama ti...',
+                      hintText: 'Cari kode unit, serial number, atau nama tipe...',
                       hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
                       prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
-                      suffixIcon: _searchController.text.isNotEmpty
+                      suffixIcon: _unitsSearchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear_rounded, size: 18),
                               onPressed: () {
-                                _searchController.clear();
+                                _unitsSearchController.clear();
                                 setState(() {});
                                 ref.read(assetSearchQueryProvider.notifier).setSearch('');
                               },
@@ -414,12 +422,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     ),
                     onChanged: (val) {
                       setState(() {});
-                      _searchDebounceTimer?.cancel();
+                      _unitsSearchDebounceTimer?.cancel();
                       final isTesting = WidgetsBinding.instance.runtimeType.toString().contains('Test');
                       if (isTesting) {
                         ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
                       } else {
-                        _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+                        _unitsSearchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
                           if (mounted) {
                             ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
                           }
@@ -503,7 +511,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             icon: const Icon(Icons.clear_rounded, size: 16),
                             label: const Text('Reset Pencarian'),
                             onPressed: () {
-                              _searchController.clear();
+                              _unitsSearchController.clear();
                               setState(() {});
                               ref.read(assetSearchQueryProvider.notifier).setSearch('');
                             },
@@ -679,8 +687,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     final catName = category?['name']?.toString() ?? 'Gadget';
 
     final assetCode = asset['asset_code']?.toString() ?? '-';
-    final serialNum = asset['serial_number']?.toString() ?? '-';
-    final modelName = model?['name']?.toString() ?? 'Perangkat Elektronik';
+    final rawSn = asset['serial_number']?.toString();
+    final serialNum = (rawSn != null && rawSn.trim().isNotEmpty) ? rawSn.trim() : '-';
+    final modelName = model?['name']?.toString() ?? 'Item Rental';
     final status = asset['status']?.toString() ?? 'ready';
     final grade = asset['condition_grade']?.toString() ?? 'A';
     final battery = asset['battery_health'] != null ? int.tryParse(asset['battery_health'].toString()) : null;
@@ -693,7 +702,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       catName,
       if (model?['color'] != null && model!['color'].toString().isNotEmpty) model['color'].toString(),
       if (model?['storage_capacity'] != null && model!['storage_capacity'].toString().isNotEmpty)
-        '${model['storage_capacity']}GB',
+        (model['storage_capacity'].toString().toLowerCase().contains('gb') || model['storage_capacity'].toString().toLowerCase().contains('tb'))
+            ? model['storage_capacity'].toString()
+            : '${model['storage_capacity']}GB',
       if (branchName != null && branchName.isNotEmpty) branchName,
     ];
 
@@ -951,19 +962,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 child: SizedBox(
                   height: 44,
                   child: TextField(
-                    controller: _searchController,
+                    controller: _catalogSearchController,
                     style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
                     decoration: InputDecoration(
                       hintText: 'Cari model, merk, atau spesifikasi...',
                       hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
                       prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
-                      suffixIcon: _searchController.text.isNotEmpty
+                      suffixIcon: _catalogSearchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear_rounded, size: 18),
                               onPressed: () {
-                                _searchController.clear();
+                                _catalogSearchController.clear();
                                 setState(() {});
-                                ref.read(assetSearchQueryProvider.notifier).setSearch('');
+                                ref.read(catalogSearchQueryProvider.notifier).setSearch('');
                               },
                             )
                           : null,
@@ -986,14 +997,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     ),
                     onChanged: (val) {
                       setState(() {});
-                      _searchDebounceTimer?.cancel();
+                      _catalogSearchDebounceTimer?.cancel();
                       final isTesting = WidgetsBinding.instance.runtimeType.toString().contains('Test');
                       if (isTesting) {
-                        ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                        ref.read(catalogSearchQueryProvider.notifier).setSearch(val.trim());
                       } else {
-                        _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+                        _catalogSearchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
                           if (mounted) {
-                            ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                            ref.read(catalogSearchQueryProvider.notifier).setSearch(val.trim());
                           }
                         });
                       }
@@ -1073,9 +1084,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             icon: const Icon(Icons.clear_rounded, size: 16),
                             label: const Text('Reset Pencarian'),
                             onPressed: () {
-                              _searchController.clear();
+                              _catalogSearchController.clear();
                               setState(() {});
-                              ref.read(assetSearchQueryProvider.notifier).setSearch('');
+                              ref.read(catalogSearchQueryProvider.notifier).setSearch('');
                             },
                           ),
                         ),
@@ -1809,6 +1820,85 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 }
 
 // ==========================================
+// ADAPTIVE FIELD HELPERS
+// ==========================================
+bool _checkImeiRelevant(Map<String, dynamic>? model, List<String> bizCategories) {
+  if (model != null) {
+    if (model['requires_frp_check'] == true) return true;
+    final cat = model['category'];
+    final catSlug = (cat is Map ? cat['slug']?.toString() ?? '' : '').toLowerCase();
+    final catName = (cat is Map ? cat['name']?.toString() ?? '' : '').toLowerCase();
+    final modelName = (model['name']?.toString() ?? '').toLowerCase();
+    if (catSlug.contains('phone') ||
+        catSlug.contains('cellular') ||
+        catSlug.contains('hp') ||
+        catName.contains('phone') ||
+        catName.contains('hp') ||
+        catName.contains('ponsel') ||
+        catName.contains('smartphone') ||
+        modelName.contains('iphone') ||
+        modelName.contains('galaxy') ||
+        modelName.contains('pixel')) {
+      return true;
+    }
+    if (catSlug.contains('tenda') ||
+        catSlug.contains('kursi') ||
+        catSlug.contains('meja') ||
+        catSlug.contains('mobil') ||
+        catSlug.contains('motor') ||
+        catSlug.contains('perkakas') ||
+        catSlug.contains('alat') ||
+        catSlug.contains('kamera') ||
+        catSlug.contains('drone')) {
+      return false;
+    }
+  }
+  return bizCategories.isEmpty || bizCategories.contains('electronics') || bizCategories.contains('other');
+}
+
+bool _checkBatteryRelevant(Map<String, dynamic>? model, List<String> bizCategories) {
+  if (model != null) {
+    final cat = model['category'];
+    final catSlug = (cat is Map ? cat['slug']?.toString() ?? '' : '').toLowerCase();
+    final catName = (cat is Map ? cat['name']?.toString() ?? '' : '').toLowerCase();
+    final combined = '$catSlug $catName ${(model['name'] ?? '')}'.toLowerCase();
+    if (combined.contains('tenda') ||
+        combined.contains('kursi') ||
+        combined.contains('meja') ||
+        combined.contains('panggung') ||
+        combined.contains('dekor') ||
+        combined.contains('kostum') ||
+        combined.contains('mobil') ||
+        combined.contains('motor') ||
+        combined.contains('sepeda') ||
+        combined.contains('kabel') ||
+        combined.contains('tripod') ||
+        combined.contains('stand')) {
+      return false;
+    }
+    if (combined.contains('phone') ||
+        combined.contains('kamera') ||
+        combined.contains('camera') ||
+        combined.contains('drone') ||
+        combined.contains('laptop') ||
+        combined.contains('tablet') ||
+        combined.contains('gadget') ||
+        combined.contains('audio') ||
+        combined.contains('speaker') ||
+        combined.contains('gimbal')) {
+      return true;
+    }
+  }
+  if (bizCategories.isNotEmpty) {
+    final hasElectronic = bizCategories.contains('electronics') ||
+        bizCategories.contains('cameras') ||
+        bizCategories.contains('other');
+    if (!hasElectronic) return false;
+  }
+  return true;
+}
+
+// ==========================================
 // ADD ASSET SHEET (REGISTER NEW UNIT)
 // ==========================================
 class _AddAssetSheet extends ConsumerStatefulWidget {
@@ -1827,7 +1917,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
   final _assetCodeController = TextEditingController();
   final _serialNumberController = TextEditingController();
   final _imei1Controller = TextEditingController();
-  final _batteryHealthController = TextEditingController(text: '100');
+  final _batteryHealthController = TextEditingController();
   final _notesController = TextEditingController();
   String _grade = 'A';
   bool _isLoading = false;
@@ -1853,6 +1943,12 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
   Widget build(BuildContext context) {
     final modelsAsync = ref.watch(allCatalogModelsProvider);
     final bizState = ref.watch(businessProvider);
+    final models = modelsAsync.asData?.value ?? [];
+    final selectedModel = models.where((m) => m['id'] == _selectedModelId).firstOrNull;
+    final bool hasSerial = selectedModel == null || selectedModel['has_serial_number'] != false;
+    final bizCategories = bizState.activeBusinessCategories;
+    final isImeiApplicable = _checkImeiRelevant(selectedModel, bizCategories) || _imei1Controller.text.trim().isNotEmpty;
+    final isBatteryApplicable = _checkBatteryRelevant(selectedModel, bizCategories) || _batteryHealthController.text.trim().isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -1921,79 +2017,107 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                 validator: (val) => (val == null || val.trim().isEmpty) ? 'Kode unit wajib diisi' : null,
               ),
               const SizedBox(height: 12),
-              // Serial Number
-              const Text('Serial Number', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              // Serial Number (Adaptive)
+              Text(
+                hasSerial ? 'Serial Number *' : 'Serial Number (Opsional)',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _serialNumberController,
                 decoration: InputDecoration(
-                  hintText: 'Nomor seri pabrik (SN)',
+                  hintText: hasSerial ? 'Nomor seri pabrik (SN)' : 'Kosongkan jika barang tanpa SN fisik',
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
+                validator: hasSerial ? (val) => (val == null || val.trim().isEmpty) ? 'Serial number wajib diisi' : null : null,
               ),
-              const SizedBox(height: 12),
-              // IMEI 1
-              const Text('IMEI 1 (Opsional untuk Smartphone)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _imei1Controller,
-                decoration: InputDecoration(
-                  hintText: '15 digit IMEI',
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              // IMEI 1 (Adaptive)
+              if (isImeiApplicable) ...[
+                const SizedBox(height: 12),
+                const Text('IMEI 1 (Opsional untuk Smartphone)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _imei1Controller,
+                  decoration: InputDecoration(
+                    hintText: '15 digit IMEI',
+                    filled: true,
+                    fillColor: AppColors.surfaceMuted,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 12),
-              // Grade & Battery
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        DropdownButtonFormField<String>(
-                          initialValue: _grade,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: AppColors.surfaceMuted,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              // Grade & Battery (Adaptive)
+              if (isBatteryApplicable) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            initialValue: _grade,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppColors.surfaceMuted,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                            items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
+                            onChanged: (val) => setState(() => _grade = val ?? 'A'),
                           ),
-                          items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
-                          onChanged: (val) => setState(() => _grade = val ?? 'A'),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Battery Health (%)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _batteryHealthController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: AppColors.surfaceMuted,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Battery Health (%)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _batteryHealthController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: 'Misal: 100',
+                              filled: true,
+                              fillColor: AppColors.surfaceMuted,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ] else ...[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: _grade,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: AppColors.surfaceMuted,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                      items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
+                      onChanged: (val) => setState(() => _grade = val ?? 'A'),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               // Notes
               const Text('Catatan Tambahan', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
@@ -2002,7 +2126,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                 controller: _notesController,
                 maxLines: 2,
                 decoration: InputDecoration(
-                  hintText: 'Kondisi fisik, lecet, kelengkapan awal...',
+                  hintText: 'Kondisi fisik, kelengkapan, nomor segel...',
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -2030,16 +2154,18 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
 
                           try {
                             final repo = ref.read(assetRepositoryProvider);
+                            final sn = _serialNumberController.text.trim();
+                            final imei = _imei1Controller.text.trim();
+                            final bh = _batteryHealthController.text.trim();
+
                             final payload = <String, dynamic>{
                               'model_id': _selectedModelId,
                               'asset_code': _assetCodeController.text.trim(),
-                              if (_serialNumberController.text.trim().isNotEmpty)
-                                'serial_number': _serialNumberController.text.trim(),
-                              if (_imei1Controller.text.trim().isNotEmpty)
-                                'imei_1': _imei1Controller.text.trim(),
+                              if (sn.isNotEmpty) 'serial_number': sn,
+                              if (imei.isNotEmpty) 'imei_1': imei,
                               'status': 'ready',
                               'condition_grade': _grade,
-                              'battery_health': int.tryParse(_batteryHealthController.text.trim()) ?? 100,
+                              if (bh.isNotEmpty) 'battery_health': int.tryParse(bh),
                               if (_notesController.text.trim().isNotEmpty)
                                 'notes': _notesController.text.trim(),
                               if (bizState.activeBranchId != null)
@@ -2105,7 +2231,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
     _assetCodeController = TextEditingController(text: widget.asset['asset_code']?.toString() ?? '');
     _serialNumberController = TextEditingController(text: widget.asset['serial_number']?.toString() ?? '');
     _imei1Controller = TextEditingController(text: widget.asset['imei_1']?.toString() ?? '');
-    _batteryHealthController = TextEditingController(text: widget.asset['battery_health']?.toString() ?? '100');
+    _batteryHealthController = TextEditingController(text: widget.asset['battery_health']?.toString() ?? '');
     _notesController = TextEditingController(text: widget.asset['notes']?.toString() ?? '');
     _status = widget.asset['status']?.toString() ?? 'ready';
     _grade = widget.asset['condition_grade']?.toString() ?? 'A';
@@ -2125,8 +2251,13 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
   Widget build(BuildContext context) {
     final rawModel = widget.asset['model'];
     final model = rawModel is Map ? Map<String, dynamic>.from(rawModel) : null;
-    final modelName = model?['name']?.toString() ?? 'Perangkat';
+    final modelName = model?['name']?.toString() ?? 'Item Rental';
     final isLocked = _status != 'ready' && _status != 'maintenance';
+    final bool hasSerial = model == null || model['has_serial_number'] != false;
+    final bizState = ref.watch(businessProvider);
+    final bizCategories = bizState.activeBusinessCategories;
+    final isImeiApplicable = _checkImeiRelevant(model, bizCategories) || _imei1Controller.text.trim().isNotEmpty;
+    final isBatteryApplicable = _checkBatteryRelevant(model, bizCategories) || _batteryHealthController.text.trim().isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -2257,77 +2388,106 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                 validator: (val) => (val == null || val.trim().isEmpty) ? 'Kode unit wajib diisi' : null,
               ),
               const SizedBox(height: 12),
-              // Serial Number
-              const Text('Serial Number', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              // Serial Number (Adaptive)
+              Text(
+                hasSerial ? 'Serial Number *' : 'Serial Number (Opsional)',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _serialNumberController,
                 decoration: InputDecoration(
+                  hintText: hasSerial ? 'Nomor seri pabrik (SN)' : 'Kosongkan jika barang tanpa SN fisik',
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
+                validator: hasSerial ? (val) => (val == null || val.trim().isEmpty) ? 'Serial number wajib diisi' : null : null,
               ),
-              const SizedBox(height: 12),
-              // IMEI 1
-              const Text('IMEI 1', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _imei1Controller,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              // IMEI 1 (Adaptive)
+              if (isImeiApplicable) ...[
+                const SizedBox(height: 12),
+                const Text('IMEI 1', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _imei1Controller,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.surfaceMuted,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 12),
-              // Grade & Battery
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        DropdownButtonFormField<String>(
-                          initialValue: _grade,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: AppColors.surfaceMuted,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              // Grade & Battery (Adaptive)
+              if (isBatteryApplicable) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            initialValue: _grade,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppColors.surfaceMuted,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                            items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
+                            onChanged: (val) => setState(() => _grade = val ?? 'A'),
                           ),
-                          items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
-                          onChanged: (val) => setState(() => _grade = val ?? 'A'),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Battery Health (%)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _batteryHealthController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: AppColors.surfaceMuted,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Battery Health (%)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _batteryHealthController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: 'Misal: 100',
+                              filled: true,
+                              fillColor: AppColors.surfaceMuted,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ] else ...[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: _grade,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: AppColors.surfaceMuted,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                      items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
+                      onChanged: (val) => setState(() => _grade = val ?? 'A'),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               // Notes
               const Text('Catatan Perangkat', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
@@ -2364,13 +2524,17 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                           try {
                             final repo = ref.read(assetRepositoryProvider);
                             final assetId = widget.asset['id'] as int;
+                            final sn = _serialNumberController.text.trim();
+                            final imei = _imei1Controller.text.trim();
+                            final bh = _batteryHealthController.text.trim();
+
                             final payload = <String, dynamic>{
                               'asset_code': _assetCodeController.text.trim(),
-                              'serial_number': _serialNumberController.text.trim(),
-                              'imei_1': _imei1Controller.text.trim(),
+                              'serial_number': sn.isNotEmpty ? sn : null,
+                              'imei_1': imei.isNotEmpty ? imei : null,
                               if (!isLocked) 'status': _status,
                               'condition_grade': _grade,
-                              'battery_health': int.tryParse(_batteryHealthController.text.trim()) ?? 100,
+                              'battery_health': bh.isNotEmpty ? int.tryParse(bh) : null,
                               'notes': _notesController.text.trim(),
                             };
 

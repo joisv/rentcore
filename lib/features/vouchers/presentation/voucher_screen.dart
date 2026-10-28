@@ -6,7 +6,6 @@ import '../../../core/services/thermal_printer_service.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
-import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -96,7 +95,7 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
 
     // Resolve user role in active business
     final activeBiz = bizState.businesses.where((b) => b['id'] == bizState.activeBusinessId).firstOrNull;
-    final role = activeBiz?['role']?.toString() ?? authState.user?['role']?.toString();
+    final role = activeBiz?['role']?.toString().toLowerCase() ?? authState.user?['role']?.toString().toLowerCase();
     final isSuperAdmin = authState.user?['role'] == 'super_admin' || authState.user?['is_platform_admin'] == true;
     final isOwner = isSuperAdmin || role == 'owner';
 
@@ -140,6 +139,25 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                 ),
               ),
         actions: [
+          if (isOwner && !_isSearchExpanded)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: FilledButton.icon(
+                key: const Key('create_voucher_header_button'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.obsidian,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Buat Voucher', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                onPressed: () => VoucherFormDialog.show(
+                  context,
+                  branches: branches,
+                ),
+              ),
+            ),
           IconButton(
             icon: Icon(_isSearchExpanded ? Icons.close_rounded : Icons.search_rounded),
             onPressed: () {
@@ -163,6 +181,7 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
       ),
       floatingActionButton: isOwner
           ? FloatingActionButton.extended(
+              key: const Key('create_voucher_fab'),
               backgroundColor: AppColors.obsidian,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add_rounded),
@@ -173,7 +192,7 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
               ),
             )
           : null,
-      floatingActionButtonLocation: const DockFloatingActionButtonLocation(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Column(
         children: [
           // Owner Filter Chips

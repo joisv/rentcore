@@ -54,6 +54,22 @@ final assetSearchQueryProvider = NotifierProvider<AssetSearchQueryNotifier, Stri
   AssetSearchQueryNotifier.new,
 );
 
+class CatalogSearchQueryNotifier extends Notifier<String> {
+  @override
+  String build() {
+    ref.watch(businessProvider.select((s) => s.activeBusinessId));
+    return '';
+  }
+
+  void setSearch(String query) {
+    state = query;
+  }
+}
+
+final catalogSearchQueryProvider = NotifierProvider<CatalogSearchQueryNotifier, String>(
+  CatalogSearchQueryNotifier.new,
+);
+
 final categoriesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final bizState = ref.watch(businessProvider);
   if (bizState.activeBusinessId == null) {
@@ -70,7 +86,7 @@ final productsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>(
   }
   final repo = ref.watch(assetRepositoryProvider);
   final categoryId = ref.watch(selectedAssetCategoryFilterProvider);
-  final search = ref.watch(assetSearchQueryProvider);
+  final search = ref.watch(catalogSearchQueryProvider);
 
   return repo.fetchProducts(
     categoryId: categoryId,

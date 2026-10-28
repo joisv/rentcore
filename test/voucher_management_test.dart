@@ -260,8 +260,9 @@ void main() {
       expect(find.widgetWithText(ChoiceChip, 'Nonaktif'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Kedaluwarsa'), findsOneWidget);
 
-      // Verify Owner FAB is present
-      expect(find.text('Buat Voucher'), findsOneWidget);
+      // Verify Owner Header Button & FAB are present
+      expect(find.byKey(const Key('create_voucher_header_button')), findsOneWidget);
+      expect(find.byKey(const Key('create_voucher_fab')), findsOneWidget);
 
       // Verify Voucher Card content
       expect(find.text('15% OFF'), findsOneWidget);
