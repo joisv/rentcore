@@ -14,6 +14,22 @@ enum PaymentStatus {
   failed,
 }
 
+class PaymentItem {
+  final String name;
+  final String? assetCode;
+  final bool isAddon;
+  final String? durationText;
+  final double price;
+
+  const PaymentItem({
+    required this.name,
+    this.assetCode,
+    this.isAddon = false,
+    this.durationText,
+    required this.price,
+  });
+}
+
 class PaymentContext {
   final PaymentTransactionType transactionType;
   final int? bookingId;
@@ -31,6 +47,12 @@ class PaymentContext {
   final bool isCentral;
   final int? additionalHours;
   final Map<String, dynamic>? extraPayload;
+  final List<PaymentItem> items;
+  final double? primarySubtotal;
+  final double? addonSubtotal;
+  final double? discountAmount;
+  final String? voucherCode;
+  final double? depositFee;
 
   const PaymentContext({
     required this.transactionType,
@@ -49,6 +71,12 @@ class PaymentContext {
     this.isCentral = false,
     this.additionalHours,
     this.extraPayload,
+    this.items = const [],
+    this.primarySubtotal,
+    this.addonSubtotal,
+    this.discountAmount,
+    this.voucherCode,
+    this.depositFee,
   });
 
   String get transactionTypeTitle {
@@ -89,6 +117,12 @@ class PaymentContext {
     int? branchId,
     String? branchName,
     bool isCentral = false,
+    List<PaymentItem> items = const [],
+    double? primarySubtotal,
+    double? addonSubtotal,
+    double? discountAmount,
+    String? voucherCode,
+    double? depositFee,
   }) {
     return PaymentContext(
       transactionType: PaymentTransactionType.booking,
@@ -104,6 +138,12 @@ class PaymentContext {
       branchName: branchName,
       isCentral: isCentral,
       extraPayload: extraPayload ?? bookingPayload,
+      items: items,
+      primarySubtotal: primarySubtotal,
+      addonSubtotal: addonSubtotal,
+      discountAmount: discountAmount,
+      voucherCode: voucherCode,
+      depositFee: depositFee,
     );
   }
 
@@ -112,12 +152,50 @@ class PaymentContext {
     required double remainingDue,
   }) {
     final customer = booking['customer'] as Map? ?? {};
-    final items = (booking['items'] as List?) ?? [];
-    final firstItem = items.isNotEmpty ? (items[0] as Map) : null;
-    final modelName = firstItem?['asset']?['model']?['name']?.toString() ??
+    final rawItems = (booking['items'] as List?) ?? [];
+
+    final parsedItems = <PaymentItem>[];
+    String? primaryModelName;
+    String? primaryAssetCode;
+
+    for (final it in rawItems) {
+      if (it is Map) {
+        final itMap = Map<String, dynamic>.from(it);
+        final asset = itMap['asset'] as Map? ?? {};
+        final model = asset['model'] as Map? ?? {};
+        final name = model['name']?.toString() ?? 'Unit Sewa';
+        final code = asset['asset_code']?.toString();
+        final isAddon = itMap['item_type']?.toString().toLowerCase() == 'addon' ||
+            model['is_addon'] == true;
+        final durVal = itMap['duration_value'] ?? booking['duration_value'] ?? booking['duration_hours'];
+        final durUnit = itMap['duration_unit'] ?? booking['duration_unit'] ?? 'Jam';
+        final durText = durVal != null ? '$durVal $durUnit' : null;
+        final price = CurrencyFormatter.parse(itMap['unit_price'] ?? 0);
+
+        parsedItems.add(
+          PaymentItem(
+            name: name,
+            assetCode: code,
+            isAddon: isAddon,
+            durationText: durText,
+            price: price,
+          ),
+        );
+
+        if (!isAddon && primaryModelName == null) {
+          primaryModelName = name;
+          primaryAssetCode = code;
+        }
+      }
+    }
+
+    final firstItem = rawItems.isNotEmpty ? (rawItems[0] as Map) : null;
+    final modelName = primaryModelName ??
+        firstItem?['asset']?['model']?['name']?.toString() ??
         booking['device']?['asset_model']?['name']?.toString() ??
         'Unit Sewa';
-    final assetCode = firstItem?['asset']?['asset_code']?.toString() ??
+    final assetCode = primaryAssetCode ??
+        firstItem?['asset']?['asset_code']?.toString() ??
         booking['device']?['asset_code']?.toString() ??
         '';
     final affiliate = booking['affiliate'] as Map? ?? {};
@@ -131,6 +209,20 @@ class PaymentContext {
         totalPaid += CurrencyFormatter.parse(p['amount']);
       }
     }
+
+    final primarySubtotal = booking['primary_subtotal'] != null
+        ? CurrencyFormatter.parse(booking['primary_subtotal'])
+        : null;
+    final addonSubtotal = booking['addon_subtotal'] != null
+        ? CurrencyFormatter.parse(booking['addon_subtotal'])
+        : null;
+    final discountAmount = booking['discount_amount'] != null
+        ? CurrencyFormatter.parse(booking['discount_amount'])
+        : null;
+    final voucherCode = booking['voucher']?['code']?.toString() ?? booking['voucher_code']?.toString();
+    final depositFee = booking['deposit_fee'] != null
+        ? CurrencyFormatter.parse(booking['deposit_fee'])
+        : null;
 
     return PaymentContext(
       transactionType: PaymentTransactionType.settlement,
@@ -148,6 +240,12 @@ class PaymentContext {
       branchName: affiliate['name']?.toString(),
       isCentral: affiliate['is_central'] == true,
       extraPayload: booking,
+      items: parsedItems,
+      primarySubtotal: primarySubtotal,
+      addonSubtotal: addonSubtotal,
+      discountAmount: discountAmount,
+      voucherCode: voucherCode,
+      depositFee: depositFee,
     );
   }
 

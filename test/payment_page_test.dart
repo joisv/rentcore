@@ -18,7 +18,7 @@ class _FakeCashierRepo extends CashierRepository {
   double? lastCashReceived;
 
   @override
-  Future<List<Map<String, dynamic>>> fetchPaymentMethods() async {
+  Future<List<Map<String, dynamic>>> fetchPaymentMethods({int? branchId}) async {
     return [
       {'id': 1, 'name': 'Tunai', 'code': 'CASH'},
       {'id': 2, 'name': 'QRIS Dinamis', 'code': 'QRIS'},
@@ -478,6 +478,269 @@ void main() {
 
       // Verify Success Screen
       expect(find.text('Pembayaran Berhasil Dicatat!'), findsOneWidget);
+    });
+
+    testWidgets('6. Booking with single add-on: displays primary unit and add-on item with duration and subtotals', (tester) async {
+      tester.view.physicalSize = const Size(600, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final items = [
+        const PaymentItem(
+          name: 'iPhone 13 128GB — Midnight',
+          assetCode: 'IPHONE-13-01',
+          isAddon: false,
+          durationText: '24 Jam',
+          price: 150000.0,
+        ),
+        const PaymentItem(
+          name: 'Power Bank Anker 10000mAh',
+          assetCode: 'PB-ANKER-01',
+          isAddon: true,
+          durationText: '24 Jam',
+          price: 25000.0,
+        ),
+      ];
+
+      final context = PaymentContext.booking(
+        customerName: 'Budi Santoso',
+        customerPhone: '08123456789',
+        deviceName: 'iPhone 13 128GB — Midnight',
+        assetCode: 'IPHONE-13-01',
+        totalAmount: 175000.0,
+        items: items,
+        primarySubtotal: 150000.0,
+        addonSubtotal: 25000.0,
+      );
+
+      await tester.pumpWidget(createTestWidget(context));
+      await tester.pumpAndSettle();
+
+      // Verify Section Header
+      expect(find.text('RINCIAN SEWA'), findsOneWidget);
+
+      // Verify Primary Device
+      expect(find.text('iPhone 13 128GB — Midnight'), findsOneWidget);
+      expect(find.textContaining('IPHONE-13-01'), findsOneWidget);
+      expect(find.textContaining('Durasi: 24 Jam'), findsNWidgets(2));
+      expect(find.text('Rp 150.000'), findsNWidgets(2));
+
+      // Verify Add-on Item
+      expect(find.text('Power Bank Anker 10000mAh'), findsOneWidget);
+      expect(find.textContaining('PB-ANKER-01'), findsOneWidget);
+      expect(find.text('Add-on'), findsOneWidget);
+      expect(find.text('Rp 25.000'), findsNWidgets(2));
+
+      // Verify Subtotals Breakdown
+      expect(find.text('Subtotal Unit Utama'), findsOneWidget);
+      expect(find.text('Subtotal Add-on (1 unit)'), findsOneWidget);
+      expect(find.text('Subtotal Sewa'), findsOneWidget);
+      expect(find.text('Total Tagihan'), findsOneWidget);
+      expect(find.text('Rp 175.000'), findsAtLeastNWidgets(2));
+    });
+
+    testWidgets('7. Booking with multiple add-ons: displays primary unit and all add-on items cleanly', (tester) async {
+      tester.view.physicalSize = const Size(600, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final items = [
+        const PaymentItem(
+          name: 'iPhone 13 128GB — Midnight',
+          assetCode: 'IPHONE-13-01',
+          isAddon: false,
+          durationText: '24 Jam',
+          price: 150000.0,
+        ),
+        const PaymentItem(
+          name: 'Power Bank Anker 10000mAh',
+          assetCode: 'PB-ANKER-01',
+          isAddon: true,
+          durationText: '24 Jam',
+          price: 25000.0,
+        ),
+        const PaymentItem(
+          name: 'Fast Charger 67W',
+          assetCode: 'CHG-BASEUS-01',
+          isAddon: true,
+          durationText: '24 Jam',
+          price: 15000.0,
+        ),
+      ];
+
+      final context = PaymentContext.booking(
+        customerName: 'Budi Santoso',
+        deviceName: 'iPhone 13 128GB — Midnight',
+        totalAmount: 190000.0,
+        items: items,
+        primarySubtotal: 150000.0,
+        addonSubtotal: 40000.0,
+      );
+
+      await tester.pumpWidget(createTestWidget(context));
+      await tester.pumpAndSettle();
+
+      // All items appear exactly once
+      expect(find.text('iPhone 13 128GB — Midnight'), findsOneWidget);
+      expect(find.text('Power Bank Anker 10000mAh'), findsOneWidget);
+      expect(find.text('Fast Charger 67W'), findsOneWidget);
+      expect(find.text('Add-on'), findsNWidgets(2));
+
+      // Subtotals & totals
+      expect(find.text('Subtotal Unit Utama'), findsOneWidget);
+      expect(find.text('Subtotal Add-on (2 unit)'), findsOneWidget);
+      expect(find.text('Rp 40.000'), findsOneWidget);
+      expect(find.text('Subtotal Sewa'), findsOneWidget);
+      expect(find.text('Total Tagihan'), findsOneWidget);
+      expect(find.text('Rp 190.000'), findsAtLeastNWidgets(2));
+    });
+
+    testWidgets('8. Booking with voucher discount: displays discount row and reconciles total', (tester) async {
+      tester.view.physicalSize = const Size(600, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final items = [
+        const PaymentItem(
+          name: 'iPhone 13 128GB',
+          assetCode: 'IPHONE-13-01',
+          isAddon: false,
+          durationText: '24 Jam',
+          price: 150000.0,
+        ),
+        const PaymentItem(
+          name: 'Power Bank',
+          assetCode: 'PB-01',
+          isAddon: true,
+          durationText: '24 Jam',
+          price: 25000.0,
+        ),
+      ];
+
+      final context = PaymentContext.booking(
+        customerName: 'Budi Santoso',
+        deviceName: 'iPhone 13 128GB',
+        totalAmount: 160000.0,
+        items: items,
+        primarySubtotal: 150000.0,
+        addonSubtotal: 25000.0,
+        discountAmount: 15000.0,
+        voucherCode: 'DISKON15K',
+      );
+
+      await tester.pumpWidget(createTestWidget(context));
+      await tester.pumpAndSettle();
+
+      // Combined subtotal: 175.000
+      expect(find.text('Subtotal Sewa'), findsOneWidget);
+      expect(find.text('Rp 175.000'), findsOneWidget);
+
+      // Voucher discount: -Rp 15.000
+      expect(find.text('Voucher Diskon (DISKON15K)'), findsOneWidget);
+      expect(find.text('-Rp 15.000'), findsOneWidget);
+
+      // Final total: 160.000
+      expect(find.text('Total Tagihan'), findsOneWidget);
+      expect(find.text('Rp 160.000'), findsAtLeastNWidgets(2));
+    });
+
+    testWidgets('9. PaymentContext.settlement: extracts all items and add-ons from booking data', (tester) async {
+      tester.view.physicalSize = const Size(600, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final bookingData = {
+        'id': 55,
+        'booking_code': 'BK-SETTLE-055',
+        'total_bill': 190000.0,
+        'primary_subtotal': 150000.0,
+        'addon_subtotal': 40000.0,
+        'customer': {'name': 'Andi Pratama', 'phone': '0811112222'},
+        'items': [
+          {
+            'id': 101,
+            'item_type': 'primary',
+            'unit_price': 150000.0,
+            'duration_value': 24,
+            'duration_unit': 'Jam',
+            'asset': {
+              'asset_code': 'IP13-01',
+              'model': {'name': 'iPhone 13 128GB', 'is_addon': false},
+            },
+          },
+          {
+            'id': 102,
+            'item_type': 'addon',
+            'unit_price': 40000.0,
+            'duration_value': 24,
+            'duration_unit': 'Jam',
+            'asset': {
+              'asset_code': 'ANKER-01',
+              'model': {'name': 'Anker PowerCore', 'is_addon': true},
+            },
+          },
+        ],
+      };
+
+      final context = PaymentContext.settlement(
+        booking: bookingData,
+        remainingDue: 190000.0,
+      );
+
+      expect(context.items.length, 2);
+      expect(context.items[0].name, 'iPhone 13 128GB');
+      expect(context.items[0].isAddon, false);
+      expect(context.items[1].name, 'Anker PowerCore');
+      expect(context.items[1].isAddon, true);
+
+      await tester.pumpWidget(createTestWidget(context));
+      await tester.pumpAndSettle();
+
+      expect(find.text('RINCIAN SEWA'), findsOneWidget);
+      expect(find.text('iPhone 13 128GB'), findsOneWidget);
+      expect(find.text('Anker PowerCore'), findsOneWidget);
+      expect(find.text('Add-on'), findsOneWidget);
+      expect(find.text('Subtotal Add-on (1 unit)'), findsOneWidget);
+      expect(find.text('Total Tagihan'), findsOneWidget);
+    });
+
+    testWidgets('10. Fallback when items is empty: renders deviceName without crash', (tester) async {
+      tester.view.physicalSize = const Size(600, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final context = PaymentContext.booking(
+        customerName: 'Dewi Lestari',
+        deviceName: 'iPhone 14 Pro Max',
+        assetCode: 'IP14-PRO-01',
+        totalAmount: 200000.0,
+        items: const [],
+      );
+
+      await tester.pumpWidget(createTestWidget(context));
+      await tester.pumpAndSettle();
+
+      // Header and summary
+      expect(find.text('iPhone 14 Pro Max (IP14-PRO-01)'), findsOneWidget);
+      expect(find.text('Total Tagihan'), findsOneWidget);
+      expect(find.text('Rp 200.000'), findsAtLeastNWidgets(2));
+      // Rincian Sewa header should not be present when items is empty
+      expect(find.text('RINCIAN SEWA'), findsNothing);
     });
   });
 }

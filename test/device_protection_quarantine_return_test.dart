@@ -11,7 +11,7 @@ import 'package:rentcore_mobile/features/payments/data/payment_repository.dart';
 
 class _FakeCashierRepo extends CashierRepository {
   @override
-  Future<List<Map<String, dynamic>>> fetchPaymentMethods() async => [
+  Future<List<Map<String, dynamic>>> fetchPaymentMethods({int? branchId}) async => [
         {'id': 1, 'name': 'Tunai', 'code': 'CASH'},
       ];
 }

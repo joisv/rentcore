@@ -467,6 +467,24 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       final model = _selectedAsset?['model'] as Map?;
       final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
 
+      final paymentItems = <PaymentItem>[
+        PaymentItem(
+          name: deviceModelName,
+          assetCode: _selectedAsset?['asset_code']?.toString(),
+          isAddon: false,
+          durationText: '$_selectedDuration Jam',
+          price: _basePrice,
+        ),
+        for (final a in _selectedAddons)
+          PaymentItem(
+            name: (a['model'] as Map?)?['name']?.toString() ?? 'Aksesoris',
+            assetCode: a['asset_code']?.toString(),
+            isAddon: true,
+            durationText: '$_selectedDuration Jam',
+            price: _computeAddonPrice(a),
+          ),
+      ];
+
       final result = await Navigator.push<PaymentResult>(
         context,
         MaterialPageRoute(
@@ -481,6 +499,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               branchId: activeBranchId,
               branchName: activeBranchName,
               extraPayload: payload,
+              items: paymentItems,
+              primarySubtotal: _basePrice,
+              addonSubtotal: _addonSubtotal,
+              discountAmount: _discountAmount > 0 ? _discountAmount : null,
+              voucherCode: _discountAmount > 0 ? _voucherController.text.trim() : null,
             ),
           ),
         ),

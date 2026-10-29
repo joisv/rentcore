@@ -114,18 +114,22 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'TERMINAL KASIR POS',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.textMuted),
-                  ),
-                  Text(
-                    ctx.bookingCode ?? ctx.transactionTypeTitle,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TERMINAL KASIR POS',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.textMuted),
+                    ),
+                    Text(
+                      ctx.bookingCode ?? ctx.transactionTypeTitle,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.close_rounded),
@@ -211,26 +215,203 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                if (ctx.deviceName != null && ctx.deviceName!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    ctx.assetCode != null && ctx.assetCode!.isNotEmpty
-                        ? '${ctx.deviceName} (${ctx.assetCode})'
-                        : ctx.deviceName!,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                if (ctx.items.isNotEmpty) ...[
+                  const Divider(height: 20),
+                  const Text(
+                    'RINCIAN SEWA',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: AppColors.textMuted,
+                    ),
                   ),
-                ],
-                const Divider(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total Tagihan', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  const SizedBox(height: 8),
+                  ...ctx.items.map((item) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            item.isAddon ? Icons.power_rounded : Icons.phone_iphone_rounded,
+                            size: 16,
+                            color: AppColors.obsidian,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    if (item.isAddon) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.surface,
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: AppColors.border),
+                                        ),
+                                        child: const Text(
+                                          'Add-on',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.obsidian,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  [
+                                    if (item.assetCode != null && item.assetCode!.isNotEmpty) item.assetCode,
+                                    if (item.durationText != null && item.durationText!.isNotEmpty)
+                                      'Durasi: ${item.durationText}',
+                                  ].join(' • '),
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            CurrencyFormatter.format(item.price),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  if (ctx.addonSubtotal != null && ctx.addonSubtotal! > 0) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Subtotal Unit Utama', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text(
+                          CurrencyFormatter.format(ctx.primarySubtotal ?? (ctx.totalAmountDue - ctx.addonSubtotal!)),
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Subtotal Add-on (${ctx.items.where((i) => i.isAddon).length} unit)',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(ctx.addonSubtotal!),
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (ctx.primarySubtotal != null && ctx.addonSubtotal != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Subtotal Sewa', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                        Text(
+                          CurrencyFormatter.format(ctx.primarySubtotal! + ctx.addonSubtotal!),
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (ctx.discountAmount != null && ctx.discountAmount! > 0) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          ctx.voucherCode != null && ctx.voucherCode!.isNotEmpty
+                              ? 'Voucher Diskon (${ctx.voucherCode})'
+                              : 'Diskon',
+                          style: const TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          '-${CurrencyFormatter.format(ctx.discountAmount!)}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.success),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (ctx.depositFee != null && ctx.depositFee! > 0) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Deposit', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text(
+                          CurrencyFormatter.format(ctx.depositFee!),
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  const Divider(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Tagihan', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      Text(
+                        CurrencyFormatter.format(ctx.totalAmountDue),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  if (ctx.deviceName != null && ctx.deviceName!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
                     Text(
-                      CurrencyFormatter.format(ctx.totalAmountDue),
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      ctx.assetCode != null && ctx.assetCode!.isNotEmpty
+                          ? '${ctx.deviceName} (${ctx.assetCode})'
+                          : ctx.deviceName!,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
                     ),
                   ],
-                ),
+                  const Divider(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Tagihan', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      Text(
+                        CurrencyFormatter.format(ctx.totalAmountDue),
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
                 if (ctx.previouslyPaidAmount > 0) ...[
                   const SizedBox(height: 4),
                   Row(
@@ -920,6 +1101,20 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         customerPhone: ctx.customerPhone,
         cashierName: 'Kasir RentCore',
         unitName: ctx.deviceName,
+        items: ctx.items.isNotEmpty
+            ? ctx.items
+                .map((i) => {
+                      'name': i.isAddon ? '${i.name} (Add-on)' : i.name,
+                      'asset_code': i.assetCode,
+                      'price': i.price,
+                      'duration': i.durationText,
+                    })
+                .toList()
+            : null,
+        subtotal: (ctx.primarySubtotal != null || ctx.addonSubtotal != null)
+            ? ((ctx.primarySubtotal ?? 0) + (ctx.addonSubtotal ?? 0))
+            : null,
+        discount: ctx.discountAmount,
         totalAmount: result.amountPaid,
         paymentMethod: result.paymentMethodName ?? _selectedMethodName,
         cashReceived: result.cashReceived,

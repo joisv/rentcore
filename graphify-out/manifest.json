@@ -174,9 +174,9 @@
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/direct_rental_screen.dart": {
-    "mtime": 1792917209.0052428,
-    "seen": 1792917505.800902,
-    "ast_hash": "1ef7e8a19f159521e80b6f4edce3bb55",
+    "mtime": 1793274181.8940122,
+    "seen": 1793274550.6052651,
+    "ast_hash": "90b20952138274cb19d956872f04b7c2",
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/return_wizard_screen.dart": {
@@ -288,15 +288,15 @@
     "semantic_hash": ""
   },
   "lib/features/payments/models/payment_context.dart": {
-    "mtime": 1793022821.837966,
-    "seen": 1793023301.657396,
-    "ast_hash": "58bfdff96f33b17ae9c4bc8faf42e487",
+    "mtime": 1793274169.4543705,
+    "seen": 1793274550.605312,
+    "ast_hash": "2bede4093817b5d5de9f3c981fcacbb1",
     "semantic_hash": ""
   },
   "lib/features/payments/presentation/payment_page.dart": {
-    "mtime": 1793195946.2501645,
-    "seen": 1793196205.6831372,
-    "ast_hash": "bfb7f32fb2113d606f7ab70212b8dfe2",
+    "mtime": 1793274458.3747275,
+    "seen": 1793274550.605313,
+    "ast_hash": "65a24e1bf0ce0e851afd5a954b367e22",
     "semantic_hash": ""
   },
   "lib/features/printer/presentation/printer_settings_screen.dart": {
@@ -474,15 +474,15 @@
     "semantic_hash": "1ee1ea0ec45f80656359fe444c2fe2ca"
   },
   "test/cash_payment_suggestion_test.dart": {
-    "mtime": 1792156553.127695,
-    "seen": 1792470611.008476,
-    "ast_hash": "2ed052ad8a248a4351530ff35e22d9af",
-    "semantic_hash": "2ed052ad8a248a4351530ff35e22d9af"
+    "mtime": 1793274277.61952,
+    "seen": 1793274550.605356,
+    "ast_hash": "0a1366f56794087a9475f036c400dc67",
+    "semantic_hash": ""
   },
   "test/late_return_penalty_pos_test.dart": {
-    "mtime": 1792761755.400095,
-    "seen": 1792761763.4549365,
-    "ast_hash": "fc8c0e864e808d7339bd0ca97b0be724",
+    "mtime": 1793274312.6104765,
+    "seen": 1793274550.6053774,
+    "ast_hash": "a6da69f20f1e17ca90bb6c3f96a33abb",
     "semantic_hash": ""
   },
   "test/logout_and_inventory_detail_test.dart": {
@@ -504,22 +504,22 @@
     "semantic_hash": ""
   },
   "test/payment_page_test.dart": {
-    "mtime": 1792917433.474387,
-    "seen": 1792917505.8011186,
-    "ast_hash": "8c86dae4296406c11624772bede36488",
+    "mtime": 1793274510.757933,
+    "seen": 1793274550.6053867,
+    "ast_hash": "6222a4725658c74cd1f334a3c7f9619d",
     "semantic_hash": ""
   },
   "test/pos_all_branches_filter_test.dart": {
-    "mtime": 1791986292.1998549,
-    "seen": 1792470611.0084815,
-    "ast_hash": "ddae92553aac55ccf10abe994c91d0b4",
-    "semantic_hash": "ddae92553aac55ccf10abe994c91d0b4"
+    "mtime": 1793274321.19688,
+    "seen": 1793274550.6053877,
+    "ast_hash": "126ce7f3a57316cb00159d94efbbc87b",
+    "semantic_hash": ""
   },
   "test/pos_revenue_consolidation_widget_test.dart": {
-    "mtime": 1791986298.0092907,
-    "seen": 1792470611.0084834,
-    "ast_hash": "2941fd59b629a414903ec3cd5e5a5355",
-    "semantic_hash": "2941fd59b629a414903ec3cd5e5a5355"
+    "mtime": 1793274321.198639,
+    "seen": 1793274550.60539,
+    "ast_hash": "a113f862d2f7d91b31e56cbb5ccd3d6f",
+    "semantic_hash": ""
   },
   "test/printer_settings_screen_test.dart": {
     "mtime": 1792238195.0052419,
@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "test/cashier_and_header_standardization_test.dart": {
-    "mtime": 1792668182.8110664,
-    "seen": 1792668423.4799094,
-    "ast_hash": "4476b6f037e04d77b53088c12de9865d",
+    "mtime": 1793274270.79966,
+    "seen": 1793274550.6053574,
+    "ast_hash": "fe111f90c1e98ee4c523d2fc5439713c",
     "semantic_hash": ""
   },
   "test/bookings_queue_search_test.dart": {
@@ -1194,9 +1194,9 @@
     "semantic_hash": ""
   },
   "test/late_return_penalty_return_workflow_test.dart": {
-    "mtime": 1793023248.526309,
-    "seen": 1793023301.6574633,
-    "ast_hash": "743057d442fa0f2033c7b01edea428bc",
+    "mtime": 1793274316.3752077,
+    "seen": 1793274550.6053786,
+    "ast_hash": "bc4ac688727a57da84080cf7d4230b41",
     "semantic_hash": ""
   },
   "lib/features/organization/presentation/shift_schedule_screen.dart": {
@@ -1206,9 +1206,9 @@
     "semantic_hash": ""
   },
   "test/device_protection_quarantine_return_test.dart": {
-    "mtime": 1793180425.0352714,
-    "seen": 1793180478.457781,
-    "ast_hash": "9a84d93e9ce0d697c5a6a1f4342dd947",
+    "mtime": 1793274284.229519,
+    "seen": 1793274550.605362,
+    "ast_hash": "8eada2af1f8894b606ba175d1e49f9a8",
     "semantic_hash": ""
   },
   "test/inventory_search_decoupling_test.dart": {

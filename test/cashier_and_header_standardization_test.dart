@@ -54,7 +54,7 @@ class _MockCashierRepository extends CashierRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchPaymentMethods() async {
+  Future<List<Map<String, dynamic>>> fetchPaymentMethods({int? branchId}) async {
     return [
       {'id': 1, 'code': 'CASH', 'name': 'Tunai'},
       {'id': 2, 'code': 'QRIS', 'name': 'QRIS'},

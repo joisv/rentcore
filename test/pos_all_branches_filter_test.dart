@@ -139,7 +139,7 @@ class _SpyCashierRepository extends CashierRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchPaymentMethods() async {
+  Future<List<Map<String, dynamic>>> fetchPaymentMethods({int? branchId}) async {
     return [
       {'id': 1, 'name': 'Tunai', 'code': 'CASH'},
       {'id': 2, 'name': 'QRIS', 'code': 'QRIS'},
