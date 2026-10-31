@@ -266,11 +266,7 @@ class HomeScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    _buildRoleBadge(activeRole, isSuperAdmin),
-                  ],
-                ),
+                _buildRoleBadge(activeRole, isSuperAdmin),
                 const SizedBox(height: 4),
                 Text(
                   '$greeting, $userName 👋',
@@ -705,27 +701,27 @@ class HomeScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'PERINGATAN KETERLAMBATAN (${alerts.length} UNIT)',
-                    style: const TextStyle(
-                      color: AppColors.danger,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                    ),
+              const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${alerts.length} Unit Terlambat',
+                  style: const TextStyle(
+                    color: AppColors.danger,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
                   ),
-                ],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+              const SizedBox(width: 8),
               InkWell(
                 onTap: () => onNavigateTab(1), // Go to Bookings
                 child: const Text(
-                  'Lihat Semua',
+                  '•  Lihat Semua',
                   style: TextStyle(
                     color: AppColors.danger,
                     fontSize: 11,
@@ -847,15 +843,19 @@ class HomeScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'STATUS INVENTARIS CABANG',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                  color: AppColors.textMuted,
+              const Expanded(
+                child: Text(
+                  'STATUS INVENTARIS CABANG',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: AppColors.textMuted,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(

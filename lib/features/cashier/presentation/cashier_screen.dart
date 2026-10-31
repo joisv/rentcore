@@ -138,7 +138,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'CAKUPAN POS & REKAP KASIR',
+                  'Cakupan Kasir',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
@@ -150,6 +150,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                 Text(
                   branchLabel,
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -410,15 +411,20 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'DAFTAR TRANSAKSI SEWA',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: AppColors.textMuted,
+                Expanded(
+                  child: Text(
+                    'Daftar Transaksi Sewa',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: AppColors.textMuted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   _searchQuery.isNotEmpty ? 'Pencarian: "$_searchQuery"' : 'Terbaru',
                   style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
@@ -732,741 +738,601 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
   Widget _buildClosingShiftTab() {
     final closingAsync = ref.watch(closingSummaryProvider);
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(closingSummaryProvider);
-      },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Date Range Filter Chips
-            _buildDateFilterChips(),
-            const SizedBox(height: 14),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(closingSummaryProvider);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Date Range Filter Chips (Pill-style, compact height)
+              _buildDateFilterChips(),
+              const SizedBox(height: 14),
 
-            // Revenue Card & Consolidated Reports
-            closingAsync.when(
-              loading: () => const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
-              error: (e, _) => Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.dangerLight,
-                  borderRadius: BorderRadius.circular(16),
+              // Revenue Card & Consolidated Reports
+              closingAsync.when(
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: CircularProgressIndicator(),
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      'Gagal memuat rekap kasir:\n$e',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.danger, fontSize: 12),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      icon: const Icon(Icons.refresh_rounded, size: 16),
-                      label: const Text('Coba Lagi'),
-                      onPressed: () => ref.refresh(closingSummaryProvider),
-                    ),
-                  ],
+                error: (e, _) => Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerLight,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Gagal memuat rekap kasir:\n$e',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.danger, fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: const Text('Coba Lagi'),
+                        onPressed: () => ref.refresh(closingSummaryProvider),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              data: (data) {
-                final totalRev = CurrencyFormatter.parse(data['total_revenue']);
-                final totalTx = int.tryParse(data['total_transactions']?.toString() ?? '0') ?? 0;
-                final Map<String, dynamic> breakdown = data['breakdown_by_method'] is Map
-                    ? Map<String, dynamic>.from(data['breakdown_by_method'] as Map)
-                    : {};
-                final dateLabel = data['date'] ?? 'HARI INI';
-                final isConsolidated = data['is_consolidated'] == true;
+                data: (data) {
+                  final totalRev = CurrencyFormatter.parse(data['total_revenue']);
+                  final totalTx = int.tryParse(data['total_transactions']?.toString() ?? '0') ?? 0;
+                  final Map<String, dynamic> breakdown = data['breakdown_by_method'] is Map
+                      ? Map<String, dynamic>.from(data['breakdown_by_method'] as Map)
+                      : {};
+                  final dateLabel = data['date'] ?? 'Hari Ini';
+                  final isConsolidated = data['is_consolidated'] == true;
 
-                final cashTotal = _calcCashTotal(breakdown);
-                final nonCashTotal = _calcNonCashTotal(breakdown);
+                  final cashTotal = _calcCashTotal(breakdown);
+                  final nonCashTotal = _calcNonCashTotal(breakdown);
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Main Revenue Card
-                    Container(
-                      padding: const EdgeInsets.all(22),
-                      decoration: BoxDecoration(
-                        color: AppColors.obsidian,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'TOTAL OMSET ($dateLabel)',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                  if (isConsolidated) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.warning,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Text(
-                                        'KONSOLIDASI',
-                                        style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              const Icon(Icons.payments_rounded, color: Colors.white70, size: 20),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            CurrencyFormatter.format(totalRev),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$totalTx transaksi berhasil diselesaikan',
-                            style: const TextStyle(color: Colors.white60, fontSize: 13),
-                          ),
-                          const SizedBox(height: 14),
-                          const Divider(color: Colors.white24, height: 1),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.money_rounded, size: 16, color: Colors.white70),
-                                    const SizedBox(width: 6),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('Tunai (Cash)', style: TextStyle(color: Colors.white60, fontSize: 10)),
-                                        Text(
-                                          CurrencyFormatter.format(cashTotal),
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(width: 1, height: 28, color: Colors.white24),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.credit_card_rounded, size: 16, color: Colors.white70),
-                                    const SizedBox(width: 6),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('Non-Tunai', style: TextStyle(color: Colors.white60, fontSize: 10)),
-                                        Text(
-                                          CurrencyFormatter.format(nonCashTotal),
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                  final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
+                  final activeShift = recon['active_shift'] is Map ? Map<String, dynamic>.from(recon['active_shift'] as Map) : null;
+                  final currentShiftAsync = ref.watch(currentShiftProvider);
+                  final shiftPayload = currentShiftAsync.asData?.value;
+                  final currentShiftData = shiftPayload?['data']?['shift'] is Map
+                      ? Map<String, dynamic>.from(shiftPayload!['data']['shift'] as Map)
+                      : null;
+                  final effectiveShift = currentShiftData ?? activeShift;
+                  final totalExp = CurrencyFormatter.parse(data['total_expenses']);
+                  final cashExp = CurrencyFormatter.parse(data['cash_drawer_expenses']);
 
-                    // Quick Action: Catat Beban, Buka/Tutup Shift, dan Buku Kas
-                    Builder(builder: (_) {
-                      final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
-                      final activeShift = recon['active_shift'] is Map ? Map<String, dynamic>.from(recon['active_shift'] as Map) : null;
-                      final currentShiftAsync = ref.watch(currentShiftProvider);
-                      final shiftPayload = currentShiftAsync.asData?.value;
-                      final currentShiftData = shiftPayload?['data']?['shift'] is Map
-                          ? Map<String, dynamic>.from(shiftPayload!['data']['shift'] as Map)
-                          : null;
-                      final effectiveShift = currentShiftData ?? activeShift;
-                      final hasActiveShift = effectiveShift != null && effectiveShift['status'] == 'open';
-                      final totalExp = CurrencyFormatter.parse(data['total_expenses']);
-                      final cashExp = CurrencyFormatter.parse(data['cash_drawer_expenses']);
+                  final double expectedCash;
+                  if (effectiveShift != null && effectiveShift['expected_cash_now'] != null) {
+                    expectedCash = CurrencyFormatter.parse(effectiveShift['expected_cash_now']);
+                  } else if (recon.containsKey('expected_cash_in_drawer')) {
+                    expectedCash = CurrencyFormatter.parse(recon['expected_cash_in_drawer']);
+                  } else {
+                    expectedCash = (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
+                  }
+                  final openingFloat = CurrencyFormatter.parse(recon['opening_cash_float']);
 
-                      final double expectedCash;
-                      if (effectiveShift != null && effectiveShift['expected_cash_now'] != null) {
-                        expectedCash = CurrencyFormatter.parse(effectiveShift['expected_cash_now']);
-                      } else if (recon.containsKey('expected_cash_in_drawer')) {
-                        expectedCash = CurrencyFormatter.parse(recon['expected_cash_in_drawer']);
-                      } else {
-                        expectedCash = (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
-                      }
+                  final bizState = ref.read(businessProvider);
+                  final posBranchFilter = ref.read(posFilterBranchIdProvider);
+                  final int? effBranch = posBranchFilter != -1 ? (posBranchFilter ?? bizState.activeBranchId) : bizState.activeBranchId;
 
-                      final bizState = ref.read(businessProvider);
-                      final posBranchFilter = ref.read(posFilterBranchIdProvider);
-                      final int? effBranch = posBranchFilter != -1 ? (posBranchFilter ?? bizState.activeBranchId) : bizState.activeBranchId;
-
-                      return Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                    side: const BorderSide(color: AppColors.border),
-                                  ),
-                                  icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
-                                  label: const Text(
-                                    '+ Catat Beban',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                  ),
-                                  onPressed: () => _openAddExpenseModal(context, effBranch),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: hasActiveShift ? AppColors.obsidian : AppColors.info,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                    elevation: 0,
-                                  ),
-                                  icon: Icon(
-                                    hasActiveShift ? Icons.lock_clock_rounded : Icons.lock_open_rounded,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    hasActiveShift ? 'Tutup Shift' : 'Buka Shift',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                  ),
-                                  onPressed: () => _openShiftModal(context, effectiveShift, expectedCash, effBranch),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const FinancialActivityLedgerScreen(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.menu_book_rounded, size: 16, color: AppColors.obsidian),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Buku Kas Lengkap (Audit Ledger Finansial)',
-                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.obsidian),
-                                      ),
-                                    ],
-                                  ),
-                                  Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.textMuted),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
-                    const SizedBox(height: 16),
-
-                    // Cash Drawer & Operational Expense Card
-                    if (data['cash_reconciliation'] is Map || (data['total_expenses'] != null && CurrencyFormatter.parse(data['total_expenses']) > 0)) ...[
-                      Builder(builder: (_) {
-                        final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
-                        final activeShift = recon['active_shift'] is Map ? Map<String, dynamic>.from(recon['active_shift'] as Map) : null;
-                        final currentShiftAsync = ref.watch(currentShiftProvider);
-                        final shiftPayload = currentShiftAsync.asData?.value;
-                        final currentShiftData = shiftPayload?['data']?['shift'] is Map
-                            ? Map<String, dynamic>.from(shiftPayload!['data']['shift'] as Map)
-                            : null;
-                        final effectiveShift = currentShiftData ?? activeShift;
-                        final totalExp = CurrencyFormatter.parse(data['total_expenses']);
-                        final cashExp = CurrencyFormatter.parse(data['cash_drawer_expenses']);
-                        final double expectedCash;
-                        if (effectiveShift != null && effectiveShift['expected_cash_now'] != null) {
-                          expectedCash = CurrencyFormatter.parse(effectiveShift['expected_cash_now']);
-                        } else if (recon.containsKey('expected_cash_in_drawer')) {
-                          expectedCash = CurrencyFormatter.parse(recon['expected_cash_in_drawer']);
-                        } else {
-                          expectedCash = (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
-                        }
-                        final openingFloat = CurrencyFormatter.parse(recon['opening_cash_float']);
-
-                        return Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Row(
-                                    children: [
-                                      Icon(Icons.point_of_sale_rounded, size: 18, color: AppColors.obsidian),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'REKONSILIASI KAS LACI & BEBAN',
-                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
-                                      ),
-                                    ],
-                                  ),
-                                  if (effectiveShift != null)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.successLight,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        'Shift #${effectiveShift['shift_number'] ?? effectiveShift['id']} Aktif',
-                                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.success),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (openingFloat > 0) ...[
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Modal Awal Kas Laci', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                                    Text(CurrencyFormatter.format(openingFloat), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                              ],
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text('Kas Masuk Bersih (Net Cash)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                                  Text(CurrencyFormatter.format(cashTotal), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.success)),
-                                ],
-                              ),
-                              if (totalExp > 0) ...[
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Beban Pengeluaran Cabang ${cashExp > 0 ? '(Kas Laci)' : ''}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                                    Text('-${CurrencyFormatter.format(cashExp > 0 ? cashExp : totalExp)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.danger)),
-                                  ],
-                                ),
-                              ],
-                              const Divider(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text('FISIK KAS HARUS ADA DI LACI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                                  Text(
-                                    CurrencyFormatter.format(expectedCash),
-                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.obsidian),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Income Type Breakdown (Rental, Extension, Penalty)
-                    if (data['breakdown_by_type'] is Map) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'SUMBER PENDAPATAN (INCOME TYPE)',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Builder(builder: (_) {
-                        final typeMap = data['breakdown_by_type'] as Map;
-                        final types = [
-                          'rental',
-                          'extension',
-                          'penalty',
-                          if (typeMap.containsKey('refund') && ((typeMap['refund'] is Map && (typeMap['refund']['count'] ?? 0) > 0) || CurrencyFormatter.parse((typeMap['refund'] is Map ? typeMap['refund']['total'] : null)) > 0))
-                            'refund',
-                        ];
-                        return Column(
-                          children: types.map((key) {
-                            final info = typeMap[key] is Map ? (typeMap[key] as Map) : {};
-                            final label = info['label'] ?? (key == 'penalty' ? 'Denda Keterlambatan' : (key == 'extension' ? 'Perpanjangan Sewa' : (key == 'refund' ? 'Pengembalian Deposit (Refund)' : 'Sewa Kontrak Pokok')));
-                            final total = CurrencyFormatter.parse(info['total']);
-                            final count = info['count'] ?? 0;
-                            final isPenalty = key == 'penalty';
-                            final isExtension = key == 'extension';
-                            final isRefund = key == 'refund';
-
-                            final icon = isPenalty
-                                ? Icons.warning_amber_rounded
-                                : (isExtension ? Icons.update_rounded : Icons.vpn_key_outlined);
-                            final iconColor = isPenalty
-                                ? Colors.deepOrange
-                                : (isExtension ? AppColors.info : AppColors.obsidian);
-                            final iconBg = isPenalty
-                                ? Colors.deepOrange.withValues(alpha: 0.1)
-                                : (isExtension ? AppColors.infoLight : AppColors.surfaceMuted);
-
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isPenalty && total > 0 ? Colors.deepOrange.withValues(alpha: 0.35) : AppColors.border,
-                                  width: isPenalty && total > 0 ? 1.5 : 1.0,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: iconBg,
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Icon(icon, size: 20, color: iconColor),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            label,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13,
-                                              color: isPenalty && total > 0 ? Colors.deepOrange.shade800 : AppColors.textPrimary,
-                                            ),
-                                          ),
-                                          Text(
-                                            '$count Transaksi',
-                                            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  Text(
-                                    CurrencyFormatter.format(total),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: isPenalty && total > 0 ? Colors.deepOrange : AppColors.obsidian,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        );
-                      }),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Branch Breakdown Section
-                    if (data['breakdown_by_branch'] is List && (data['breakdown_by_branch'] as List).isNotEmpty) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'KONTRIBUSI REVENUE PER CABANG',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                          Text(
-                            '${(data['breakdown_by_branch'] as List).length} Cabang Terdata',
-                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      ...(data['breakdown_by_branch'] as List).map((bItem) {
-                        final b = bItem is Map ? bItem : {};
-                        final bName = b['branch_name'] ?? 'Cabang';
-                        final isCent = b['is_central'] == true;
-                        final bRev = CurrencyFormatter.parse(b['total_revenue']);
-                        final bCash = CurrencyFormatter.parse(b['cash_revenue']);
-                        final bNonCash = CurrencyFormatter.parse(b['non_cash_revenue']);
-                        final bTxCount = b['transaction_count'] ?? 0;
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: isCent ? AppColors.warningLight : AppColors.infoLight,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          isCent ? 'PUSAT' : 'CABANG',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: isCent ? AppColors.warning : AppColors.info,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        bName,
-                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                                      ),
-                                    ],
-                                  ),
-                                  Text(
-                                    CurrencyFormatter.format(bRev),
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.obsidian),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('$bTxCount Transaksi', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                                  Text(
-                                    'Tunai: ${CurrencyFormatter.format(bCash)} • Non-Tunai: ${CurrencyFormatter.format(bNonCash)}',
-                                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Method Breakdown
-                    Text(
-                      'RINCIAN METODE PEMBAYARAN',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    if (breakdown.isEmpty)
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Main Revenue Card
                       Container(
-                        padding: const EdgeInsets.all(18),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.obsidian,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          'Total Omset ($dateLabel)',
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.8,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (isConsolidated) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.warning,
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: const Text(
+                                            'Konsolidasi',
+                                            style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.payments_rounded, color: Colors.white70, size: 20),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              CurrencyFormatter.format(totalRev),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$totalTx transaksi berhasil diselesaikan',
+                              style: const TextStyle(color: Colors.white60, fontSize: 13),
+                            ),
+                            const SizedBox(height: 14),
+                            const Divider(color: Colors.white24, height: 1),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.money_rounded, size: 16, color: Colors.white70),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Tunai (Cash)',
+                                              style: TextStyle(color: Colors.white60, fontSize: 10),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              CurrencyFormatter.format(cashTotal),
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(width: 1, height: 28, color: Colors.white24),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.credit_card_rounded, size: 16, color: Colors.white70),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Non-Tunai',
+                                              style: TextStyle(color: Colors.white60, fontSize: 10),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              CurrencyFormatter.format(nonCashTotal),
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Section 3: Cash Drawer Reconciliation Card
+                      Container(
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: AppColors.border),
                         ),
-                        child: const Center(
-                          child: Text(
-                            'Belum ada transaksi pembayaran di periode ini.',
-                            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                          ),
-                        ),
-                      )
-                    else
-                      ...breakdown.entries.map((entry) {
-                        final val = entry.value is Map ? (entry.value as Map) : {};
-                        final total = CurrencyFormatter.parse(val['total']);
-                        final count = val['count'] ?? 0;
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header with title and repositioned shift badge below it
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.point_of_sale_rounded, size: 18, color: AppColors.obsidian),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Rekonsiliasi Kas Laci & Beban',
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (effectiveShift != null) ...[
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.successLight,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.success,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            'Shift #${effectiveShift['shift_number'] ?? effectiveShift['id']} Aktif',
+                                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.success),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 14),
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
+                            // Flow 1: Net System Cash (Expected Cash)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Kas Masuk Bersih (Sistem)',
+                                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  CurrencyFormatter.format(cashTotal),
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.success),
+                                ),
+                              ],
+                            ),
+                            if (openingFloat > 0) ...[
+                              const SizedBox(height: 6),
                               Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Icon(Icons.account_balance_wallet_outlined, size: 20, color: AppColors.textSecondary),
-                                  const SizedBox(width: 12),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                      Text('$count Transaksi', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                                    ],
+                                  const Expanded(
+                                    child: Text(
+                                      'Modal Awal Kas Laci',
+                                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    CurrencyFormatter.format(openingFloat),
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                                   ),
                                 ],
                               ),
-                              Text(
-                                CurrencyFormatter.format(total),
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                              ),
                             ],
-                          ),
-                        );
-                      }),
-                    const SizedBox(height: 16),
 
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.obsidian,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      icon: const Icon(Icons.print_rounded, size: 20),
-                      label: const Text('Cetak Struk Closing Shift (ESC/POS)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                      onPressed: () => _printClosingReceipt(context, ref, data),
-                    ),
-
-                    // Recent Completed Transactions (Inspection)
-                    if (data['recent_transactions'] is List && (data['recent_transactions'] as List).isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'TRANSAKSI TERBARU (AUDIT RINCIAN)',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                            ),
-                            icon: const Icon(Icons.menu_book_rounded, size: 14),
-                            label: const Text('Buku Kas Lengkap', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const FinancialActivityLedgerScreen(),
+                            // Flow 2: Cash Expenses / Outflows
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    totalExp > 0 ? 'Beban Pengeluaran Cabang ${cashExp > 0 ? '(Kas Laci)' : ''}' : 'Beban Kas Keluar (Laci)',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      ...(data['recent_transactions'] as List).map((txItem) {
-                        final tx = txItem is Map ? txItem : {};
-                        final txCode = tx['receipt_number'] ?? tx['transaction_code'] ?? 'TX';
-                        final custName = tx['customer_name'] ?? 'Pelanggan';
-                        final brName = tx['branch_name'] ?? 'Cabang';
-                        final isCent = tx['is_central'] == true;
-                        final txAmt = CurrencyFormatter.parse(tx['amount']);
-                        final pMethod = tx['payment_method'] ?? 'Tunai';
-                        final cashier = tx['cashier_name'] ?? 'Kasir';
-                        final itemsSummary = tx['items_summary'] ?? 'Perangkat Apple';
-                        final txType = tx['type']?.toString().toLowerCase();
-                        final txTypeLabel = tx['type_label'] ?? (txType == 'penalty' ? 'Denda Keterlambatan' : null);
+                                const SizedBox(width: 8),
+                                Text(
+                                  totalExp > 0 ? '-${CurrencyFormatter.format(cashExp > 0 ? cashExp : totalExp)}' : 'Rp 0',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    color: (cashExp > 0 || totalExp > 0) ? AppColors.danger : AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 18),
 
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => _openTransactionDetailSheet(context, Map<String, dynamic>.from(tx)),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
+                            // Flow 3: Total Physical Cash Required in Drawer (Emphasized)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceMuted,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Total Fisik Kas Wajib di Laci',
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.obsidian),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          'Wajib ada di laci saat closing',
+                                          style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    CurrencyFormatter.format(expectedCash),
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.obsidian),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Quick Action Button within Reconciliation Section
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  side: const BorderSide(color: AppColors.border),
+                                  foregroundColor: AppColors.obsidian,
+                                ),
+                                icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
+                                label: const Text(
+                                  '+ Catat Beban Pengeluaran',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                                onPressed: () => _openAddExpenseModal(context, effBranch),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Income Type Breakdown (Single Consolidated Card)
+                      if (data['breakdown_by_type'] is Map) ...[
+                        Text(
+                          'Sumber Pendapatan',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Builder(builder: (_) {
+                          final typeMap = data['breakdown_by_type'] as Map;
+                          final types = [
+                            'rental',
+                            'extension',
+                            'penalty',
+                            if (typeMap.containsKey('refund') &&
+                                ((typeMap['refund'] is Map && (typeMap['refund']['count'] ?? 0) > 0) ||
+                                    CurrencyFormatter.parse((typeMap['refund'] is Map ? typeMap['refund']['total'] : null)) > 0))
+                              'refund',
+                          ];
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
+                              children: [
+                                for (int i = 0; i < types.length; i++) ...[
+                                  if (i > 0) const Divider(height: 1, thickness: 1, color: AppColors.surfaceMuted),
+                                  Builder(builder: (_) {
+                                    final key = types[i];
+                                    final info = typeMap[key] is Map ? (typeMap[key] as Map) : {};
+                                    final label = info['label'] ??
+                                        (key == 'penalty'
+                                            ? 'Denda Keterlambatan'
+                                            : (key == 'extension'
+                                                ? 'Perpanjangan Sewa'
+                                                : (key == 'refund' ? 'Pengembalian Deposit (Refund)' : 'Sewa Kontrak Pokok')));
+                                    final total = CurrencyFormatter.parse(info['total']);
+                                    final count = info['count'] ?? 0;
+                                    final isPenalty = key == 'penalty';
+                                    final isExtension = key == 'extension';
+
+                                    final icon = isPenalty
+                                        ? Icons.warning_amber_rounded
+                                        : (isExtension ? Icons.update_rounded : Icons.vpn_key_outlined);
+                                    final iconColor = isPenalty
+                                        ? Colors.deepOrange
+                                        : (isExtension ? AppColors.info : AppColors.obsidian);
+                                    final iconBg = isPenalty
+                                        ? Colors.deepOrange.withValues(alpha: 0.1)
+                                        : (isExtension ? AppColors.infoLight : AppColors.surfaceMuted);
+
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(7),
+                                            decoration: BoxDecoration(
+                                              color: iconBg,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(icon, size: 18, color: iconColor),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  label,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 12,
+                                                    color: isPenalty && total > 0 ? Colors.deepOrange.shade800 : AppColors.textPrimary,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  '$count Transaksi',
+                                                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            CurrencyFormatter.format(total),
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 13,
+                                              color: isPenalty && total > 0 ? Colors.deepOrange : AppColors.obsidian,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ],
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Branch Breakdown Section
+                      if (data['breakdown_by_branch'] is List && (data['breakdown_by_branch'] as List).isNotEmpty) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Kontribusi Omset per Cabang',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                  color: AppColors.textMuted,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${(data['breakdown_by_branch'] as List).length} Cabang Terdata',
+                              style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ...(data['breakdown_by_branch'] as List).map((bItem) {
+                          final b = bItem is Map ? bItem : {};
+                          final bName = b['branch_name'] ?? 'Cabang';
+                          final isCent = b['is_central'] == true;
+                          final bRev = CurrencyFormatter.parse(b['total_revenue']);
+                          final bCash = CurrencyFormatter.parse(b['cash_revenue']);
+                          final bNonCash = CurrencyFormatter.parse(b['non_cash_revenue']);
+                          final bTxCount = b['transaction_count'] ?? 0;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: AppColors.surface,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(color: AppColors.border),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Row(
                                         children: [
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: isCent ? AppColors.warningLight : AppColors.infoLight,
                                               borderRadius: BorderRadius.circular(4),
                                             ),
                                             child: Text(
-                                              isCent ? 'Pusat' : brName,
+                                              isCent ? 'Pusat' : 'Cabang',
                                               style: TextStyle(
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.bold,
@@ -1474,81 +1340,424 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            txCode,
-                                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                                          ),
-                                          if (txType == 'penalty') ...[
-                                            const SizedBox(width: 6),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: Colors.deepOrange.withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: const Text(
-                                                'Denda',
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.deepOrange,
-                                                ),
-                                              ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              bName,
+                                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                          ],
+                                          ),
                                         ],
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '$custName • $itemsSummary',
-                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        'Kasir: $cashier • $pMethod${txTypeLabel != null ? ' • $txTypeLabel' : ''}',
-                                        style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
+                                    ),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      CurrencyFormatter.format(txAmt),
+                                      CurrencyFormatter.format(bRev),
                                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.obsidian),
                                     ),
-                                    const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('$bTxCount Transaksi', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'Tunai: ${CurrencyFormatter.format(bCash)} • Non-Tunai: ${CurrencyFormatter.format(bNonCash)}',
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
                             ),
-                          ),
-                        );
-                      }),
-                    ],
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 16),
+                          );
+                        }),
+                        const SizedBox(height: 16),
+                      ],
 
-            // User Info & Logout
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dangerLight,
-                foregroundColor: AppColors.danger,
+                      // Method Breakdown (Single Consolidated Card)
+                      Text(
+                        'Rincian Metode Pembayaran',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: breakdown.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.all(18),
+                                child: Center(
+                                  child: Text(
+                                    'Belum ada transaksi pembayaran di periode ini.',
+                                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                                  ),
+                                ),
+                              )
+                            : Column(
+                                children: [
+                                  for (int i = 0; i < breakdown.entries.length; i++) ...[
+                                    if (i > 0) const Divider(height: 1, thickness: 1, color: AppColors.surfaceMuted),
+                                    Builder(builder: (_) {
+                                      final entry = breakdown.entries.elementAt(i);
+                                      final val = entry.value is Map ? (entry.value as Map) : {};
+                                      final total = CurrencyFormatter.parse(val['total']);
+                                      final count = val['count'] ?? 0;
+                                      final kStr = entry.key.toString().toLowerCase();
+
+                                      final IconData methodIcon;
+                                      if (kStr.contains('tunai') || kStr == 'cash') {
+                                        methodIcon = Icons.money_rounded;
+                                      } else if (kStr.contains('qris')) {
+                                        methodIcon = Icons.qr_code_scanner_rounded;
+                                      } else if (kStr.contains('transfer') || kStr.contains('bank')) {
+                                        methodIcon = Icons.account_balance_rounded;
+                                      } else if (kStr.contains('edc') || kStr.contains('card') || kStr.contains('kartu')) {
+                                        methodIcon = Icons.credit_card_rounded;
+                                      } else {
+                                        methodIcon = Icons.account_balance_wallet_outlined;
+                                      }
+
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(7),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.surfaceMuted,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Icon(methodIcon, size: 18, color: AppColors.obsidian),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    entry.key,
+                                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    '$count Transaksi',
+                                                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              CurrencyFormatter.format(total),
+                                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ],
+                              ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Recent Completed Transactions (Inspection)
+                      if (data['recent_transactions'] is List && (data['recent_transactions'] as List).isNotEmpty) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Transaksi Terbaru (Audit Rincian)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                  color: AppColors.textMuted,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton.icon(
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                              ),
+                              icon: const Icon(Icons.menu_book_rounded, size: 14),
+                              label: const Text('Buku Kas Lengkap', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const FinancialActivityLedgerScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ...(data['recent_transactions'] as List).map((txItem) {
+                          final tx = txItem is Map ? txItem : {};
+                          final txCode = tx['receipt_number'] ?? tx['transaction_code'] ?? 'TX';
+                          final custName = tx['customer_name'] ?? 'Pelanggan';
+                          final brName = tx['branch_name'] ?? 'Cabang';
+                          final isCent = tx['is_central'] == true;
+                          final txAmt = CurrencyFormatter.parse(tx['amount']);
+                          final pMethod = tx['payment_method'] ?? 'Tunai';
+                          final cashier = tx['cashier_name'] ?? 'Kasir';
+                          final itemsSummary = tx['items_summary'] ?? 'Perangkat Apple';
+                          final txType = tx['type']?.toString().toLowerCase();
+                          final txTypeLabel = tx['type_label'] ?? (txType == 'penalty' ? 'Denda Keterlambatan' : null);
+
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => _openTransactionDetailSheet(context, Map<String, dynamic>.from(tx)),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: isCent ? AppColors.warningLight : AppColors.infoLight,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                isCent ? 'Pusat' : brName,
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isCent ? AppColors.warning : AppColors.info,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                txCode,
+                                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (txType == 'penalty') ...[
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.deepOrange.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: const Text(
+                                                  'Denda',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.deepOrange,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '$custName • $itemsSummary',
+                                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          'Kasir: $cashier • $pMethod${txTypeLabel != null ? ' • $txTypeLabel' : ''}',
+                                          style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        CurrencyFormatter.format(txAmt),
+                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.obsidian),
+                                      ),
+                                      const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
+                  );
+                },
               ),
-              icon: const Icon(Icons.logout_rounded, size: 18),
-              label: const Text('Keluar dari Akun Kasir'),
-              onPressed: () {
-                ref.read(authProvider.notifier).logout();
-              },
-            ),
-          ],
+              const SizedBox(height: 16),
+
+              // User Info & Logout
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  side: const BorderSide(color: AppColors.dangerLight),
+                  backgroundColor: AppColors.dangerLight.withValues(alpha: 0.3),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: const Text('Keluar dari Akun Kasir', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                onPressed: () {
+                  ref.read(authProvider.notifier).logout();
+                },
+              ),
+            ],
+          ),
         ),
       ),
+      bottomNavigationBar: _buildStickyClosingBottomBar(closingAsync),
+    );
+  }
+
+  Widget? _buildStickyClosingBottomBar(AsyncValue<Map<String, dynamic>> closingAsync) {
+    return closingAsync.maybeWhen(
+      data: (data) {
+        final recon = data['cash_reconciliation'] is Map ? (data['cash_reconciliation'] as Map) : {};
+        final activeShift = recon['active_shift'] is Map ? Map<String, dynamic>.from(recon['active_shift'] as Map) : null;
+        final currentShiftAsync = ref.watch(currentShiftProvider);
+        final shiftPayload = currentShiftAsync.asData?.value;
+        final currentShiftData = shiftPayload?['data']?['shift'] is Map
+            ? Map<String, dynamic>.from(shiftPayload!['data']['shift'] as Map)
+            : null;
+        final effectiveShift = currentShiftData ?? activeShift;
+        final hasActiveShift = effectiveShift != null && effectiveShift['status'] == 'open';
+
+        final Map<String, dynamic> breakdown = data['breakdown_by_method'] is Map
+            ? Map<String, dynamic>.from(data['breakdown_by_method'] as Map)
+            : {};
+        final cashTotal = _calcCashTotal(breakdown);
+        final cashExp = CurrencyFormatter.parse(data['cash_drawer_expenses']);
+
+        final double expectedCash;
+        if (effectiveShift != null && effectiveShift['expected_cash_now'] != null) {
+          expectedCash = CurrencyFormatter.parse(effectiveShift['expected_cash_now']);
+        } else if (recon.containsKey('expected_cash_in_drawer')) {
+          expectedCash = CurrencyFormatter.parse(recon['expected_cash_in_drawer']);
+        } else {
+          expectedCash = (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0);
+        }
+
+        final bizState = ref.read(businessProvider);
+        final posBranchFilter = ref.read(posFilterBranchIdProvider);
+        final int? effBranch = posBranchFilter != -1 ? (posBranchFilter ?? bizState.activeBranchId) : bizState.activeBranchId;
+
+        return Container(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.paddingOf(context).bottom),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                offset: const Offset(0, -3),
+                blurRadius: 12,
+              ),
+            ],
+            border: const Border(
+              top: BorderSide(color: AppColors.border, width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Secondary/Outlined Button: "Cetak Struk Closing" (Print Receipt)
+              Expanded(
+                flex: 4,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    side: const BorderSide(color: AppColors.border, width: 1.5),
+                    foregroundColor: AppColors.obsidian,
+                  ),
+                  icon: const Icon(Icons.print_rounded, size: 18),
+                  label: const Text(
+                    'Cetak Struk Closing',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () => _printClosingReceipt(context, ref, data),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Primary/Solid Button: "Tutup Shift" (Close Shift)
+              Expanded(
+                flex: 5,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: hasActiveShift ? AppColors.obsidian : AppColors.info,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  icon: Icon(
+                    hasActiveShift ? Icons.lock_clock_rounded : Icons.lock_open_rounded,
+                    size: 18,
+                  ),
+                  label: Text(
+                    hasActiveShift ? 'Tutup Shift' : 'Buka Shift',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () => _openShiftModal(context, effectiveShift, expectedCash, effBranch),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      orElse: () => null,
     );
   }
 
@@ -1582,11 +1791,12 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
     final dateState = ref.watch(posDateRangeProvider);
     final activeLabel = dateState.label;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
         children: [
-          _buildDateFilterChip('Hari Ini', activeLabel == 'Hari Ini', () {
+          _buildCompactFilterChip('Hari Ini', activeLabel == 'Hari Ini', () {
             final nowStr = DateTime.now().toIso8601String().substring(0, 10);
             ref.read(posDateRangeProvider.notifier).setDateRange(
               label: 'Hari Ini',
@@ -1594,8 +1804,8 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
               endDate: nowStr,
             );
           }),
-          const SizedBox(width: 8),
-          _buildDateFilterChip('Kemarin', activeLabel == 'Kemarin', () {
+          const SizedBox(width: 6),
+          _buildCompactFilterChip('Kemarin', activeLabel == 'Kemarin', () {
             final now = DateTime.now();
             final yesterday = DateTime(now.year, now.month, now.day - 1);
             final yStr = yesterday.toIso8601String().substring(0, 10);
@@ -1605,8 +1815,8 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
               endDate: yStr,
             );
           }),
-          const SizedBox(width: 8),
-          _buildDateFilterChip('Bulan Ini', activeLabel == 'Bulan Ini', () {
+          const SizedBox(width: 6),
+          _buildCompactFilterChip('Bulan Ini', activeLabel == 'Bulan Ini', () {
             final now = DateTime.now();
             final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
             final todayStr = now.toIso8601String().substring(0, 10);
@@ -1616,60 +1826,84 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
               endDate: todayStr,
             );
           }),
-          const SizedBox(width: 8),
-          ActionChip(
-            avatar: const Icon(Icons.date_range_rounded, size: 16),
-            label: Text(
-              activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini'
-                  ? activeLabel
-                  : 'Rentang Kustom',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: (activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini')
-                    ? Colors.white
-                    : AppColors.textPrimary,
-              ),
-            ),
-            backgroundColor: (activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini')
-                ? AppColors.obsidian
-                : AppColors.surface,
-            onPressed: () async {
-              final picked = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2024),
-                lastDate: DateTime.now().add(const Duration(days: 30)),
-              );
-              if (picked != null) {
-                final startStr = picked.start.toIso8601String().substring(0, 10);
-                final endStr = picked.end.toIso8601String().substring(0, 10);
-                ref.read(posDateRangeProvider.notifier).setDateRange(
-                  label: '$startStr s/d $endStr',
-                  startDate: startStr,
-                  endDate: endStr,
-                );
-              }
-            },
-          ),
+          const SizedBox(width: 6),
+          _buildCustomDateFilterChip(activeLabel),
         ],
       ),
     );
   }
 
-  Widget _buildDateFilterChip(String label, bool isSelected, VoidCallback onTap) {
-    return ChoiceChip(
+  Widget _buildCompactFilterChip(String label, bool isSelected, VoidCallback onTap) {
+    return FilterChip(
       label: Text(
         label,
         style: TextStyle(
           fontSize: 12,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
           color: isSelected ? Colors.white : AppColors.textPrimary,
         ),
       ),
       selected: isSelected,
+      showCheckmark: false,
       selectedColor: AppColors.obsidian,
       backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: isSelected ? AppColors.obsidian : AppColors.border,
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       onSelected: (_) => onTap(),
+    );
+  }
+
+  Widget _buildCustomDateFilterChip(String activeLabel) {
+    final isCustom = activeLabel != 'Hari Ini' && activeLabel != 'Kemarin' && activeLabel != 'Bulan Ini';
+    return ActionChip(
+      avatar: Icon(
+        Icons.date_range_rounded,
+        size: 14,
+        color: isCustom ? Colors.white : AppColors.textMuted,
+      ),
+      label: Text(
+        isCustom ? activeLabel : 'Rentang Kustom',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: isCustom ? FontWeight.w700 : FontWeight.w500,
+          color: isCustom ? Colors.white : AppColors.textPrimary,
+        ),
+      ),
+      backgroundColor: isCustom ? AppColors.obsidian : AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: isCustom ? AppColors.obsidian : AppColors.border,
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      onPressed: () async {
+        final picked = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2024),
+          lastDate: DateTime.now().add(const Duration(days: 30)),
+        );
+        if (picked != null) {
+          final startStr = picked.start.toIso8601String().substring(0, 10);
+          final endStr = picked.end.toIso8601String().substring(0, 10);
+          ref.read(posDateRangeProvider.notifier).setDateRange(
+            label: '$startStr s/d $endStr',
+            startDate: startStr,
+            endDate: endStr,
+          );
+        }
+      },
     );
   }
 

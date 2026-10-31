@@ -80,6 +80,11 @@ final paymentMethodsProvider = FutureProvider.autoDispose<List<Map<String, dynam
   return repo.fetchPaymentMethods(branchId: branchId);
 });
 
+final paymentMethodsForBranchProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int?>((ref, branchId) async {
+  final repo = ref.watch(cashierRepositoryProvider);
+  return repo.fetchPaymentMethods(branchId: branchId);
+});
+
 final paymentSettingsProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, int?>((ref, branchId) async {
   final repo = ref.watch(cashierRepositoryProvider);
   return repo.fetchPaymentSettings(branchId: branchId);

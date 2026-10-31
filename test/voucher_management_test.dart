@@ -254,14 +254,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify title & filter chips
-      expect(find.text('Voucher & Barcode 2D'), findsOneWidget);
+      expect(find.text('Voucher Promo'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Semua'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Aktif'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Nonaktif'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Kedaluwarsa'), findsOneWidget);
 
-      // Verify Owner Header Button & FAB are present
-      expect(find.byKey(const Key('create_voucher_header_button')), findsOneWidget);
+      // Verify Owner FAB is present (Header button removed to eliminate truncation)
+      expect(find.byKey(const Key('create_voucher_header_button')), findsNothing);
       expect(find.byKey(const Key('create_voucher_fab')), findsOneWidget);
 
       // Verify Voucher Card content
@@ -295,7 +295,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify title
-      expect(find.text('Voucher & Barcode 2D'), findsOneWidget);
+      expect(find.text('Voucher Promo'), findsOneWidget);
 
       // Staff must NOT see the "Buat Voucher" FAB
       expect(find.text('Buat Voucher'), findsNothing);

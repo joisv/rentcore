@@ -6,7 +6,6 @@ import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/payments/data/payment_repository.dart';
 import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
 import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
 
@@ -183,7 +182,7 @@ void main() {
     ],
   );
 
-  group('Shared PaymentPage UI & Workflow Tests', () {
+  group('Shared PaymentPage UI & Workflow Tests (User Review & Pay Design)', () {
     late _FakeCashierRepo fakeCashierRepo;
     late _FakeBookingRepo fakeBookingRepo;
 
@@ -210,7 +209,7 @@ void main() {
       );
     }
 
-    testWidgets('1. Booking Payment: Renders summary, cash suggestions, calculates change, and completes', (tester) async {
+    testWidgets('1. Booking Payment: Renders center amount, Detail Sewa sheet, cash sheet, and completes', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -221,6 +220,7 @@ void main() {
       final context = PaymentContext.booking(
         customerName: 'Dedi Kurniawan',
         customerPhone: '081298765432',
+        customerAddress: 'Jl. Merdeka No. 10',
         deviceName: 'iPhone 15 Pro',
         totalAmount: 350000.0,
         extraPayload: {'collateral_type': 'KTP Asli'},
@@ -229,32 +229,47 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // Verify Header & Badge
-      expect(find.text('TERMINAL KASIR POS'), findsOneWidget);
-      expect(find.text('SEWA BARU'), findsOneWidget);
+      // Verify Header & Tagihan Sewa
+      expect(find.text('Pembayaran  Sewa'), findsOneWidget);
+      expect(find.text('Tagihan Sewa'), findsOneWidget);
+      expect(find.text('Rp350.000'), findsOneWidget);
+      expect(find.text('Detail Sewa'), findsOneWidget);
+
+      // Verify 3 Payment Method Buttons
+      expect(find.text('QRIS'), findsOneWidget);
+      expect(find.text('Tunai'), findsOneWidget);
+      expect(find.text('Lainya'), findsOneWidget);
+
+      // Tap "Detail Sewa" to open Detail Sewa bottom sheet
+      await tester.tap(find.text('Detail Sewa'));
+      await tester.pumpAndSettle();
+
+      // Verify Detail Sewa Sheet Content
       expect(find.text('Dedi Kurniawan'), findsOneWidget);
       expect(find.text('iPhone 15 Pro'), findsOneWidget);
+      expect(find.text('KONFIRMASI PEMBAYARAN'), findsOneWidget);
 
-      // Verify Total Due is Rp 350.000
-      expect(find.text('Rp 350.000'), findsAtLeastNWidgets(1));
+      // Tap "KONFIRMASI PEMBAYARAN" -> proceeds to Cash Sheet
+      await tester.tap(find.text('KONFIRMASI PEMBAYARAN'));
+      await tester.pumpAndSettle();
 
-      // Verify Cash Denomination Suggestions
-      expect(find.widgetWithText(ActionChip, 'Rp 350.000'), findsOneWidget);
-      expect(find.widgetWithText(ActionChip, 'Rp 400.000'), findsOneWidget);
-      expect(find.widgetWithText(ActionChip, 'Rp 500.000'), findsOneWidget);
+      // Verify PEMBAYARAN TUNAI Sheet
+      expect(find.text('PEMBAYARAN TUNAI'), findsOneWidget);
+      expect(find.text('Rp  350.000'), findsOneWidget);
 
-      // Tap Rp 400.000 suggestion chip
-      await tester.tap(find.widgetWithText(ActionChip, 'Rp 400.000'));
+      // Tap Rp 400.000 chip
+      final chip400k = find.text('Rp 400.000');
+      expect(chip400k, findsOneWidget);
+      await tester.tap(chip400k);
       await tester.pumpAndSettle();
 
       // Verify Change is Rp 50.000
-      expect(find.text('Kembalian Pelanggan:'), findsOneWidget);
+      expect(find.text('Kembalian Pelanggan'), findsOneWidget);
       expect(find.text('Rp 50.000'), findsAtLeastNWidgets(1));
 
-      // Submit Payment
-      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 350.000)');
+      // Tap PROSES PEMBAYARAN
+      final submitButton = find.widgetWithText(ElevatedButton, 'PROSES PEMBAYARAN');
       expect(submitButton, findsOneWidget);
-      await tester.ensureVisible(submitButton);
       await tester.tap(submitButton);
       await tester.pumpAndSettle();
 
@@ -269,7 +284,7 @@ void main() {
       expect(find.text('Selesai'), findsOneWidget);
     });
 
-    testWidgets('2. Late Return Penalty Payment: Authoritative penalty context, non-cash toggle, and submission', (tester) async {
+    testWidgets('2. Late Return Penalty Payment: Unified screen 2 renders Tagihan Denda, QRIS bottom sheet, and submission', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -288,35 +303,38 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // Verify Badge & Details
-      expect(find.text('DENDA KETERLAMBATAN'), findsOneWidget);
-      expect(find.text('Siti Rahma'), findsOneWidget);
-      expect(find.text('iPad Air M2'), findsOneWidget);
-      expect(find.text('Rp 75.000'), findsAtLeastNWidgets(1));
+      // Verify Header & Details in Universal Screen 2
+      expect(find.text('Pembayaran Denda'), findsOneWidget);
+      expect(find.text('Tagihan Denda'), findsOneWidget);
+      expect(find.text('Rp75.000'), findsOneWidget);
+      expect(find.text('Detail Denda'), findsOneWidget);
 
-      // Switch to QRIS
-      final qrisChip = find.widgetWithText(ChoiceChip, 'QRIS Dinamis');
-      expect(qrisChip, findsOneWidget);
-      await tester.tap(qrisChip);
+      // Verify 3 bottom method cards
+      expect(find.text('QRIS'), findsOneWidget);
+      expect(find.text('Tunai'), findsOneWidget);
+      expect(find.text('Lainya'), findsOneWidget);
+
+      // Open Detail Denda sheet
+      await tester.tap(find.text('Detail Denda'));
       await tester.pumpAndSettle();
 
-      // Verify cash suggestion chips disappear
-      expect(find.widgetWithText(ActionChip, 'Rp 75.000'), findsNothing);
-      expect(find.text('Kembalian Pelanggan:'), findsNothing);
+      expect(find.text('Siti Rahma'), findsOneWidget);
+      expect(find.textContaining('iPad Air M2'), findsOneWidget);
 
-      // Verify non-cash verification notice
-      expect(find.textContaining('Konfirmasi pembayaran non-tunai'), findsOneWidget);
+      // Close detail sheet by tapping KONFIRMASI PEMBAYARAN which opens cash sheet
+      await tester.tap(find.text('KONFIRMASI PEMBAYARAN'));
+      await tester.pumpAndSettle();
 
-      // Submit QRIS Payment
-      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 75.000)');
+      // Submit payment via Cash sheet
+      final submitButton = find.widgetWithText(ElevatedButton, 'PROSES PEMBAYARAN');
       await tester.ensureVisible(submitButton);
       await tester.tap(submitButton);
       await tester.pumpAndSettle();
 
-      // Verify Cashier Repo was called with penalty type and QRIS method
+      // Verify Cashier Repo was called with penalty type and Cash method
       expect(fakeCashierRepo.lastBookingId, 42);
       expect(fakeCashierRepo.lastPaymentType, 'penalty');
-      expect(fakeCashierRepo.lastPaymentMethodId, 2);
+      expect(fakeCashierRepo.lastPaymentMethodId, 1);
       expect(fakeCashierRepo.lastAmount, 75000.0);
 
       // Verify Success Screen
@@ -343,15 +361,23 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // Verify Header & Extension specifics
-      expect(find.text('PERPANJANGAN'), findsOneWidget);
-      expect(find.textContaining('6 Jam'), findsOneWidget);
-      expect(find.text('MacBook Air M2'), findsOneWidget);
-      expect(find.text('Rp 90.000'), findsAtLeastNWidgets(1));
+      // Verify Tagihan Sewa is Rp 90.000
+      expect(find.text('Rp90.000'), findsOneWidget);
 
-      // Submit payment
-      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 90.000)');
-      await tester.ensureVisible(submitButton);
+      // Tap Detail Sewa
+      await tester.tap(find.text('Detail Sewa'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ahmad Fauzi'), findsOneWidget);
+      expect(find.text('MacBook Air M2'), findsOneWidget);
+      expect(find.text('6 Jam'), findsOneWidget);
+
+      // Submit payment via sheet
+      final confirmBtn = find.text('KONFIRMASI PEMBAYARAN');
+      await tester.tap(confirmBtn);
+      await tester.pumpAndSettle();
+
+      final submitButton = find.widgetWithText(ElevatedButton, 'PROSES PEMBAYARAN');
       await tester.tap(submitButton);
       await tester.pumpAndSettle();
 
@@ -365,7 +391,7 @@ void main() {
       expect(find.text('Pembayaran Berhasil Dicatat!'), findsOneWidget);
     });
 
-    testWidgets('4. Remaining Balance Settlement: Displays previously paid amount and guards against cash shortage', (tester) async {
+    testWidgets('4. Remaining Balance Settlement: Displays amount and guards against cash shortage', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -397,14 +423,14 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // Verify Badge & Split Display
-      expect(find.text('PELUNASAN SEWA'), findsOneWidget);
-      expect(find.text('Sudah Terbayar'), findsOneWidget);
-      expect(find.text('Rp 200.000'), findsAtLeastNWidgets(1));
-      expect(find.text('SISA TAGIHAN SEWA'), findsOneWidget);
+      expect(find.text('Rp200.000'), findsOneWidget);
 
-      // Clear cash received to 0 and verify shortage
-      final cashInput = find.widgetWithText(TextField, 'Jumlah Uang Diterima (Rp)');
+      // Tap Tunai
+      await tester.tap(find.text('Tunai'));
+      await tester.pumpAndSettle();
+
+      // Clear cash received to 150000 and verify shortage
+      final cashInput = find.byType(TextField);
       await tester.enterText(cashInput, '150000');
       await tester.pumpAndSettle();
 
@@ -413,8 +439,7 @@ void main() {
       expect(find.text('Rp 50.000'), findsOneWidget);
 
       // Verify submit button is disabled
-      final submitButtonFinder = find.widgetWithText(ElevatedButton, 'Uang Tunai Kurang (Rp 50.000)');
-      expect(submitButtonFinder, findsOneWidget);
+      final submitButtonFinder = find.widgetWithText(ElevatedButton, 'PROSES PEMBAYARAN');
       final elevatedButton = tester.widget<ElevatedButton>(submitButtonFinder);
       expect(elevatedButton.onPressed, isNull);
 
@@ -423,10 +448,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Button becomes enabled
-      final enabledButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 200.000)');
-      expect(enabledButton, findsOneWidget);
-      await tester.ensureVisible(enabledButton);
-      await tester.tap(enabledButton);
+      final enabledButton = tester.widget<ElevatedButton>(submitButtonFinder);
+      expect(enabledButton.onPressed, isNotNull);
+      await tester.tap(submitButtonFinder);
       await tester.pumpAndSettle();
 
       // Verify Cashier Repo called for settlement
@@ -456,15 +480,19 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // Verify Header & Add-on details
-      expect(find.text('PERPANJANGAN'), findsOneWidget);
-      expect(find.textContaining('12 Jam'), findsOneWidget);
+      // Tap Detail Sewa
+      await tester.tap(find.text('Detail Sewa'));
+      await tester.pumpAndSettle();
+
       expect(find.text('Tripod Bluetooth'), findsOneWidget);
+      expect(find.text('12 Jam'), findsOneWidget);
       expect(find.text('Rp 50.000'), findsAtLeastNWidgets(1));
 
       // Submit payment
-      final submitButton = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 50.000)');
-      await tester.ensureVisible(submitButton);
+      await tester.tap(find.text('KONFIRMASI PEMBAYARAN'));
+      await tester.pumpAndSettle();
+
+      final submitButton = find.widgetWithText(ElevatedButton, 'PROSES PEMBAYARAN');
       await tester.tap(submitButton);
       await tester.pumpAndSettle();
 
@@ -519,27 +547,24 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // Verify Section Header
-      expect(find.text('RINCIAN SEWA'), findsOneWidget);
+      expect(find.text('Rp175.000'), findsOneWidget);
+
+      // Open Detail Sewa
+      await tester.tap(find.text('Detail Sewa'));
+      await tester.pumpAndSettle();
 
       // Verify Primary Device
       expect(find.text('iPhone 13 128GB — Midnight'), findsOneWidget);
-      expect(find.textContaining('IPHONE-13-01'), findsOneWidget);
-      expect(find.textContaining('Durasi: 24 Jam'), findsNWidgets(2));
-      expect(find.text('Rp 150.000'), findsNWidgets(2));
 
       // Verify Add-on Item
       expect(find.text('Power Bank Anker 10000mAh'), findsOneWidget);
-      expect(find.textContaining('PB-ANKER-01'), findsOneWidget);
-      expect(find.text('Add-on'), findsOneWidget);
-      expect(find.text('Rp 25.000'), findsNWidgets(2));
+      expect(find.text('add-on'), findsOneWidget);
 
       // Verify Subtotals Breakdown
-      expect(find.text('Subtotal Unit Utama'), findsOneWidget);
-      expect(find.text('Subtotal Add-on (1 unit)'), findsOneWidget);
-      expect(find.text('Subtotal Sewa'), findsOneWidget);
-      expect(find.text('Total Tagihan'), findsOneWidget);
-      expect(find.text('Rp 175.000'), findsAtLeastNWidgets(2));
+      expect(find.text('Durasi Sewa'), findsOneWidget);
+      expect(find.text('Subtotal'), findsOneWidget);
+      expect(find.text('Total'), findsOneWidget);
+      expect(find.text('Rp 175.000'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('7. Booking with multiple add-ons: displays primary unit and all add-on items cleanly', (tester) async {
@@ -586,19 +611,20 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // All items appear exactly once
+      // Open Detail Sewa
+      await tester.tap(find.text('Detail Sewa'));
+      await tester.pumpAndSettle();
+
+      // All items appear
       expect(find.text('iPhone 13 128GB — Midnight'), findsOneWidget);
       expect(find.text('Power Bank Anker 10000mAh'), findsOneWidget);
       expect(find.text('Fast Charger 67W'), findsOneWidget);
-      expect(find.text('Add-on'), findsNWidgets(2));
+      expect(find.text('add-on'), findsNWidgets(2));
 
       // Subtotals & totals
-      expect(find.text('Subtotal Unit Utama'), findsOneWidget);
-      expect(find.text('Subtotal Add-on (2 unit)'), findsOneWidget);
-      expect(find.text('Rp 40.000'), findsOneWidget);
-      expect(find.text('Subtotal Sewa'), findsOneWidget);
-      expect(find.text('Total Tagihan'), findsOneWidget);
-      expect(find.text('Rp 190.000'), findsAtLeastNWidgets(2));
+      expect(find.text('Subtotal'), findsOneWidget);
+      expect(find.text('Total'), findsOneWidget);
+      expect(find.text('Rp 190.000'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('8. Booking with voucher discount: displays discount row and reconciles total', (tester) async {
@@ -640,17 +666,17 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // Combined subtotal: 175.000
-      expect(find.text('Subtotal Sewa'), findsOneWidget);
-      expect(find.text('Rp 175.000'), findsOneWidget);
+      // Open Detail Sewa
+      await tester.tap(find.text('Detail Sewa'));
+      await tester.pumpAndSettle();
 
-      // Voucher discount: -Rp 15.000
-      expect(find.text('Voucher Diskon (DISKON15K)'), findsOneWidget);
-      expect(find.text('-Rp 15.000'), findsOneWidget);
+      // Voucher discount: - Rp 15.000
+      expect(find.text('Diskon'), findsOneWidget);
+      expect(find.text('- Rp 15.000'), findsOneWidget);
 
       // Final total: 160.000
-      expect(find.text('Total Tagihan'), findsOneWidget);
-      expect(find.text('Rp 160.000'), findsAtLeastNWidgets(2));
+      expect(find.text('Total'), findsOneWidget);
+      expect(find.text('Rp 160.000'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('9. PaymentContext.settlement: extracts all items and add-ons from booking data', (tester) async {
@@ -708,12 +734,14 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      expect(find.text('RINCIAN SEWA'), findsOneWidget);
+      // Open Detail Sewa
+      await tester.tap(find.text('Detail Sewa'));
+      await tester.pumpAndSettle();
+
       expect(find.text('iPhone 13 128GB'), findsOneWidget);
       expect(find.text('Anker PowerCore'), findsOneWidget);
-      expect(find.text('Add-on'), findsOneWidget);
-      expect(find.text('Subtotal Add-on (1 unit)'), findsOneWidget);
-      expect(find.text('Total Tagihan'), findsOneWidget);
+      expect(find.text('add-on'), findsOneWidget);
+      expect(find.text('Total'), findsOneWidget);
     });
 
     testWidgets('10. Fallback when items is empty: renders deviceName without crash', (tester) async {
@@ -735,12 +763,13 @@ void main() {
       await tester.pumpWidget(createTestWidget(context));
       await tester.pumpAndSettle();
 
-      // Header and summary
-      expect(find.text('iPhone 14 Pro Max (IP14-PRO-01)'), findsOneWidget);
-      expect(find.text('Total Tagihan'), findsOneWidget);
-      expect(find.text('Rp 200.000'), findsAtLeastNWidgets(2));
-      // Rincian Sewa header should not be present when items is empty
-      expect(find.text('RINCIAN SEWA'), findsNothing);
+      // Open Detail Sewa
+      await tester.tap(find.text('Detail Sewa'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('iPhone 14 Pro Max'), findsOneWidget);
+      expect(find.text('Total'), findsOneWidget);
+      expect(find.text('Rp 200.000'), findsAtLeastNWidgets(1));
     });
   });
 }

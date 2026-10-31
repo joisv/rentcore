@@ -351,20 +351,12 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: Row(
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.qr_code_2_rounded, size: 22, color: AppColors.obsidian),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('QRIS Statis', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                                    const Text('Tampilkan barcode QR untuk pembayaran m-Banking/E-Wallet', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                                  ],
-                                ),
-                              ),
+                              Text('QRIS Statis', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                              Text('Tampilkan barcode QR untuk pembayaran m-Banking/E-Wallet', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                             ],
                           ),
                         ),
@@ -520,20 +512,12 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: Row(
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.account_balance_wallet_rounded, size: 22, color: AppColors.obsidian),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Dompet Digital (E-Wallet)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                                    const Text('Master toggle untuk seluruh penyedia E-Wallet', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                                  ],
-                                ),
-                              ),
+                              Text('Dompet Digital (E-Wallet)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                              Text('Aktifkan semua e-wallet', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                             ],
                           ),
                         ),
@@ -627,7 +611,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                     _buildProviderTile(
                       key: 'toggle_cash',
                       name: 'Tunai di Meja Kasir (CASH)',
-                      subtitle: 'Penerimaan uang kertas dan koin fisik di laci kasir',
+                      subtitle: null,
                       value: _cashEnabled,
                       enabled: isOwnerOrAdmin,
                       isEwalletProvider: false,
@@ -657,7 +641,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
   Widget _buildProviderTile({
     required String key,
     required String name,
-    required String subtitle,
+    String? subtitle,
     required bool value,
     required bool enabled,
     required ValueChanged<bool> onChanged,
@@ -680,11 +664,13 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                   color: isDimmed ? AppColors.textMuted : AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
+              if (subtitle != null && subtitle.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
             ],
           ),
         ),

@@ -9,10 +9,11 @@ import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../inventory/providers/asset_provider.dart';
-import '../../vouchers/data/voucher_repository.dart';
-import '../providers/booking_provider.dart';
+import '../../payments/data/payment_repository.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
+import '../../vouchers/data/voucher_repository.dart';
+import '../providers/booking_provider.dart';
 
 class RentalTierOption {
   final String unit; // 'hour', 'day', 'week', 'month'
@@ -53,7 +54,7 @@ class DirectRentalScreen extends ConsumerStatefulWidget {
 
 class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   final _formKey = GlobalKey<FormState>();
-  int _currentStep = 0; // 0: Unit & Durasi, 1: Data Penyewa, 2: Ringkasan & Bayar
+  int _currentStep = 0; // 0: Unit & Durasi, 1: Data Penyewa, 2: Ringkasan
 
   String? _assetValidationError;
   String? _durationValidationError;
@@ -64,9 +65,21 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   final _addressController = TextEditingController(
     text: 'Jl. Raya Genteng No. 128, RT 03/RW 02, Kec. Genteng, Banyuwangi 68465',
   );
+  final List<String> _safeSlots = [
+    'Brankas A, Slot 01',
+    'Brankas A, Slot 02',
+    'Brankas A, Slot 03',
+    'Brankas A, Slot 04',
+    'Brankas A, Slot 05',
+    'Brankas B, Slot 01',
+    'Brankas B, Slot 02',
+    'Brankas B, Slot 03',
+    'Brankas B, Slot 04',
+    'Brankas C, Slot Khusus (VIP)',
+  ];
+  String _selectedSafeSlot = 'Brankas A, Slot 05';
   final _slotController = TextEditingController(text: 'Brankas A, Slot 05');
   final _voucherController = TextEditingController();
-  final _cashReceivedController = TextEditingController();
 
   // Unit Selection initially null
   Map<String, dynamic>? _selectedAsset;
@@ -97,9 +110,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   @override
   void initState() {
     super.initState();
-    _cashReceivedController.addListener(() {
-      setState(() {});
-    });
+    _slotController.text = _selectedSafeSlot;
   }
 
   @override
@@ -109,8 +120,56 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     _addressController.dispose();
     _slotController.dispose();
     _voucherController.dispose();
-    _cashReceivedController.dispose();
     super.dispose();
+  }
+
+  String _formatReturnDeadline() {
+    final hours = _selectedDuration ?? 24;
+    final now = DateTime.now();
+    final returnTime = now.add(Duration(hours: hours));
+
+    final isToday = returnTime.year == now.year && returnTime.month == now.month && returnTime.day == now.day;
+    final tomorrow = now.add(const Duration(days: 1));
+    final isTomorrow = returnTime.year == tomorrow.year && returnTime.month == tomorrow.month && returnTime.day == tomorrow.day;
+
+    final hh = returnTime.hour.toString().padLeft(2, '0');
+    final mm = returnTime.minute.toString().padLeft(2, '0');
+
+    final String dayPrefix;
+    if (isToday) {
+      dayPrefix = 'Hari Ini';
+    } else if (isTomorrow) {
+      dayPrefix = 'Besok';
+    } else {
+      const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      final dayName = days[returnTime.weekday - 1];
+      final monthName = months[returnTime.month - 1];
+      dayPrefix = '$dayName, ${returnTime.day} $monthName';
+    }
+
+    return 'Kembali: $dayPrefix, $hh:$mm WIB';
+  }
+
+  String _formatLast4Sn(String? sn) {
+    if (sn == null || sn.trim().isEmpty) return '';
+    final trimmed = sn.trim();
+    if (trimmed.length <= 4) return trimmed;
+    return '...${trimmed.substring(trimmed.length - 4)}';
+  }
+
+  Color _getGradeBgColor(dynamic grade) {
+    final g = grade?.toString().toUpperCase() ?? '';
+    if (g.contains('A')) return AppColors.successLight;
+    if (g.contains('B')) return AppColors.infoLight;
+    return AppColors.warningLight;
+  }
+
+  Color _getGradeTextColor(dynamic grade) {
+    final g = grade?.toString().toUpperCase() ?? '';
+    if (g.contains('A')) return AppColors.success;
+    if (g.contains('B')) return AppColors.info;
+    return AppColors.warning;
   }
 
   IconData _getCategoryIcon(String? categoryName) {
@@ -176,7 +235,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       _basePrice = selectedTier.price;
 
       _recalculateAddons();
-      _updateCashReceivedDefault();
     });
 
     if (_voucherController.text.trim().isNotEmpty) {
@@ -192,7 +250,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       _basePrice = tier.price;
       _durationValidationError = null;
       _recalculateAddons();
-      _updateCashReceivedDefault();
     });
 
     if (_voucherController.text.trim().isNotEmpty) {
@@ -229,16 +286,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         _selectedAddons.add(addon);
       }
       _recalculateAddons();
-      _updateCashReceivedDefault();
     });
-  }
-
-  void _updateCashReceivedDefault() {
-    final payable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
-    if (_cashReceivedController.text.isEmpty ||
-        CurrencyFormatter.parse(_cashReceivedController.text) == 0.0) {
-      _cashReceivedController.text = payable.toInt().toString();
-    }
   }
 
   void _validateVoucher() async {
@@ -257,13 +305,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       setState(() {
         _discountAmount = CurrencyFormatter.parse(result['calculated_discount']);
         _voucherMessage = 'Voucher aktif: Hemat ${CurrencyFormatter.format(_discountAmount)} (${result['discount_percentage']}%)';
-        _updateCashReceivedDefault();
       });
     } catch (e) {
       setState(() {
         _discountAmount = 0.0;
         _voucherMessage = e.toString().replaceAll('Exception: ', '');
-        _updateCashReceivedDefault();
       });
     } finally {
       setState(() => _isValidatingVoucher = false);
@@ -366,7 +412,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     setState(() => _currentStep = 1);
   }
 
-  void _onNextToSummaryStep() {
+  void _onNextToSummaryStep() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -412,122 +458,97 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     }
   }
 
-  void _proceedToPayment() async {
-    if (_isNavigatingToPayment) return;
-
+  PaymentContext _buildBookingPaymentContext() {
+    final activeBranchId = ref.read(businessProvider).activeBranchId;
+    final activeBranchName = ref.read(businessProvider).activeBranchName;
     final address = _addressController.text.trim();
+    final model = _selectedAsset?['model'] as Map?;
+    final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
+    final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
 
-    if (_selectedAssetId == null || _selectedDuration == null) {
-      setState(() => _currentStep = 0);
-      return;
-    }
-
-    final isFormValid = _formKey.currentState?.validate() ?? true;
-    if (!isFormValid) {
-      setState(() => _currentStep = 1);
-      return;
-    }
-
-    if (_foundCustomer != null && _foundCustomer!['is_blacklisted'] == true) {
-      return;
-    }
-
-    setState(() => _isNavigatingToPayment = true);
-
-    try {
-      final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
-      final activeBranchId = ref.read(businessProvider).activeBranchId;
-      final activeBranchName = ref.read(businessProvider).activeBranchName;
-      final payload = <String, dynamic>{
-        'customer_name': _nameController.text.trim(),
-        'customer_phone': _phoneController.text.trim(),
-        'customer_address': address,
-        'identity_photo_base64': _identityPhotoBase64,
-        'asset_ids': [_selectedAssetId],
-        if (_selectedAddons.isNotEmpty)
-          'addon_asset_ids': _selectedAddons.map((a) => a['id']).toList(),
-        'duration_hours': _selectedDuration,
-        'duration_unit': _selectedDurationUnit,
-        'duration_value': _selectedDurationValue,
-        'collateral_type': 'KTP Asli',
-        'collateral_storage_slot': _slotController.text.trim(),
-        'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
-        'unit_prices': {
-          if (_selectedAssetId != null)
-            _selectedAssetId.toString(): _basePrice,
-          for (final a in _selectedAddons)
-            if (a['id'] != null)
-              a['id'].toString(): _computeAddonPrice(a),
-        },
-      };
-      if (activeBranchId != null) {
-        payload['affiliate_id'] = activeBranchId;
-      }
-
-      final model = _selectedAsset?['model'] as Map?;
-      final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
-
-      final paymentItems = <PaymentItem>[
-        PaymentItem(
-          name: deviceModelName,
-          assetCode: _selectedAsset?['asset_code']?.toString(),
-          isAddon: false,
-          durationText: '$_selectedDuration Jam',
-          price: _basePrice,
-        ),
+    final payload = <String, dynamic>{
+      'customer_name': _nameController.text.trim(),
+      'customer_phone': _phoneController.text.trim(),
+      'customer_address': address,
+      'identity_photo_base64': _identityPhotoBase64,
+      'asset_ids': [_selectedAssetId],
+      if (_selectedAddons.isNotEmpty)
+        'addon_asset_ids': _selectedAddons.map((a) => a['id']).toList(),
+      'duration_hours': _selectedDuration,
+      'duration_unit': _selectedDurationUnit,
+      'duration_value': _selectedDurationValue,
+      'collateral_type': 'KTP Asli',
+      'collateral_storage_slot': _slotController.text.trim(),
+      'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
+      'unit_prices': {
+        if (_selectedAssetId != null)
+          _selectedAssetId.toString(): _basePrice,
         for (final a in _selectedAddons)
-          PaymentItem(
-            name: (a['model'] as Map?)?['name']?.toString() ?? 'Aksesoris',
-            assetCode: a['asset_code']?.toString(),
-            isAddon: true,
-            durationText: '$_selectedDuration Jam',
-            price: _computeAddonPrice(a),
-          ),
-      ];
+          if (a['id'] != null)
+            a['id'].toString(): _computeAddonPrice(a),
+      },
+    };
+    if (activeBranchId != null) {
+      payload['affiliate_id'] = activeBranchId;
+    }
 
-      final result = await Navigator.push<PaymentResult>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PaymentPage(
-            paymentContext: PaymentContext.booking(
-              customerName: _nameController.text.trim(),
-              customerPhone: _phoneController.text.trim(),
-              customerAddress: address,
-              deviceName: deviceModelName,
-              assetCode: _selectedAsset?['asset_code']?.toString(),
-              totalAmount: totalPayable,
-              branchId: activeBranchId,
-              branchName: activeBranchName,
-              extraPayload: payload,
-              items: paymentItems,
-              primarySubtotal: _basePrice,
-              addonSubtotal: _addonSubtotal,
-              discountAmount: _discountAmount > 0 ? _discountAmount : null,
-              voucherCode: _discountAmount > 0 ? _voucherController.text.trim() : null,
-            ),
-          ),
+    final paymentItems = <PaymentItem>[
+      PaymentItem(
+        name: deviceModelName,
+        assetCode: _selectedAsset?['asset_code']?.toString(),
+        isAddon: false,
+        durationText: '$_selectedDuration Jam',
+        price: _basePrice,
+      ),
+      for (final a in _selectedAddons)
+        PaymentItem(
+          name: (a['model'] as Map?)?['name']?.toString() ?? 'Aksesoris',
+          assetCode: a['asset_code']?.toString(),
+          isAddon: true,
+          durationText: '$_selectedDuration Jam',
+          price: _computeAddonPrice(a),
         ),
-      );
+    ];
 
-      if (result != null && result.isSuccess) {
-        ref.invalidate(bookingsListProvider);
-        ref.invalidate(closingSummaryProvider);
-        ref.invalidate(readyAssetsProvider);
-        ref.invalidate(inventoryListProvider);
+    return PaymentContext.booking(
+      customerName: _nameController.text.trim(),
+      customerPhone: _phoneController.text.trim(),
+      customerAddress: address,
+      deviceName: deviceModelName,
+      assetCode: _selectedAsset?['asset_code']?.toString(),
+      totalAmount: totalPayable,
+      branchId: activeBranchId,
+      branchName: activeBranchName,
+      extraPayload: payload,
+      items: paymentItems,
+      primarySubtotal: _basePrice,
+      addonSubtotal: _addonSubtotal,
+      discountAmount: _discountAmount > 0 ? _discountAmount : null,
+      voucherCode: _discountAmount > 0 ? _voucherController.text.trim() : null,
+    );
+  }
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Sewa ${result.transactionCode ?? ''} berhasil aktif & dibayar!'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-          Navigator.pop(context);
-        }
-      }
-    } finally {
+  Future<void> _navigateToUnifiedPaymentPage() async {
+    final paymentContext = _buildBookingPaymentContext();
+
+    final result = await Navigator.push<PaymentResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentPage(
+          paymentContext: paymentContext,
+          onPaymentSuccess: () {
+            ref.invalidate(bookingsListProvider);
+            ref.invalidate(closingSummaryProvider);
+            ref.invalidate(readyAssetsProvider);
+            ref.invalidate(inventoryListProvider);
+          },
+        ),
+      ),
+    );
+
+    if (result != null && result.isSuccess) {
       if (mounted) {
-        setState(() => _isNavigatingToPayment = false);
+        Navigator.pop(context, result);
       }
     }
   }
@@ -562,13 +583,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: _buildStickyBottomNavigation(totalPayable, isUnitSelected),
     );
   }
 
   Widget _buildStepperHeader() {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -576,22 +598,31 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       ),
       child: Row(
         children: [
-          _buildStepItem(
-            step: 0,
-            label: '1. Unit & Durasi',
-            icon: Icons.phone_iphone_rounded,
+          Flexible(
+            flex: 4,
+            child: _buildStepItem(
+              step: 0,
+              label: '1. Unit & Durasi',
+              icon: Icons.phone_iphone_rounded,
+            ),
           ),
           _buildStepDivider(0),
-          _buildStepItem(
-            step: 1,
-            label: '2. Penyewa',
-            icon: Icons.person_rounded,
+          Flexible(
+            flex: 3,
+            child: _buildStepItem(
+              step: 1,
+              label: '2. Penyewa',
+              icon: Icons.person_rounded,
+            ),
           ),
           _buildStepDivider(1),
-          _buildStepItem(
-            step: 2,
-            label: '3. Bayar',
-            icon: Icons.payment_rounded,
+          Flexible(
+            flex: 3,
+            child: _buildStepItem(
+              step: 2,
+              label: '3. Ringkasan',
+              icon: Icons.assignment_turned_in_rounded,
+            ),
           ),
         ],
       ),
@@ -615,13 +646,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       onTap: isClickable ? () => setState(() => _currentStep = step) : null,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 26,
-              height: 26,
+              width: 22,
+              height: 22,
               decoration: BoxDecoration(
                 color: isActive
                     ? AppColors.obsidian
@@ -635,17 +666,21 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               ),
               child: Center(
                 child: isDone
-                    ? const Icon(Icons.check_rounded, size: 14, color: AppColors.success)
-                    : Icon(icon, size: 13, color: isActive ? Colors.white : AppColors.textMuted),
+                    ? const Icon(Icons.check_rounded, size: 12, color: AppColors.success)
+                    : Icon(icon, size: 11, color: isActive ? Colors.white : AppColors.textMuted),
               ),
             ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                color: color,
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                  color: color,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -659,7 +694,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return Expanded(
       child: Container(
         height: 2,
-        margin: const EdgeInsets.symmetric(horizontal: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 4),
         color: isDone ? AppColors.success : AppColors.border,
       ),
     );
@@ -689,15 +724,20 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'PILIH UNIT RENTAL TERSEDIA',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                      color: AppColors.textPrimary,
+                  const Expanded(
+                    child: Text(
+                      'PILIH UNIT RENTAL TERSEDIA',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   if (isUnitSelected)
                     const StatusBadge(
                       label: 'Unit Dipilih',
@@ -714,46 +754,48 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Category Filter Chips
+              // Category Filter Chips (Horizontally Scrollable)
               categoriesAsync.when(
                 loading: () => const SizedBox.shrink(),
                 error: (e, s) => const SizedBox.shrink(),
                 data: (categories) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Semua'),
-                            selected: _selectedAssetCategoryId == null,
-                            onSelected: (_) => setState(() => _selectedAssetCategoryId = null),
-                            selectedColor: AppColors.obsidian,
-                            labelStyle: TextStyle(
-                              color: _selectedAssetCategoryId == null ? Colors.white : AppColors.textPrimary,
-                              fontWeight: _selectedAssetCategoryId == null ? FontWeight.w700 : FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                          ),
-                          ...categories.map((cat) {
-                            final isSelected = _selectedAssetCategoryId == cat['id'];
-                            return Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: ChoiceChip(
-                                label: Text(cat['name'] ?? ''),
-                                selected: isSelected,
-                                onSelected: (_) => setState(() => _selectedAssetCategoryId = cat['id']),
-                                selectedColor: AppColors.obsidian,
-                                labelStyle: TextStyle(
-                                  color: isSelected ? Colors.white : AppColors.textPrimary,
-                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                  fontSize: 12,
-                                ),
+                    child: SizedBox(
+                      height: 38,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: categories.length + 1,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
+                            final isSelected = _selectedAssetCategoryId == null;
+                            return ChoiceChip(
+                              label: const Text('Semua'),
+                              selected: isSelected,
+                              onSelected: (_) => setState(() => _selectedAssetCategoryId = null),
+                              selectedColor: AppColors.obsidian,
+                              labelStyle: TextStyle(
+                                color: isSelected ? Colors.white : AppColors.textPrimary,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                fontSize: 12,
                               ),
                             );
-                          }),
-                        ],
+                          }
+                          final cat = categories[index - 1];
+                          final isSelected = _selectedAssetCategoryId == cat['id'];
+                          return ChoiceChip(
+                            label: Text(cat['name'] ?? ''),
+                            selected: isSelected,
+                            onSelected: (_) => setState(() => _selectedAssetCategoryId = cat['id']),
+                            selectedColor: AppColors.obsidian,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : AppColors.textPrimary,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   );
@@ -828,9 +870,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         }
                       }
 
-                      final batteryText = asset['battery_health'] != null ? 'Baterai ${asset['battery_health']}% • ' : '';
-                      final snText = asset['serial_number'] != null ? 'SN: ${asset['serial_number']} • ' : '';
-                      final subtitle = '${asset['asset_code']} • $batteryText$snText Grade ${asset['condition_grade']}';
+                      final snFormatted = _formatLast4Sn(asset['serial_number']?.toString());
 
                       return GestureDetector(
                         onTap: () => _onAssetSelected(asset),
@@ -869,10 +909,83 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                                         fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
                                         fontSize: 13,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    Text(
-                                      subtitle,
-                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                    const SizedBox(height: 4),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: [
+                                        // Asset Code Chip
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.surfaceMuted,
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: AppColors.border),
+                                          ),
+                                          child: Text(
+                                            asset['asset_code']?.toString() ?? '',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ),
+                                        // Condition Grade Badge
+                                        if (asset['condition_grade'] != null)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: _getGradeBgColor(asset['condition_grade']),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              'Grade ${asset['condition_grade']}',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                                color: _getGradeTextColor(asset['condition_grade']),
+                                              ),
+                                            ),
+                                          ),
+                                        // Battery Health Badge
+                                        if (asset['battery_health'] != null)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.successLight,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              'BH ${asset['battery_health']}%',
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.success,
+                                              ),
+                                            ),
+                                          ),
+                                        // Serial Number Badge (last 4 digits)
+                                        if (snFormatted.isNotEmpty)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.surfaceMuted,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              'SN: $snFormatted',
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textMuted,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -934,11 +1047,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.info_outline_rounded, size: 18, color: AppColors.textSecondary),
+                        Icon(Icons.touch_app_outlined, size: 18, color: AppColors.textSecondary),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Pilih unit rental terlebih dahulu untuk menentukan durasi dan voucher.',
+                            'Pilih salah satu unit di atas untuk mengaktifkan pilihan durasi dan voucher.',
                             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                           ),
                         ),
@@ -983,22 +1096,54 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     }
                     final availableTiers = _getAvailableTiers(selectedAsset);
 
-                    return Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: availableTiers.map((tier) {
-                        final isSelected = _selectedDuration == tier.hours;
-                        return ChoiceChip(
-                          label: Text(tier.label),
-                          selected: isSelected,
-                          onSelected: isUnitSelected ? (_) => _onTierSelected(tier) : null,
-                          selectedColor: AppColors.obsidian,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : AppColors.textPrimary,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: availableTiers.map((tier) {
+                            final isSelected = _selectedDuration == tier.hours;
+                            return ChoiceChip(
+                              label: Text(tier.label),
+                              selected: isSelected,
+                              onSelected: isUnitSelected ? (_) => _onTierSelected(tier) : null,
+                              selectedColor: AppColors.obsidian,
+                              labelStyle: TextStyle(
+                                color: isSelected ? Colors.white : AppColors.textPrimary,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        if (isUnitSelected && _selectedDuration != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.infoLight,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.schedule_rounded, size: 16, color: AppColors.info),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _formatReturnDeadline(),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.info,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        );
-                      }).toList(),
+                        ],
+                      ],
                     );
                   },
                 ),
@@ -1053,25 +1198,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           ),
         ),
         _buildAddonsSelectionSection(readyAssetsAsync, categoriesAsync),
-        const SizedBox(height: 20),
-
-        // FORWARD ACTION TO STEP 2
-        ElevatedButton.icon(
-          onPressed: _onNextToCustomerStep,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.obsidian,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-          label: Text(
-            !isUnitSelected
-                ? 'Pilih Unit Terlebih Dahulu'
-                : 'Lanjut: Data Penyewa (${CurrencyFormatter.format((_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity))})',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          ),
-        ),
       ],
     );
   }
@@ -1082,7 +1208,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   ) {
     return readyAssetsAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (assets) {
         final addonAssets = assets.where((a) {
           final m = a['model'] as Map? ?? {};
@@ -1123,21 +1249,28 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.extension_outlined, size: 18, color: AppColors.obsidian),
-                      SizedBox(width: 8),
-                      Text(
-                        'AKSESORIS & ADD-ON SEWA',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: AppColors.textPrimary,
+                  const Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.extension_outlined, size: 18, color: AppColors.obsidian),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'AKSESORIS & ADD-ON SEWA',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                              color: AppColors.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   if (_selectedAddons.isNotEmpty)
                     StatusBadge(
                       label: '${_selectedAddons.length} Dipilih',
@@ -1274,15 +1407,20 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'DATA PENYEWA & ALAMAT IDENTITAS',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        color: AppColors.textPrimary,
+                    const Expanded(
+                      child: Text(
+                        'DATA PENYEWA & ALAMAT IDENTITAS',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     TextButton.icon(
                       onPressed: _searchCustomer,
                       icon: _isSearchingCustomer
@@ -1371,16 +1509,35 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Collateral Safe Slot
-                TextFormField(
-                  controller: _slotController,
+                // Collateral Safe Slot Dropdown
+                DropdownButtonFormField<String>(
+                  initialValue: _safeSlots.contains(_selectedSafeSlot) ? _selectedSafeSlot : _safeSlots.first,
                   decoration: const InputDecoration(
                     labelText: 'Slot Brankas Penyimpanan Jaminan Fisik *',
                     prefixIcon: Icon(Icons.shield_outlined, size: 20),
                   ),
+                  isExpanded: true,
+                  items: _safeSlots.map((slot) {
+                    return DropdownMenuItem<String>(
+                      value: slot,
+                      child: Text(
+                        slot,
+                        style: const TextStyle(fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _selectedSafeSlot = val;
+                        _slotController.text = val;
+                      });
+                    }
+                  },
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
-                      return 'Lokasi slot brankas jaminan fisik wajib dicatat';
+                      return 'Lokasi slot brankas jaminan fisik wajib dipilih';
                     }
                     return null;
                   },
@@ -1476,15 +1633,20 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'FOTO DOKUMEN JAMINAN (KTP/SIM)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        color: AppColors.textMuted,
+                    const Expanded(
+                      child: Text(
+                        'FOTO DOKUMEN JAMINAN (KTP/SIM)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: AppColors.textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     if (_identityPhotoBase64 != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1527,12 +1689,16 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         children: [
                           Icon(Icons.camera_alt_outlined, color: AppColors.textSecondary, size: 18),
                           SizedBox(width: 8),
-                          Text(
-                            'Lampirkan Foto Dokumen Identitas',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                          Flexible(
+                            child: Text(
+                              'Lampirkan Foto Dokumen Identitas',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -1591,39 +1757,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 20),
-
-        // STEP 2 NAVIGATION BUTTONS
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _onBackStep,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                label: const Text('Kembali', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton.icon(
-                onPressed: _onNextToSummaryStep,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                label: const Text('Lanjut: Ringkasan Biaya', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -1664,30 +1797,69 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                   color: AppColors.surfaceMuted,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.obsidian,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.phone_iphone_rounded, color: Colors.white, size: 20),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.obsidian,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.phone_iphone_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                deviceModelName,
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                '${_selectedAsset?['asset_code'] ?? '-'} • Durasi: $_selectedDuration Jam',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.infoLight,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(deviceModelName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                          Text(
-                            '${_selectedAsset?['asset_code'] ?? '-'} • Durasi: $_selectedDuration Jam',
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          const Icon(Icons.schedule_rounded, size: 12, color: AppColors.info),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              _formatReturnDeadline(),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.info,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    StatusBadge.inventory('ready'),
                   ],
                 ),
               ),
@@ -1800,7 +1972,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Subtotal Perangkat Utama:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const Expanded(
+                    child: Text(
+                      'Subtotal Perangkat Utama:',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     CurrencyFormatter.format(_basePrice),
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
@@ -1812,10 +1992,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Subtotal Add-on (${_selectedAddons.length} unit):',
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    Expanded(
+                      child: Text(
+                        'Subtotal Add-on (${_selectedAddons.length} unit):',
+                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       '+ ${CurrencyFormatter.format(_addonSubtotal)}',
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.obsidian),
@@ -1828,7 +2013,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Diskon Promo Voucher:', style: TextStyle(fontSize: 13, color: AppColors.success)),
+                    const Expanded(
+                      child: Text(
+                        'Diskon Promo Voucher:',
+                        style: TextStyle(fontSize: 13, color: AppColors.success),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text(
                       '- ${CurrencyFormatter.format(_discountAmount)}',
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.success),
@@ -1843,10 +2036,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'TOTAL TAGIHAN POS:',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  const Expanded(
+                    child: Text(
+                      'TOTAL TAGIHAN POS:',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
                     CurrencyFormatter.format(totalPayable),
                     style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.obsidian),
@@ -1856,48 +2054,141 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 20),
 
-        // STEP 3 NAVIGATION BUTTONS
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _onBackStep,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                label: const Text('Ubah Data', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: (!isUnitSelected || _isNavigatingToPayment) ? null : _proceedToPayment,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: _isNavigatingToPayment
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text(
-                        'Proses pembayaran',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-              ),
-            ),
-          ],
-        ),
       ],
     );
+  }
+
+  Widget _buildStickyBottomNavigation(double totalPayable, bool isUnitSelected) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          top: BorderSide(color: AppColors.border, width: 1),
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          child: _buildNavigationButtonRow(totalPayable, isUnitSelected),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavigationButtonRow(double totalPayable, bool isUnitSelected) {
+    if (_currentStep == 0) {
+      final canAdvanceStep1 = isUnitSelected && _selectedDuration != null;
+      return ElevatedButton.icon(
+        onPressed: canAdvanceStep1 ? _onNextToCustomerStep : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.obsidian,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.obsidian.withValues(alpha: 0.35),
+          disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+        label: const Text(
+          'Lanjut ke Data Penyewa',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        ),
+      );
+    } else if (_currentStep == 1) {
+      return Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: OutlinedButton.icon(
+              onPressed: _onBackStep,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 52),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: const Icon(Icons.arrow_back_rounded, size: 16),
+              label: const Text(
+                'Kembali',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _onNextToSummaryStep,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.obsidian,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+              label: const Text(
+                'Lanjut: Ringkasan Biaya',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      return Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: OutlinedButton.icon(
+              onPressed: _onBackStep,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 52),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: const Icon(Icons.arrow_back_rounded, size: 16),
+              label: const Text(
+                'Ubah Data',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: (!isUnitSelected || _isNavigatingToPayment)
+                  ? null
+                  : _navigateToUnifiedPaymentPage,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.obsidian,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.obsidian.withValues(alpha: 0.35),
+                disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: _isNavigatingToPayment
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Icon(Icons.arrow_forward_rounded, size: 18),
+              label: const Text(
+                'Lanjut ke Pembayaran',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
   }
 }

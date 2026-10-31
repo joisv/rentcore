@@ -635,9 +635,11 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       return;
     }
 
+    final inspectionTime = DateTime.now().toUtc();
     final payload = {
-      'returned_at': DateTime.now().toIso8601String(),
+      'returned_at': inspectionTime.toIso8601String(),
       'condition_grade': _conditionGrade,
+      'late_fee': penaltyAmount,
       'staff_notes': _staffNotesController.text.trim().isEmpty ? null : _staffNotesController.text.trim(),
       'checklist_results': {
         if (_requiresFrpCheck) ...{

@@ -212,8 +212,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify transaction detail rendered
-    expect(find.text('Rincian Transaksi Rental POS'), findsOneWidget);
-    expect(find.text('RIWAYAT TRANSAKSI PEMBAYARAN'), findsOneWidget);
+    expect(find.text('Rincian Transaksi'), findsOneWidget);
+    expect(find.text('Riwayat Pembayaran'), findsOneWidget);
 
     // Verify Void Button is displayed on completed payment
     final voidIcon = find.byIcon(Icons.cancel_outlined);

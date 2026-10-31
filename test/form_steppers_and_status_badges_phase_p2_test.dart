@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/constants/app_colors.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
+import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
 import 'package:rentcore_mobile/shared/widgets/dock_aware_scaffold.dart';
 import 'package:rentcore_mobile/shared/widgets/status_badge.dart';
@@ -163,6 +162,12 @@ void main() {
       {'id': 1, 'name': 'iPhone'},
     ];
 
+    final mockPaymentMethods = [
+      {'id': 1, 'code': 'CASH', 'name': 'Tunai (Cash)'},
+      {'id': 2, 'code': 'QRIS', 'name': 'QRIS'},
+      {'id': 3, 'code': 'TRANSFER', 'name': 'Transfer Bank'},
+    ];
+
     testWidgets('Navigates smoothly through Step 1 -> Step 2 -> Step 3 with bidirectional controls', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
@@ -174,6 +179,7 @@ void main() {
           overrides: [
             readyAssetsProvider.overrideWith((ref) => Future.value(mockReadyAssets)),
             categoriesProvider.overrideWith((ref) => Future.value(mockCategories)),
+            paymentMethodsProvider.overrideWith((ref) => Future.value(mockPaymentMethods)),
           ],
           child: const MaterialApp(
             home: DirectRentalScreen(),
@@ -186,24 +192,24 @@ void main() {
       // Verify Stepper Header
       expect(find.text('1. Unit & Durasi'), findsOneWidget);
       expect(find.text('2. Penyewa'), findsOneWidget);
-      expect(find.text('3. Bayar'), findsOneWidget);
+      expect(find.text('3. Ringkasan'), findsOneWidget);
 
       // --- STEP 1: Unit & Durasi ---
-      // Attempting to advance without unit selection triggers guard banner
-      expect(find.text('Pilih Unit Terlebih Dahulu'), findsOneWidget);
-      await tester.tap(find.text('Pilih Unit Terlebih Dahulu'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Silakan pilih unit rental dan durasi terlebih dahulu.'), findsOneWidget);
+      // Primary button stays disabled until unit and duration are selected
+      final ctaFinder = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      expect(ctaFinder, findsOneWidget);
+      final disabledButton = tester.widget<ElevatedButton>(ctaFinder);
+      expect(disabledButton.onPressed, isNull);
 
       // Select unit
       expect(find.text('iPhone 15 Pro Max 256GB Natural Titanium'), findsOneWidget);
       await tester.tap(find.text('iPhone 15 Pro Max 256GB Natural Titanium'));
       await tester.pumpAndSettle();
 
-      // Button now updates with unit price and allows advancing
-      expect(find.textContaining('Lanjut: Data Penyewa'), findsOneWidget);
-      await tester.tap(find.textContaining('Lanjut: Data Penyewa'));
+      // Button is now enabled and allows advancing
+      final enabledButton = tester.widget<ElevatedButton>(ctaFinder);
+      expect(enabledButton.onPressed, isNotNull);
+      await tester.tap(ctaFinder);
       await tester.pumpAndSettle();
 
       // --- STEP 2: Data Penyewa ---
@@ -215,16 +221,18 @@ void main() {
       expect(find.widgetWithText(TextFormField, 'Nama Lengkap Penyewa *'), findsOneWidget);
       expect(find.widgetWithText(TextFormField, 'Nomor WhatsApp Aktif *'), findsOneWidget);
       expect(find.widgetWithText(TextFormField, 'Alamat Sesuai Kartu Identitas *'), findsOneWidget);
+      expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
 
       // Advance to Step 3
       await tester.tap(find.text('Lanjut: Ringkasan Biaya'));
       await tester.pumpAndSettle();
 
-      // --- STEP 3: Ringkasan & Bayar ---
+      // --- STEP 3: Ringkasan Sewa & Review ---
       expect(find.text('RINGKASAN SEWA & IDENTITAS PENYEWA'), findsOneWidget);
       expect(find.text('TOTAL TAGIHAN POS:'), findsOneWidget);
+      expect(find.textContaining('Kembali:'), findsWidgets);
       expect(find.text('Ubah Data'), findsOneWidget);
-      expect(find.text('Proses pembayaran'), findsOneWidget);
+      expect(find.text('Lanjut ke Pembayaran'), findsOneWidget);
 
       // Test "Ubah Data" backward navigation to Step 2
       await tester.tap(find.text('Ubah Data'));

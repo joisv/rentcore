@@ -1311,19 +1311,13 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Row(
-                children: [
-                  Icon(Icons.add_business_rounded, color: AppColors.obsidian, size: 24),
-                  SizedBox(width: 10),
-                  Text(
-                    'Tambah Cabang / Outlet Baru',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
+              const Text(
+                'Tambah Cabang / Outlet Baru',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
               const SizedBox(height: 16),
               if (_errorMessage != null) ...[
@@ -1346,7 +1340,6 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Nama Cabang *',
                   hintText: 'Contoh: SkyRental Canggu',
-                  prefixIcon: Icon(Icons.storefront_rounded),
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Nama cabang wajib diisi';
@@ -1360,7 +1353,6 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Kode Cabang (Singkatan 2-10 Karakter) *',
                   hintText: 'Contoh: CGU',
-                  prefixIcon: Icon(Icons.tag_rounded),
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Kode cabang wajib diisi';
@@ -1376,7 +1368,6 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Kota / Wilayah',
                   hintText: 'Contoh: Badung, Bali',
-                  prefixIcon: Icon(Icons.location_city_rounded),
                 ),
               ),
               const SizedBox(height: 14),
@@ -1385,7 +1376,6 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Alamat Lengkap',
                   hintText: 'Contoh: Jl. Pantai Batu Bolong No. 12',
-                  prefixIcon: Icon(Icons.map_outlined),
                 ),
               ),
               const SizedBox(height: 14),
@@ -1395,7 +1385,6 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
                 decoration: const InputDecoration(
                   labelText: 'No. Telepon / WhatsApp Cabang',
                   hintText: 'Contoh: 081234567890',
-                  prefixIcon: Icon(Icons.phone_outlined),
                 ),
               ),
               const SizedBox(height: 22),

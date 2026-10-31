@@ -92,6 +92,36 @@ class PaymentContext {
     }
   }
 
+  String get pageHeaderTitle {
+    switch (transactionType) {
+      case PaymentTransactionType.booking:
+      case PaymentTransactionType.settlement:
+        return 'Pembayaran  Sewa';
+      case PaymentTransactionType.penalty:
+        return 'Pembayaran Denda';
+      case PaymentTransactionType.extension:
+        return 'Pembayaran Perpanjangan';
+    }
+  }
+
+  String get tagihanLabel {
+    switch (transactionType) {
+      case PaymentTransactionType.penalty:
+        return 'Tagihan Denda';
+      default:
+        return 'Tagihan Sewa';
+    }
+  }
+
+  String get detailLinkText {
+    switch (transactionType) {
+      case PaymentTransactionType.penalty:
+        return 'Detail Denda';
+      default:
+        return 'Detail Sewa';
+    }
+  }
+
   String get typeBadgeLabel {
     switch (transactionType) {
       case PaymentTransactionType.booking:
@@ -293,6 +323,16 @@ class PaymentContext {
         ? (totalPenalty - penaltyPaid).clamp(0.0, double.infinity).toDouble()
         : penaltyDue;
 
+    final penaltyItems = <PaymentItem>[
+      PaymentItem(
+        name: 'Denda Keterlambatan ($modelName)',
+        assetCode: assetCode,
+        isAddon: false,
+        durationText: 'Sanksi Keterlambatan',
+        price: effectiveRemaining,
+      ),
+    ];
+
     return PaymentContext(
       transactionType: PaymentTransactionType.penalty,
       bookingId: bId,
@@ -309,6 +349,7 @@ class PaymentContext {
       branchName: branchName ?? affiliate['name']?.toString(),
       isCentral: isCentral || affiliate['is_central'] == true,
       extraPayload: extraPayload != null ? {...b, ...extraPayload} : b,
+      items: penaltyItems,
     );
   }
 
@@ -344,6 +385,16 @@ class PaymentContext {
     final affiliate = (b['affiliate'] as Map?) ?? {};
     final totalBill = CurrencyFormatter.parse(b['total_bill'] ?? b['total_amount'] ?? 0);
 
+    final extensionItems = <PaymentItem>[
+      PaymentItem(
+        name: modelName,
+        assetCode: assetCode,
+        isAddon: false,
+        durationText: '$additionalHours Jam',
+        price: extensionFee,
+      ),
+    ];
+
     return PaymentContext(
       transactionType: PaymentTransactionType.extension,
       bookingId: bId,
@@ -361,6 +412,86 @@ class PaymentContext {
       branchName: branchName ?? affiliate['name']?.toString(),
       isCentral: isCentral || affiliate['is_central'] == true,
       extraPayload: extraPayload ?? b,
+      items: extensionItems,
+    );
+  }
+
+  factory PaymentContext.fromGeneric({
+    required dynamic transactionType,
+    int? referenceId,
+    int? bookingId,
+    String? bookingCode,
+    required double totalAmount,
+    String? customerName,
+    String? customerPhone,
+    String? customerAddress,
+    String? deviceName,
+    String? assetCode,
+    int? branchId,
+    String? branchName,
+    bool isCentral = false,
+    int? additionalHours,
+    Map<String, dynamic>? metadata,
+    List<PaymentItem>? items,
+    double? primarySubtotal,
+    double? addonSubtotal,
+    double? discountAmount,
+    String? voucherCode,
+    double? depositFee,
+  }) {
+    final effectiveBookingId = bookingId ?? referenceId;
+    PaymentTransactionType type;
+    if (transactionType is PaymentTransactionType) {
+      type = transactionType;
+    } else {
+      final s = transactionType.toString().toLowerCase().replaceAll('-', '_');
+      if (s.contains('penalty') || s.contains('denda')) {
+        type = PaymentTransactionType.penalty;
+      } else if (s.contains('extend') || s.contains('perpanjang')) {
+        type = PaymentTransactionType.extension;
+      } else if (s.contains('settle') || s.contains('lunas')) {
+        type = PaymentTransactionType.settlement;
+      } else {
+        type = PaymentTransactionType.booking;
+      }
+    }
+
+    final parsedItems = items ?? <PaymentItem>[];
+    if (parsedItems.isEmpty && deviceName != null) {
+      parsedItems.add(
+        PaymentItem(
+          name: deviceName,
+          assetCode: assetCode,
+          isAddon: false,
+          durationText: additionalHours != null ? '$additionalHours Jam' : null,
+          price: totalAmount,
+        ),
+      );
+    }
+
+    return PaymentContext(
+      transactionType: type,
+      bookingId: effectiveBookingId,
+      bookingCode: bookingCode,
+      customerName: customerName ?? 'Pelanggan',
+      customerPhone: customerPhone,
+      customerAddress: customerAddress,
+      deviceName: deviceName ?? 'Unit Sewa',
+      assetCode: assetCode,
+      totalAmountDue: totalAmount,
+      previouslyPaidAmount: 0.0,
+      remainingDue: totalAmount,
+      branchId: branchId,
+      branchName: branchName,
+      isCentral: isCentral,
+      additionalHours: additionalHours,
+      extraPayload: metadata,
+      items: parsedItems,
+      primarySubtotal: primarySubtotal ?? totalAmount,
+      addonSubtotal: addonSubtotal,
+      discountAmount: discountAmount,
+      voucherCode: voucherCode,
+      depositFee: depositFee,
     );
   }
 }

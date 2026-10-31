@@ -174,9 +174,9 @@
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/direct_rental_screen.dart": {
-    "mtime": 1793274181.8940122,
-    "seen": 1793274550.6052651,
-    "ast_hash": "90b20952138274cb19d956872f04b7c2",
+    "mtime": 1793334931.549549,
+    "seen": 1793335045.2383697,
+    "ast_hash": "1821a840d77575690e37b6a26adc9e36",
     "semantic_hash": ""
   },
   "lib/features/bookings/presentation/return_wizard_screen.dart": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "lib/features/cashier/presentation/cashier_screen.dart": {
-    "mtime": 1793195941.335111,
-    "seen": 1793196205.6830947,
-    "ast_hash": "3f6412b148be4b489f27c2e18002a35e",
+    "mtime": 1793330363.943987,
+    "seen": 1793330471.3398764,
+    "ast_hash": "dbfeb5264d2787258cf0e6db91575762",
     "semantic_hash": ""
   },
   "lib/features/cashier/presentation/pos_transaction_detail_sheet.dart": {
@@ -924,9 +924,9 @@
     "semantic_hash": ""
   },
   "lib/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart": {
-    "mtime": 1793179506.2219398,
-    "seen": 1793180478.4576962,
-    "ast_hash": "7162b9773570a8d86a12845787708efa",
+    "mtime": 1793330407.7393682,
+    "seen": 1793330471.3398857,
+    "ast_hash": "f90f546e3d55da69d62de4b3631d2d87",
     "semantic_hash": ""
   },
   "test/financial_control_audit_ledger_test.dart": {
@@ -966,9 +966,9 @@
     "semantic_hash": ""
   },
   "test/form_steppers_and_status_badges_phase_p2_test.dart": {
-    "mtime": 1792917223.8591282,
-    "seen": 1792917505.801087,
-    "ast_hash": "74558fecbe6c593ad3b04776388613d0",
+    "mtime": 1793335018.1559763,
+    "seen": 1793335045.238476,
+    "ast_hash": "4c03ae5843906dcbec0c45d501fbad9d",
     "semantic_hash": ""
   },
   "lib/shared/widgets/pos_numpad.dart": {
@@ -1233,6 +1233,18 @@
     "mtime": 1793196014.6362026,
     "seen": 1793196205.6832132,
     "ast_hash": "0872d25255208fa757f1e9539865bb08",
+    "semantic_hash": ""
+  },
+  "test/shift_summary_refactor_test.dart": {
+    "mtime": 1793335001.0184343,
+    "seen": 1793335045.238507,
+    "ast_hash": "1676e4f4b34fcee117bef2be6ce79462",
+    "semantic_hash": ""
+  },
+  "test/direct_rental_refactor_test.dart": {
+    "mtime": 1793335009.6681495,
+    "seen": 1793335045.2384694,
+    "ast_hash": "025c285b3113ae7beb1db3a0e2c6b819",
     "semantic_hash": ""
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../bookings/presentation/exchange_history_sheet.dart';
 import '../../bookings/presentation/exchange_wizard_screen.dart';
@@ -56,15 +57,12 @@ class PosTransactionDetailSheet extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
-                  children: [
-                    Icon(Icons.inventory_2_outlined, size: 20, color: AppColors.obsidian),
-                    SizedBox(width: 8),
-                    Text(
-                      'Rincian Transaksi Rental POS',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                    ),
-                  ],
+                const Expanded(
+                  child: Text(
+                    'Rincian Transaksi',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, size: 22),
@@ -171,27 +169,33 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          bookingCode,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.textSecondary),
-                          tooltip: 'Salin Kode Booking',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: bookingCode));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Kode booking disalin ke clipboard')),
-                            );
-                          },
-                        ),
-                      ],
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              bookingCode,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          IconButton(
+                            icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.textSecondary),
+                            tooltip: 'Salin Kode Booking',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: bookingCode));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Kode booking disalin ke clipboard')),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     _buildStatusChip(paymentStatus, status),
                   ],
                 ),
@@ -244,40 +248,26 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 10),
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.person_outline_rounded, size: 18, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            customer['name'] ?? 'Pelanggan Walk-In',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                          ),
-                          if (customer['phone'] != null)
-                            Text(
-                              customer['phone'],
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                            ),
-                        ],
-                      ),
+                    Text(
+                      customer['name'] ?? 'Pelanggan Walk-In',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
+                    if (customer['phone'] != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        customer['phone'],
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
                   ],
                 ),
                 const Divider(height: 16),
-                Row(
-                  children: [
-                    const Icon(Icons.badge_outlined, size: 18, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Petugas/Kasir: ${creator['name'] ?? 'Staff RentCore'}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Petugas/Kasir: ${creator['name'] ?? 'Staff RentCore'}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -765,7 +755,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 _buildPriceRow('Total Terbayar', totalPaid + penaltyPaid, color: AppColors.success),
                 const SizedBox(height: 6),
                 _buildPriceRow(
-                  'SISA HARUS DIBAYAR',
+                  'Sisa Tagihan',
                   remainingDue,
                   isBold: true,
                   color: remainingDue > 0 ? AppColors.danger : AppColors.success,
@@ -789,14 +779,16 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'RIWAYAT TRANSAKSI PEMBAYARAN',
+                    'Riwayat Pembayaran',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 10),
                   ...payments.map((p) {
                     final pAmt = CurrencyFormatter.parse(p['amount']);
-                    final pMethod = (p['payment_method'] is Map ? p['payment_method']['name'] : p['payment_method']) ?? 'Tunai';
-                    final pDate = p['transacted_at'] ?? p['created_at'] ?? '';
+                    final rawMethod = (p['payment_method'] is Map ? p['payment_method']['name'] : p['payment_method']) ?? 'Tunai';
+                    final pMethod = rawMethod.toString().toLowerCase().contains('qris') ? 'QRIS' : rawMethod;
+                    final rawDate = p['transacted_at'] ?? p['created_at'] ?? '';
+                    final pDate = DateFormatter.formatFull(rawDate);
                     final pCashier = (p['processor'] is Map ? p['processor']['name'] : (p['processed_by'] is Map ? p['processed_by']['name'] : p['processed_by'])) ?? 'Kasir';
                     final pType = p['type']?.toString().toLowerCase();
                     final pTypeLabel = p['type_label'] ?? (pType == 'penalty' ? 'Denda Keterlambatan' : (pType == 'extension' ? 'Perpanjangan' : 'Sewa Kontrak'));
@@ -912,7 +904,14 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
         Text(strVal, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
       ],
     );
@@ -929,14 +928,18 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: isBold ? FontWeight.w800 : FontWeight.w500,
-            color: color ?? AppColors.textPrimary,
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: isBold ? FontWeight.w800 : FontWeight.w500,
+              color: color ?? AppColors.textPrimary,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
+        const SizedBox(width: 8),
         Text(
           (isDiscount ? '- ' : '') + CurrencyFormatter.format(amount.abs()),
           style: TextStyle(

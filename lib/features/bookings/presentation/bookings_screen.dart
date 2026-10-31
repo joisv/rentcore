@@ -95,6 +95,99 @@ List<_DurationOption> _getDurationOptionsForTarget(Map<String, dynamic>? model) 
   return options;
 }
 
+IconData _getItemCategoryIcon({
+  Map<String, dynamic>? model,
+  Map<String, dynamic>? asset,
+  Map<String, dynamic>? primaryItem,
+}) {
+  final rawCat = model?['category'];
+  final catName = (rawCat is Map ? rawCat['name'] : rawCat)?.toString().toLowerCase() ?? '';
+  final modelName = (model?['name'] ?? primaryItem?['name'] ?? '').toString().toLowerCase();
+  final assetCode = (asset?['asset_code'] ?? '').toString().toLowerCase();
+
+  final combined = '$catName $modelName $assetCode';
+
+  if (combined.contains('tenda') ||
+      combined.contains('camp') ||
+      combined.contains('outdoor') ||
+      combined.contains('gunung') ||
+      combined.contains('carrier') ||
+      combined.contains('sleeping bag') ||
+      combined.contains('matras') ||
+      combined.contains('flysheet')) {
+    return Icons.cabin_rounded;
+  }
+  if (combined.contains('kamera') ||
+      combined.contains('camera') ||
+      combined.contains('dslr') ||
+      combined.contains('mirrorless') ||
+      combined.contains('lensa') ||
+      combined.contains('lens') ||
+      combined.contains('sony a') ||
+      combined.contains('canon') ||
+      combined.contains('fujifilm')) {
+    return Icons.camera_alt_rounded;
+  }
+  if (combined.contains('laptop') ||
+      combined.contains('macbook') ||
+      combined.contains('notebook') ||
+      combined.contains('komputer') ||
+      combined.contains('pc')) {
+    return Icons.laptop_mac_rounded;
+  }
+  if (combined.contains('proyektor') ||
+      combined.contains('projector') ||
+      combined.contains('infocus')) {
+    return Icons.videocam_rounded;
+  }
+  if (combined.contains('game') ||
+      combined.contains('konsol') ||
+      combined.contains('playstation') ||
+      combined.contains('ps4') ||
+      combined.contains('ps5') ||
+      combined.contains('nintendo') ||
+      combined.contains('xbox')) {
+    return Icons.sports_esports_rounded;
+  }
+  if (combined.contains('tablet') ||
+      combined.contains('ipad') ||
+      combined.contains('tab')) {
+    return Icons.tablet_mac_rounded;
+  }
+  if (combined.contains('audio') ||
+      combined.contains('speaker') ||
+      combined.contains('sound') ||
+      combined.contains('headphone') ||
+      combined.contains('headset') ||
+      combined.contains('mic')) {
+    return Icons.headphones_rounded;
+  }
+  if (combined.contains('drone') || combined.contains('dji')) {
+    return Icons.flight_takeoff_rounded;
+  }
+  if (combined.contains('motor') ||
+      combined.contains('sepeda') ||
+      combined.contains('vehicle') ||
+      combined.contains('mobil')) {
+    return Icons.two_wheeler_rounded;
+  }
+  if (combined.contains('phone') ||
+      combined.contains('iphone') ||
+      combined.contains('samsung') ||
+      combined.contains('xiaomi') ||
+      combined.contains('oppo') ||
+      combined.contains('vivo') ||
+      combined.contains('hp') ||
+      combined.contains('gadget') ||
+      combined.contains('smartphone')) {
+    return Icons.phone_iphone_rounded;
+  }
+  if (combined.contains('alat') || combined.contains('gear') || combined.contains('aksesoris')) {
+    return Icons.inventory_2_outlined;
+  }
+  return Icons.devices_other_rounded;
+}
+
 class BookingsScreen extends ConsumerStatefulWidget {
   const BookingsScreen({super.key});
 
@@ -425,51 +518,61 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.surfaceMuted,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        item['booking_code'] ?? '',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                    if (exchanges.isNotEmpty) ...[
-                                      const SizedBox(width: 6),
-                                      GestureDetector(
-                                        onTap: () => ExchangeHistorySheet.show(context, item),
+                                Flexible(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                           decoration: BoxDecoration(
-                                            color: AppColors.infoLight,
+                                            color: AppColors.surfaceMuted,
                                             borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+                                            border: Border.all(color: AppColors.borderSubtle),
                                           ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(Icons.swap_horiz_rounded, size: 12, color: AppColors.info),
-                                              const SizedBox(width: 3),
-                                              Text(
-                                                'Ditukar (${exchanges.length}x)',
-                                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.info),
-                                              ),
-                                              const SizedBox(width: 2),
-                                              const Icon(Icons.info_outline_rounded, size: 11, color: AppColors.info),
-                                            ],
+                                          child: Text(
+                                            item['booking_code'] ?? '',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.obsidian,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                       ),
+                                      if (exchanges.isNotEmpty) ...[
+                                        const SizedBox(width: 6),
+                                        GestureDetector(
+                                          onTap: () => ExchangeHistorySheet.show(context, item),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.infoLight,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.swap_horiz_rounded, size: 12, color: AppColors.info),
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  'Ditukar (${exchanges.length}x)',
+                                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.info),
+                                                ),
+                                                const SizedBox(width: 2),
+                                                const Icon(Icons.info_outline_rounded, size: 11, color: AppColors.info),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
+                                const SizedBox(width: 8),
                                 StatusBadge(
                                   label: isReturned
                                       ? (hasUnpaidPenalty ? 'SELESAI (DENDA BELUM LUNAS)' : 'SELESAI')
@@ -493,6 +596,29 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                 ),
                               ],
                             ),
+                            if (endAt != null) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  const Icon(Icons.schedule_rounded, size: 11, color: AppColors.textSecondary),
+                                  const SizedBox(width: 3),
+                                  Flexible(
+                                    child: Text(
+                                      'Batas sewa: ${DateFormatter.formatFull(endAt)}',
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                             const SizedBox(height: 12),
 
                             // Main Details
@@ -506,7 +632,15 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                     borderRadius: BorderRadius.circular(14),
                                     border: Border.all(color: AppColors.borderSubtle),
                                   ),
-                                  child: const Icon(Icons.smartphone_rounded, size: 28),
+                                  child: Icon(
+                                    _getItemCategoryIcon(
+                                      model: model is Map ? Map<String, dynamic>.from(model) : null,
+                                      asset: activeAsset,
+                                      primaryItem: primaryItem,
+                                    ),
+                                    size: 26,
+                                    color: AppColors.obsidian,
+                                  ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -519,6 +653,8 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                           fontSize: 15,
                                           fontWeight: FontWeight.w700,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       if (activeAsset?['asset_code'] != null || activeAsset?['serial_number'] != null) ...[
                                         const SizedBox(height: 2),
@@ -529,6 +665,8 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                             fontFamily: 'monospace',
                                             color: AppColors.textMuted,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ],
                                       const SizedBox(height: 4),
@@ -538,18 +676,24 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                           fontSize: 13,
                                           color: AppColors.textSecondary,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 6),
                                       Row(
                                         children: [
                                           const Icon(Icons.lock_clock_outlined, size: 14, color: AppColors.textMuted),
                                           const SizedBox(width: 4),
-                                          Text(
-                                            'Jaminan: ${item['collateral_storage_slot'] ?? 'Brankas Cabang'}',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.textSecondary,
+                                          Expanded(
+                                            child: Text(
+                                              'Jaminan: ${item['collateral_storage_slot'] ?? 'Brankas Cabang'}',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
                                         ],
@@ -609,9 +753,13 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                             children: [
                                               const Icon(Icons.check_circle_outline_rounded, size: 12, color: AppColors.success),
                                               const SizedBox(width: 4),
-                                              Text(
-                                                aCode != null ? '$aName ($aCode)' : aName,
-                                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                              Flexible(
+                                                child: Text(
+                                                  aCode != null ? '$aName ($aCode)' : aName,
+                                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
                                               ),
                                               if (aPrice > 0) ...[
                                                 const SizedBox(width: 4),
@@ -630,33 +778,50 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               ),
                             ],
 
-                            // Pricing & Subtotal Summary Row
-                            const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (item['addon_subtotal'] != null && CurrencyFormatter.parse(item['addon_subtotal']) > 0)
-                                  Text(
-                                    'Utama: ${CurrencyFormatter.format(item['primary_subtotal'] ?? 0)} • Add-on: ${CurrencyFormatter.format(item['addon_subtotal'])}',
-                                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-                                  )
-                                else
-                                  const SizedBox(),
-                                Builder(
-                                  builder: (_) {
-                                    final totalBill = CurrencyFormatter.parse(item['total_bill'] ?? item['total_amount'] ?? 0);
-                                    final returnInspection = item['return_inspection'] as Map? ?? item['returnInspection'] as Map? ?? {};
-                                    final penaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
-                                    final effectiveTotal = totalBill + penaltyDue;
-                                    return Text(
-                                      penaltyDue > 0
-                                          ? 'Total: ${CurrencyFormatter.format(effectiveTotal)} (+ Denda)'
-                                          : 'Total: ${CurrencyFormatter.format(totalBill)}',
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.obsidian),
-                                    );
-                                  },
-                                ),
-                              ],
+                            // Pricing & Subtotal Summary Container
+                            Container(
+                              margin: const EdgeInsets.only(top: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceMuted,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.borderSubtle),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      (item['addon_subtotal'] != null && CurrencyFormatter.parse(item['addon_subtotal']) > 0)
+                                          ? 'Utama: ${CurrencyFormatter.format(item['primary_subtotal'] ?? 0)} • Add-on: ${CurrencyFormatter.format(item['addon_subtotal'])}'
+                                          : 'Total Tagihan',
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Builder(
+                                    builder: (_) {
+                                      final totalBill = CurrencyFormatter.parse(item['total_bill'] ?? item['total_amount'] ?? 0);
+                                      final returnInspection = item['return_inspection'] as Map? ?? item['returnInspection'] as Map? ?? {};
+                                      final penaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+                                      final effectiveTotal = totalBill + penaltyDue;
+                                      return Text(
+                                        penaltyDue > 0
+                                            ? 'Total: ${CurrencyFormatter.format(effectiveTotal)} (+ Denda)'
+                                            : 'Total: ${CurrencyFormatter.format(totalBill)}',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.obsidian,
+                                          letterSpacing: -0.2,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
 
                             if (!isReturned) ...[
@@ -672,9 +837,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       style: OutlinedButton.styleFrom(
                                         minimumSize: const Size.fromHeight(38),
                                         padding: EdgeInsets.zero,
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(color: AppColors.border),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       ),
                                       onPressed: () => _showExtendDialog(context, ref, item),
-                                      child: const Text('Tambah Jam', style: TextStyle(fontSize: 11)),
+                                      child: const Text('Tambah Jam', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
@@ -683,8 +851,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       style: OutlinedButton.styleFrom(
                                         minimumSize: const Size.fromHeight(38),
                                         padding: EdgeInsets.zero,
-                                        foregroundColor: AppColors.info,
-                                        side: const BorderSide(color: AppColors.info),
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(color: AppColors.border),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       ),
                                       onPressed: () async {
                                         final res = await Navigator.push(
@@ -697,15 +866,19 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                           ref.invalidate(bookingsListProvider);
                                         }
                                       },
-                                      child: const Text('Ganti Unit', style: TextStyle(fontSize: 11)),
+                                      child: const Text('Ganti Unit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.obsidian,
+                                        foregroundColor: Colors.white,
                                         minimumSize: const Size.fromHeight(38),
                                         padding: EdgeInsets.zero,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        elevation: 0,
                                       ),
                                       onPressed: () {
                                         Navigator.push(
@@ -715,7 +888,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                           ),
                                         );
                                       },
-                                      child: const Text('Pengembalian', style: TextStyle(fontSize: 11)),
+                                      child: const Text('Pengembalian', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                                     ),
                                   ),
                                 ],
@@ -974,10 +1147,14 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Atur Durasi Sewa',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                        Expanded(
+                          child: Text(
+                            'Atur Durasi Sewa',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
@@ -988,6 +1165,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           child: Text(
                             bookingCode,
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.obsidian),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -996,6 +1174,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     Text(
                       'Pelanggan: $customerName',
                       style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 14),
 
@@ -1043,10 +1222,19 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               onTap: () => setModalState(() => direction = 'increase'),
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
                                 decoration: BoxDecoration(
                                   color: isIncrease ? AppColors.obsidian : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
+                                  boxShadow: isIncrease
+                                      ? const [
+                                          BoxShadow(
+                                            color: Color(0x18000000),
+                                            blurRadius: 4,
+                                            offset: Offset(0, 1),
+                                          ),
+                                        ]
+                                      : null,
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
@@ -1065,10 +1253,19 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               onTap: () => setModalState(() => direction = 'decrease'),
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
                                 decoration: BoxDecoration(
                                   color: !isIncrease ? AppColors.obsidian : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
+                                  boxShadow: !isIncrease
+                                      ? const [
+                                          BoxShadow(
+                                            color: Color(0x18000000),
+                                            blurRadius: 4,
+                                            offset: Offset(0, 1),
+                                          ),
+                                        ]
+                                      : null,
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
@@ -1120,8 +1317,21 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               onSelected: isDisabled
                                   ? null
                                   : (_) => setModalState(() => selectedHours = opt.hours),
+                              showCheckmark: true,
+                              checkmarkColor: isSel && !isDisabled ? Colors.white : AppColors.obsidian,
                               selectedColor: AppColors.obsidian,
+                              backgroundColor: AppColors.surface,
                               disabledColor: AppColors.surfaceMuted,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: isSel && !isDisabled
+                                      ? AppColors.obsidian
+                                      : (isDisabled ? AppColors.borderSubtle : AppColors.border),
+                                  width: isSel && !isDisabled ? 1.5 : 1.0,
+                                ),
+                              ),
                               labelStyle: TextStyle(
                                 color: isSel && !isDisabled
                                     ? Colors.white
@@ -1139,20 +1349,20 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     // Boundary Warning Banner
                     if (isEndAtInPast) ...[
                       Container(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: AppColors.dangerLight,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.danger),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.danger.withOpacity(0.3)),
                         ),
-                        child: Row(
+                        child: const Row(
                           children: [
-                            const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
-                            const SizedBox(width: 8),
+                            Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.danger),
+                            SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Pengurangan $selectedHours jam menghasilkan batas waktu di masa lalu (${newEndAt != null ? DateFormatter.formatFull(newEndAt) : ""}).',
-                                style: const TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.w600),
+                                'Batas waktu baru tidak valid (lewat dari batas waktu saat ini).',
+                                style: TextStyle(color: AppColors.danger, fontSize: 11.5, fontWeight: FontWeight.w600),
                               ),
                             ),
                           ],
@@ -1185,10 +1395,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
 
                     // Financial & Deadline Preview Box
                     Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppColors.border),
                       ),
                       child: Column(
@@ -1197,10 +1407,14 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                isIncrease ? 'Biaya Tambahan:' : 'Selisih Pengurangan Biaya:',
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                              Expanded(
+                                child: Text(
+                                  isIncrease ? 'Biaya Tambahan:' : 'Selisih Pengurangan Biaya:',
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textSecondary),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
+                              const SizedBox(width: 8),
                               Text(
                                 isIncrease
                                     ? CurrencyFormatter.format(deltaFee.abs())
@@ -1209,35 +1423,55 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   fontWeight: FontWeight.w800,
                                   fontSize: 14,
                                   color: isIncrease ? AppColors.obsidian : AppColors.success,
+                                  letterSpacing: -0.2,
                                 ),
                               ),
                             ],
                           ),
                           if (newEndAt != null) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             const Divider(height: 1, color: AppColors.borderSubtle),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('Batas Waktu Pengembalian Baru:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                                const Expanded(
+                                  child: Text(
+                                    'Batas Waktu Pengembalian Baru:',
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
                                 Text(
                                   DateFormatter.formatFull(newEndAt),
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.textPrimary),
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5, color: AppColors.obsidian),
                                 ),
                               ],
                             ),
                           ],
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           const Divider(height: 1, color: AppColors.borderSubtle),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Estimasi Total Tagihan Baru:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                              const Expanded(
+                                child: Text(
+                                  'Estimasi Total Tagihan Baru:',
+                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: AppColors.obsidian),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               Text(
                                 CurrencyFormatter.format(estimatedNewTotal),
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.obsidian),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14.5,
+                                  color: AppColors.obsidian,
+                                  letterSpacing: -0.3,
+                                ),
                               ),
                             ],
                           ),
@@ -1249,11 +1483,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     // Overpayment / Refund Notice & PIN Required
                     if (refundDue > 0) ...[
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.warningLight,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.warning),
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.warning.withOpacity(0.4)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1265,38 +1499,42 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                 Expanded(
                                   child: Text(
                                     'Pengembalian Dana (Refund): ${CurrencyFormatter.format(refundDue)}',
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.warning),
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: AppColors.obsidian),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 4),
                             const Text(
-                              'Pelanggan telah membayar lebih dari total tagihan baru. Otorisasi PIN Manager diperlukan untuk mencatat pengeluaran kas (refund).',
-                              style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                              'Otorisasi PIN Manager diperlukan untuk pengeluaran kas refund.',
+                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: pinController,
+                              obscureText: true,
+                              keyboardType: TextInputType.number,
+                              maxLength: 6,
+                              onChanged: (_) => setModalState(() {}),
+                              decoration: InputDecoration(
+                                labelText: 'PIN Manager *',
+                                hintText: '6 digit PIN Manager',
+                                prefixIcon: const Icon(Icons.lock_outline_rounded, size: 18),
+                                filled: true,
+                                fillColor: AppColors.surfaceMuted,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                counterText: '',
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: pinController,
-                        obscureText: true,
-                        keyboardType: TextInputType.number,
-                        maxLength: 6,
-                        onChanged: (_) => setModalState(() {}),
-                        decoration: InputDecoration(
-                          labelText: 'PIN Manager *',
-                          hintText: '6 digit PIN Manager',
-                          prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-                          filled: true,
-                          fillColor: AppColors.surface,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          counterText: '',
-                        ),
-                      ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 14),
                     ],
 
                     // Reason Input (for decrease)
@@ -1319,6 +1557,13 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     // Action Buttons
                     if (isIncrease) ...[
                       ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.obsidian,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
                         onPressed: isSubmitting
                             ? null
                             : () async {
@@ -1355,10 +1600,17 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   }
                                 }
                               },
-                        child: const Text('Proses pembayaran'),
+                        child: const Text('Proses pembayaran', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                       ),
                       const SizedBox(height: 8),
-                      TextButton(
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.obsidian,
+                          side: const BorderSide(color: AppColors.border, width: 1.2),
+                          backgroundColor: AppColors.surface,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
                         onPressed: isSubmitting
                             ? null
                             : () async {
@@ -1387,21 +1639,31 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   }
                                 }
                               },
-                        child: isSubmitting
+                        icon: isSubmitting
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text(
-                                'Perpanjang Tanpa Bayar Langsung (Catat ke Tagihan)',
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                              ),
+                            : const Icon(Icons.receipt_long_outlined, size: 16, color: AppColors.obsidian),
+                        label: const Text(
+                          'Perpanjang Tanpa Bayar Langsung (Catat ke Tagihan)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.obsidian,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ] else ...[
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: canSubmitReduction ? AppColors.obsidian : AppColors.surfaceMuted,
+                          foregroundColor: canSubmitReduction ? Colors.white : AppColors.textMuted,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
                         ),
                         onPressed: (!canSubmitReduction || isSubmitting)
                             ? null
@@ -1447,12 +1709,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                 width: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
-                            : const Text('Konfirmasi Pengurangan Durasi'),
+                            : const Text('Konfirmasi Pengurangan Durasi', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                       ),
                       const SizedBox(height: 8),
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+                        child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ],

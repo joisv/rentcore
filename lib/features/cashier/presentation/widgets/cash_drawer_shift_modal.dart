@@ -308,19 +308,25 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        _isOpenMode ? Icons.login_rounded : Icons.lock_clock_rounded,
-                        color: AppColors.obsidian,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _isOpenMode ? 'Buka Shift Kasir' : 'Tutup Shift & Rekonsiliasi Kas',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                      ),
-                    ],
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isOpenMode ? Icons.login_rounded : Icons.lock_clock_rounded,
+                          color: AppColors.obsidian,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _isOpenMode ? 'Buka Shift Kasir' : 'Tutup Shift & Rekonsiliasi Kas',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, size: 20),
@@ -493,17 +499,22 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    shiftNum,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                  Expanded(
+                    child: Text(
+                      shiftNum,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.successLight,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text('SHIFT AKTIF', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.success)),
+                    child: const Text('Shift Aktif', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.success)),
                   ),
                 ],
               ),
@@ -513,7 +524,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Modal Awal Laci', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  const Expanded(
+                    child: Text(
+                      'Modal Awal Laci',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Text(CurrencyFormatter.format(floatAmt), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                 ],
               ),
@@ -522,7 +541,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Kas Masuk Shift (Penjualan/Denda)', style: TextStyle(fontSize: 12, color: AppColors.success)),
+                    const Expanded(
+                      child: Text(
+                        'Kas Masuk Shift (Penjualan/Denda)',
+                        style: TextStyle(fontSize: 12, color: AppColors.success),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text('+${CurrencyFormatter.format(inflowAmt)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.success)),
                   ],
                 ),
@@ -532,7 +559,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Pengembalian Kas (Refund)', style: TextStyle(fontSize: 12, color: AppColors.danger)),
+                    const Expanded(
+                      child: Text(
+                        'Pengembalian Kas (Refund)',
+                        style: TextStyle(fontSize: 12, color: AppColors.danger),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text('-${CurrencyFormatter.format(refundAmt)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.danger)),
                   ],
                 ),
@@ -542,7 +577,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Beban Pengeluaran Laci', style: TextStyle(fontSize: 12, color: AppColors.danger)),
+                    const Expanded(
+                      child: Text(
+                        'Beban Pengeluaran Laci',
+                        style: TextStyle(fontSize: 12, color: AppColors.danger),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text('-${CurrencyFormatter.format(expensesAmt)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.danger)),
                   ],
                 ),
@@ -551,7 +594,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('FISIK KAS HARUS ADA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                  const Expanded(
+                    child: Text(
+                      'Fisik Kas Wajib Ada',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     CurrencyFormatter.format(_effectiveExpectedCash),
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.obsidian),
@@ -565,7 +616,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
 
         // Physical Cash Denomination Counter
         const Text(
-          'HITUNG FISIK UANG KAS (DENOMINASI)',
+          'Hitung Fisik Uang Kas (Denominasi)',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: AppColors.textMuted, letterSpacing: 0.5),
         ),
         const SizedBox(height: 8),
@@ -627,7 +678,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total Fisik Hasil Hitung:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Expanded(
+                    child: Text(
+                      'Total Fisik Hasil Hitung:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     CurrencyFormatter.format(_actualCountedTotal),
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
@@ -638,14 +697,19 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    isMatch ? 'Status: SELISIH NIHIL (COCOK)' : (isSurplus ? 'Status: SELISIH LEBIH' : 'Status: SELISIH KURANG'),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isMatch ? AppColors.success : (isSurplus ? Colors.amber.shade900 : AppColors.danger),
+                  Expanded(
+                    child: Text(
+                      isMatch ? 'Status: Selisih Nihil (Cocok)' : (isSurplus ? 'Status: Selisih Lebih' : 'Status: Selisih Kurang'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isMatch ? AppColors.success : (isSurplus ? Colors.amber.shade900 : AppColors.danger),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
                     '${isSurplus ? '+' : ''}${CurrencyFormatter.format(diff)}',
                     style: TextStyle(

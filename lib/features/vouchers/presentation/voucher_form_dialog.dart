@@ -235,26 +235,13 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.obsidian,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.confirmation_number_outlined, color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    isEditMode ? 'Edit Voucher Promo' : 'Buat Voucher Promo Baru',
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
+              Text(
+                isEditMode ? 'Edit Voucher Promo' : 'Buat Voucher Promo Baru',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
               const SizedBox(height: 16),
               if (_errorMessage != null) ...[
@@ -293,7 +280,6 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                       decoration: InputDecoration(
                         labelText: 'Kode Voucher *',
                         hintText: 'Contoh: RC-VCR-8921',
-                        prefixIcon: const Icon(Icons.tag_rounded, size: 20),
                         helperText: _isUsed ? 'Terkunci karena voucher telah digunakan' : null,
                       ),
                       validator: (val) {
@@ -308,13 +294,12 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                     const SizedBox(width: 8),
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: OutlinedButton.icon(
+                      child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(100, 50),
+                          minimumSize: const Size(80, 50),
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                         ),
-                        icon: const Icon(Icons.shuffle_rounded, size: 16),
-                        label: const Text('Acak', style: TextStyle(fontSize: 12)),
+                        child: const Text('Acak', style: TextStyle(fontSize: 12)),
                         onPressed: () {
                           setState(() {
                             _codeController.text = _generateRandomCode();
@@ -331,9 +316,8 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
-                  labelText: 'Nama Voucher Promo *',
+                  labelText: 'Nama Voucher *',
                   hintText: 'Contoh: Promo Spesial Weekend 15%',
-                  prefixIcon: Icon(Icons.badge_outlined, size: 20),
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) {
@@ -351,7 +335,6 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Deskripsi Promo (Opsional)',
                   hintText: 'Contoh: Diskon khusus sewa minimal 1 hari.',
-                  prefixIcon: Icon(Icons.notes_rounded, size: 20),
                 ),
               ),
               const SizedBox(height: 14),
@@ -368,7 +351,6 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                         labelText: 'Diskon (%) *',
                         hintText: '15',
                         suffixText: '%',
-                        prefixIcon: const Icon(Icons.percent_rounded, size: 20),
                         helperText: _isUsed ? 'Terkunci (sudah dipakai)' : null,
                       ),
                       validator: (val) {
@@ -388,7 +370,6 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                         labelText: 'Plafon Maksimal',
                         hintText: 'Tanpa batas',
                         prefixText: 'Rp ',
-                        prefixIcon: Icon(Icons.vertical_align_top_rounded, size: 20),
                       ),
                     ),
                   ),
@@ -401,11 +382,9 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                 controller: _minSpendController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Minimal Transaksi Sewa (Rp) *',
+                  labelText: 'Minimal Transaksi *',
                   hintText: '300000',
                   prefixText: 'Rp ',
-                  prefixIcon: Icon(Icons.shopping_bag_outlined, size: 20),
-                  helperText: 'Syarat total sewa sebelum diskon dapat digunakan',
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Minimal transaksi wajib diisi';
@@ -422,12 +401,11 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                 initialValue: _selectedBranchId,
                 decoration: const InputDecoration(
                   labelText: 'Cakupan Cabang Berlaku *',
-                  prefixIcon: Icon(Icons.store_mall_directory_outlined, size: 20),
                 ),
                 items: [
                   const DropdownMenuItem<int?>(
                     value: null,
-                    child: Text('🌐 Semua Cabang (Bisnis-wide)', style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: Text('Semua Cabang', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
                   ...widget.branches.map((b) {
                     final id = b['id'] is int ? b['id'] as int : int.parse(b['id'].toString());
@@ -435,7 +413,7 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                     final code = b['code'] ?? '';
                     return DropdownMenuItem<int?>(
                       value: id,
-                      child: Text('📍 [$code] $name'),
+                      child: Text('[$code] $name'),
                     );
                   }),
                 ],
@@ -455,26 +433,26 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                     color: AppColors.surface,
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.calendar_today_rounded, size: 20, color: AppColors.obsidian),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Periode Berlaku Voucher',
-                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${dateFormat.format(_startDate)}  s/d  ${dateFormat.format(_endDate)}',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Periode Berlaku',
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${dateFormat.format(_startDate)}  s/d  ${dateFormat.format(_endDate)}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ],
                       ),
-                      const Icon(Icons.edit_calendar_rounded, size: 18, color: AppColors.textSecondary),
+                      const Text(
+                        'Ubah',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.obsidian),
+                      ),
                     ],
                   ),
                 ),
@@ -489,9 +467,8 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                       controller: _totalQuotaController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Kuota Total',
+                        labelText: 'Kuota',
                         hintText: 'Tak terbatas',
-                        prefixIcon: Icon(Icons.people_outline_rounded, size: 20),
                       ),
                     ),
                   ),
@@ -503,7 +480,6 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Batas / Pelanggan *',
                         hintText: '1',
-                        prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
                       ),
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) return 'Wajib diisi';
@@ -522,13 +498,12 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                 isExpanded: true,
                 initialValue: _barcodeType,
                 decoration: const InputDecoration(
-                  labelText: 'Format Barcode Cetak Struk *',
-                  prefixIcon: Icon(Icons.qr_code_2_rounded, size: 20),
+                  labelText: 'Format Barcode *',
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'qr_code', child: Text('QR Code 2D (Default High-Density)')),
-                  DropdownMenuItem(value: 'datamatrix', child: Text('DataMatrix 2D')),
-                  DropdownMenuItem(value: 'code128', child: Text('Code 128 (Barcode 1D Linear)')),
+                  DropdownMenuItem(value: 'qr_code', child: Text('QR Code')),
+                  DropdownMenuItem(value: 'code128', child: Text('Barcode Garis (Code 128)')),
+                  DropdownMenuItem(value: 'datamatrix', child: Text('DataMatrix')),
                 ],
                 onChanged: (val) {
                   if (val != null) setState(() => _barcodeType = val);

@@ -174,15 +174,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify that Shared PaymentPage opens
-      expect(find.text('TERMINAL KASIR POS'), findsOneWidget);
-      expect(find.text('BK-LATE-101'), findsAtLeastNWidgets(1));
-      expect(find.text('DENDA KETERLAMBATAN'), findsOneWidget);
+      expect(find.text('Pembayaran Denda'), findsOneWidget);
+      expect(find.text('Tagihan Denda'), findsOneWidget);
 
       // CRITICAL AUDIT CHECK: At this point, processReturn MUST NOT have been called yet!
       expect(fakeBookingRepo.processReturnCallCount, 0,
           reason: 'processReturn must NOT be called before payment confirmation!');
 
-      // Staff presses the X button beside the AppBar in PaymentPage
+      // Staff presses the back button beside the AppBar in PaymentPage
       final closeButton = find.byTooltip('Batalkan Pembayaran');
       expect(closeButton, findsOneWidget);
       await tester.tap(closeButton);
@@ -224,10 +223,17 @@ void main() {
       await tester.pumpAndSettle();
 
       // PaymentPage is open
-      expect(find.text('TERMINAL KASIR POS'), findsOneWidget);
+      expect(find.text('Pembayaran Denda'), findsOneWidget);
+      expect(find.text('Tagihan Denda'), findsOneWidget);
 
-      // Tap "Konfirmasi Bayar"
-      final confirmPayBtn = find.widgetWithText(ElevatedButton, 'Konfirmasi Bayar (Rp 30.000)');
+      // Tap "Tunai" method card
+      final tunaiCard = find.text('Tunai');
+      await tester.ensureVisible(tunaiCard);
+      await tester.tap(tunaiCard);
+      await tester.pumpAndSettle();
+
+      // Tap "PROSES PEMBAYARAN" in cash sheet
+      final confirmPayBtn = find.widgetWithText(ElevatedButton, 'PROSES PEMBAYARAN');
       await tester.ensureVisible(confirmPayBtn);
       await tester.tap(confirmPayBtn);
       await tester.pumpAndSettle();

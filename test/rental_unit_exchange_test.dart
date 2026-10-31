@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
 import 'package:rentcore_mobile/features/bookings/presentation/bookings_screen.dart';
-import 'package:rentcore_mobile/features/bookings/presentation/exchange_history_sheet.dart';
 import 'package:rentcore_mobile/features/bookings/presentation/exchange_wizard_screen.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
@@ -183,7 +182,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify Step 2 Candidate Selection Screen
-    expect(find.text('Pilih Perangkat Pengganti dari Stok Cabang'), findsOneWidget);
+    expect(find.text('Pilih Unit Pengganti'), findsOneWidget);
     expect(find.text('iPhone XR 64GB Coral'), findsOneWidget);
     expect(find.text('iPhone 11 128GB Black'), findsOneWidget);
     expect(find.text('Setara (Rp 0)'), findsOneWidget);
@@ -236,8 +235,8 @@ void main() {
 
     // Step 3: Verify Financial Calculation
     expect(find.text('Rincian Biaya Penggantian Unit'), findsOneWidget);
-    expect(find.text('+Rp 30.000'), findsOneWidget);
-    expect(find.text('TOTAL WAJIB DIBAYAR KASIR'), findsOneWidget);
+    expect(find.text('Total Biaya Tukar'), findsOneWidget);
+    expect(find.text('Rp 30.000'), findsOneWidget);
     expect(find.text('Bebaskan Biaya Selisih (Kompensasi / Kebijakan Toko)'), findsOneWidget);
 
     // Toggle Fee Waiver
@@ -529,6 +528,6 @@ void main() {
     expect(fakeRepo.lastPayload!['fee_waived'], isTrue);
 
     // Verify Step 4 Selesai is shown
-    expect(find.text('Penggantian Unit Selesai!'), findsOneWidget);
+    expect(find.text('Tukar Unit Berhasil'), findsOneWidget);
   });
 }

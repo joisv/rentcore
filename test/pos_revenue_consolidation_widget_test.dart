@@ -320,7 +320,7 @@ void main() {
 
       // Verify PosTransactionDetailSheet opened
       expect(find.byType(PosTransactionDetailSheet), findsOneWidget);
-      expect(find.text('Rincian Transaksi Rental POS'), findsOneWidget);
+      expect(find.text('Rincian Transaksi'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(PosTransactionDetailSheet),
@@ -333,7 +333,7 @@ void main() {
       expect(find.text('PERIODE & DURASI RENTAL'), findsOneWidget);
       expect(find.text('24 Jam'), findsOneWidget);
       expect(find.text('RINCIAN TAGIHAN & PEMBAYARAN'), findsOneWidget);
-      expect(find.text('RIWAYAT TRANSAKSI PEMBAYARAN'), findsOneWidget);
+      expect(find.text('Riwayat Pembayaran'), findsOneWidget);
     });
   });
 }

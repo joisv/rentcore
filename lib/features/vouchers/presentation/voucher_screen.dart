@@ -130,7 +130,7 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                 },
               )
             : const Text(
-                'Voucher & Barcode 2D',
+                'Voucher Promo',
                 style: TextStyle(
                   color: AppColors.obsidian,
                   fontSize: 17,
@@ -139,25 +139,6 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                 ),
               ),
         actions: [
-          if (isOwner && !_isSearchExpanded)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-              child: FilledButton.icon(
-                key: const Key('create_voucher_header_button'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Buat Voucher', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                onPressed: () => VoucherFormDialog.show(
-                  context,
-                  branches: branches,
-                ),
-              ),
-            ),
           IconButton(
             icon: Icon(_isSearchExpanded ? Icons.close_rounded : Icons.search_rounded),
             onPressed: () {
@@ -329,54 +310,49 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.obsidian,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        '${discountPercent.toInt()}% OFF',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 12,
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.obsidian,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          '${discountPercent.toInt()}% OFF',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: branchName != null
-                                            ? AppColors.info.withValues(alpha: 0.1)
-                                            : AppColors.surfaceMuted,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            branchName != null ? Icons.store_rounded : Icons.public_rounded,
-                                            size: 12,
-                                            color: branchName != null ? AppColors.info : AppColors.textSecondary,
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: branchName != null
+                                                ? AppColors.info.withValues(alpha: 0.1)
+                                                : AppColors.surfaceMuted,
+                                            borderRadius: BorderRadius.circular(8),
                                           ),
-                                          const SizedBox(width: 4),
-                                          Text(
+                                          child: Text(
                                             branchName ?? 'Semua Cabang',
+                                            overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
                                               color: branchName != null ? AppColors.info : AppColors.textSecondary,
                                             ),
                                           ),
-                                        ],
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
+                                const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
@@ -425,18 +401,15 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                             const SizedBox(height: 10),
 
                             // Min Spend & Cap
-                            Row(
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                const Icon(Icons.shopping_bag_outlined, size: 14, color: AppColors.textSecondary),
-                                const SizedBox(width: 4),
                                 Text(
                                   'Min: ${CurrencyFormatter.format(minSpend)}',
                                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                                 ),
                                 if (maxCap != null) ...[
-                                  const SizedBox(width: 12),
-                                  const Icon(Icons.vertical_align_top_rounded, size: 14, color: AppColors.textSecondary),
-                                  const SizedBox(width: 4),
+                                  const Text('  •  ', style: TextStyle(color: AppColors.textMuted)),
                                   Text(
                                     'Plafon: ${CurrencyFormatter.format(maxCap)}',
                                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
@@ -450,10 +423,14 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  'Berlaku s/d ${DateFormatter.formatShort(endAt)}',
-                                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                Expanded(
+                                  child: Text(
+                                    'Berlaku s/d ${DateFormatter.formatShort(endAt)}',
+                                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
+                                const SizedBox(width: 8),
                                 Text(
                                   totalQuota != null ? '$usageCount / $totalQuota terpakai' : '$usageCount kali dipakai',
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
@@ -465,27 +442,37 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                             const Divider(height: 1, color: AppColors.borderSubtle),
                             const SizedBox(height: 10),
 
-                            // Bottom Action Row
+                            // Voucher Code on its own line
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.qr_code_2_rounded, size: 16, color: AppColors.obsidian),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      v['code'] ?? '',
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13,
-                                      ),
+                                Expanded(
+                                  child: Text(
+                                    v['code'] ?? '',
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                      letterSpacing: 0.5,
                                     ),
-                                  ],
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                Row(
-                                  children: [
-                                    if (isOwner) ...[
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Bottom Actions Row
+                            Wrap(
+                              alignment: WrapAlignment.end,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                if (isOwner)
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
                                       Switch(
                                         value: isActive,
                                         activeTrackColor: AppColors.obsidian,
@@ -502,9 +489,13 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                                           }
                                         },
                                       ),
+                                      const SizedBox(width: 4),
                                       IconButton(
                                         icon: const Icon(Icons.edit_outlined, size: 18),
                                         tooltip: 'Edit Voucher',
+                                        visualDensity: VisualDensity.compact,
+                                        padding: const EdgeInsets.all(4),
+                                        constraints: const BoxConstraints(),
                                         onPressed: () => VoucherFormDialog.show(
                                           context,
                                           voucher: v,
@@ -512,16 +503,16 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                                         ),
                                       ),
                                     ],
-                                    ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(
-                                        minimumSize: const Size(120, 36),
-                                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                                      ),
-                                      icon: const Icon(Icons.print_outlined, size: 15),
-                                      label: const Text('Cetak Slip', style: TextStyle(fontSize: 11)),
-                                      onPressed: () => _showThermalSlipModal(context, v),
-                                    ),
-                                  ],
+                                  ),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                                    minimumSize: const Size(0, 32),
+                                  ),
+                                  icon: const Icon(Icons.print_outlined, size: 14),
+                                  label: const Text('Cetak Slip', style: TextStyle(fontSize: 11)),
+                                  onPressed: () => _showThermalSlipModal(context, v),
                                 ),
                               ],
                             ),

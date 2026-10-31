@@ -5,7 +5,6 @@ import '../../../core/services/thermal_printer_service.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
-import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../printer/providers/printer_provider.dart';
@@ -29,7 +28,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
   final TextEditingController _diagnosisController = TextEditingController();
   String _oldConditionGrade = 'B';
   bool _icloudSignedOut = false;
-  String _oldDisposition = 'maintenance';
+  final String _oldDisposition = 'maintenance';
 
   // Step 2: Selected Replacement Device
   Map<String, dynamic>? _selectedCandidate;
@@ -85,7 +84,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
     final items = (widget.booking['items'] as List?) ?? [];
     for (final it in items) {
       if (it is Map && (it['status'] == 'active' || it['status'] == null)) {
-        return (it as Map).cast<String, dynamic>();
+        return it.cast<String, dynamic>();
       }
     }
     if (items.isNotEmpty && items.first is Map) {
@@ -314,7 +313,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'UNIT SEWA YANG DITUKAR (BERMASALAH)',
+                      'Unit Bermasalah',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.danger),
                     ),
                     const SizedBox(height: 2),
@@ -331,18 +330,14 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
           const Divider(height: 1, color: AppColors.borderSubtle),
           const SizedBox(height: 10),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Pelanggan: ${customer['name'] ?? 'Pelanggan'}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              StatusBadge(
-                label: 'Batas: ${DateFormatter.formatRelative(endAt)}',
-                textColor: AppColors.obsidian,
-                backgroundColor: AppColors.surfaceMuted,
-                borderRadius: 8,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              Expanded(
+                child: Text(
+                  '${customer['name'] ?? 'Pelanggan'} • ${DateFormatter.formatRelative(endAt)}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -359,21 +354,28 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '1. Kategori Kendala Hardware / Masalah',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          'Pilih Kendala',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 6,
+          runSpacing: 6,
           children: _categoryLabels.entries.map((e) {
             final isSelected = _reportedCategory == e.key;
             return ChoiceChip(
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               label: Text(e.value),
               selected: isSelected,
               onSelected: (_) => setState(() => _reportedCategory = e.key),
               selectedColor: AppColors.obsidian,
               backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: isSelected ? AppColors.obsidian : AppColors.border),
+              ),
               labelStyle: TextStyle(
                 color: isSelected ? Colors.white : AppColors.textPrimary,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -382,32 +384,33 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             );
           }).toList(),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
         // Customer Complaint Input
         const Text(
-          '2. Deskripsi Keluhan Pelanggan',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          'Keluhan Pelanggan',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextField(
           controller: _complaintController,
-          maxLines: 3,
+          maxLines: 2,
           decoration: InputDecoration(
             hintText: 'Contoh: Kamera belakang bergetar saat zoom 1x dan tidak fokus...',
             fillColor: AppColors.surface,
             filled: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
         // Staff Diagnostic Notes
         const Text(
-          '3. Catatan Diagnosa Tim Konter / Staf',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          'Catatan Fisik (Opsional)',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextField(
           controller: _diagnosisController,
           maxLines: 2,
@@ -415,61 +418,93 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             hintText: 'Hasil pemeriksaan fisik staf (opsional)...',
             fillColor: AppColors.surface,
             filled: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
         // Old Unit Physical Grade & Disposition
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Kondisi Fisik Saat Diterima Kembali',
+                'Kondisi Fisik Saat Diterima',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Row(
                 children: ['A', 'B', 'C'].map((grade) {
                   final isSel = _oldConditionGrade == grade;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text('Grade $grade'),
-                      selected: isSel,
-                      onSelected: (_) => setState(() => _oldConditionGrade = grade),
-                      selectedColor: AppColors.obsidian,
-                      backgroundColor: AppColors.surfaceMuted,
-                      labelStyle: TextStyle(
-                        color: isSel ? Colors.white : AppColors.textPrimary,
-                        fontSize: 12,
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: ChoiceChip(
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        label: Center(
+                          child: Text(
+                            'Grade $grade',
+                            style: TextStyle(
+                              color: isSel ? Colors.white : AppColors.textPrimary,
+                              fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        selected: isSel,
+                        onSelected: (_) => setState(() => _oldConditionGrade = grade),
+                        selectedColor: AppColors.obsidian,
+                        backgroundColor: AppColors.surfaceMuted,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: isSel ? AppColors.obsidian : AppColors.borderSubtle),
+                        ),
                       ),
                     ),
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(Icons.build_circle_outlined, size: 16, color: AppColors.warning),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Disposisi: Masuk Karantina / Servis (maintenance)',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.warningLight,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.build_circle_outlined, size: 14, color: AppColors.warning),
+                          SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Disposisi: Karantina / Servis',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.warning),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
         // CRITICAL SECURITY GUARD: iCloud / FRP Sign-Out Toggle
         if (_requiresFrpCheck)
@@ -575,15 +610,10 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Pilih Perangkat Pengganti dari Stok Cabang',
+          'Pilih Unit Pengganti',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
         ),
-        const SizedBox(height: 4),
-        const Text(
-          'Sistem otomatis menghitung selisih biaya berdasarkan paket durasi sewa aktif.',
-          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
 
         // Filter Chips
         SingleChildScrollView(
@@ -609,7 +639,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
         if (filtered.isEmpty)
           Container(
@@ -687,19 +717,17 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
                                 _buildTierBadge(tierCat, diff),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Kode: ${c['asset_code']} • SN: ${c['serial_number'] ?? '-'}',
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Row(
                               children: [
-                                Text(
-                                  'Grade ${c['condition_grade']} • Bat: ${c['battery_health'] ?? 100}%',
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textMuted),
+                                Expanded(
+                                  child: Text(
+                                    '${c['asset_code']} • Grade ${c['condition_grade']} • Bat: ${c['battery_health'] ?? 100}%',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                const Spacer(),
+                                const SizedBox(width: 8),
                                 Text(
                                   CurrencyFormatter.format(c['calculated_rate']),
                                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
@@ -722,11 +750,18 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
   Widget _buildCandidateFilterChip(String label, String value) {
     final isSel = _candidateFilter == value;
     return ChoiceChip(
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       label: Text(label),
       selected: isSel,
       onSelected: (_) => setState(() => _candidateFilter = value),
       selectedColor: AppColors.obsidian,
       backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: isSel ? AppColors.obsidian : AppColors.border),
+      ),
       labelStyle: TextStyle(
         color: isSel ? Colors.white : AppColors.textPrimary,
         fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
@@ -797,38 +832,30 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
 
         // Financial Breakdown Card
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
             children: [
-              _buildBillingRow('Tarif Unit Lama (Paket Berjalan)', CurrencyFormatter.format(currentItemRate)),
+              _buildBillingRow('Tarif Unit Lama', CurrencyFormatter.format(currentItemRate)),
               const SizedBox(height: 8),
               _buildBillingRow(
-                'Tarif Unit Baru (${_selectedCandidate?['model']?['name'] ?? 'Unit Baru'})',
+                'Tarif Unit Baru',
                 CurrencyFormatter.format(replacementRate),
-              ),
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: AppColors.borderSubtle),
-              const SizedBox(height: 10),
-              _buildBillingRow(
-                'Selisih Tarif Kotor',
-                diff > 0 ? '+${CurrencyFormatter.format(diff)}' : 'Rp 0 (Setara)',
-                isBold: true,
               ),
               if (_feeWaived) ...[
                 const SizedBox(height: 8),
-                _buildBillingRow('Pembebasan Biaya (Courtesy Waiver)', '-${CurrencyFormatter.format(diff)}', textColor: AppColors.success),
+                _buildBillingRow('Pembebasan Biaya', '-${CurrencyFormatter.format(diff)}', textColor: AppColors.success),
               ],
               const SizedBox(height: 10),
               const Divider(height: 1, color: AppColors.borderSubtle),
               const SizedBox(height: 10),
               _buildBillingRow(
-                'TOTAL WAJIB DIBAYAR KASIR',
-                CurrencyFormatter.format(payable),
+                'Total Biaya Tukar',
+                payable > 0 ? CurrencyFormatter.format(payable) : 'Rp 0 (Setara)',
                 isBold: true,
                 textColor: payable > 0 ? AppColors.obsidian : AppColors.success,
               ),
@@ -1075,12 +1102,12 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
               const Icon(Icons.check_circle_rounded, size: 48, color: AppColors.success),
               const SizedBox(height: 10),
               const Text(
-                'Penggantian Unit Selesai!',
+                'Tukar Unit Berhasil',
                 style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
               ),
               const SizedBox(height: 4),
-              Text(
-                'Unit lama telah dipindahkan ke karantina/servis dan unit baru telah aktif dalam sistem.',
+              const Text(
+                'Unit lama dialihkan ke servis.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
