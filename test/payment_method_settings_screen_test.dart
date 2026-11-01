@@ -52,7 +52,7 @@ class FakeCashierRepository extends CashierRepository {
   }
 
   @override
-  Future<Map<String, dynamic>> updatePaymentSettings(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> updatePaymentSettings(dynamic payload) async {
     return settingsData;
   }
 }

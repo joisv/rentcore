@@ -158,8 +158,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify ReturnWizardScreen is rendered with penalty section
-      expect(find.textContaining('PEMBAYARAN DENDA'), findsOneWidget);
-      expect(find.text('Bayar Sekarang di Counter'), findsOneWidget);
+      expect(find.textContaining('Penyelesaian Denda'), findsOneWidget);
+      expect(find.text('Bayar Sekarang'), findsOneWidget);
 
       // Verify and toggle iCloud FRP switch (mandatory guard for iPhone)
       final frpSwitch = find.byType(SwitchListTile);
@@ -167,8 +167,8 @@ void main() {
       await tester.tap(frpSwitch);
       await tester.pumpAndSettle();
 
-      // Tap "Selesaikan Pengembalian & Ambil KTP"
-      final submitReturnBtn = find.text('Selesaikan Pengembalian & Ambil KTP 📥');
+      // Tap "Selesaikan Pengembalian"
+      final submitReturnBtn = find.text('Selesaikan Pengembalian');
       await tester.ensureVisible(submitReturnBtn);
       await tester.tap(submitReturnBtn);
       await tester.pumpAndSettle();
@@ -217,7 +217,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap submit return
-      final submitReturnBtn = find.text('Selesaikan Pengembalian & Ambil KTP 📥');
+      final submitReturnBtn = find.text('Selesaikan Pengembalian');
       await tester.ensureVisible(submitReturnBtn);
       await tester.tap(submitReturnBtn);
       await tester.pumpAndSettle();
@@ -274,14 +274,14 @@ void main() {
       await tester.tap(frpSwitch);
       await tester.pumpAndSettle();
 
-      // Select "Bayar Nanti di Kasir"
-      final bayarNantiChip = find.text('Bayar Nanti di Kasir');
+      // Select "Bayar Nanti (Catat ke Tagihan)"
+      final bayarNantiChip = find.text('Bayar Nanti (Catat ke Tagihan)');
       await tester.ensureVisible(bayarNantiChip);
       await tester.tap(bayarNantiChip);
       await tester.pumpAndSettle();
 
       // Tap submit return
-      final submitReturnBtn = find.text('Selesaikan Pengembalian & Ambil KTP 📥');
+      final submitReturnBtn = find.text('Selesaikan Pengembalian');
       await tester.ensureVisible(submitReturnBtn);
       await tester.tap(submitReturnBtn);
       await tester.pumpAndSettle();

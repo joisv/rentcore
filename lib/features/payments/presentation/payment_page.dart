@@ -6,6 +6,7 @@ import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../cashier/presentation/widgets/cash_drawer_shift_modal.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../printer/providers/printer_provider.dart';
@@ -122,23 +123,71 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   Widget build(BuildContext context) {
     final ctx = widget.paymentContext;
     final amountDue = ctx.remainingDue;
+    final bizState = ref.watch(businessProvider);
+    final effectiveBranchId = ctx.branchId ?? bizState.activeBranchId;
     final paymentMethodsAsync = ref.watch(paymentMethodsProvider);
+    final paymentSettingsAsync = ref.watch(paymentSettingsProvider(effectiveBranchId));
+
+    final settingsData = paymentSettingsAsync.value;
+    final config = (settingsData?['config'] as Map<String, dynamic>?) ??
+                   (settingsData?['data']?['config'] as Map<String, dynamic>?);
+
+    final paymentMethods = paymentMethodsAsync.value ?? [
+      {'id': 1, 'code': 'CASH', 'name': 'Tunai', 'is_active': true},
+      {'id': 2, 'code': 'QRIS', 'name': 'QRIS', 'is_active': true},
+      {'id': 3, 'code': 'TRANSFER', 'name': 'Transfer Bank', 'is_active': true},
+    ];
+
+    // Method active toggles from settings / payment methods
+    final isCashEnabled = config != null
+        ? (config['cash_enabled'] != false)
+        : paymentMethods.any((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH' && m['is_active'] != false);
+
+    final isQrisEnabled = config != null
+        ? (config['qris_statis_enabled'] != false)
+        : paymentMethods.any((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS' && m['is_active'] != false);
+
+    final isEwalletMasterEnabled = config != null ? (config['ewallet_enabled'] != false) : true;
+    final providers = (config?['ewallet_providers'] as Map<String, dynamic>?) ?? {};
+    final isShopeePayEnabled = isEwalletMasterEnabled && (providers['shopeepay'] != false);
+    final isDanaEnabled = isEwalletMasterEnabled && (providers['dana'] != false);
+    final isLinkAjaEnabled = isEwalletMasterEnabled && (providers['linkaja'] != false);
+    final isOvoEnabled = isEwalletMasterEnabled && (providers['ovo'] != false);
+    final isGopayEnabled = isEwalletMasterEnabled && (providers['gopay'] != false);
+    final hasAnyActiveEwallet = isShopeePayEnabled || isDanaEnabled || isLinkAjaEnabled || isOvoEnabled || isGopayEnabled;
+
+    final isBankTransferEnabled = config != null ? (config['bank_transfer_enabled'] != false) : true;
+
+    final hasOtherDirectMethod = paymentMethods.any((m) {
+      final code = (m['code'] ?? '').toString().toUpperCase();
+      return code != 'CASH' && code != 'QRIS' && m['is_active'] != false;
+    });
+    final isOtherEnabled = hasAnyActiveEwallet || isBankTransferEnabled || hasOtherDirectMethod;
+
+    final qrisImageUrl = config?['qris_image_url'] as String? ??
+        (paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull?['qris_image_url'] as String?);
 
     paymentMethodsAsync.whenData((methods) {
       if (!_methodInitialized && methods.isNotEmpty) {
         _methodInitialized = true;
-        final cashMethod = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull ?? methods.first;
-        _selectedMethodId = cashMethod['id'] as int?;
-        _selectedMethodCode = (cashMethod['code'] ?? 'CASH').toString().toUpperCase();
-        _selectedMethodName = cashMethod['name'] ?? 'Tunai';
+        if (isCashEnabled) {
+          final cashMethod = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull ?? methods.first;
+          _selectedMethodId = cashMethod['id'] as int?;
+          _selectedMethodCode = (cashMethod['code'] ?? 'CASH').toString().toUpperCase();
+          _selectedMethodName = cashMethod['name'] ?? 'Tunai';
+        } else if (isQrisEnabled) {
+          final qrisMethod = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull ?? methods.first;
+          _selectedMethodId = qrisMethod['id'] as int?;
+          _selectedMethodCode = (qrisMethod['code'] ?? 'QRIS').toString().toUpperCase();
+          _selectedMethodName = qrisMethod['name'] ?? 'QRIS';
+        } else if (isOtherEnabled) {
+          final otherMethod = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() != 'CASH' && (m['code'] ?? '').toString().toUpperCase() != 'QRIS').firstOrNull ?? methods.first;
+          _selectedMethodId = otherMethod['id'] as int?;
+          _selectedMethodCode = (otherMethod['code'] ?? 'TRANSFER').toString().toUpperCase();
+          _selectedMethodName = otherMethod['name'] ?? 'Pembayaran Lainnya';
+        }
       }
     });
-
-    final paymentMethods = paymentMethodsAsync.value ?? [
-      {'id': 1, 'code': 'CASH', 'name': 'Tunai'},
-      {'id': 2, 'code': 'QRIS', 'name': 'QRIS'},
-      {'id': 3, 'code': 'TRANSFER', 'name': 'Transfer Bank'},
-    ];
 
     if (_completedResult != null) {
       return Scaffold(
@@ -185,8 +234,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
             ctx.pageHeaderTitle,
             style: const TextStyle(
               color: Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
             ),
           ),
           centerTitle: false,
@@ -203,19 +252,19 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       Text(
                         ctx.tagihanLabel,
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF71717A),
+                          color: Color(0xFF747474),
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         'Rp${_formatNumber(amountDue)}',
                         style: const TextStyle(
-                          fontSize: 44,
+                          fontSize: 39,
                           fontWeight: FontWeight.w800,
                           color: Colors.black,
-                          letterSpacing: -1,
+                          letterSpacing: -0.5,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -226,9 +275,9 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                           child: Text(
                             ctx.detailLinkText,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF0EA5E9),
+                              color: Color(0xFF0A93B9),
                             ),
                           ),
                         ),
@@ -238,67 +287,119 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                 ),
               ),
 
-              // Bottom 3 Action Buttons: QRIS, Tunai, Lainya
+              // Bottom Action Buttons: Dynamically filtered based on toggles
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                child: Row(
-                  children: [
-                    // 1. QRIS Card
-                    Expanded(
-                      child: _buildBottomMethodCard(
-                        title: 'QRIS',
-                        customIcon: _buildQrisLogoWidget(),
-                        onTap: () {
-                          final qrisMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
-                          _selectedMethodId = qrisMethod?['id'] as int? ?? 2;
-                          _selectedMethodCode = 'QRIS';
-                          _selectedMethodName = qrisMethod?['name'] ?? 'QRIS';
-                          _selectedQrisImageUrl = qrisMethod?['qris_image_url'] as String?;
-                          _showQrisSheet(context, ctx, amountDue);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                child: Builder(
+                  builder: (context) {
+                    final activeCards = <Widget>[];
 
-                    // 2. Tunai Card
-                    Expanded(
-                      child: _buildBottomMethodCard(
-                        title: 'Tunai',
-                        customIcon: _buildCashBillIconWidget(),
-                        onTap: () {
-                          final cashMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull;
-                          _selectedMethodId = cashMethod?['id'] as int? ?? 1;
-                          _selectedMethodCode = 'CASH';
-                          _selectedMethodName = cashMethod?['name'] ?? 'Tunai';
-                          _cashReceivedController.text = amountDue.toInt().toString();
-                          _showCashSheet(context, ctx, amountDue);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    if (isQrisEnabled) {
+                      activeCards.add(
+                        Expanded(
+                          child: _buildBottomMethodCard(
+                            title: 'QRIS',
+                            customIcon: _buildQrisLogoWidget(),
+                            onTap: () {
+                              final qrisMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
+                              _selectedMethodId = qrisMethod?['id'] as int? ?? 2;
+                              _selectedMethodCode = 'QRIS';
+                              _selectedMethodName = qrisMethod?['name'] ?? 'QRIS';
+                              _selectedQrisImageUrl = qrisImageUrl;
+                              _showQrisSheet(context, ctx, amountDue);
+                            },
+                          ),
+                        ),
+                      );
+                    }
 
-                    // 3. Lainya Card
-                    Expanded(
-                      child: _buildBottomMethodCard(
-                        title: 'Lainya',
-                        customIcon: _buildOptionIconWidget(),
-                        onTap: () {
-                          if (_selectedEwallet.isNotEmpty) {
-                            _applySelectedPaymentOption(_selectedEwallet, paymentMethods);
-                          } else {
-                            final otherMethod = paymentMethods.where((m) {
-                              final code = (m['code'] ?? '').toString().toUpperCase();
-                              return code != 'CASH' && code != 'QRIS';
-                            }).firstOrNull;
-                            _selectedMethodId = otherMethod?['id'] as int? ?? 3;
-                            _selectedMethodCode = otherMethod?['code']?.toString().toUpperCase() ?? 'TRANSFER';
-                            _selectedMethodName = otherMethod?['name'] ?? 'Pembayaran Lainnya';
-                          }
-                          _showEwalletSheet(context, ctx, amountDue, paymentMethods);
-                        },
-                      ),
-                    ),
-                  ],
+                    if (isCashEnabled) {
+                      activeCards.add(
+                        Expanded(
+                          child: _buildBottomMethodCard(
+                            title: 'Tunai',
+                            customIcon: _buildCashBillIconWidget(),
+                            onTap: () {
+                              final cashMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull;
+                              _selectedMethodId = cashMethod?['id'] as int? ?? 1;
+                              _selectedMethodCode = 'CASH';
+                              _selectedMethodName = cashMethod?['name'] ?? 'Tunai';
+                              _cashReceivedController.text = amountDue.toInt().toString();
+                              _showCashSheet(context, ctx, amountDue);
+                            },
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (isOtherEnabled) {
+                      activeCards.add(
+                        Expanded(
+                          child: _buildBottomMethodCard(
+                            title: 'Lainnya',
+                            customIcon: _buildOptionIconWidget(),
+                            onTap: () {
+                              if (_selectedEwallet.isNotEmpty) {
+                                _applySelectedPaymentOption(_selectedEwallet, paymentMethods);
+                              } else {
+                                final otherMethod = paymentMethods.where((m) {
+                                  final code = (m['code'] ?? '').toString().toUpperCase();
+                                  return code != 'CASH' && code != 'QRIS';
+                                }).firstOrNull;
+                                _selectedMethodId = otherMethod?['id'] as int? ?? 3;
+                                _selectedMethodCode = otherMethod?['code']?.toString().toUpperCase() ?? 'TRANSFER';
+                                _selectedMethodName = otherMethod?['name'] ?? 'Pembayaran Lainnya';
+                              }
+                              _showEwalletSheet(
+                                context,
+                                ctx,
+                                amountDue,
+                                paymentMethods,
+                                isEwalletMasterEnabled: isEwalletMasterEnabled,
+                                isBankTransferEnabled: isBankTransferEnabled,
+                                isShopeePayEnabled: isShopeePayEnabled,
+                                isDanaEnabled: isDanaEnabled,
+                                isLinkAjaEnabled: isLinkAjaEnabled,
+                                isOvoEnabled: isOvoEnabled,
+                                isGopayEnabled: isGopayEnabled,
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (activeCards.isEmpty) {
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFEF4444)),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.info_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Tidak ada metode pembayaran aktif.',
+                              style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        for (int i = 0; i < activeCards.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 12),
+                          activeCards[i],
+                        ],
+                      ],
+                    );
+                  },
                 ),
               ),
             ],
@@ -320,23 +421,23 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        height: 90,
+        height: 64,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.black, width: 1.5),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             customIcon,
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               title,
               style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
                 color: Colors.black,
               ),
             ),
@@ -608,7 +709,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     ),
                     child: const Text(
                       'KONFIRMASI PEMBAYARAN',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5),
                     ),
                   ),
                 ],
@@ -668,7 +769,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       const Center(
                         child: Text(
                           'PEMBAYARAN TUNAI',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black, letterSpacing: 0.5),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black, letterSpacing: 0.5),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -684,10 +785,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Tagihan Sewa', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+                            const Text('Tagihan Sewa', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF676767))),
                             Text(
                               'Rp  ${_formatNumber(amountDue)}',
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.black),
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF676767)),
                             ),
                           ],
                         ),
@@ -698,40 +799,40 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       TextFormField(
                         controller: _cashReceivedController,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
                         decoration: InputDecoration(
-                          labelText: 'Jumlah uang diterima *',
-                          labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w500),
+                          labelText: 'Jumlah uang diterima',
+                          labelStyle: const TextStyle(color: Color(0xFF676767), fontSize: 11, fontWeight: FontWeight.w400),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: AppColors.border, width: 1),
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Color(0xFF71717A), width: 1),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: AppColors.border, width: 1),
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Color(0xFF71717A), width: 1),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: AppColors.obsidian, width: 1.5),
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.black, width: 1.5),
                           ),
                           prefixIcon: const SizedBox(
-                            width: 44,
+                            width: 38,
                             child: Center(
                               child: Text(
                                 'Rp',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: Color(0xFF676767),
                                 ),
                               ),
                             ),
                           ),
                           suffixIcon: IconButton(
-                            icon: const Icon(Icons.check_circle_outline_rounded, color: AppColors.obsidian),
+                            icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.black),
                             tooltip: 'Uang Pas',
                             onPressed: () {
                               _cashReceivedController.text = amountDue.toInt().toString();
@@ -770,7 +871,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                               child: Text(
                                 'Rp ${_formatNumber(amt)}',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w500,
                                   fontSize: 12,
                                   color: isSelected ? Colors.white : Colors.black,
                                 ),
@@ -800,7 +901,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             Text(
                               cashShortage > 0 ? 'Kekurangan Uang:' : 'Kembalian Pelanggan',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w500,
                                 fontSize: 12,
                                 color: cashShortage > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
                               ),
@@ -808,8 +909,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             Text(
                               'Rp ${_formatNumber(cashShortage > 0 ? cashShortage : cashChange)}',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
                                 color: cashShortage > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
                               ),
                             ),
@@ -838,7 +939,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                             : const Text(
                                 'PROSES PEMBAYARAN',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.5),
                               ),
                       ),
                     ],
@@ -897,7 +998,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   const Center(
                     child: Text(
                       'QRIS STATIS',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black, letterSpacing: 0.5),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black, letterSpacing: 0.5),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -905,14 +1006,14 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     child: Text(
                       'Pastikan jumlah yang Anda ketik sesuai\ndengan total pada struk/layar kasir.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: Color(0xFF71717A), height: 1.3),
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF6C6B6B), height: 1.3),
                     ),
                   ),
                   const SizedBox(height: 16),
 
                   // Big Centered QR Code
                   Center(
-                    child: _selectedQrisImageUrl != null
+                    child: (_selectedQrisImageUrl != null && _selectedQrisImageUrl!.trim().isNotEmpty)
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.network(
@@ -920,6 +1021,27 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                               width: 220,
                               height: 220,
                               fit: BoxFit.contain,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  width: 220,
+                                  height: 220,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      value: loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                          : null,
+                                      strokeWidth: 2,
+                                      color: const Color(0xFF18181B),
+                                    ),
+                                  ),
+                                );
+                              },
                               errorBuilder: (_, _, _) => _buildQrCodePattern(),
                             ),
                           )
@@ -931,7 +1053,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   Center(
                     child: Text(
                       'Rp ${_formatNumber(amountDue)}',
-                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.black, letterSpacing: -0.5),
+                      style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: Colors.black, letterSpacing: -0.5),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -954,7 +1076,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                         ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : const Text(
                             'PROSES PEMBAYARAN',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.5),
                           ),
                   ),
                 ],
@@ -988,8 +1110,15 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     BuildContext context,
     PaymentContext ctx,
     double amountDue,
-    List<Map<String, dynamic>> paymentMethods,
-  ) {
+    List<Map<String, dynamic>> paymentMethods, {
+    required bool isEwalletMasterEnabled,
+    required bool isBankTransferEnabled,
+    required bool isShopeePayEnabled,
+    required bool isDanaEnabled,
+    required bool isLinkAjaEnabled,
+    required bool isOvoEnabled,
+    required bool isGopayEnabled,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1000,6 +1129,37 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final activeEwalletTiles = <Widget>[
+              if (isShopeePayEnabled) _buildEwalletTile('ShopeePay', _buildShopeeBadge(), setSheetState, paymentMethods),
+              if (isDanaEnabled) _buildEwalletTile('DANA', _buildDanaBadge(), setSheetState, paymentMethods),
+              if (isGopayEnabled) _buildEwalletTile('GoPay', _buildGopayBadge(), setSheetState, paymentMethods),
+              if (isOvoEnabled) _buildEwalletTile('OVO', _buildOvoBadge(), setSheetState, paymentMethods),
+              if (isLinkAjaEnabled) _buildEwalletTile('LinkAja!', _buildLinkAjaBadge(), setSheetState, paymentMethods),
+            ];
+
+            final activeBankTiles = <Widget>[
+              if (isBankTransferEnabled) ...[
+                _buildEwalletTile('BCA', _buildBankBadge('BCA'), setSheetState, paymentMethods),
+                _buildEwalletTile('Mandiri', _buildBankBadge('Mandiri'), setSheetState, paymentMethods),
+                _buildEwalletTile('BRI', _buildBankBadge('BRI'), setSheetState, paymentMethods),
+                _buildEwalletTile('BNI', _buildBankBadge('BNI'), setSheetState, paymentMethods),
+              ],
+            ];
+
+            final availableOptionIds = <String>[
+              if (isShopeePayEnabled) 'ShopeePay',
+              if (isDanaEnabled) 'DANA',
+              if (isGopayEnabled) 'GoPay',
+              if (isOvoEnabled) 'OVO',
+              if (isLinkAjaEnabled) 'LinkAja!',
+              if (isBankTransferEnabled) ...['BCA', 'Mandiri', 'BRI', 'BNI'],
+            ];
+
+            if (!availableOptionIds.contains(_selectedEwallet) && availableOptionIds.isNotEmpty) {
+              _selectedEwallet = availableOptionIds.first;
+              _applySelectedPaymentOption(_selectedEwallet, paymentMethods);
+            }
+
             return SafeArea(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
@@ -1021,96 +1181,84 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Title: PEMBAYARAN LAINYA
+                      // Title: PEMBAYARAN LAINNYA
                       const Center(
                         child: Text(
-                          'PEMBAYARAN LAINYA',
+                          'PEMBAYARAN LAINNYA',
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black, letterSpacing: 0.5),
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // E-Wallet Card Box
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF71717A)),
+                      // Dompet Digital (E-Wallet) Box
+                      if (isEwalletMasterEnabled && activeEwalletTiles.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF71717A)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Dompet Digital',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
+                              ),
+                              const SizedBox(height: 12),
+                              _buildDynamicTileGrid(activeEwalletTiles, columns: 3),
+                            ],
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'E-Wallet',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
-                            ),
-                            const SizedBox(height: 12),
+                        const SizedBox(height: 14),
+                      ],
 
-                            // 2x3 Grid: ShopeePay, DANA, GoPay, Lainya, OVO, LinkAja!
-                            Row(
-                              children: [
-                                Expanded(child: _buildEwalletTile('ShopeePay', _buildShopeeBadge(), setSheetState, paymentMethods)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildEwalletTile('DANA', _buildDanaBadge(), setSheetState, paymentMethods)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildEwalletTile('GoPay', _buildGopayBadge(), setSheetState, paymentMethods)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(child: _buildEwalletTile('Lainya', _buildLainyaBadge(), setSheetState, paymentMethods)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildEwalletTile('OVO', _buildOvoBadge(), setSheetState, paymentMethods)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildEwalletTile('LinkAja!', _buildLinkAjaBadge(), setSheetState, paymentMethods)),
-                              ],
-                            ),
-                          ],
+                      // Bank Transfer Card Box
+                      if (isBankTransferEnabled && activeBankTiles.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF71717A)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Transfer Bank',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
+                              ),
+                              const SizedBox(height: 12),
+                              _buildDynamicTileGrid(activeBankTiles, columns: 2),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
+                        const SizedBox(height: 24),
+                      ],
 
-                      // Bank Transfer Card Box (Task 2)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF71717A)),
+                      if ((!isEwalletMasterEnabled || activeEwalletTiles.isEmpty) && (!isBankTransferEnabled || activeBankTiles.isEmpty)) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFEF4444)),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Tidak ada metode pembayaran lainnya yang aktif.',
+                              style: TextStyle(color: Color(0xFFDC2626), fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Transfer Bank',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(child: _buildEwalletTile('BCA', _buildBankBadge('BCA'), setSheetState, paymentMethods)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildEwalletTile('Mandiri', _buildBankBadge('Mandiri'), setSheetState, paymentMethods)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(child: _buildEwalletTile('BRI', _buildBankBadge('BRI'), setSheetState, paymentMethods)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildEwalletTile('BNI', _buildBankBadge('BNI'), setSheetState, paymentMethods)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
+                      ],
 
                       // Button: PROSES PEMBAYARAN
                       ElevatedButton(
-                        onPressed: _isProcessing
+                        onPressed: (_isProcessing || availableOptionIds.isEmpty)
                             ? null
                             : () async {
                                 Navigator.pop(sheetContext);
@@ -1126,7 +1274,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                             : const Text(
                                 'PROSES PEMBAYARAN',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.5),
                               ),
                       ),
                     ],
@@ -1138,6 +1286,32 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         );
       },
     );
+  }
+
+  Widget _buildDynamicTileGrid(List<Widget> tiles, {int columns = 3}) {
+    final rows = <Widget>[];
+    for (int i = 0; i < tiles.length; i += columns) {
+      final end = (i + columns < tiles.length) ? i + columns : tiles.length;
+      final rowItems = tiles.sublist(i, end);
+      rows.add(
+        Row(
+          children: [
+            for (int j = 0; j < rowItems.length; j++) ...[
+              if (j > 0) const SizedBox(width: 8),
+              Expanded(child: rowItems[j]),
+            ],
+            for (int k = rowItems.length; k < columns; k++) ...[
+              const SizedBox(width: 8),
+              const Expanded(child: SizedBox()),
+            ],
+          ],
+        ),
+      );
+      if (end < tiles.length) {
+        rows.add(const SizedBox(height: 8));
+      }
+    }
+    return Column(children: rows);
   }
 
   String _mapProviderToCode(String id) {
@@ -1268,7 +1442,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         ),
         const SizedBox(width: 4),
         const Text(
-          'Lainya',
+          'Lainnya',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: Color(0xFF374151),
@@ -1299,6 +1473,66 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   // EXECUTE PAYMENT TRANSACTION
   // =========================================================================
   Future<void> _executePaymentProcess(double amountDue) async {
+    final bizState = ref.read(businessProvider);
+    final effectiveBranchId = widget.paymentContext.branchId ?? bizState.activeBranchId;
+    final settingsAsync = ref.read(paymentSettingsProvider(effectiveBranchId));
+    final config = (settingsAsync.value?['config'] as Map<String, dynamic>?) ??
+                   (settingsAsync.value?['data']?['config'] as Map<String, dynamic>?);
+
+    if (config != null) {
+      if (_selectedMethodCode == 'CASH' && config['cash_enabled'] == false) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Metode pembayaran Tunai dinonaktifkan oleh pengaturan toko.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        return;
+      }
+      if (_selectedMethodCode == 'QRIS' && config['qris_statis_enabled'] == false) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Metode pembayaran QRIS dinonaktifkan oleh pengaturan toko.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        return;
+      }
+      final cleanMethod = _selectedMethodCode.toUpperCase();
+      if (['SHOPEEPAY', 'DANA', 'GOPAY', 'OVO', 'LINKAJA'].contains(cleanMethod)) {
+        if (config['ewallet_enabled'] == false) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Metode pembayaran Dompet Digital dinonaktifkan oleh pengaturan toko.'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+          return;
+        }
+        final providers = (config['ewallet_providers'] as Map<String, dynamic>?) ?? {};
+        final providerKey = cleanMethod.toLowerCase();
+        if (providers.containsKey(providerKey) && providers[providerKey] == false) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Metode pembayaran $_selectedMethodName sedang dinonaktifkan.'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+          return;
+        }
+      } else if (['BCA', 'MANDIRI', 'BRI', 'BNI', 'TRANSFER'].contains(cleanMethod)) {
+        if (config['bank_transfer_enabled'] == false) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Metode pembayaran Transfer Bank dinonaktifkan oleh pengaturan toko.'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     setState(() => _isProcessing = true);
 
     try {

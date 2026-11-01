@@ -46,7 +46,20 @@ class RentalTierOption {
 }
 
 class DirectRentalScreen extends ConsumerStatefulWidget {
-  const DirectRentalScreen({super.key});
+  final Map<String, dynamic>? customer;
+  final int? customerId;
+  final String? customerName;
+  final String? customerPhone;
+  final String? customerAddress;
+
+  const DirectRentalScreen({
+    super.key,
+    this.customer,
+    this.customerId,
+    this.customerName,
+    this.customerPhone,
+    this.customerAddress,
+  });
 
   @override
   ConsumerState<DirectRentalScreen> createState() => _DirectRentalScreenState();
@@ -60,11 +73,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   String? _durationValidationError;
 
   // Customer Info Controllers
-  final _nameController = TextEditingController(text: 'Dedi Kurniawan');
-  final _phoneController = TextEditingController(text: '081298765432');
-  final _addressController = TextEditingController(
-    text: 'Jl. Raya Genteng No. 128, RT 03/RW 02, Kec. Genteng, Banyuwangi 68465',
-  );
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _addressController;
   final List<String> _safeSlots = [
     'Brankas A, Slot 01',
     'Brankas A, Slot 02',
@@ -101,6 +112,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   bool _isNavigatingToPayment = false;
   bool _isSearchingCustomer = false;
   Map<String, dynamic>? _foundCustomer;
+  int? _selectedCustomerId;
+  bool _initializedFromRoute = false;
   String? _customerLookupMessage;
 
   // Encrypted ID Document Photo Vault
@@ -111,6 +124,67 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   void initState() {
     super.initState();
     _slotController.text = _selectedSafeSlot;
+
+    final customerData = widget.customer;
+    if (customerData != null) {
+      _foundCustomer = customerData;
+      _selectedCustomerId = customerData['id'] != null
+          ? int.tryParse(customerData['id'].toString())
+          : widget.customerId;
+      _nameController = TextEditingController(
+        text: customerData['name']?.toString() ?? widget.customerName ?? '',
+      );
+      _phoneController = TextEditingController(
+        text: customerData['phone']?.toString() ?? widget.customerPhone ?? '',
+      );
+      _addressController = TextEditingController(
+        text: customerData['address']?.toString() ?? widget.customerAddress ?? '',
+      );
+
+      final count = customerData['bookings_count'] ?? 0;
+      if (customerData['is_blacklisted'] == true) {
+        _customerLookupMessage = 'PERINGATAN: Pelanggan ini masuk daftar hitam!';
+      } else {
+        _customerLookupMessage = 'Pelanggan terverifikasi ($count transaksi sewa sebelumnya)';
+      }
+    } else {
+      _selectedCustomerId = widget.customerId;
+      _nameController = TextEditingController(text: widget.customerName ?? '');
+      _phoneController = TextEditingController(text: widget.customerPhone ?? '');
+      _addressController = TextEditingController(text: widget.customerAddress ?? '');
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initializedFromRoute) {
+      _initializedFromRoute = true;
+      final routeArgs = ModalRoute.of(context)?.settings.arguments;
+      if (routeArgs is Map<String, dynamic> && widget.customer == null) {
+        setState(() {
+          _foundCustomer = routeArgs;
+          _selectedCustomerId = routeArgs['id'] != null
+              ? int.tryParse(routeArgs['id'].toString())
+              : _selectedCustomerId;
+          if (_nameController.text.isEmpty && routeArgs['name'] != null) {
+            _nameController.text = routeArgs['name'].toString();
+          }
+          if (_phoneController.text.isEmpty && routeArgs['phone'] != null) {
+            _phoneController.text = routeArgs['phone'].toString();
+          }
+          if (_addressController.text.isEmpty && routeArgs['address'] != null) {
+            _addressController.text = routeArgs['address'].toString();
+          }
+          final count = routeArgs['bookings_count'] ?? 0;
+          if (routeArgs['is_blacklisted'] == true) {
+            _customerLookupMessage = 'PERINGATAN: Pelanggan ini masuk daftar hitam!';
+          } else {
+            _customerLookupMessage = 'Pelanggan terverifikasi ($count transaksi sewa sebelumnya)';
+          }
+        });
+      }
+    }
   }
 
   @override
@@ -336,6 +410,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       if (result != null) {
         setState(() {
           _foundCustomer = result;
+          _selectedCustomerId = result['id'] != null
+              ? int.tryParse(result['id'].toString())
+              : null;
           _nameController.text = result['name'] ?? _nameController.text;
           _phoneController.text = result['phone'] ?? _phoneController.text;
           if (result['address'] != null && result['address'].toString().trim().isNotEmpty) {
@@ -352,6 +429,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       } else {
         setState(() {
           _foundCustomer = null;
+          _selectedCustomerId = null;
           _customerLookupMessage = 'Pelanggan baru (belum terdaftar di database).';
         });
       }
@@ -466,7 +544,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
     final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
 
+    final customerId = _selectedCustomerId ?? _foundCustomer?['id'];
     final payload = <String, dynamic>{
+      if (customerId != null)
+        'customer_id': customerId is int ? customerId : int.tryParse(customerId.toString()),
       'customer_name': _nameController.text.trim(),
       'customer_phone': _phoneController.text.trim(),
       'customer_address': address,

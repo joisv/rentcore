@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -31,6 +35,8 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
 
   String? _qrisImageUrl;
   String? _newQrisBase64;
+  XFile? _pickedQrisImage;
+  Uint8List? _pickedQrisBytes;
   bool _removeQrisImage = false;
 
   void _populateFromConfig(Map<String, dynamic> data) {
@@ -50,6 +56,71 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
     _cashEnabled = config['cash_enabled'] != false;
     _bankTransferEnabled = config['bank_transfer_enabled'] != false;
     _qrisImageUrl = config['qris_image_url'] as String?;
+  }
+
+  Future<void> _pickQrisImage() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+      if (picked == null) return;
+
+      final bytes = await picked.readAsBytes();
+      final sizeInBytes = bytes.length;
+      final maxBytes = 2 * 1024 * 1024; // 2MB
+
+      if (sizeInBytes > maxBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ukuran gambar melebihi batas 2MB. Harap pilih gambar lain.'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+        return;
+      }
+
+      final ext = picked.name.split('.').last.toLowerCase();
+      if (!['png', 'jpg', 'jpeg'].contains(ext)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Format gambar tidak didukung. Harap pilih file PNG atau JPG.'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _pickedQrisImage = picked;
+        _pickedQrisBytes = bytes;
+        _newQrisBase64 = 'data:image/$ext;base64,${base64Encode(bytes)}';
+        _removeQrisImage = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gambar "${picked.name}" berhasil dipilih. Klik "Simpan Pengaturan" untuk menerapkan.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memilih gambar: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
   }
 
   void _showImageUploadDialog() {
@@ -107,6 +178,8 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
               if (raw.isNotEmpty) {
                 setState(() {
                   _newQrisBase64 = raw;
+                  _pickedQrisImage = null;
+                  _pickedQrisBytes = null;
                   _removeQrisImage = false;
                 });
                 Navigator.pop(ctx);
@@ -129,34 +202,59 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
     try {
       final repo = ref.read(cashierRepositoryProvider);
 
-      final payload = <String, dynamic>{
-        if (_selectedBranchId != null) 'branch_id': _selectedBranchId,
-        'ewallet_enabled': _ewalletMasterEnabled,
-        'ewallet_providers': {
-          'shopeepay': _shopeepayEnabled,
-          'dana': _danaEnabled,
-          'linkaja': _linkajaEnabled,
-          'ovo': _ovoEnabled,
-        },
-        'qris_statis_enabled': _qrisEnabled,
-        'cash_enabled': _cashEnabled,
-        'bank_transfer_enabled': _bankTransferEnabled,
-      };
+      if (_pickedQrisImage != null && _pickedQrisBytes != null) {
+        final formData = FormData.fromMap({
+          if (_selectedBranchId != null) 'branch_id': _selectedBranchId,
+          'ewallet_enabled': _ewalletMasterEnabled ? 1 : 0,
+          'wallet_enable': _ewalletMasterEnabled ? 1 : 0,
+          'ewallet_providers[shopeepay]': _shopeepayEnabled ? 1 : 0,
+          'ewallet_providers[dana]': _danaEnabled ? 1 : 0,
+          'ewallet_providers[linkaja]': _linkajaEnabled ? 1 : 0,
+          'ewallet_providers[ovo]': _ovoEnabled ? 1 : 0,
+          'qris_statis_enabled': _qrisEnabled ? 1 : 0,
+          'cash_enabled': _cashEnabled ? 1 : 0,
+          'bank_transfer_enabled': _bankTransferEnabled ? 1 : 0,
+          if (_removeQrisImage) 'remove_qris_image': 1,
+          'qris_image': MultipartFile.fromBytes(
+            _pickedQrisBytes!,
+            filename: _pickedQrisImage!.name,
+          ),
+        });
+        await repo.updatePaymentSettings(formData);
+      } else {
+        final payload = <String, dynamic>{
+          if (_selectedBranchId != null) 'branch_id': _selectedBranchId,
+          'ewallet_enabled': _ewalletMasterEnabled,
+          'wallet_enable': _ewalletMasterEnabled,
+          'ewallet_providers': {
+            'shopeepay': _shopeepayEnabled,
+            'dana': _danaEnabled,
+            'linkaja': _linkajaEnabled,
+            'ovo': _ovoEnabled,
+          },
+          'qris_statis_enabled': _qrisEnabled,
+          'cash_enabled': _cashEnabled,
+          'bank_transfer_enabled': _bankTransferEnabled,
+        };
 
-      if (_removeQrisImage) {
-        payload['remove_qris_image'] = true;
-      } else if (_newQrisBase64 != null) {
-        payload['qris_image_base64'] = _newQrisBase64;
+        if (_removeQrisImage) {
+          payload['remove_qris_image'] = true;
+        } else if (_newQrisBase64 != null) {
+          payload['qris_image_base64'] = _newQrisBase64;
+        }
+
+        await repo.updatePaymentSettings(payload);
       }
-
-      await repo.updatePaymentSettings(payload);
 
       // Invalidate relevant providers to force fresh refresh
       ref.invalidate(paymentSettingsProvider(_selectedBranchId));
       ref.invalidate(paymentMethodsProvider);
+      ref.invalidate(paymentMethodsForBranchProvider(_selectedBranchId));
 
       setState(() {
         _isInitialized = false;
+        _pickedQrisImage = null;
+        _pickedQrisBytes = null;
         _newQrisBase64 = null;
         _removeQrisImage = false;
       });
@@ -394,13 +492,28 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                   border: Border.all(color: AppColors.border),
                                 ),
                                 alignment: Alignment.center,
-                                child: _newQrisBase64 != null
-                                    ? const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 32)
-                                    : Image.network(
-                                        _qrisImageUrl!,
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (_, _, _) => const Icon(Icons.qr_code_rounded, size: 36),
-                                      ),
+                                child: _pickedQrisBytes != null
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Image.memory(_pickedQrisBytes!, fit: BoxFit.contain),
+                                      )
+                                    : (_newQrisBase64 != null
+                                        ? const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 32)
+                                        : Image.network(
+                                            _qrisImageUrl!,
+                                            fit: BoxFit.contain,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return const Center(
+                                                child: SizedBox(
+                                                  width: 20,
+                                                  height: 20,
+                                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.obsidian),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder: (_, _, _) => const Icon(Icons.qr_code_rounded, size: 36),
+                                          )),
                               ),
                               const SizedBox(width: 14),
                               Expanded(
@@ -408,12 +521,16 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _newQrisBase64 != null ? 'Gambar Baru Dipilih' : 'Gambar QRIS Aktif Tersimpan',
+                                      _pickedQrisImage != null || _newQrisBase64 != null
+                                          ? 'Gambar Baru Dipilih'
+                                          : 'Gambar QRIS Aktif Tersimpan',
                                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      _newQrisBase64 != null ? 'Klik Simpan untuk menerapkan gambar.' : 'Tampil di layar pembayaran kasir.',
+                                      _pickedQrisImage != null || _newQrisBase64 != null
+                                          ? 'Klik "Simpan Pengaturan" untuk menerapkan gambar.'
+                                          : 'Tampil di layar pembayaran kasir.',
                                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                     ),
                                     const SizedBox(height: 8),
@@ -428,7 +545,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                             ),
                                             icon: const Icon(Icons.swap_horiz_rounded, size: 14),
                                             label: const Text('Ganti', style: TextStyle(fontSize: 11)),
-                                            onPressed: _showImageUploadDialog,
+                                            onPressed: _pickQrisImage,
                                           ),
                                           const SizedBox(width: 8),
                                           TextButton.icon(
@@ -443,6 +560,8 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                             onPressed: () => setState(() {
                                               _removeQrisImage = true;
                                               _newQrisBase64 = null;
+                                              _pickedQrisImage = null;
+                                              _pickedQrisBytes = null;
                                             }),
                                           ),
                                         ],
@@ -455,7 +574,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                         ),
                       ] else ...[
                         InkWell(
-                          onTap: isOwnerOrAdmin ? _showImageUploadDialog : null,
+                          onTap: isOwnerOrAdmin ? _pickQrisImage : null,
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
                             width: double.infinity,
@@ -482,9 +601,14 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                 if (isOwnerOrAdmin) ...[
                                   const SizedBox(height: 12),
                                   ElevatedButton.icon(
-                                    onPressed: _showImageUploadDialog,
+                                    onPressed: _pickQrisImage,
                                     icon: const Icon(Icons.add_photo_alternate_rounded, size: 16),
                                     label: const Text('Pilih Gambar QRIS', style: TextStyle(fontSize: 12)),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextButton(
+                                    onPressed: _showImageUploadDialog,
+                                    child: const Text('Atau masukkan manual / sampel test', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
                                   ),
                                 ],
                               ],

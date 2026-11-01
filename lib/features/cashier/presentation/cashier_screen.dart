@@ -684,7 +684,15 @@ class _CashierScreenState extends ConsumerState<CashierScreen> with SingleTicker
   /// Opens the POS Payment Modal / Sheet for a transaction.
   void _openPosPaymentModal(BuildContext context, Map<String, dynamic> booking) {
     final returnInspection = booking['return_inspection'] as Map? ?? booking['returnInspection'] as Map? ?? {};
-    final totalPenaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+    final totalPenaltyDue = CurrencyFormatter.parse(
+      returnInspection['total_penalty'] ??
+      returnInspection['late_fee'] ??
+      returnInspection['penalty_amount'] ??
+      booking['total_penalty'] ??
+      booking['penalty_amount'] ??
+      booking['late_fee'] ??
+      0,
+    );
     final payments = (booking['payments'] as List?) ?? [];
     double penaltyPaid = 0.0;
     for (final p in payments) {
@@ -2142,7 +2150,15 @@ class _PosPaymentModalSheetState extends ConsumerState<_PosPaymentModalSheet> {
     final totalBill = CurrencyFormatter.parse(b['total_bill']);
 
     final returnInspection = b['return_inspection'] as Map? ?? b['returnInspection'] as Map? ?? {};
-    final totalPenaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+    final totalPenaltyDue = CurrencyFormatter.parse(
+      returnInspection['total_penalty'] ??
+      returnInspection['late_fee'] ??
+      returnInspection['penalty_amount'] ??
+      b['total_penalty'] ??
+      b['penalty_amount'] ??
+      b['late_fee'] ??
+      0,
+    );
 
     final payments = (b['payments'] as List?) ?? [];
     double rentalPaid = 0.0;

@@ -182,7 +182,14 @@ void main() {
             paymentMethodsProvider.overrideWith((ref) => Future.value(mockPaymentMethods)),
           ],
           child: const MaterialApp(
-            home: DirectRentalScreen(),
+            home: DirectRentalScreen(
+              customer: {
+                'id': 1,
+                'name': 'Dedi Kurniawan',
+                'phone': '081298765432',
+                'address': 'Jl. Raya Genteng No. 128, RT 03/RW 02, Kec. Genteng, Banyuwangi 68465',
+              },
+            ),
           ),
         ),
       );

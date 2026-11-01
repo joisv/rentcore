@@ -492,7 +492,14 @@ class _CustomerDetailSheetState extends ConsumerState<CustomerDetailSheet> {
                             Navigator.pop(context);
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const DirectRentalScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => DirectRentalScreen(
+                                  customer: _customer,
+                                ),
+                                settings: RouteSettings(
+                                  arguments: _customer,
+                                ),
+                              ),
                             );
                           },
                   ),

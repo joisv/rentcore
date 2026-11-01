@@ -309,7 +309,15 @@ class PaymentContext {
         '';
     final affiliate = (b['affiliate'] as Map?) ?? {};
     final returnInspection = (b['return_inspection'] as Map?) ?? (b['returnInspection'] as Map?) ?? {};
-    final totalPenalty = CurrencyFormatter.parse(returnInspection['total_penalty'] ?? 0);
+    final totalPenalty = CurrencyFormatter.parse(
+      returnInspection['total_penalty'] ??
+      returnInspection['late_fee'] ??
+      returnInspection['penalty_amount'] ??
+      b['total_penalty'] ??
+      b['penalty_amount'] ??
+      b['late_fee'] ??
+      0,
+    );
     final payments = (b['payments'] as List?) ?? [];
     double penaltyPaid = 0.0;
     for (final p in payments) {
@@ -318,10 +326,41 @@ class PaymentContext {
         penaltyPaid += CurrencyFormatter.parse(p['amount']);
       }
     }
-    // Server-persisted penalty is authoritative; client estimate is fallback only.
-    final effectiveRemaining = totalPenalty > 0
-        ? (totalPenalty - penaltyPaid).clamp(0.0, double.infinity).toDouble()
-        : penaltyDue;
+
+    final returnPayload = (extraPayload?['return_payload'] as Map?) ?? {};
+    final isReturnWorkflow = extraPayload?['is_return_workflow'] == true;
+
+    // Ingest penalty amount from all potential keys across payload and booking
+    final fallbackPenalty = CurrencyFormatter.parse(
+      extraPayload?['penalty_amount'] ??
+      extraPayload?['late_fee'] ??
+      extraPayload?['total_penalty'] ??
+      extraPayload?['amount'] ??
+      returnPayload['penalty_amount'] ??
+      returnPayload['late_fee'] ??
+      returnPayload['total_penalty'] ??
+      b['penalty_amount'] ??
+      b['late_fee'] ??
+      b['total_penalty'] ??
+      0,
+    );
+
+    final resolvedPenaltyDue = penaltyDue > 0 ? penaltyDue : fallbackPenalty;
+
+    // During active return inspection, the client calculated penalty is authoritative.
+    // For deferred/pos settlement of already returned bookings, server penalty takes precedence.
+    final double effectiveRemaining;
+    if (isReturnWorkflow) {
+      effectiveRemaining = resolvedPenaltyDue > 0
+          ? resolvedPenaltyDue
+          : (totalPenalty > 0 ? (totalPenalty - penaltyPaid).clamp(0.0, double.infinity).toDouble() : 0.0);
+    } else {
+      effectiveRemaining = totalPenalty > 0
+          ? (totalPenalty - penaltyPaid).clamp(0.0, double.infinity).toDouble()
+          : resolvedPenaltyDue;
+    }
+
+    final finalPayableAmount = effectiveRemaining > 0 ? effectiveRemaining : resolvedPenaltyDue;
 
     final penaltyItems = <PaymentItem>[
       PaymentItem(
@@ -329,7 +368,7 @@ class PaymentContext {
         assetCode: assetCode,
         isAddon: false,
         durationText: 'Sanksi Keterlambatan',
-        price: effectiveRemaining,
+        price: finalPayableAmount,
       ),
     ];
 
@@ -342,9 +381,11 @@ class PaymentContext {
       customerAddress: cAddress,
       deviceName: modelName,
       assetCode: assetCode,
-      totalAmountDue: totalPenalty > 0 ? totalPenalty : penaltyDue,
+      totalAmountDue: isReturnWorkflow && resolvedPenaltyDue > 0
+          ? resolvedPenaltyDue
+          : (totalPenalty > 0 ? totalPenalty : resolvedPenaltyDue),
       previouslyPaidAmount: penaltyPaid,
-      remainingDue: effectiveRemaining,
+      remainingDue: finalPayableAmount,
       branchId: branchId ?? affiliate['id'] ?? b['affiliate_id'],
       branchName: branchName ?? affiliate['name']?.toString(),
       isCentral: isCentral || affiliate['is_central'] == true,
@@ -456,6 +497,18 @@ class PaymentContext {
       }
     }
 
+    final resolvedAmount = totalAmount > 0
+        ? totalAmount
+        : CurrencyFormatter.parse(
+            metadata?['penalty_amount'] ??
+            metadata?['late_fee'] ??
+            metadata?['total_penalty'] ??
+            metadata?['penaltyDue'] ??
+            metadata?['amount'] ??
+            metadata?['total_amount'] ??
+            0,
+          );
+
     final parsedItems = items ?? <PaymentItem>[];
     if (parsedItems.isEmpty && deviceName != null) {
       parsedItems.add(
@@ -464,7 +517,7 @@ class PaymentContext {
           assetCode: assetCode,
           isAddon: false,
           durationText: additionalHours != null ? '$additionalHours Jam' : null,
-          price: totalAmount,
+          price: resolvedAmount,
         ),
       );
     }
@@ -478,16 +531,16 @@ class PaymentContext {
       customerAddress: customerAddress,
       deviceName: deviceName ?? 'Unit Sewa',
       assetCode: assetCode,
-      totalAmountDue: totalAmount,
+      totalAmountDue: resolvedAmount,
       previouslyPaidAmount: 0.0,
-      remainingDue: totalAmount,
+      remainingDue: resolvedAmount,
       branchId: branchId,
       branchName: branchName,
       isCentral: isCentral,
       additionalHours: additionalHours,
       extraPayload: metadata,
       items: parsedItems,
-      primarySubtotal: primarySubtotal ?? totalAmount,
+      primarySubtotal: primarySubtotal ?? resolvedAmount,
       addonSubtotal: addonSubtotal,
       discountAmount: discountAmount,
       voucherCode: voucherCode,

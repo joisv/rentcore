@@ -13,6 +13,21 @@ import '../providers/booking_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
 
+enum RentalDeviceCategory {
+  apple,
+  mobile,
+  console,
+  outdoor,
+  general,
+}
+
+class ChecklistItemDef {
+  final String key;
+  final String label;
+
+  const ChecklistItemDef({required this.key, required this.label});
+}
+
 class ReturnWizardScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> booking;
 
@@ -23,9 +38,27 @@ class ReturnWizardScreen extends ConsumerStatefulWidget {
 }
 
 class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
-  bool _accountCleared = false; // CRITICAL GUARD
+  bool _accountCleared = false; // CRITICAL GUARD FOR APPLE
   bool _isQuarantined = false; // QUARANTINE GUARD
   final _staffNotesController = TextEditingController();
+
+  String _conditionGrade = 'A';
+  bool _isSubmitting = false;
+  bool _payPenaltyNow = true;
+
+  late final RentalDeviceCategory _category;
+  late final List<ChecklistItemDef> _checklistDefs;
+  final Map<String, bool> _checklistStates = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _category = _resolveCategory(widget.booking);
+    _checklistDefs = _getItemsForCategory(_category);
+    for (final def in _checklistDefs) {
+      _checklistStates[def.key] = true;
+    }
+  }
 
   @override
   void dispose() {
@@ -33,60 +66,148 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     super.dispose();
   }
 
-  bool get _isAppleDevice {
-    final items = (widget.booking['items'] as List?) ?? [];
-    for (final it in items) {
-      final model = it['asset']?['model'];
-      if (model != null) {
-        final brand = (model['brand']?.toString() ?? '').toLowerCase();
-        final name = (model['name']?.toString() ?? '').toLowerCase();
-        if (brand == 'apple' || name.contains('iphone') || name.contains('ipad')) {
-          return true;
-        }
+  static RentalDeviceCategory _resolveCategory(Map<String, dynamic> booking) {
+    final items = (booking['items'] as List?) ?? [];
+    final activeItem = booking['active_item'] as Map?;
+    final directAsset = booking['asset'] as Map?;
+
+    final candidates = <Map>[
+      ?activeItem,
+      ...items.whereType<Map>(),
+      if (directAsset != null) {'asset': directAsset},
+    ];
+
+    if (candidates.isEmpty) {
+      final cat = booking['category']?.toString().toLowerCase() ?? '';
+      if (cat.contains('iphone') || cat.contains('apple')) return RentalDeviceCategory.apple;
+      if (cat.contains('phone') || cat.contains('hp')) return RentalDeviceCategory.mobile;
+      if (cat.contains('ps') || cat.contains('game') || cat.contains('konsol')) return RentalDeviceCategory.console;
+      if (cat.contains('outdoor') || cat.contains('tenda') || cat.contains('camp')) return RentalDeviceCategory.outdoor;
+      return RentalDeviceCategory.general;
+    }
+
+    for (final it in candidates) {
+      final asset = (it['asset'] as Map?) ?? (it == directAsset ? directAsset : null);
+      final model = asset?['model'] as Map?;
+
+      final rawCat = it['category'] ?? model?['category'] ?? asset?['category'];
+      final catName = (rawCat is Map ? (rawCat['name'] ?? rawCat['slug'] ?? rawCat['code']) : rawCat)?.toString().toLowerCase() ?? '';
+      final brand = (model?['brand'] ?? it['brand'] ?? asset?['brand'] ?? '').toString().toLowerCase();
+      final modelName = (model?['name'] ?? it['name'] ?? asset?['name'] ?? '').toString().toLowerCase();
+      final assetCode = (asset?['asset_code'] ?? it['asset_code'] ?? '').toString().toLowerCase();
+
+      // 1. Apple hardware
+      if (brand == 'apple' ||
+          catName == 'iphone' ||
+          catName.contains('apple') ||
+          modelName.contains('iphone') ||
+          modelName.contains('ipad') ||
+          modelName.contains('macbook') ||
+          assetCode.startsWith('iph') ||
+          assetCode.startsWith('app')) {
+        return RentalDeviceCategory.apple;
+      }
+
+      // 2. PlayStation / Consoles
+      if (catName.contains('konsol') ||
+          catName.contains('console') ||
+          catName.contains('game') ||
+          catName.contains('playstation') ||
+          (brand.contains('sony') && (modelName.contains('ps') || modelName.contains('playstation'))) ||
+          brand.contains('nintendo') ||
+          brand.contains('xbox') ||
+          modelName.contains('playstation') ||
+          modelName.contains('ps4') ||
+          modelName.contains('ps5') ||
+          modelName.contains('nintendo') ||
+          modelName.contains('xbox') ||
+          assetCode.startsWith('ps') ||
+          assetCode.startsWith('swi')) {
+        return RentalDeviceCategory.console;
+      }
+
+      // 3. Outdoor / Tents
+      if (catName.contains('outdoor') ||
+          catName.contains('camp') ||
+          catName.contains('tenda') ||
+          catName.contains('gunung') ||
+          modelName.contains('tenda') ||
+          modelName.contains('tent') ||
+          modelName.contains('carrier') ||
+          modelName.contains('sleeping bag') ||
+          modelName.contains('flysheet') ||
+          assetCode.startsWith('tnd') ||
+          assetCode.startsWith('camp')) {
+        return RentalDeviceCategory.outdoor;
+      }
+
+      // 4. Mobile / Phones (Android, etc.)
+      if (brand == 'samsung' ||
+          brand == 'xiaomi' ||
+          brand == 'oppo' ||
+          brand == 'vivo' ||
+          brand == 'google' ||
+          catName.contains('phone') ||
+          catName.contains('hp') ||
+          catName.contains('smartphone') ||
+          modelName.contains('galaxy') ||
+          modelName.contains('pixel') ||
+          modelName.contains('redmi')) {
+        return RentalDeviceCategory.mobile;
       }
     }
-    return false;
+
+    return RentalDeviceCategory.general;
   }
 
-  bool get _isAndroidDevice {
-    final items = (widget.booking['items'] as List?) ?? [];
-    for (final it in items) {
-      final model = it['asset']?['model'];
-      if (model != null) {
-        final brand = (model['brand']?.toString() ?? '').toLowerCase();
-        final name = (model['name']?.toString() ?? '').toLowerCase();
-        if (brand == 'samsung' || brand == 'google' || brand == 'xiaomi' || brand == 'oppo' || brand == 'vivo' || name.contains('galaxy') || name.contains('pixel')) {
-          return true;
-        }
-      }
+  static List<ChecklistItemDef> _getItemsForCategory(RentalDeviceCategory category) {
+    switch (category) {
+      case RentalDeviceCategory.apple:
+      case RentalDeviceCategory.mobile:
+        return const [
+          ChecklistItemDef(key: 'screen_ok', label: 'Layar sentuh & kamera'),
+          ChecklistItemDef(key: 'cable', label: 'Kabel charger'),
+          ChecklistItemDef(key: 'adapter', label: 'Adaptor charger'),
+        ];
+      case RentalDeviceCategory.console:
+        return const [
+          ChecklistItemDef(key: 'controller', label: 'Controller / Gamepad'),
+          ChecklistItemDef(key: 'hdmi_cable', label: 'Kabel HDMI'),
+          ChecklistItemDef(key: 'power_cable', label: 'Kabel power'),
+          ChecklistItemDef(key: 'console_chassis', label: 'Bodi konsol'),
+        ];
+      case RentalDeviceCategory.outdoor:
+        return const [
+          ChecklistItemDef(key: 'tent_poles', label: 'Frame & tiang tenda'),
+          ChecklistItemDef(key: 'guy_lines', label: 'Pasak & tali tenda'),
+          ChecklistItemDef(key: 'tent_fabric', label: 'Kain tenda & ritsleting'),
+          ChecklistItemDef(key: 'carry_bag', label: 'Tas tenda (carry bag)'),
+        ];
+      case RentalDeviceCategory.general:
+        return const [
+          ChecklistItemDef(key: 'unit_operational', label: 'Unit berfungsi normal'),
+          ChecklistItemDef(key: 'accessories_complete', label: 'Aksesoris standar lengkap'),
+          ChecklistItemDef(key: 'body_intact', label: 'Bodi bebas kerusakan parah'),
+        ];
     }
-    return false;
   }
-  bool _screenOk = true;
-  final bool _cameraOk = true;
-  bool _cableReturned = true;
-  bool _adapterReturned = true;
-  String _conditionGrade = 'A';
-  bool _isSubmitting = false;
 
-  bool _payPenaltyNow = true;
+  bool get _isAppleDevice => _category == RentalDeviceCategory.apple;
+  bool get _screenOk => _checklistStates['screen_ok'] ?? _checklistStates['unit_operational'] ?? true;
+  bool get _cameraOk => _checklistStates['screen_ok'] ?? _checklistStates['unit_operational'] ?? true;
+  bool get _cableReturned => _checklistStates['cable'] ?? _checklistStates['power_cable'] ?? _checklistStates['accessories_complete'] ?? true;
+  bool get _adapterReturned => _checklistStates['adapter'] ?? _checklistStates['hdmi_cable'] ?? _checklistStates['accessories_complete'] ?? true;
 
-  bool get _requiresFrpCheck {
-    final items = (widget.booking['items'] as List?) ?? [];
-    if (items.isEmpty) return true; // Default safety
-    for (final it in items) {
-      final model = it['asset']?['model'];
-      if (model != null) {
-        if (model['requires_frp_check'] == true) return true;
-        final brand = (model['brand']?.toString() ?? '').toLowerCase();
-        final name = (model['name']?.toString() ?? '').toLowerCase();
-        if (brand == 'apple' || brand == 'samsung' || brand == 'google' || brand == 'xiaomi' || brand == 'oppo' || brand == 'vivo') {
-          return true;
-        }
-        if (name.contains('iphone') || name.contains('ipad')) return true;
-      }
+  String _formatOverdueDuration(int minutes) {
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    if (hours > 0 && mins > 0) {
+      return '${hours}j ${mins}m';
+    } else if (hours > 0) {
+      return '${hours}j';
+    } else {
+      return '${mins}m';
     }
-    return false;
   }
 
   @override
@@ -133,6 +254,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       }
     }
 
+    final collateralSlot = booking['collateral_storage_slot'] ?? 'Brankas Cabang';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: RentCoreAppBar(
@@ -151,24 +274,17 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.person_outline_rounded, color: AppColors.obsidian),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          customer['name'] ?? 'Pelanggan',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                        ),
-                        Text(
-                          'Jaminan KTP di: ${booking['collateral_storage_slot'] ?? 'Brankas Cabang'}',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
+                  Text(
+                    customer['name'] ?? 'Pelanggan',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Jaminan: KTP ($collateralSlot)',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -192,7 +308,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Jadwal Selesai Sewa:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                      Text(DateFormatter.formatFull(endAt), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          DateFormatter.formatFull(endAt),
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -200,7 +323,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Waktu Fisik Kembali:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                      Text(DateFormatter.formatFull(now), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          DateFormatter.formatFull(now),
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
                     ],
                   ),
                   if (lateMinutes > 0) ...[
@@ -208,14 +338,19 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          lateMinutes <= 60 ? 'Terlambat (Grace Period Bebas Denda):' : 'Denda Keterlambatan ($lateMinutes mnt):',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: lateMinutes > 60 ? AppColors.danger : AppColors.warning,
+                        Expanded(
+                          child: Text(
+                            lateMinutes <= 60
+                                ? 'Terlambat (Grace Period Bebas Denda):'
+                                : 'Denda Keterlambatan (${_formatOverdueDuration(lateMinutes)}):',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: lateMinutes > 60 ? AppColors.danger : AppColors.warning,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           CurrencyFormatter.format(penaltyAmount),
                           style: TextStyle(
@@ -232,8 +367,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
             ),
             const SizedBox(height: 16),
 
-            // CRITICAL GUARD: Device Account & Handover Protection (iCloud / Google FRP / Privacy)
-            if (_requiresFrpCheck)
+            // Conditional iCloud Check Card (Only rendered for Apple / iPhone hardware)
+            if (_isAppleDevice) ...[
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -252,28 +387,41 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          _accountCleared
-                              ? Icons.verified_user_rounded
-                              : (_isQuarantined ? Icons.warning_amber_rounded : Icons.gpp_bad_rounded),
-                          color: _accountCleared
-                        ? AppColors.success
-                        : (_isQuarantined ? Colors.amber.shade700 : AppColors.danger),
-                          size: 22,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
+                        const Expanded(
                           child: Text(
-                            _isAppleDevice
-                                ? 'iCLOUD & APPLE ACTIVATION GUARD (WAJIB)'
-                                : (_isAndroidDevice
-                                    ? 'GOOGLE ACCOUNT & FRP GUARD (WAJIB)'
-                                    : 'DEVICE PRIVACY & DATA RESET GUARD (WAJIB)'),
+                            'Pemeriksaan Akun iCloud',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _accountCleared
+                                ? AppColors.success.withValues(alpha: 0.15)
+                                : (_isQuarantined ? Colors.amber.shade100 : AppColors.danger.withValues(alpha: 0.15)),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _accountCleared
+                                  ? AppColors.success
+                                  : (_isQuarantined ? Colors.amber.shade700 : AppColors.danger),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _accountCleared ? 'Selesai' : (_isQuarantined ? 'Karantina' : 'Wajib'),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: _accountCleared
+                                  ? AppColors.success
+                                  : (_isQuarantined ? Colors.amber.shade900 : AppColors.danger),
                             ),
                           ),
                         ),
@@ -284,12 +432,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       type: MaterialType.transparency,
                       child: SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          _isAppleDevice
-                              ? 'Akun iCloud / Apple ID pelanggan telah logout & Find My dinonaktifkan'
-                              : (_isAndroidDevice
-                                  ? 'Akun Google telah dihapus dari Pengaturan & FRP aman'
-                                  : 'Data pribadi telah di-reset & akun pelanggan telah dikeluarkan'),
+                        title: const Text(
+                          'iCloud & Find My telah di-logout',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         value: _accountCleared,
@@ -330,7 +474,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Karantina Unit (Pelanggan Lupa Sandi / Belum Logout)',
+                                    'Unit Terkunci / Lupa Sandi (Masuk Karantina)',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -351,29 +495,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                     ),
                   ],
                 ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.check_circle_outline_rounded, color: AppColors.success, size: 22),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Perangkat non-smartphone: Bebas akun iCloud / Google FRP Lock.',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+            ],
 
             // Physical Condition Checklist
             Container(
@@ -387,7 +511,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'INSPEKSI KONDISI FISIK & KELENGKAPAN',
+                    'Kondisi & Kelengkapan',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
@@ -399,14 +523,33 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   Row(
                     children: ['A', 'B', 'C'].map((grade) {
                       final isSel = _conditionGrade == grade;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text('Grade $grade'),
-                          selected: isSel,
-                          onSelected: (_) => setState(() => _conditionGrade = grade),
-                          selectedColor: AppColors.obsidian,
-                          labelStyle: TextStyle(color: isSel ? Colors.white : AppColors.textPrimary),
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: InkWell(
+                            onTap: () => setState(() => _conditionGrade = grade),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSel ? AppColors.obsidian : AppColors.surfaceMuted,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSel ? AppColors.obsidian : AppColors.border,
+                                  width: isSel ? 1.5 : 1,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                'Grade $grade',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSel ? Colors.white : AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       );
                     }).toList(),
@@ -415,26 +558,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   Material(
                     type: MaterialType.transparency,
                     child: Column(
-                      children: [
-                        CheckboxListTile(
+                      children: _checklistDefs.map((item) {
+                        return CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: Text('Layar sentuh & kamera berfungsi normal', style: TextStyle(fontSize: 13)),
-                          value: _screenOk,
-                          onChanged: (v) => setState(() => _screenOk = v ?? false),
-                        ),
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text('Kabel charger dikembalikan', style: TextStyle(fontSize: 13)),
-                          value: _cableReturned,
-                          onChanged: (v) => setState(() => _cableReturned = v ?? false),
-                        ),
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text('Adaptor charger dikembalikan', style: TextStyle(fontSize: 13)),
-                          value: _adapterReturned,
-                          onChanged: (v) => setState(() => _adapterReturned = v ?? false),
-                        ),
-                      ],
+                          title: Text(item.label, style: const TextStyle(fontSize: 13)),
+                          value: _checklistStates[item.key] ?? false,
+                          onChanged: (v) => setState(() => _checklistStates[item.key] = v ?? false),
+                        );
+                      }).toList(),
                     ),
                   ),
                 ],
@@ -453,24 +584,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.notes_rounded,
-                        size: 18,
-                        color: _isQuarantined ? Colors.amber.shade800 : AppColors.obsidian,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _isQuarantined ? 'CATATAN TINDAK LANJUT KARANTINA (WAJIB)' : 'CATATAN STAF (OPSIONAL)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: _isQuarantined ? Colors.amber.shade800 : AppColors.textMuted,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    _isQuarantined ? 'CATATAN TINDAK LANJUT KARANTINA (WAJIB)' : 'Catatan Staf (Opsional)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: _isQuarantined ? Colors.amber.shade800 : AppColors.textMuted,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
@@ -504,23 +625,31 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Icon(Icons.receipt_long_rounded, color: AppColors.danger, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
+                        const Expanded(
                           child: Text(
-                            'PEMBAYARAN DENDA (${CurrencyFormatter.format(penaltyAmount)})',
-                            style: const TextStyle(
-                              fontSize: 12,
+                            'Penyelesaian Denda',
+                            style: TextStyle(
+                              fontSize: 13,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,
                               color: AppColors.danger,
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        Text(
+                          CurrencyFormatter.format(penaltyAmount),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.danger,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
@@ -534,7 +663,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Keterlambatan:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                              Text('${lateMinutes ~/ 60} jam ${lateMinutes % 60} mnt ($billableHours jam tagih)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  '${_formatOverdueDuration(lateMinutes)} ($billableHours jam tagih)',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 4),
@@ -542,7 +678,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Tarif per jam:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                              Text('${CurrencyFormatter.format(hourlyLateRate)} / jam', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  '${CurrencyFormatter.format(hourlyLateRate)} / jam',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 4),
@@ -550,49 +693,88 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text('Grace period:', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                              Text('60 menit bebas biaya', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                              SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  '60 menit bebas biaya',
+                                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
                             ],
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        ChoiceChip(
-                          label: const Text('Bayar Sekarang di Counter'),
-                          selected: _payPenaltyNow,
-                          onSelected: (_) => setState(() => _payPenaltyNow = true),
-                          selectedColor: AppColors.obsidian,
-                          labelStyle: TextStyle(
-                            color: _payPenaltyNow ? Colors.white : AppColors.textPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                    // Stacked vertical options with clear radio/tap affordance
+                    InkWell(
+                      onTap: () => setState(() => _payPenaltyNow = true),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: _payPenaltyNow ? AppColors.obsidian : AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _payPenaltyNow ? AppColors.obsidian : AppColors.border,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text('Bayar Nanti di Kasir'),
-                          selected: !_payPenaltyNow,
-                          onSelected: (_) => setState(() => _payPenaltyNow = false),
-                          selectedColor: AppColors.obsidian,
-                          labelStyle: TextStyle(
-                            color: !_payPenaltyNow ? Colors.white : AppColors.textPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _payPenaltyNow ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                              color: _payPenaltyNow ? Colors.white : AppColors.textSecondary,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Bayar Sekarang',
+                                style: TextStyle(
+                                  color: _payPenaltyNow ? Colors.white : AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _payPenaltyNow
-                          ? 'Setelah inspeksi disimpan, sistem akan membuka Terminal Kasir POS untuk memproses & mencetak struk denda.'
-                          : 'Denda akan dicatat sebagai tagihan belum lunas dan dapat diselesaikan di menu Kasir POS.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _payPenaltyNow ? AppColors.textSecondary : AppColors.warning,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () => setState(() => _payPenaltyNow = false),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: !_payPenaltyNow ? AppColors.obsidian : AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: !_payPenaltyNow ? AppColors.obsidian : AppColors.border,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              !_payPenaltyNow ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                              color: !_payPenaltyNow ? Colors.white : AppColors.textSecondary,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Bayar Nanti (Catat ke Tagihan)',
+                                style: TextStyle(
+                                  color: !_payPenaltyNow ? Colors.white : AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -604,9 +786,29 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
             // Submit Return
             ElevatedButton(
               onPressed: _isSubmitting ? null : () => _processReturn(penaltyAmount),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
               child: _isSubmitting
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Selesaikan Pengembalian & Ambil KTP 📥'),
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Selesaikan Pengembalian',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Kembalikan jaminan fisik ($collateralSlot) ke pelanggan',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -615,10 +817,10 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   }
 
   void _processReturn(double penaltyAmount) async {
-    if (_requiresFrpCheck && !_accountCleared && !_isQuarantined) {
+    if (_isAppleDevice && !_accountCleared && !_isQuarantined) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('PERINGATAN: Akun iCloud / Apple ID / Google wajib dipastikan logout sebelum unit dapat diterima kembali, atau tandai Karantina Unit!'),
+          content: Text('Akun iCloud wajib dipastikan logout sebelum unit dapat diterima kembali, atau pilih Karantina Unit!'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -636,25 +838,55 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     }
 
     final inspectionTime = DateTime.now().toUtc();
+    final isApple = _category == RentalDeviceCategory.apple;
+    final isMobile = _category == RentalDeviceCategory.mobile;
+
+    final categoryChecklist = <String, dynamic>{};
+    if (isApple) {
+      categoryChecklist['icloud_removed'] = _accountCleared;
+      categoryChecklist['account_quarantined'] = _isQuarantined;
+      categoryChecklist['account_status'] = _accountCleared ? 'cleared' : (_isQuarantined ? 'quarantined' : 'unverified');
+      categoryChecklist['device_platform'] = 'ios';
+      categoryChecklist['screen_ok'] = _screenOk;
+      categoryChecklist['camera_ok'] = _cameraOk;
+    } else if (isMobile) {
+      categoryChecklist['frp_removed'] = _accountCleared;
+      categoryChecklist['account_quarantined'] = _isQuarantined;
+      categoryChecklist['account_status'] = _accountCleared ? 'cleared' : (_isQuarantined ? 'quarantined' : 'unverified');
+      categoryChecklist['device_platform'] = 'android';
+      categoryChecklist['screen_ok'] = _screenOk;
+      categoryChecklist['camera_ok'] = _cameraOk;
+    }
+    // Add all specific inspection items for this category
+    for (final item in _getItemsForCategory(_category)) {
+      categoryChecklist[item.key] = _checklistStates[item.key] ?? true;
+    }
+
+    final categoryAccessories = <String, dynamic>{};
+    if (isApple || isMobile) {
+      categoryAccessories['cable'] = _cableReturned;
+      categoryAccessories['adapter'] = _adapterReturned;
+    } else if (_category == RentalDeviceCategory.console) {
+      categoryAccessories['controller'] = _checklistStates['controller'] ?? true;
+      categoryAccessories['hdmi_cable'] = _checklistStates['hdmi_cable'] ?? true;
+      categoryAccessories['power_cable'] = _checklistStates['power_cable'] ?? true;
+    } else if (_category == RentalDeviceCategory.outdoor) {
+      categoryAccessories['tent_poles'] = _checklistStates['tent_poles'] ?? true;
+      categoryAccessories['guy_lines'] = _checklistStates['guy_lines'] ?? true;
+      categoryAccessories['carry_bag'] = _checklistStates['carry_bag'] ?? true;
+    } else {
+      categoryAccessories['accessories_complete'] = _checklistStates['accessories_complete'] ?? true;
+    }
+
     final payload = {
       'returned_at': inspectionTime.toIso8601String(),
       'condition_grade': _conditionGrade,
       'late_fee': penaltyAmount,
+      'total_penalty': penaltyAmount,
+      'penalty_amount': penaltyAmount,
       'staff_notes': _staffNotesController.text.trim().isEmpty ? null : _staffNotesController.text.trim(),
-      'checklist_results': {
-        if (_requiresFrpCheck) ...{
-          'icloud_removed': _accountCleared,
-          'account_quarantined': _isQuarantined,
-          'account_status': _accountCleared ? 'cleared' : (_isQuarantined ? 'quarantined' : 'unverified'),
-          'device_platform': _isAppleDevice ? 'ios' : (_isAndroidDevice ? 'android' : 'generic'),
-        },
-        'screen_ok': _screenOk,
-        'camera_ok': _cameraOk,
-      },
-      'accessories_returned': {
-        'cable': _cableReturned,
-        'adapter': _adapterReturned,
-      },
+      'checklist_results': categoryChecklist,
+      'accessories_returned': categoryAccessories,
     };
 
     if (penaltyAmount > 0 && _payPenaltyNow) {
@@ -669,6 +901,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               extraPayload: {
                 'is_return_workflow': true,
                 'return_payload': payload,
+                'penalty_amount': penaltyAmount,
+                'late_fee': penaltyAmount,
+                'total_penalty': penaltyAmount,
               },
             ),
           ),
@@ -727,6 +962,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   }
 
   void _showReturnSuccessDialog(double penaltyAmount, bool penaltyPaid) {
+    final collateralSlot = widget.booking['collateral_storage_slot'] ?? 'Brankas Cabang';
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -735,14 +971,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
           children: [
             Icon(Icons.check_circle_rounded, color: AppColors.success),
             SizedBox(width: 8),
-            Text('Unit Berhasil Kembali!'),
+            Expanded(child: Text('Unit Berhasil Kembali!')),
           ],
         ),
         content: Text(
           'Pemeriksaan pengembalian selesai.\n'
           'Unit kini siap disewakan kembali.\n'
           '${penaltyPaid ? 'Denda keterlambatan berhasil dibayar & tercatat di revenue.\n' : (penaltyAmount > 0 ? 'Denda keterlambatan dicatat ke kasir (belum lunas).\n' : '')}'
-          'Silakan kembalikan KTP fisik kepada tamu.',
+          'Silakan kembalikan jaminan fisik ($collateralSlot) kepada pelanggan.',
         ),
         actions: [
           OutlinedButton.icon(
@@ -752,6 +988,13 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               final printerService = ThermalPrinterService();
               final printerSettings = ref.read(printerProvider).settings;
               final branchName = ref.read(businessProvider).activeBranchName ?? 'RentCore';
+              final checklistSummary = _isQuarantined
+                  ? 'Status: Karantina (Maintenance)'
+                  : (_isAppleDevice ? 'Status: Bersih (iCloud Logout)' : 'Status: Fisik Diperiksa');
+              final accessoriesSummary = _checklistDefs
+                  .map((d) => '${d.label}: ${_checklistStates[d.key] == true ? "OK" : "Kurang"}')
+                  .join(' • ');
+
               final model = ReceiptDataModel(
                 type: ReceiptType.rentalReturn,
                 title: 'BUKTI PENGEMBALIAN UNIT',
@@ -760,8 +1003,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 customerName: widget.booking['customer']?['name']?.toString() ?? 'Pelanggan',
                 unitName: widget.booking['asset']?['name']?.toString() ?? 'Perangkat Gadget',
                 conditionGrade: 'Grade $_conditionGrade',
-                checklistNotes: _isQuarantined ? 'Status: Karantina (Maintenance) • Screen: ${_screenOk ? "OK" : "Minus"}' : 'Status: Bersih (Logout) • Screen: ${_screenOk ? "OK" : "Minus"}',
-                accessoriesNotes: 'Kabel: ${_cableReturned ? "OK" : "Kurang"} • Adaptor: ${_adapterReturned ? "OK" : "Kurang"}',
+                checklistNotes: checklistSummary,
+                accessoriesNotes: accessoriesSummary,
                 penaltyAmount: penaltyPaid ? penaltyAmount : 0.0,
                 paymentMethod: penaltyPaid ? 'Lunas Denda' : null,
                 totalAmount: penaltyPaid ? penaltyAmount : 0.0,
@@ -782,7 +1025,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       Text('Pelanggan: ${widget.booking['customer']?['name'] ?? "-"}', style: const TextStyle(fontSize: 11)),
                       Text('Kondisi: Grade $_conditionGrade', style: const TextStyle(fontSize: 11)),
                       const Divider(height: 16),
-                      const Text('KTP Fisik Telah Diserahkan Kembali', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.success)),
+                      Text('Jaminan Fisik ($collateralSlot) Telah Diserahkan Kembali', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.success)),
                     ],
                   ),
                 ),

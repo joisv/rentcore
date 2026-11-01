@@ -108,6 +108,9 @@ class PaymentRepository {
           final returnPayload = Map<String, dynamic>.from(context.extraPayload?['return_payload'] ?? {});
           returnPayload['penalty_payment_method_id'] = paymentMethodId;
           returnPayload['cash_received'] = isCash ? cashReceived : amountToPay;
+          returnPayload['late_fee'] ??= amountToPay;
+          returnPayload['total_penalty'] ??= amountToPay;
+          returnPayload['penalty_amount'] ??= amountToPay;
           if (notes != null && notes.isNotEmpty) {
             returnPayload['staff_notes'] = notes;
           }

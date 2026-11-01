@@ -125,7 +125,15 @@ class PosTransactionDetailSheet extends ConsumerWidget {
       totalPaid = totalBill;
     }
     final remainingRentalDue = (totalBill - totalPaid).clamp(0.0, double.infinity);
-    final totalPenaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
+    final totalPenaltyDue = CurrencyFormatter.parse(
+      returnInspection['total_penalty'] ??
+      returnInspection['late_fee'] ??
+      returnInspection['penalty_amount'] ??
+      b['total_penalty'] ??
+      b['penalty_amount'] ??
+      b['late_fee'] ??
+      0,
+    );
     final remainingPenaltyDue = (totalPenaltyDue - penaltyPaid).clamp(0.0, double.infinity);
     final remainingDue = remainingRentalDue + remainingPenaltyDue;
 

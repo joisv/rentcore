@@ -256,7 +256,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify Income Type section header is displayed
-      expect(find.text('SUMBER PENDAPATAN (INCOME TYPE)'), findsOneWidget);
+      expect(find.text('Sumber Pendapatan'), findsOneWidget);
 
       // Verify Rental & Penalty Breakdown rows
       expect(find.text('Sewa Kontrak Pokok'), findsOneWidget);

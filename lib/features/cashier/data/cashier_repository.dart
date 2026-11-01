@@ -69,10 +69,13 @@ class CashierRepository {
     return {};
   }
 
-  Future<Map<String, dynamic>> updatePaymentSettings(Map<String, dynamic> payload) async {
-    final response = await _client.dio.put(
+  Future<Map<String, dynamic>> updatePaymentSettings(dynamic payload) async {
+    final response = await _client.dio.request(
       ApiConstants.paymentSettings,
       data: payload,
+      options: Options(
+        method: payload is FormData ? 'POST' : 'PUT',
+      ),
     );
     final data = response.data['data'];
     if (data is Map) {

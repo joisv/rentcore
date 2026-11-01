@@ -126,12 +126,12 @@ void main() {
     await tester.pumpWidget(buildScreen(appleBooking));
     await tester.pumpAndSettle();
 
-    expect(find.text('iCLOUD & APPLE ACTIVATION GUARD (WAJIB)'), findsOneWidget);
-    expect(find.textContaining('Find My dinonaktifkan'), findsOneWidget);
-    expect(find.textContaining('Karantina Unit'), findsOneWidget);
+    expect(find.text('Pemeriksaan Akun iCloud'), findsOneWidget);
+    expect(find.textContaining('iCloud & Find My telah di-logout'), findsOneWidget);
+    expect(find.textContaining('Unit Terkunci / Lupa Sandi'), findsOneWidget);
   });
 
-  testWidgets('Android device renders Google FRP-specific guard header', (tester) async {
+  testWidgets('Android device completely hides iCloud guard card', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -139,8 +139,9 @@ void main() {
     await tester.pumpWidget(buildScreen(androidBooking));
     await tester.pumpAndSettle();
 
-    expect(find.text('GOOGLE ACCOUNT & FRP GUARD (WAJIB)'), findsOneWidget);
-    expect(find.textContaining('FRP aman'), findsOneWidget);
+    expect(find.text('Pemeriksaan Akun iCloud'), findsNothing);
+    expect(find.textContaining('Find My'), findsNothing);
+    expect(find.textContaining('Perangkat non-smartphone'), findsNothing);
   });
 
   testWidgets('Quarantine flow validates staff notes and sends quarantine payload', (tester) async {
@@ -152,7 +153,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 1. Tap Karantina Unit
-    final quarantineBtn = find.textContaining('Karantina Unit');
+    final quarantineBtn = find.textContaining('Unit Terkunci / Lupa Sandi');
     await tester.tap(quarantineBtn);
     await tester.pumpAndSettle();
 
@@ -160,7 +161,7 @@ void main() {
     expect(find.text('CATATAN TINDAK LANJUT KARANTINA (WAJIB)'), findsOneWidget);
 
     // 2. Attempt submit without notes -> SnackBar warning
-    final submitBtn = find.text('Selesaikan Pengembalian & Ambil KTP 📥');
+    final submitBtn = find.text('Selesaikan Pengembalian');
     await tester.ensureVisible(submitBtn);
     await tester.tap(submitBtn);
     await tester.pumpAndSettle();
