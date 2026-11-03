@@ -30,6 +30,8 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
   bool _linkajaEnabled = true;
   bool _ovoEnabled = true;
   bool _qrisEnabled = true;
+  bool _isDynamicQrisEnabled = false;
+  String? _qrisRawPayload;
   bool _cashEnabled = true;
   bool _bankTransferEnabled = true;
 
@@ -38,6 +40,9 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
   XFile? _pickedQrisImage;
   Uint8List? _pickedQrisBytes;
   bool _removeQrisImage = false;
+
+  bool get _hasValidQrisPayload =>
+      !_removeQrisImage && (_qrisRawPayload != null && _qrisRawPayload!.trim().isNotEmpty);
 
   void _populateFromConfig(Map<String, dynamic> data) {
     if (_isInitialized) return;
@@ -53,6 +58,8 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
     _ovoEnabled = providers['ovo'] != false;
 
     _qrisEnabled = config['qris_statis_enabled'] != false;
+    _isDynamicQrisEnabled = config['is_dynamic_qris_enabled'] == true;
+    _qrisRawPayload = config['qris_raw_payload'] as String?;
     _cashEnabled = config['cash_enabled'] != false;
     _bankTransferEnabled = config['bank_transfer_enabled'] != false;
     _qrisImageUrl = config['qris_image_url'] as String?;
@@ -212,6 +219,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
           'ewallet_providers[linkaja]': _linkajaEnabled ? 1 : 0,
           'ewallet_providers[ovo]': _ovoEnabled ? 1 : 0,
           'qris_statis_enabled': _qrisEnabled ? 1 : 0,
+          'is_dynamic_qris_enabled': _isDynamicQrisEnabled ? 1 : 0,
           'cash_enabled': _cashEnabled ? 1 : 0,
           'bank_transfer_enabled': _bankTransferEnabled ? 1 : 0,
           if (_removeQrisImage) 'remove_qris_image': 1,
@@ -233,6 +241,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
             'ovo': _ovoEnabled,
           },
           'qris_statis_enabled': _qrisEnabled,
+          'is_dynamic_qris_enabled': _isDynamicQrisEnabled,
           'cash_enabled': _cashEnabled,
           'bank_transfer_enabled': _bankTransferEnabled,
         };
@@ -268,10 +277,15 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
         );
       }
     } catch (e) {
+      String errorMessage = 'Gagal menyimpan pengaturan: $e';
+      if (e is DioException && e.response?.data is Map) {
+        final resMap = e.response!.data as Map;
+        errorMessage = resMap['message']?.toString() ?? errorMessage;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menyimpan pengaturan: $e'),
+            content: Text(errorMessage),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -616,6 +630,100 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                           ),
                         ),
                       ],
+                      const Divider(height: 28),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'QRIS Dinamis',
+                                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.obsidian.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'NOMINAL OTOMATIS',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.5,
+                                          color: AppColors.obsidian,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                const Text(
+                                  'Kunci nominal transaksi secara real-time pada barcode aplikasi pelanggan',
+                                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            key: const Key('is_dynamic_qris_enabled_toggle'),
+                            value: _isDynamicQrisEnabled,
+                            activeThumbColor: AppColors.obsidian,
+                            onChanged: (isOwnerOrAdmin && _hasValidQrisPayload)
+                                ? (val) => setState(() => _isDynamicQrisEnabled = val)
+                                : null,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (!_hasValidQrisPayload)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFDE68A)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.lock_outline_rounded, size: 16, color: Color(0xFFD97706)),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Unggah gambar QRIS statis terlebih dahulu untuk mengaktifkan QRIS Dinamis.',
+                                  style: TextStyle(fontSize: 11, color: Color(0xFF92400E), height: 1.3),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFBBF7D0)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.check_circle_outline_rounded, size: 16, color: Color(0xFF16A34A)),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Barcode QRIS terdeteksi & siap untuk nominal otomatis.',
+                                  style: TextStyle(fontSize: 11, color: Color(0xFF166534), height: 1.3),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ],
                 ),

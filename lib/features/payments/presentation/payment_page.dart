@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/qris_service.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
@@ -85,6 +87,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   String _selectedMethodCode = 'CASH';
   String _selectedMethodName = 'Tunai';
   String? _selectedQrisImageUrl;
+  bool _isDynamicQrisEnabled = false;
+  String? _qrisRawPayload;
   String _selectedEwallet = 'ShopeePay';
   bool _nonCashConfirmed = true;
   bool _isProcessing = false;
@@ -164,8 +168,12 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     });
     final isOtherEnabled = hasAnyActiveEwallet || isBankTransferEnabled || hasOtherDirectMethod;
 
-    final qrisImageUrl = config?['qris_image_url'] as String? ??
-        (paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull?['qris_image_url'] as String?);
+    final qrisMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
+    final isDynamicQrisEnabled = config != null
+        ? (config['is_dynamic_qris_enabled'] == true)
+        : (qrisMethod?['is_dynamic_qris_enabled'] == true);
+    final qrisRawPayload = config?['qris_raw_payload'] as String? ?? (qrisMethod?['qris_raw_payload'] as String?);
+    final qrisImageUrl = config?['qris_image_url'] as String? ?? (qrisMethod?['qris_image_url'] as String?);
 
     paymentMethodsAsync.whenData((methods) {
       if (!_methodInitialized && methods.isNotEmpty) {
@@ -301,11 +309,13 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             title: 'QRIS',
                             customIcon: _buildQrisLogoWidget(),
                             onTap: () {
-                              final qrisMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
-                              _selectedMethodId = qrisMethod?['id'] as int? ?? 2;
+                              final qMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
+                              _selectedMethodId = qMethod?['id'] as int? ?? 2;
                               _selectedMethodCode = 'QRIS';
-                              _selectedMethodName = qrisMethod?['name'] ?? 'QRIS';
+                              _selectedMethodName = qMethod?['name'] ?? 'QRIS';
                               _selectedQrisImageUrl = qrisImageUrl;
+                              _isDynamicQrisEnabled = isDynamicQrisEnabled;
+                              _qrisRawPayload = qrisRawPayload;
                               _showQrisSheet(context, ctx, amountDue);
                             },
                           ),
@@ -954,9 +964,16 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   }
 
   // =========================================================================
-  // BOTTOM SHEET 3: QRIS STATIS (MATCHING IMAGE 4)
+  // BOTTOM SHEET 3: QRIS STATIS & DINAMIS
   // =========================================================================
   void _showQrisSheet(BuildContext context, PaymentContext ctx, double amountDue) {
+    final isDynamic = _isDynamicQrisEnabled &&
+        _qrisRawPayload != null &&
+        QrisService.isValidQrisPayload(_qrisRawPayload);
+    final String? dynamicPayload = isDynamic
+        ? QrisService.generateDynamicQris(_qrisRawPayload!, amountDue.round())
+        : null;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -995,57 +1012,86 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  const Center(
+                  Center(
                     child: Text(
-                      'QRIS STATIS',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black, letterSpacing: 0.5),
+                      isDynamic ? 'QRIS DINAMIS' : 'QRIS STATIS',
+                      key: const Key('qris_modal_title'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black, letterSpacing: 0.5),
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Center(
+                  Center(
                     child: Text(
-                      'Pastikan jumlah yang Anda ketik sesuai\ndengan total pada struk/layar kasir.',
+                      isDynamic
+                          ? 'Pindai untuk membayar. Nominal otomatis terisi dan terkunci di aplikasi pelanggan.'
+                          : 'Pastikan jumlah yang Anda ketik sesuai\ndengan total pada struk/layar kasir.',
+                      key: const Key('qris_modal_subtitle'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF6C6B6B), height: 1.3),
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF6C6B6B), height: 1.3),
                     ),
                   ),
                   const SizedBox(height: 16),
 
                   // Big Centered QR Code
                   Center(
-                    child: (_selectedQrisImageUrl != null && _selectedQrisImageUrl!.trim().isNotEmpty)
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              _selectedQrisImageUrl!,
-                              width: 220,
-                              height: 220,
-                              fit: BoxFit.contain,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  width: 220,
-                                  height: 220,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                                  ),
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                          : null,
-                                      strokeWidth: 2,
-                                      color: const Color(0xFF18181B),
-                                    ),
-                                  ),
-                                );
-                              },
-                              errorBuilder: (_, _, _) => _buildQrCodePattern(),
+                    child: isDynamic && dynamicPayload != null
+                        ? Container(
+                            key: const Key('dynamic_qris_qr_container'),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: QrImageView(
+                              key: const Key('dynamic_qris_qr_image'),
+                              data: dynamicPayload,
+                              version: QrVersions.auto,
+                              size: 200,
+                              backgroundColor: Colors.white,
+                              errorCorrectionLevel: QrErrorCorrectLevel.M,
                             ),
                           )
-                        : _buildQrCodePattern(),
+                        : ((_selectedQrisImageUrl != null && _selectedQrisImageUrl!.trim().isNotEmpty)
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.network(
+                                  _selectedQrisImageUrl!,
+                                  width: 220,
+                                  height: 220,
+                                  fit: BoxFit.contain,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      width: 220,
+                                      height: 220,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                              : null,
+                                          strokeWidth: 2,
+                                          color: const Color(0xFF18181B),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (_, _, _) => _buildQrCodePattern(),
+                                ),
+                              )
+                            : _buildQrCodePattern()),
                   ),
                   const SizedBox(height: 16),
 
@@ -1053,6 +1099,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   Center(
                     child: Text(
                       'Rp ${_formatNumber(amountDue)}',
+                      key: const Key('qris_modal_amount_text'),
                       style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: Colors.black, letterSpacing: -0.5),
                     ),
                   ),
