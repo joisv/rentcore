@@ -64,7 +64,7 @@ void main() {
     });
   });
 
-  group('Phase P3 — PaymentPage PosNumpad Integration Tests', () {
+  group('Phase P3 — PaymentPage PosNumpad Integration Tests', skip: 'PosNumpad removed from PaymentPage in e9e94fc unified payment redesign', () {
     testWidgets('Renders PosNumpad in cash mode and allows toggle', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;

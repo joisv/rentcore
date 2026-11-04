@@ -147,8 +147,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Switch to Rekap Shift & Closing tab
-      await tester.tap(find.text('Rekap Shift & Closing'));
+      // Verify Tab 1: Shift Aktif
+      await tester.tap(find.text('Shift Aktif'));
       await tester.pumpAndSettle();
 
       // Verify no RenderFlex errors were recorded
@@ -227,8 +227,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Switch to Rekap Shift & Closing tab
-      await tester.tap(find.text('Rekap Shift & Closing'));
+      // Verify Tab 1: Shift Aktif
+      await tester.tap(find.text('Shift Aktif'));
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);

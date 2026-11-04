@@ -39,7 +39,13 @@ class MockPaymentRepoForVisibility extends PaymentRepository {
 void main() {
   final defaultPaymentMethods = [
     {'id': 1, 'code': 'CASH', 'name': 'Tunai', 'is_active': true},
-    {'id': 2, 'code': 'QRIS', 'name': 'QRIS', 'is_active': true, 'qris_image_url': 'http://localhost/storage/qris/test_qris.png'},
+    {
+      'id': 2,
+      'code': 'QRIS',
+      'name': 'QRIS',
+      'is_active': true,
+      'qris_image_url': 'http://localhost/storage/qris/test_qris.png',
+    },
     {'id': 3, 'code': 'TRANSFER', 'name': 'Transfer Bank', 'is_active': true},
   ];
 
@@ -55,36 +61,45 @@ void main() {
   );
 
   group('Dynamic Payment Method Visibility (Toggle Sync) Tests', () {
-    testWidgets('Renders all 3 cards (QRIS, Tunai, Lainya) when all toggles are active', (tester) async {
-      final mockSettings = {
-        'config': {
-          'cash_enabled': true,
-          'qris_statis_enabled': true,
-          'bank_transfer_enabled': true,
-          'ewallet_enabled': true,
-          'ewallet_providers': {'shopeepay': true, 'dana': true, 'linkaja': true, 'ovo': true},
-          'qris_image_url': 'http://localhost/storage/qris/test_qris.png',
-        }
-      };
+    testWidgets(
+      'Renders all 3 cards (QRIS, Tunai, Lainnya) when all toggles are active',
+      (tester) async {
+        final mockSettings = {
+          'config': {
+            'cash_enabled': true,
+            'qris_statis_enabled': true,
+            'bank_transfer_enabled': true,
+            'ewallet_enabled': true,
+            'ewallet_providers': {
+              'shopeepay': true,
+              'dana': true,
+              'linkaja': true,
+              'ovo': true,
+            },
+            'qris_image_url': 'http://localhost/storage/qris/test_qris.png',
+          },
+        };
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            paymentMethodsProvider.overrideWith((ref) => Future.value(defaultPaymentMethods)),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
-          ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              paymentMethodsProvider.overrideWith(
+                (ref) => Future.value(defaultPaymentMethods),
+              ),
+              paymentSettingsProvider(1)
+                  .overrideWith((ref) => Future.value(mockSettings)),
+            ],
+            child: MaterialApp(home: PaymentPage(paymentContext: testContext)),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      expect(find.text('QRIS'), findsOneWidget);
-      expect(find.text('Tunai'), findsOneWidget);
-      expect(find.text('Lainya'), findsOneWidget);
-    });
+        expect(find.text('QRIS'), findsOneWidget);
+        expect(find.text('Tunai'), findsOneWidget);
+        expect(find.text('Lainnya'), findsOneWidget);
+      },
+    );
 
     testWidgets('Hides Cash card when cash_enabled is false', (tester) async {
       final mockSettings = {
@@ -94,18 +109,19 @@ void main() {
           'bank_transfer_enabled': true,
           'ewallet_enabled': true,
           'ewallet_providers': {'shopeepay': true, 'dana': true},
-        }
+        },
       };
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            paymentMethodsProvider.overrideWith((ref) => Future.value(defaultPaymentMethods)),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
+            paymentMethodsProvider.overrideWith(
+              (ref) => Future.value(defaultPaymentMethods),
+            ),
+            paymentSettingsProvider(1)
+                .overrideWith((ref) => Future.value(mockSettings)),
           ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
-          ),
+          child: MaterialApp(home: PaymentPage(paymentContext: testContext)),
         ),
       );
 
@@ -113,10 +129,12 @@ void main() {
 
       expect(find.text('Tunai'), findsNothing);
       expect(find.text('QRIS'), findsOneWidget);
-      expect(find.text('Lainya'), findsOneWidget);
+      expect(find.text('Lainnya'), findsOneWidget);
     });
 
-    testWidgets('Hides QRIS card when qris_statis_enabled is false', (tester) async {
+    testWidgets('Hides QRIS card when qris_statis_enabled is false', (
+      tester,
+    ) async {
       final mockSettings = {
         'config': {
           'cash_enabled': true,
@@ -124,18 +142,19 @@ void main() {
           'bank_transfer_enabled': true,
           'ewallet_enabled': true,
           'ewallet_providers': {'shopeepay': true, 'dana': true},
-        }
+        },
       };
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            paymentMethodsProvider.overrideWith((ref) => Future.value(defaultPaymentMethods)),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
+            paymentMethodsProvider.overrideWith(
+              (ref) => Future.value(defaultPaymentMethods),
+            ),
+            paymentSettingsProvider(1)
+                .overrideWith((ref) => Future.value(mockSettings)),
           ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
-          ),
+          child: MaterialApp(home: PaymentPage(paymentContext: testContext)),
         ),
       );
 
@@ -143,40 +162,55 @@ void main() {
 
       expect(find.text('QRIS'), findsNothing);
       expect(find.text('Tunai'), findsOneWidget);
-      expect(find.text('Lainya'), findsOneWidget);
+      expect(find.text('Lainnya'), findsOneWidget);
     });
 
-    testWidgets('Hides Lainya card when ewallet_enabled is false and bank_transfer_enabled is false', (tester) async {
-      final mockSettings = {
-        'config': {
-          'cash_enabled': true,
-          'qris_statis_enabled': true,
-          'bank_transfer_enabled': false,
-          'ewallet_enabled': false,
-          'ewallet_providers': {'shopeepay': false, 'dana': false, 'linkaja': false, 'ovo': false},
-        }
-      };
+    testWidgets(
+      'Hides Lainnya card when ewallet_enabled is false and bank_transfer_enabled is false',
+      (tester) async {
+        final mockSettings = {
+          'config': {
+            'cash_enabled': true,
+            'qris_statis_enabled': true,
+            'bank_transfer_enabled': false,
+            'ewallet_enabled': false,
+            'ewallet_providers': {
+              'shopeepay': false,
+              'dana': false,
+              'linkaja': false,
+              'ovo': false,
+            },
+          },
+        };
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            paymentMethodsProvider.overrideWith((ref) => Future.value(defaultPaymentMethods.where((m) => m['code'] != 'TRANSFER').toList())),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
-          ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              paymentMethodsProvider.overrideWith(
+                (ref) => Future.value(
+                  defaultPaymentMethods
+                      .where((m) => m['code'] != 'TRANSFER')
+                      .toList(),
+                ),
+              ),
+              paymentSettingsProvider(1)
+                  .overrideWith((ref) => Future.value(mockSettings)),
+            ],
+            child: MaterialApp(home: PaymentPage(paymentContext: testContext)),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      expect(find.text('QRIS'), findsOneWidget);
-      expect(find.text('Tunai'), findsOneWidget);
-      expect(find.text('Lainya'), findsNothing);
-    });
+        expect(find.text('QRIS'), findsOneWidget);
+        expect(find.text('Tunai'), findsOneWidget);
+        expect(find.text('Lainnya'), findsNothing);
+      },
+    );
 
-    testWidgets('Shows alert banner when all payment methods are disabled', (tester) async {
+    testWidgets('Shows alert banner when all payment methods are disabled', (
+      tester,
+    ) async {
       final mockSettings = {
         'config': {
           'cash_enabled': false,
@@ -184,18 +218,17 @@ void main() {
           'bank_transfer_enabled': false,
           'ewallet_enabled': false,
           'ewallet_providers': {'shopeepay': false, 'dana': false},
-        }
+        },
       };
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             paymentMethodsProvider.overrideWith((ref) => Future.value([])),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
+            paymentSettingsProvider(1)
+                .overrideWith((ref) => Future.value(mockSettings)),
           ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
-          ),
+          child: MaterialApp(home: PaymentPage(paymentContext: testContext)),
         ),
       );
 
@@ -204,178 +237,205 @@ void main() {
       expect(find.text('Tidak ada metode pembayaran aktif.'), findsOneWidget);
       expect(find.text('Tunai'), findsNothing);
       expect(find.text('QRIS'), findsNothing);
-      expect(find.text('Lainya'), findsNothing);
+      expect(find.text('Lainnya'), findsNothing);
     });
   });
 
-  group('E-Wallet & Bank Transfer Sub-Toggle Filtering Tests in Bottom Sheet', () {
-    testWidgets('E-Wallet section is hidden if ewallet_enabled is false', (tester) async {
-      final mockSettings = {
-        'config': {
-          'cash_enabled': true,
-          'qris_statis_enabled': true,
-          'bank_transfer_enabled': true,
-          'ewallet_enabled': false,
-          'ewallet_providers': {'shopeepay': true, 'dana': true},
-        }
-      };
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            paymentMethodsProvider.overrideWith((ref) => Future.value(defaultPaymentMethods)),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
-          ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
-      // Open Lainya sheet
-      await tester.tap(find.text('Lainya'));
-      await tester.pumpAndSettle();
-
-      // "Dompet Digital" box should NOT be visible
-      expect(find.text('Dompet Digital'), findsNothing);
-      expect(find.text('ShopeePay'), findsNothing);
-      expect(find.text('DANA'), findsNothing);
-
-      // "Transfer Bank" box should be visible
-      expect(find.text('Transfer Bank'), findsOneWidget);
-      expect(find.text('BCA'), findsOneWidget);
-      expect(find.text('Mandiri'), findsOneWidget);
-    });
-
-    testWidgets('Specific e-wallet providers toggled off are omitted from the grid', (tester) async {
-      final mockSettings = {
-        'config': {
-          'cash_enabled': true,
-          'qris_statis_enabled': true,
-          'bank_transfer_enabled': true,
-          'ewallet_enabled': true,
-          'ewallet_providers': {
-            'shopeepay': true,
-            'dana': false, // Toggled off!
-            'linkaja': false, // Toggled off!
-            'ovo': true,
-            'gopay': false,
+  group(
+    'E-Wallet & Bank Transfer Sub-Toggle Filtering Tests in Bottom Sheet',
+    () {
+      testWidgets('E-Wallet section is hidden if ewallet_enabled is false', (
+        tester,
+      ) async {
+        final mockSettings = {
+          'config': {
+            'cash_enabled': true,
+            'qris_statis_enabled': true,
+            'bank_transfer_enabled': true,
+            'ewallet_enabled': false,
+            'ewallet_providers': {'shopeepay': true, 'dana': true},
           },
-        }
-      };
+        };
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            paymentMethodsProvider.overrideWith((ref) => Future.value(defaultPaymentMethods)),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
-          ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              paymentMethodsProvider.overrideWith(
+                (ref) => Future.value(defaultPaymentMethods),
+              ),
+              paymentSettingsProvider(1)
+                  .overrideWith((ref) => Future.value(mockSettings)),
+            ],
+            child: MaterialApp(home: PaymentPage(paymentContext: testContext)),
           ),
-        ),
+        );
+
+        await tester.pumpAndSettle();
+
+        // Open Lainnya sheet
+        await tester.tap(find.text('Lainnya'));
+        await tester.pumpAndSettle();
+
+        // "Dompet Digital" box should NOT be visible
+        expect(find.text('Dompet Digital'), findsNothing);
+        expect(find.text('ShopeePay'), findsNothing);
+        expect(find.text('DANA'), findsNothing);
+
+        // "Transfer Bank" box should be visible
+        expect(find.text('Transfer Bank'), findsOneWidget);
+        expect(find.text('BCA'), findsOneWidget);
+        expect(find.text('Mandiri'), findsOneWidget);
+      });
+
+      testWidgets(
+        'Specific e-wallet providers toggled off are omitted from the grid',
+        (tester) async {
+          final mockSettings = {
+            'config': {
+              'cash_enabled': true,
+              'qris_statis_enabled': true,
+              'bank_transfer_enabled': true,
+              'ewallet_enabled': true,
+              'ewallet_providers': {
+                'shopeepay': true,
+                'dana': false, // Toggled off!
+                'linkaja': false, // Toggled off!
+                'ovo': true,
+                'gopay': false,
+              },
+            },
+          };
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                paymentMethodsProvider.overrideWith(
+                  (ref) => Future.value(defaultPaymentMethods),
+                ),
+                paymentSettingsProvider(1)
+                    .overrideWith((ref) => Future.value(mockSettings)),
+              ],
+              child: MaterialApp(
+                home: PaymentPage(paymentContext: testContext),
+              ),
+            ),
+          );
+
+          await tester.pumpAndSettle();
+
+          // Open Lainnya sheet
+          await tester.tap(find.text('Lainnya'));
+          await tester.pumpAndSettle();
+
+          // Active ones should be visible
+          expect(find.byKey(const ValueKey('tile_ShopeePay')), findsOneWidget);
+          expect(find.byKey(const ValueKey('tile_OVO')), findsOneWidget);
+
+          // Disabled ones should be omitted
+          expect(find.byKey(const ValueKey('tile_DANA')), findsNothing);
+          expect(find.byKey(const ValueKey('tile_LinkAja!')), findsNothing);
+          expect(find.byKey(const ValueKey('tile_GoPay')), findsNothing);
+        },
       );
 
-      await tester.pumpAndSettle();
+      testWidgets(
+        'Transfer Bank section is hidden if bank_transfer_enabled is false',
+        (tester) async {
+          final mockSettings = {
+            'config': {
+              'cash_enabled': true,
+              'qris_statis_enabled': true,
+              'bank_transfer_enabled': false,
+              'ewallet_enabled': true,
+              'ewallet_providers': {'shopeepay': true, 'dana': true},
+            },
+          };
 
-      // Open Lainya sheet
-      await tester.tap(find.text('Lainya'));
-      await tester.pumpAndSettle();
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                paymentMethodsProvider.overrideWith(
+                  (ref) => Future.value(defaultPaymentMethods),
+                ),
+                paymentSettingsProvider(1)
+                    .overrideWith((ref) => Future.value(mockSettings)),
+              ],
+              child: MaterialApp(
+                home: PaymentPage(paymentContext: testContext),
+              ),
+            ),
+          );
 
-      // Active ones should be visible
-      expect(find.byKey(const ValueKey('tile_ShopeePay')), findsOneWidget);
-      expect(find.byKey(const ValueKey('tile_OVO')), findsOneWidget);
+          await tester.pumpAndSettle();
 
-      // Disabled ones should be omitted
-      expect(find.byKey(const ValueKey('tile_DANA')), findsNothing);
-      expect(find.byKey(const ValueKey('tile_LinkAja!')), findsNothing);
-      expect(find.byKey(const ValueKey('tile_GoPay')), findsNothing);
-    });
+          // Open Lainnya sheet
+          await tester.tap(find.text('Lainnya'));
+          await tester.pumpAndSettle();
 
-    testWidgets('Transfer Bank section is hidden if bank_transfer_enabled is false', (tester) async {
-      final mockSettings = {
-        'config': {
-          'cash_enabled': true,
-          'qris_statis_enabled': true,
-          'bank_transfer_enabled': false,
-          'ewallet_enabled': true,
-          'ewallet_providers': {'shopeepay': true, 'dana': true},
-        }
-      };
+          // Dompet Digital should be visible
+          expect(find.text('Dompet Digital'), findsOneWidget);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            paymentMethodsProvider.overrideWith((ref) => Future.value(defaultPaymentMethods)),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
-          ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
-          ),
-        ),
+          // Transfer Bank should be hidden
+          expect(find.text('Transfer Bank'), findsNothing);
+          expect(find.text('BCA'), findsNothing);
+          expect(find.text('Mandiri'), findsNothing);
+        },
       );
-
-      await tester.pumpAndSettle();
-
-      // Open Lainya sheet
-      await tester.tap(find.text('Lainya'));
-      await tester.pumpAndSettle();
-
-      // Dompet Digital should be visible
-      expect(find.text('Dompet Digital'), findsOneWidget);
-
-      // Transfer Bank should be hidden
-      expect(find.text('Transfer Bank'), findsNothing);
-      expect(find.text('BCA'), findsNothing);
-      expect(find.text('Mandiri'), findsNothing);
-    });
-  });
+    },
+  );
 
   group('QRIS Static Image Dynamic Fetch & Error Fallback Tests', () {
-    testWidgets('QRIS modal renders dynamically fetched image URL with fallback to pattern', (tester) async {
-      final mockSettings = {
-        'config': {
-          'cash_enabled': true,
-          'qris_statis_enabled': true,
-          'bank_transfer_enabled': true,
-          'ewallet_enabled': true,
-          'ewallet_providers': {'shopeepay': true},
-          'qris_image_url': 'http://localhost:8000/api/v1/payment-settings/qris-image?business_id=1&branch_id=1',
-        }
-      };
+    testWidgets(
+      'QRIS modal renders dynamically fetched image URL with fallback to pattern',
+      (tester) async {
+        final mockSettings = {
+          'config': {
+            'cash_enabled': true,
+            'qris_statis_enabled': true,
+            'bank_transfer_enabled': true,
+            'ewallet_enabled': true,
+            'ewallet_providers': {'shopeepay': true},
+            'qris_image_url': 'http://localhost:8000/api/v1/payment-settings/qris-image?business_id=1&branch_id=1',
+          },
+        };
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            paymentMethodsProvider.overrideWith((ref) => Future.value(defaultPaymentMethods)),
-            paymentSettingsProvider(1).overrideWith((ref) => Future.value(mockSettings)),
-          ],
-          child: MaterialApp(
-            home: PaymentPage(paymentContext: testContext),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              paymentMethodsProvider.overrideWith(
+                (ref) => Future.value(defaultPaymentMethods),
+              ),
+              paymentSettingsProvider(1)
+                  .overrideWith((ref) => Future.value(mockSettings)),
+            ],
+            child: MaterialApp(home: PaymentPage(paymentContext: testContext)),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      // Tap QRIS card
-      await tester.tap(find.text('QRIS'));
-      await tester.pumpAndSettle();
+        // Tap QRIS card
+        await tester.tap(find.text('QRIS'));
+        await tester.pumpAndSettle();
 
-      // Verify QRIS STATIS modal is shown
-      expect(find.text('QRIS STATIS'), findsOneWidget);
-      expect(find.text('Rp 150.000'), findsOneWidget);
-      expect(find.text('PROSES PEMBAYARAN'), findsOneWidget);
+        // Verify QRIS STATIS modal is shown
+        expect(find.text('QRIS STATIS'), findsOneWidget);
+        expect(find.text('Rp 150.000'), findsOneWidget);
+        expect(find.text('PROSES PEMBAYARAN'), findsOneWidget);
 
-      // Verify that Image.network is rendered with the fetched URL
-      final imageFinder = find.byType(Image);
-      expect(imageFinder, findsOneWidget);
-      final imageWidget = tester.widget<Image>(imageFinder);
-      expect(imageWidget.image, isA<NetworkImage>());
-      final networkImage = imageWidget.image as NetworkImage;
-      expect(networkImage.url, equals('http://localhost:8000/api/v1/payment-settings/qris-image?business_id=1&branch_id=1'));
-    });
+        // Verify that Image.network is rendered with the fetched URL
+        final imageFinder = find.byType(Image);
+        expect(imageFinder, findsOneWidget);
+        final imageWidget = tester.widget<Image>(imageFinder);
+        expect(imageWidget.image, isA<NetworkImage>());
+        final networkImage = imageWidget.image as NetworkImage;
+        expect(
+          networkImage.url,
+          equals(
+            'http://localhost:8000/api/v1/payment-settings/qris-image?business_id=1&branch_id=1',
+          ),
+        );
+      },
+    );
   });
 }

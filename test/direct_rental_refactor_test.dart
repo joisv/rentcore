@@ -252,10 +252,10 @@ void main() {
       expect(find.text('Rp300.000'), findsOneWidget);
       expect(find.text('Detail Sewa'), findsOneWidget);
 
-      // Verify the 3 payment methods: QRIS, Tunai, Lainya
+      // Verify the 3 payment methods: QRIS, Tunai, Lainnya
       expect(find.text('QRIS'), findsOneWidget);
       expect(find.text('Tunai'), findsOneWidget);
-      expect(find.text('Lainya'), findsOneWidget);
+      expect(find.text('Lainnya'), findsOneWidget);
 
       // Open Detail Sewa
       await tester.tap(find.text('Detail Sewa'));

@@ -190,8 +190,8 @@ void main() {
       final side = outlinedBtn.style?.side?.resolve({});
       expect(side?.color, isNot(AppColors.info));
 
-      // Pengembalian button is ElevatedButton with dark background
-      final returnButtons = find.widgetWithText(ElevatedButton, 'Pengembalian');
+      // Pengembalian/Kembalikan button is ElevatedButton with dark background
+      final returnButtons = find.widgetWithText(ElevatedButton, 'Kembalikan');
       expect(returnButtons, findsAtLeastNWidgets(1));
       final returnBtn = tester.widget<ElevatedButton>(returnButtons.first);
       final bg = returnBtn.style?.backgroundColor?.resolve({});

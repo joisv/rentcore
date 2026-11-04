@@ -86,16 +86,16 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Verify main screen renders Lainya card
-    expect(find.text('Lainya'), findsOneWidget);
+    // Verify main screen renders Lainnya card
+    expect(find.text('Lainnya'), findsOneWidget);
 
-    // Tap "Lainya" to open Pembayaran Lainnya modal
-    await tester.tap(find.text('Lainya'));
+    // Tap "Lainnya" to open Pembayaran Lainnya modal
+    await tester.tap(find.text('Lainnya'));
     await tester.pumpAndSettle();
 
     // Verify Modal Title and Sections
-    expect(find.text('PEMBAYARAN LAINYA'), findsOneWidget);
-    expect(find.text('E-Wallet'), findsOneWidget);
+    expect(find.text('PEMBAYARAN LAINNYA'), findsOneWidget);
+    expect(find.text('Dompet Digital'), findsOneWidget);
     expect(find.text('Transfer Bank'), findsOneWidget);
 
     // Verify Bank Transfer options exist
@@ -142,8 +142,8 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Tap "Lainya"
-    await tester.tap(find.text('Lainya'));
+    // Tap "Lainnya"
+    await tester.tap(find.text('Lainnya'));
     await tester.pumpAndSettle();
 
     // Tap "Mandiri" under Transfer Bank
@@ -186,15 +186,15 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify TextFormField with exact InputDecoration exists
-    final fieldFinder = find.widgetWithText(TextFormField, 'Jumlah uang diterima *');
+    final fieldFinder = find.widgetWithText(TextFormField, 'Jumlah uang diterima');
     expect(fieldFinder, findsOneWidget);
 
     final textField = tester.widget<TextField>(find.descendant(of: fieldFinder, matching: find.byType(TextField)));
     final decor = textField.decoration!;
-    expect(decor.labelText, 'Jumlah uang diterima *');
+    expect(decor.labelText, 'Jumlah uang diterima');
     expect(decor.filled, true);
     expect(decor.border, isA<OutlineInputBorder>());
     final outlineBorder = decor.border as OutlineInputBorder;
-    expect(outlineBorder.borderRadius, BorderRadius.circular(16));
+    expect(outlineBorder.borderRadius, BorderRadius.circular(8));
   });
 }

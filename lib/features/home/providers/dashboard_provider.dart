@@ -1,10 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../auth/providers/business_provider.dart';
+import '../../bookings/providers/booking_provider.dart';
 import '../data/dashboard_repository.dart';
 
-final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) => DashboardRepository());
+final dashboardRepositoryProvider = Provider<DashboardRepository>(
+  (ref) => DashboardRepository(),
+);
 
-final dashboardKpiProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+final dashboardKpiProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
+  ref,
+) async {
   final bizState = ref.watch(businessProvider);
   if (bizState.activeBusinessId == null || bizState.businesses.isEmpty) {
     return {
@@ -42,3 +48,17 @@ final dashboardKpiProvider = FutureProvider.autoDispose<Map<String, dynamic>>((r
   final repo = ref.watch(dashboardRepositoryProvider);
   return repo.fetchKpi(branchId: bizState.activeBranchId);
 });
+
+final dashboardQueueBookingsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+      final bizState = ref.watch(businessProvider);
+      if (bizState.activeBusinessId == null || bizState.businesses.isEmpty) {
+        return [];
+      }
+      final repo = ref.watch(bookingRepositoryProvider);
+      try {
+        return await repo.fetchBookings(branchId: bizState.activeBranchId);
+      } catch (_) {
+        return [];
+      }
+    });

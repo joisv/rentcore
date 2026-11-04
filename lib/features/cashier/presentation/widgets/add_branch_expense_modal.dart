@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../auth/providers/business_provider.dart';
@@ -17,7 +18,8 @@ class AddBranchExpenseModal extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<AddBranchExpenseModal> createState() => _AddBranchExpenseModalState();
+  ConsumerState<AddBranchExpenseModal> createState() =>
+      _AddBranchExpenseModalState();
 }
 
 class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
@@ -57,9 +59,13 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
 
   double get _threshold {
     final bizState = ref.read(businessProvider);
-    final activeBiz = bizState.businesses.where((b) => b['id'] == bizState.activeBusinessId).firstOrNull;
+    final activeBiz = bizState.businesses
+        .where((b) => b['id'] == bizState.activeBusinessId)
+        .firstOrNull;
     final dynamic thresholdVal = activeBiz?['expense_pin_threshold'];
-    return thresholdVal != null ? (double.tryParse(thresholdVal.toString()) ?? 100000.0) : 100000.0;
+    return thresholdVal != null
+        ? (double.tryParse(thresholdVal.toString()) ?? 100000.0)
+        : 100000.0;
   }
 
   bool get _requiresManagerPin => _currentAmount > _threshold;
@@ -74,7 +80,11 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
 
     final bizState = ref.read(businessProvider);
     final posBranchFilter = ref.read(posFilterBranchIdProvider);
-    final int? effectiveBranch = widget.branchId ?? (posBranchFilter != -1 ? (posBranchFilter ?? bizState.activeBranchId) : bizState.activeBranchId);
+    final int? effectiveBranch =
+        widget.branchId ??
+        (posBranchFilter != -1
+            ? (posBranchFilter ?? bizState.activeBranchId)
+            : bizState.activeBranchId);
 
     try {
       final repo = ref.read(cashierRepositoryProvider);
@@ -84,7 +94,9 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
         category: _selectedCategory,
         paymentSource: _selectedPaymentSource,
         branchId: effectiveBranch,
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
         managerPin: _requiresManagerPin ? _pinController.text.trim() : null,
       );
 
@@ -108,7 +120,10 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+        _errorMessage = e.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
       });
     }
   }
@@ -152,11 +167,18 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.receipt_long_rounded, color: AppColors.obsidian, size: 22),
+                      Icon(
+                        Icons.receipt_long_rounded,
+                        color: AppColors.obsidian,
+                        size: 22,
+                      ),
                       SizedBox(width: 8),
                       Text(
                         'Catat Pengeluaran Cabang',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
                       ),
                     ],
                   ),
@@ -177,7 +199,10 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   ),
                   child: Text(
                     _errorMessage!,
-                    style: const TextStyle(color: AppColors.danger, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppColors.danger,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -186,7 +211,11 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
               // Category Selector
               const Text(
                 'Kategori Pengeluaran *',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
@@ -194,13 +223,21 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.surface,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
                 items: _categories.map((c) {
                   return DropdownMenuItem(
                     value: c['key'],
-                    child: Text(c['label']!, style: const TextStyle(fontSize: 13)),
+                    child: Text(
+                      c['label']!,
+                      style: const TextStyle(fontSize: 13),
+                    ),
                   );
                 }).toList(),
                 onChanged: (val) {
@@ -212,20 +249,31 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
               // Title Field
               const Text(
                 'Judul / Keterangan Singkat *',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _titleController,
                 decoration: InputDecoration(
-                  hintText: 'Contoh: Token Listrik PLN 100k, Kertas Struk, dll.',
+                  hintText:
+                      'Contoh: Token Listrik PLN 100k, Kertas Struk, dll.',
                   filled: true,
                   fillColor: AppColors.surface,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Judul pengeluaran wajib diisi.';
+                  if (val == null || val.trim().isEmpty)
+                    return 'Judul pengeluaran wajib diisi.';
                   return null;
                 },
               ),
@@ -234,7 +282,11 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
               // Nominal Field
               const Text(
                 'Jumlah Nominal (IDR) *',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 6),
               TextFormField(
@@ -246,12 +298,18 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   hintText: '0',
                   filled: true,
                   fillColor: AppColors.surface,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
                 onChanged: (_) => setState(() {}),
                 validator: (_) {
-                  if (_currentAmount <= 0) return 'Nominal pengeluaran harus lebih dari 0.';
+                  if (_currentAmount <= 0)
+                    return 'Nominal pengeluaran harus lebih dari 0.';
                   return null;
                 },
               ),
@@ -260,11 +318,20 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                 spacing: 6,
                 runSpacing: 6,
                 children: [10000, 25000, 50000, 100000].map((amt) {
-                  final label = '+${amt >= 1000 ? '${amt ~/ 1000}k' : amt.toString()}';
+                  final label =
+                      '+${amt >= 1000 ? '${amt ~/ 1000}k' : amt.toString()}';
                   return ActionChip(
-                    label: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    label: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     backgroundColor: AppColors.surfaceMuted,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     onPressed: () {
                       final curr = _currentAmount;
                       final next = curr + amt;
@@ -279,7 +346,11 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
               // Payment Source
               const Text(
                 'Sumber Dana Pembayaran *',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 6),
               Row(
@@ -291,12 +362,18 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                         children: [
                           Icon(Icons.point_of_sale_rounded, size: 16),
                           SizedBox(width: 6),
-                          Text('Kas Laci (Drawer)', style: TextStyle(fontSize: 12)),
+                          Text(
+                            'Kas Laci (Drawer)',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ],
                       ),
                       selected: _selectedPaymentSource == 'cash_drawer',
                       onSelected: (sel) {
-                        if (sel) setState(() => _selectedPaymentSource = 'cash_drawer');
+                        if (sel)
+                          setState(
+                            () => _selectedPaymentSource = 'cash_drawer',
+                          );
                       },
                     ),
                   ),
@@ -313,7 +390,10 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                       ),
                       selected: _selectedPaymentSource == 'bank_transfer',
                       onSelected: (sel) {
-                        if (sel) setState(() => _selectedPaymentSource = 'bank_transfer');
+                        if (sel)
+                          setState(
+                            () => _selectedPaymentSource = 'bank_transfer',
+                          );
                       },
                     ),
                   ),
@@ -335,18 +415,29 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.security_rounded, size: 18, color: Colors.amber.shade900),
+                          Icon(
+                            Icons.security_rounded,
+                            size: 18,
+                            color: Colors.amber.shade900,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Otorisasi Manager Diperlukan',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.amber.shade900),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: Colors.amber.shade900,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Pengeluaran di atas ${CurrencyFormatter.format(_threshold)} wajib diverifikasi dengan PIN Manager Cabang.',
-                        style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.amber.shade900,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       TextFormField(
@@ -359,11 +450,17 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                           filled: true,
                           fillColor: AppColors.surface,
                           counterText: '',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                         ),
                         validator: (val) {
-                          if (_requiresManagerPin && (val == null || val.trim().isEmpty)) {
+                          if (_requiresManagerPin &&
+                              (val == null || val.trim().isEmpty)) {
                             return 'PIN Manager wajib diisi untuk nominal > ${CurrencyFormatter.format(_threshold)}.';
                           }
                           return null;
@@ -378,7 +475,11 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
               // Notes
               const Text(
                 'Catatan Tambahan (Opsional)',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 6),
               TextFormField(
@@ -388,8 +489,13 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   hintText: 'Keterangan tambahan...',
                   filled: true,
                   fillColor: AppColors.surface,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -400,14 +506,26 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   backgroundColor: AppColors.obsidian,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 icon: _isLoading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.check_circle_outline_rounded, size: 18),
                 label: Text(
                   _isLoading ? 'Menyimpan...' : 'Simpan Pengeluaran',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
                 onPressed: _isLoading ? null : _submit,
               ),

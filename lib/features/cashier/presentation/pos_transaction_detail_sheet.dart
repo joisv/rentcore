@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
@@ -76,9 +78,14 @@ class PosTransactionDetailSheet extends ConsumerWidget {
           // Body
           Expanded(
             child: detailAsync.when(
-              loading: () => _buildContent(context, ref, booking, isLoadingDeep: true),
+              loading: () =>
+                  _buildContent(context, ref, booking, isLoadingDeep: true),
               error: (_, _) => _buildContent(context, ref, booking),
-              data: (deepData) => _buildContent(context, ref, deepData.isNotEmpty ? deepData : booking),
+              data: (deepData) => _buildContent(
+                context,
+                ref,
+                deepData.isNotEmpty ? deepData : booking,
+              ),
             ),
           ),
         ],
@@ -99,11 +106,14 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     final payments = (b['payments'] as List?) ?? [];
     final extensions = (b['extensions'] as List?) ?? [];
     final exchanges = (b['exchanges'] as List?) ?? [];
-    final returnInspection = b['return_inspection'] as Map? ?? b['returnInspection'] as Map? ?? {};
+    final returnInspection =
+        b['return_inspection'] as Map? ?? b['returnInspection'] as Map? ?? {};
 
     final bookingCode = b['booking_code'] ?? '-';
     final status = (b['status'] ?? 'rented').toString().toLowerCase();
-    final paymentStatus = (b['payment_status'] ?? 'paid').toString().toLowerCase();
+    final paymentStatus = (b['payment_status'] ?? 'paid')
+        .toString()
+        .toLowerCase();
     final isPaid = paymentStatus == 'paid';
 
     final totalBill = CurrencyFormatter.parse(b['total_bill']);
@@ -115,7 +125,11 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     for (final p in payments) {
       if (p['status']?.toString().toLowerCase() == 'void') continue;
       final pType = p['type']?.toString().toLowerCase();
-      if (pType == 'settlement' || pType == 'dp' || pType == 'extension' || pType == 'rental' || pType == 'exchange') {
+      if (pType == 'settlement' ||
+          pType == 'dp' ||
+          pType == 'extension' ||
+          pType == 'rental' ||
+          pType == 'exchange') {
         totalPaid += CurrencyFormatter.parse(p['amount']);
       } else if (pType == 'penalty') {
         penaltyPaid += CurrencyFormatter.parse(p['amount']);
@@ -124,34 +138,48 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     if (totalPaid == 0 && isPaid) {
       totalPaid = totalBill;
     }
-    final remainingRentalDue = (totalBill - totalPaid).clamp(0.0, double.infinity);
+    final remainingRentalDue = (totalBill - totalPaid).clamp(
+      0.0,
+      double.infinity,
+    );
     final totalPenaltyDue = CurrencyFormatter.parse(
       returnInspection['total_penalty'] ??
-      returnInspection['late_fee'] ??
-      returnInspection['penalty_amount'] ??
-      b['total_penalty'] ??
-      b['penalty_amount'] ??
-      b['late_fee'] ??
-      0,
+          returnInspection['late_fee'] ??
+          returnInspection['penalty_amount'] ??
+          b['total_penalty'] ??
+          b['penalty_amount'] ??
+          b['late_fee'] ??
+          0,
     );
-    final remainingPenaltyDue = (totalPenaltyDue - penaltyPaid).clamp(0.0, double.infinity);
+    final remainingPenaltyDue = (totalPenaltyDue - penaltyPaid).clamp(
+      0.0,
+      double.infinity,
+    );
     final remainingDue = remainingRentalDue + remainingPenaltyDue;
 
-    final lateMinutes = int.tryParse(returnInspection['late_minutes']?.toString() ?? '0') ?? 0;
+    final lateMinutes =
+        int.tryParse(returnInspection['late_minutes']?.toString() ?? '0') ?? 0;
     final lateFee = CurrencyFormatter.parse(returnInspection['late_fee']);
-    final billableHours = lateMinutes > 60 ? ((lateMinutes - 60) / 60.0).ceil() : 0;
-    final hourlyRate = billableHours > 0 && lateFee > 0 ? (lateFee / billableHours) : 15000.0;
+    final billableHours = lateMinutes > 60
+        ? ((lateMinutes - 60) / 60.0).ceil()
+        : 0;
+    final hourlyRate = billableHours > 0 && lateFee > 0
+        ? (lateFee / billableHours)
+        : 15000.0;
     final overdueDurationText = lateMinutes >= 60
         ? '${lateMinutes ~/ 60} Jam ${lateMinutes % 60} Menit ($lateMinutes Menit)'
         : '$lateMinutes Menit';
     final penaltyPaymentStatusText = lateFee > 0
         ? (remainingPenaltyDue <= 0
-            ? 'Lunas (Terbayar)'
-            : (penaltyPaid > 0 ? 'Sebagian (Sisa ${CurrencyFormatter.format(remainingPenaltyDue)})' : 'Belum Dibayar'))
+              ? 'Lunas (Terbayar)'
+              : (penaltyPaid > 0
+                    ? 'Sebagian (Sisa ${CurrencyFormatter.format(remainingPenaltyDue)})'
+                    : 'Belum Dibayar'))
         : 'Bebas Denda';
 
     final isCentral = affiliate['is_central'] == true;
-    final branchName = affiliate['name'] ?? (isCentral ? 'Pusat (Main Store)' : 'Cabang');
+    final branchName =
+        affiliate['name'] ?? (isCentral ? 'Pusat (Main Store)' : 'Cabang');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -183,20 +211,33 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                           Flexible(
                             child: Text(
                               bookingCode,
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 6),
                           IconButton(
-                            icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.textSecondary),
+                            icon: const Icon(
+                              Icons.copy_rounded,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
                             tooltip: 'Salin Kode Booking',
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                             onPressed: () {
-                              Clipboard.setData(ClipboardData(text: bookingCode));
+                              Clipboard.setData(
+                                ClipboardData(text: bookingCode),
+                              );
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Kode booking disalin ke clipboard')),
+                                const SnackBar(
+                                  content: Text(
+                                    'Kode booking disalin ke clipboard',
+                                  ),
+                                ),
                               );
                             },
                           ),
@@ -211,9 +252,14 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
-                        color: isCentral ? AppColors.warningLight : AppColors.infoLight,
+                        color: isCentral
+                            ? AppColors.warningLight
+                            : AppColors.infoLight,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -229,7 +275,10 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         branchName,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -253,7 +302,11 @@ class PosTransactionDetailSheet extends ConsumerWidget {
               children: [
                 const Text(
                   'PIHAK TERKAIT',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textMuted,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Column(
@@ -261,13 +314,19 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   children: [
                     Text(
                       customer['name'] ?? 'Pelanggan Walk-In',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
                     ),
                     if (customer['phone'] != null) ...[
                       const SizedBox(height: 2),
                       Text(
                         customer['phone'],
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ],
@@ -275,7 +334,10 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 const Divider(height: 16),
                 Text(
                   'Petugas/Kasir: ${creator['name'] ?? 'Staff RentCore'}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -295,13 +357,20 @@ class PosTransactionDetailSheet extends ConsumerWidget {
               children: [
                 const Text(
                   'UNIT PERANGKAT DISEWA',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textMuted,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 if (items.isEmpty)
                   Text(
                     b['items_summary'] ?? 'Perangkat Apple iPhone',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   )
                 else
                   ...items.map((item) {
@@ -325,30 +394,50 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.phone_iphone_rounded, size: 20, color: AppColors.obsidian),
+                              const Icon(
+                                Icons.phone_iphone_rounded,
+                                size: 20,
+                                color: AppColors.obsidian,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   '$modelName $storage $color'.trim(),
-                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
-                              if (b['status'] == 'rented' && item['status'] != 'exchanged')
+                              if (b['status'] == 'rented' &&
+                                  item['status'] != 'exchanged')
                                 OutlinedButton.icon(
                                   style: OutlinedButton.styleFrom(
                                     visualDensity: VisualDensity.compact,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                                    side: const BorderSide(color: AppColors.info),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 0,
+                                    ),
+                                    side: const BorderSide(
+                                      color: AppColors.info,
+                                    ),
                                     foregroundColor: AppColors.info,
                                   ),
-                                  icon: const Icon(Icons.swap_horiz_rounded, size: 14),
-                                  label: const Text('Tukar Unit', style: TextStyle(fontSize: 11)),
+                                  icon: const Icon(
+                                    Icons.swap_horiz_rounded,
+                                    size: 14,
+                                  ),
+                                  label: const Text(
+                                    'Tukar Unit',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
                                   onPressed: () async {
                                     Navigator.pop(context);
                                     final res = await Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => ExchangeWizardScreen(booking: b),
+                                        builder: (_) =>
+                                            ExchangeWizardScreen(booking: b),
                                       ),
                                     );
                                     if (res != null) {
@@ -358,14 +447,21 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                                 )
                               else if (item['status'] == 'exchanged')
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: AppColors.warningLight,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Text(
                                     'DITUKAR',
-                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.warning),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.warning,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -374,8 +470,20 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('SN: $sn', style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
-                              Text('IMEI: $imei', style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
+                              Text(
+                                'SN: $sn',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                              Text(
+                                'IMEI: $imei',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
                             ],
                           ),
                         ],
@@ -404,11 +512,19 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.swap_horiz_rounded, size: 18, color: AppColors.info),
+                          Icon(
+                            Icons.swap_horiz_rounded,
+                            size: 18,
+                            color: AppColors.info,
+                          ),
                           SizedBox(width: 6),
                           Text(
                             'RIWAYAT PERTUKARAN UNIT',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textMuted,
+                            ),
                           ),
                         ],
                       ),
@@ -419,7 +535,13 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                           foregroundColor: AppColors.info,
                         ),
                         icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                        label: const Text('Detail Lengkap', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          'Detail Lengkap',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         onPressed: () => ExchangeHistorySheet.show(context, b),
                       ),
                     ],
@@ -428,11 +550,19 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   ...exchanges.asMap().entries.map((entry) {
                     final idx = entry.key + 1;
                     final exc = entry.value as Map;
-                    final oldAsset = exc['old_asset'] as Map? ?? exc['oldAsset'] as Map? ?? {};
-                    final newAsset = exc['new_asset'] as Map? ?? exc['newAsset'] as Map? ?? {};
+                    final oldAsset =
+                        exc['old_asset'] as Map? ??
+                        exc['oldAsset'] as Map? ??
+                        {};
+                    final newAsset =
+                        exc['new_asset'] as Map? ??
+                        exc['newAsset'] as Map? ??
+                        {};
                     final oldModel = oldAsset['model'] as Map? ?? {};
                     final newModel = newAsset['model'] as Map? ?? {};
-                    final diff = CurrencyFormatter.parse(exc['price_differential']);
+                    final diff = CurrencyFormatter.parse(
+                      exc['price_differential'],
+                    );
                     final waived = exc['fee_waived'] == true;
                     final timeElapsed = exc['time_elapsed_hours'];
                     final category = exc['reported_issue_category'] ?? 'other';
@@ -453,24 +583,37 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                             children: [
                               Text(
                                 'Pertukaran #$idx  •  ${exc['exchange_reference'] ?? 'EXC-${exc['id']}'}',
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 11,
+                                ),
                               ),
                               if (timeElapsed != null)
                                 Text(
                                   '+${timeElapsed}j dari awal sewa',
-                                  style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textMuted,
+                                  ),
                                 ),
                             ],
                           ),
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.phonelink_erase_rounded, size: 14, color: AppColors.danger),
+                              const Icon(
+                                Icons.phonelink_erase_rounded,
+                                size: 14,
+                                color: AppColors.danger,
+                              ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   'Lama: ${oldModel['name'] ?? 'Unit Lama'} (${oldAsset['asset_code'] ?? '-'})',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -479,12 +622,20 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                           const SizedBox(height: 2),
                           Row(
                             children: [
-                              const Icon(Icons.arrow_forward_rounded, size: 14, color: AppColors.info),
+                              const Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 14,
+                                color: AppColors.info,
+                              ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   'Ganti: ${newModel['name'] ?? 'Unit Baru'} (${newAsset['asset_code'] ?? '-'})',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.obsidian),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.obsidian,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -493,7 +644,11 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                           const SizedBox(height: 6),
                           Text(
                             'Keluhan: "${exc['customer_complaint'] ?? category}"',
-                            style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                           const Divider(height: 12),
                           Row(
@@ -502,16 +657,25 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                               Text(
                                 waived
                                     ? 'Selisih: Bebas Biaya (Waived)'
-                                    : (diff > 0 ? 'Selisih: +${CurrencyFormatter.format(diff)}' : 'Selisih: Setara (Rp 0)'),
+                                    : (diff > 0
+                                          ? 'Selisih: +${CurrencyFormatter.format(diff)}'
+                                          : 'Selisih: Setara (Rp 0)'),
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: waived ? AppColors.warning : (diff > 0 ? AppColors.success : AppColors.info),
+                                  color: waived
+                                      ? AppColors.warning
+                                      : (diff > 0
+                                            ? AppColors.success
+                                            : AppColors.info),
                                 ),
                               ),
                               Text(
                                 'Staff: ${exc['handler']?['name'] ?? 'Staff'}',
-                                style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textMuted,
+                                ),
                               ),
                             ],
                           ),
@@ -538,7 +702,11 @@ class PosTransactionDetailSheet extends ConsumerWidget {
               children: [
                 const Text(
                   'PERIODE & DURASI RENTAL',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textMuted,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _buildTimelineRow('Mulai Rental', b['start_at']),
@@ -546,16 +714,28 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 _buildTimelineRow('Jadwal Kembali', b['end_at']),
                 if (returnInspection['returned_at'] != null) ...[
                   const SizedBox(height: 6),
-                  _buildTimelineRow('Waktu Pengembalian', returnInspection['returned_at']),
+                  _buildTimelineRow(
+                    'Waktu Pengembalian',
+                    returnInspection['returned_at'],
+                  ),
                 ],
                 const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total Durasi:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    const Text(
+                      'Total Durasi:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                     Text(
                       '${b['duration_hours'] ?? 24} Jam',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -565,13 +745,20 @@ class PosTransactionDetailSheet extends ConsumerWidget {
           const SizedBox(height: 16),
 
           // 4b. Audit Keterlambatan Pengembalian (Overdue & Late Fee Audit)
-          if (returnInspection.isNotEmpty && (lateMinutes > 0 || lateFee > 0)) ...[
+          if (returnInspection.isNotEmpty &&
+              (lateMinutes > 0 || lateFee > 0)) ...[
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: lateFee > 0 ? (remainingPenaltyDue <= 0 ? AppColors.success : AppColors.warning) : AppColors.border),
+                border: Border.all(
+                  color: lateFee > 0
+                      ? (remainingPenaltyDue <= 0
+                            ? AppColors.success
+                            : AppColors.warning)
+                      : AppColors.border,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -584,32 +771,49 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                           Icon(
                             Icons.timer_off_outlined,
                             size: 18,
-                            color: lateFee > 0 ? (remainingPenaltyDue <= 0 ? AppColors.success : AppColors.warning) : AppColors.textSecondary,
+                            color: lateFee > 0
+                                ? (remainingPenaltyDue <= 0
+                                      ? AppColors.success
+                                      : AppColors.warning)
+                                : AppColors.textSecondary,
                           ),
                           const SizedBox(width: 6),
                           const Text(
                             'AUDIT KETERLAMBATAN & DENDA',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textMuted,
+                            ),
                           ),
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: lateFee > 0
-                              ? (remainingPenaltyDue <= 0 ? AppColors.successLight : AppColors.warningLight)
+                              ? (remainingPenaltyDue <= 0
+                                    ? AppColors.successLight
+                                    : AppColors.warningLight)
                               : AppColors.infoLight,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           lateFee > 0
-                              ? (remainingPenaltyDue <= 0 ? 'LUNAS' : 'BELUM LUNAS')
+                              ? (remainingPenaltyDue <= 0
+                                    ? 'LUNAS'
+                                    : 'BELUM LUNAS')
                               : 'GRACE PERIOD (BEBAS DENDA)',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             color: lateFee > 0
-                                ? (remainingPenaltyDue <= 0 ? AppColors.success : AppColors.warning)
+                                ? (remainingPenaltyDue <= 0
+                                      ? AppColors.success
+                                      : AppColors.warning)
                                 : AppColors.info,
                           ),
                         ),
@@ -619,18 +823,29 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _buildTimelineRow('Jadwal Kembali', b['end_at']),
                   const SizedBox(height: 6),
-                  _buildTimelineRow('Waktu Pengembalian', returnInspection['returned_at']),
+                  _buildTimelineRow(
+                    'Waktu Pengembalian',
+                    returnInspection['returned_at'],
+                  ),
                   const SizedBox(height: 6),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Durasi Keterlambatan:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const Text(
+                        'Durasi Keterlambatan:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                       Text(
                         overdueDurationText,
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 12,
-                          color: lateFee > 0 ? AppColors.danger : AppColors.textPrimary,
+                          color: lateFee > 0
+                              ? AppColors.danger
+                              : AppColors.textPrimary,
                         ),
                       ),
                     ],
@@ -639,18 +854,39 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Toleransi Bebas Denda:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                      Text('60 Menit (Grace Period)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        'Toleransi Bebas Denda:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        '60 Menit (Grace Period)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ],
                   ),
                   const Divider(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Tarif Denda per Jam:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const Text(
+                        'Tarif Denda per Jam:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                       Text(
                         '${CurrencyFormatter.format(hourlyRate)} / Jam',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -658,10 +894,19 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Jam Keterlambatan Dihitung:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const Text(
+                        'Jam Keterlambatan Dihitung:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                       Text(
                         '$billableHours Jam Billable',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -669,10 +914,21 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total Denda Keterlambatan:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      const Text(
+                        'Total Denda Keterlambatan:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       Text(
                         CurrencyFormatter.format(lateFee),
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.danger),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: AppColors.danger,
+                        ),
                       ),
                     ],
                   ),
@@ -680,13 +936,21 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Status Pembayaran Denda:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const Text(
+                        'Status Pembayaran Denda:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                       Text(
                         penaltyPaymentStatusText,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
-                          color: remainingPenaltyDue <= 0 ? AppColors.success : AppColors.warning,
+                          color: remainingPenaltyDue <= 0
+                              ? AppColors.success
+                              : AppColors.warning,
                         ),
                       ),
                     ],
@@ -710,36 +974,63 @@ class PosTransactionDetailSheet extends ConsumerWidget {
               children: [
                 const Text(
                   'RINCIAN TAGIHAN & PEMBAYARAN',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textMuted,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _buildPriceRow('Harga Sewa Pokok', subtotal),
                 if (discount > 0) ...[
                   const SizedBox(height: 4),
-                  _buildPriceRow('Diskon / Voucher', -discount, isDiscount: true),
+                  _buildPriceRow(
+                    'Diskon / Voucher',
+                    -discount,
+                    isDiscount: true,
+                  ),
                 ],
                 if (extensions.isNotEmpty) ...[
                   ...extensions.map((ext) {
                     final addHours = ext['additional_hours'] ?? 0;
-                    final addFee = CurrencyFormatter.parse(ext['additional_fee']);
+                    final addFee = CurrencyFormatter.parse(
+                      ext['additional_fee'],
+                    );
                     return Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: _buildPriceRow('Perpanjangan ($addHours Jam)', addFee),
+                      child: _buildPriceRow(
+                        'Perpanjangan ($addHours Jam)',
+                        addFee,
+                      ),
                     );
                   }),
                 ],
                 if (exchanges.isNotEmpty) ...[
                   ...exchanges.map((exc) {
-                    final oldAsset = (exc['old_asset'] as Map? ?? exc['oldAsset'] as Map? ?? {}).cast<String, dynamic>();
-                    final newAsset = (exc['new_asset'] as Map? ?? exc['newAsset'] as Map? ?? {}).cast<String, dynamic>();
-                    final oldModel = (oldAsset['model'] as Map?)?['name'] ?? 'Unit Lama';
-                    final newModel = (newAsset['model'] as Map?)?['name'] ?? 'Unit Baru';
-                    final diff = CurrencyFormatter.parse(exc['price_differential']);
+                    final oldAsset =
+                        (exc['old_asset'] as Map? ??
+                                exc['oldAsset'] as Map? ??
+                                {})
+                            .cast<String, dynamic>();
+                    final newAsset =
+                        (exc['new_asset'] as Map? ??
+                                exc['newAsset'] as Map? ??
+                                {})
+                            .cast<String, dynamic>();
+                    final oldModel =
+                        (oldAsset['model'] as Map?)?['name'] ?? 'Unit Lama';
+                    final newModel =
+                        (newAsset['model'] as Map?)?['name'] ?? 'Unit Baru';
+                    final diff = CurrencyFormatter.parse(
+                      exc['price_differential'],
+                    );
                     final waived = exc['fee_waived'] == true;
                     return Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: _buildPriceRow(
-                        waived ? 'Tukar: $oldModel ➔ $newModel (Waived)' : 'Tukar: $oldModel ➔ $newModel',
+                        waived
+                            ? 'Tukar: $oldModel ➔ $newModel (Waived)'
+                            : 'Tukar: $oldModel ➔ $newModel',
                         waived ? 0.0 : diff,
                       ),
                     );
@@ -749,24 +1040,42 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   if (CurrencyFormatter.parse(returnInspection['late_fee']) > 0)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: _buildPriceRow('Denda Keterlambatan', CurrencyFormatter.parse(returnInspection['late_fee'])),
+                      child: _buildPriceRow(
+                        'Denda Keterlambatan',
+                        CurrencyFormatter.parse(returnInspection['late_fee']),
+                      ),
                     ),
-                  if (CurrencyFormatter.parse(returnInspection['damage_fee']) > 0)
+                  if (CurrencyFormatter.parse(returnInspection['damage_fee']) >
+                      0)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: _buildPriceRow('Biaya Kerusakan/Denda', CurrencyFormatter.parse(returnInspection['damage_fee'])),
+                      child: _buildPriceRow(
+                        'Biaya Kerusakan/Denda',
+                        CurrencyFormatter.parse(returnInspection['damage_fee']),
+                      ),
                     ),
                 ],
                 const Divider(height: 16),
-                _buildPriceRow('TOTAL TAGIHAN', totalBill + totalPenaltyDue, isBold: true, fontSize: 14),
+                _buildPriceRow(
+                  'TOTAL TAGIHAN',
+                  totalBill + totalPenaltyDue,
+                  isBold: true,
+                  fontSize: 14,
+                ),
                 const SizedBox(height: 6),
-                _buildPriceRow('Total Terbayar', totalPaid + penaltyPaid, color: AppColors.success),
+                _buildPriceRow(
+                  'Total Terbayar',
+                  totalPaid + penaltyPaid,
+                  color: AppColors.success,
+                ),
                 const SizedBox(height: 6),
                 _buildPriceRow(
                   'Sisa Tagihan',
                   remainingDue,
                   isBold: true,
-                  color: remainingDue > 0 ? AppColors.danger : AppColors.success,
+                  color: remainingDue > 0
+                      ? AppColors.danger
+                      : AppColors.success,
                   fontSize: 14,
                 ),
               ],
@@ -788,18 +1097,41 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 children: [
                   const Text(
                     'Riwayat Pembayaran',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   ...payments.map((p) {
                     final pAmt = CurrencyFormatter.parse(p['amount']);
-                    final rawMethod = (p['payment_method'] is Map ? p['payment_method']['name'] : p['payment_method']) ?? 'Tunai';
-                    final pMethod = rawMethod.toString().toLowerCase().contains('qris') ? 'QRIS' : rawMethod;
+                    final rawMethod =
+                        (p['payment_method'] is Map
+                            ? p['payment_method']['name']
+                            : p['payment_method']) ??
+                        'Tunai';
+                    final pMethod =
+                        rawMethod.toString().toLowerCase().contains('qris')
+                        ? 'QRIS'
+                        : rawMethod;
                     final rawDate = p['transacted_at'] ?? p['created_at'] ?? '';
                     final pDate = DateFormatter.formatFull(rawDate);
-                    final pCashier = (p['processor'] is Map ? p['processor']['name'] : (p['processed_by'] is Map ? p['processed_by']['name'] : p['processed_by'])) ?? 'Kasir';
+                    final pCashier =
+                        (p['processor'] is Map
+                            ? p['processor']['name']
+                            : (p['processed_by'] is Map
+                                  ? p['processed_by']['name']
+                                  : p['processed_by'])) ??
+                        'Kasir';
                     final pType = p['type']?.toString().toLowerCase();
-                    final pTypeLabel = p['type_label'] ?? (pType == 'penalty' ? 'Denda Keterlambatan' : (pType == 'extension' ? 'Perpanjangan' : 'Sewa Kontrak'));
+                    final pTypeLabel =
+                        p['type_label'] ??
+                        (pType == 'penalty'
+                            ? 'Denda Keterlambatan'
+                            : (pType == 'extension'
+                                  ? 'Perpanjangan'
+                                  : 'Sewa Kontrak'));
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
@@ -815,8 +1147,22 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('$pMethod • $pTypeLabel', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12), overflow: TextOverflow.ellipsis),
-                                Text('$pDate • Oleh: $pCashier', style: const TextStyle(fontSize: 10, color: AppColors.textMuted), overflow: TextOverflow.ellipsis),
+                                Text(
+                                  '$pMethod • $pTypeLabel',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  '$pDate • Oleh: $pCashier',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textMuted,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ],
                             ),
                           ),
@@ -824,15 +1170,30 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(CurrencyFormatter.format(pAmt), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                              Text(
+                                CurrencyFormatter.format(pAmt),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
                               if (p['status'] != 'void') ...[
                                 const SizedBox(width: 4),
                                 IconButton(
-                                  icon: const Icon(Icons.cancel_outlined, size: 16, color: AppColors.danger),
+                                  icon: const Icon(
+                                    Icons.cancel_outlined,
+                                    size: 16,
+                                    color: AppColors.danger,
+                                  ),
                                   tooltip: 'Batalkan Pembayaran (Void)',
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
-                                  onPressed: () => _showVoidDialog(context, ref, p, b['id'] ?? b['booking_id']),
+                                  onPressed: () => _showVoidDialog(
+                                    context,
+                                    ref,
+                                    p,
+                                    b['id'] ?? b['booking_id'],
+                                  ),
                                 ),
                               ],
                             ],
@@ -854,10 +1215,15 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   icon: const Icon(Icons.print_rounded, size: 18),
-                  label: const Text('Cetak Struk (ESC/POS)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  label: const Text(
+                    'Cetak Struk (ESC/POS)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
                   onPressed: () => _printBookingReceipt(context, ref, b),
                 ),
               ),
@@ -869,10 +1235,18 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                       backgroundColor: AppColors.obsidian,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                     icon: const Icon(Icons.payments_rounded, size: 18),
-                    label: const Text('Bayar di Kasir', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    label: const Text(
+                      'Bayar di Kasir',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                     onPressed: () {
                       Navigator.pop(context);
                       onPaymentRequested?.call(b);
@@ -897,7 +1271,9 @@ class PosTransactionDetailSheet extends ConsumerWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        isPaid ? 'LUNAS' : (paymentStatus == 'partial' ? 'SEBAGIAN' : 'BELUM LUNAS'),
+        isPaid
+            ? 'LUNAS'
+            : (paymentStatus == 'partial' ? 'SEBAGIAN' : 'BELUM LUNAS'),
         style: TextStyle(
           color: isPaid ? AppColors.success : AppColors.danger,
           fontWeight: FontWeight.bold,
@@ -908,19 +1284,27 @@ class PosTransactionDetailSheet extends ConsumerWidget {
   }
 
   Widget _buildTimelineRow(String label, dynamic value) {
-    final strVal = value != null ? value.toString().replaceAll('T', ' ').substring(0, 16) : '-';
+    final strVal = value != null
+        ? value.toString().replaceAll('T', ' ').substring(0, 16)
+        : '-';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
         const SizedBox(width: 8),
-        Text(strVal, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+        Text(
+          strVal,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+        ),
       ],
     );
   }
@@ -953,27 +1337,38 @@ class PosTransactionDetailSheet extends ConsumerWidget {
           style: TextStyle(
             fontSize: fontSize,
             fontWeight: isBold ? FontWeight.w800 : FontWeight.w700,
-            color: isDiscount ? AppColors.danger : (color ?? AppColors.textPrimary),
+            color: isDiscount
+                ? AppColors.danger
+                : (color ?? AppColors.textPrimary),
           ),
         ),
       ],
     );
   }
 
-  void _printBookingReceipt(BuildContext context, WidgetRef ref, Map<String, dynamic> b) async {
+  void _printBookingReceipt(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> b,
+  ) async {
     try {
       final repo = ref.read(cashierRepositoryProvider);
       final payments = (b['payments'] as List?) ?? [];
       final latestTx = payments.isNotEmpty ? payments.last : null;
-      final receiptId = latestTx?['receipt_number'] ?? latestTx?['id'] ?? b['id'];
+      final receiptId =
+          latestTx?['receipt_number'] ?? latestTx?['id'] ?? b['id'];
 
       final receiptData = await repo.fetchReceipt(receiptId);
       if (!context.mounted) return;
 
-      final branchName = receiptData['outlet_name'] ?? b['affiliate']?['name'] ?? 'RentCore';
+      final branchName =
+          receiptData['outlet_name'] ?? b['affiliate']?['name'] ?? 'RentCore';
       final cashierName = receiptData['cashier_name'] ?? 'Kasir';
-      final receiptNum = receiptData['receipt_number'] ?? b['booking_code'] ?? '-';
-      final totalAmt = CurrencyFormatter.parse(receiptData['total_amount'] ?? b['total_bill']);
+      final receiptNum =
+          receiptData['receipt_number'] ?? b['booking_code'] ?? '-';
+      final totalAmt = CurrencyFormatter.parse(
+        receiptData['total_amount'] ?? b['total_bill'],
+      );
       final method = receiptData['payment_method'] ?? 'Tunai';
 
       final printerService = ThermalPrinterService();
@@ -988,9 +1383,14 @@ class PosTransactionDetailSheet extends ConsumerWidget {
         cashierName: cashierName,
         totalAmount: totalAmt,
         paymentMethod: method,
-        transactedAt: receiptData['transacted_at']?.toString() ?? DateTime.now().toString().substring(0, 16),
+        transactedAt:
+            receiptData['transacted_at']?.toString() ??
+            DateTime.now().toString().substring(0, 16),
       );
-      final escposBytes = printerService.buildPosPaymentSlipBytes(model, printerSettings);
+      final escposBytes = printerService.buildPosPaymentSlipBytes(
+        model,
+        printerSettings,
+      );
 
       showDialog(
         context: context,
@@ -1000,15 +1400,30 @@ class PosTransactionDetailSheet extends ConsumerWidget {
           escposBytes: escposBytes,
           content: Column(
             children: [
-              const Text('STRUK SEWA KASIR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const Text(
+                'STRUK SEWA KASIR',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
               Text('No: $receiptNum', style: const TextStyle(fontSize: 11)),
-              Text('Pelanggan: ${b['customer']?['name'] ?? '-'}', style: const TextStyle(fontSize: 11)),
+              Text(
+                'Pelanggan: ${b['customer']?['name'] ?? '-'}',
+                style: const TextStyle(fontSize: 11),
+              ),
               const Divider(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total Bayar:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text(CurrencyFormatter.format(totalAmt), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const Text(
+                    'Total Bayar:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  Text(
+                    CurrencyFormatter.format(totalAmt),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -1018,18 +1433,24 @@ class PosTransactionDetailSheet extends ConsumerWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mencetak struk: $e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text('Gagal mencetak struk: $e'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     }
   }
 
-  void _showVoidDialog(BuildContext context, WidgetRef ref, Map p, dynamic bookingId) {
+  void _showVoidDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Map p,
+    dynamic bookingId,
+  ) {
     showDialog(
       context: context,
-      builder: (dialogCtx) => _VoidTransactionDialog(
-        payment: p,
-        bookingId: bookingId,
-      ),
+      builder: (dialogCtx) =>
+          _VoidTransactionDialog(payment: p, bookingId: bookingId),
     );
   }
 }
@@ -1044,10 +1465,12 @@ class _VoidTransactionDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_VoidTransactionDialog> createState() => _VoidTransactionDialogState();
+  ConsumerState<_VoidTransactionDialog> createState() =>
+      _VoidTransactionDialogState();
 }
 
-class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> {
+class _VoidTransactionDialogState
+    extends ConsumerState<_VoidTransactionDialog> {
   final _reasonController = TextEditingController();
   final _pinController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -1091,14 +1514,17 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
     setState(() => _isSubmitting = true);
 
     final p = widget.payment;
-    final pCode = p['transaction_code'] ?? p['receipt_number'] ?? 'TX-${p['id']}';
+    final pCode =
+        p['transaction_code'] ?? p['receipt_number'] ?? 'TX-${p['id']}';
 
     try {
       final repo = ref.read(cashierRepositoryProvider);
       await repo.voidTransaction(
         transactionId: p['id'],
         reason: _reasonController.text.trim(),
-        managerPin: _pinController.text.trim().isNotEmpty ? _pinController.text.trim() : null,
+        managerPin: _pinController.text.trim().isNotEmpty
+            ? _pinController.text.trim()
+            : null,
       );
 
       _countdownTimer?.cancel();
@@ -1118,7 +1544,8 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
       );
     } catch (e) {
       final errStr = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
-      final isPinError = errStr.toLowerCase().contains('pin') ||
+      final isPinError =
+          errStr.toLowerCase().contains('pin') ||
           errStr.toLowerCase().contains('otorisasi') ||
           errStr.toLowerCase().contains('unauthorized') ||
           errStr.contains('403');
@@ -1149,10 +1576,14 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
   @override
   Widget build(BuildContext context) {
     final p = widget.payment;
-    final pCode = p['transaction_code'] ?? p['receipt_number'] ?? 'TX-${p['id']}';
+    final pCode =
+        p['transaction_code'] ?? p['receipt_number'] ?? 'TX-${p['id']}';
     final pAmt = CurrencyFormatter.parse(p['amount']);
-    final isLockedOut = _lockoutUntil != null && DateTime.now().isBefore(_lockoutUntil!);
-    final remainingSeconds = isLockedOut ? _lockoutUntil!.difference(DateTime.now()).inSeconds + 1 : 0;
+    final isLockedOut =
+        _lockoutUntil != null && DateTime.now().isBefore(_lockoutUntil!);
+    final remainingSeconds = isLockedOut
+        ? _lockoutUntil!.difference(DateTime.now()).inSeconds + 1
+        : 0;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -1164,10 +1595,17 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
               color: AppColors.dangerLight,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: AppColors.danger,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 10),
-          const Text('Batalkan Transaksi (Void)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          const Text(
+            'Batalkan Transaksi (Void)',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
         ],
       ),
       content: Form(
@@ -1189,28 +1627,52 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(pCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        Text(CurrencyFormatter.format(pAmt), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.danger)),
+                        Text(
+                          pCode,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(pAmt),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: AppColors.danger,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Metode: ${(p['payment_method'] is Map ? p['payment_method']['name'] : p['payment_method']) ?? 'Tunai'} • Tipe: ${p['type_label'] ?? p['type'] ?? 'Bayar'}',
-                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
-              const Text('Alasan Pembatalan *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const Text(
+                'Alasan Pembatalan *',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _reasonController,
                 decoration: InputDecoration(
                   hintText: 'Contoh: Salah input nominal, duplikasi, dsb.',
                   hintStyle: const TextStyle(fontSize: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
                 validator: (val) {
                   if (val == null || val.trim().length < 5) {
@@ -1220,7 +1682,10 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
                 },
               ),
               const SizedBox(height: 14),
-              const Text('PIN Manager Cabang', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const Text(
+                'PIN Manager Cabang',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
               const Text(
                 'Diperlukan jika Anda bukan Owner/Admin bisnis.',
                 style: TextStyle(fontSize: 10, color: AppColors.textMuted),
@@ -1233,30 +1698,50 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
                 keyboardType: TextInputType.number,
                 maxLength: 6,
                 decoration: InputDecoration(
-                  hintText: isLockedOut ? 'Terkunci sementara' : '6 digit PIN Manager',
+                  hintText: isLockedOut
+                      ? 'Terkunci sementara'
+                      : '6 digit PIN Manager',
                   hintStyle: const TextStyle(fontSize: 12),
                   counterText: '',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
               ),
               if (isLockedOut) ...[
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.dangerLight,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppColors.danger.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.lock_clock_rounded, color: AppColors.danger, size: 16),
+                      const Icon(
+                        Icons.lock_clock_rounded,
+                        color: AppColors.danger,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Akses PIN dikunci sementara: $remainingSeconds detik tersisa.',
-                          style: const TextStyle(fontSize: 11, color: AppColors.danger, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.danger,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -1266,7 +1751,11 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
                 const SizedBox(height: 6),
                 Text(
                   _pinError!,
-                  style: const TextStyle(fontSize: 11, color: AppColors.danger, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.danger,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ],
@@ -1275,23 +1764,36 @@ class _VoidTransactionDialogState extends ConsumerState<_VoidTransactionDialog> 
       ),
       actions: [
         TextButton(
-          onPressed: _isSubmitting ? null : () {
-            _countdownTimer?.cancel();
-            Navigator.pop(context);
-          },
+          onPressed: _isSubmitting
+              ? null
+              : () {
+                  _countdownTimer?.cancel();
+                  Navigator.pop(context);
+                },
           child: const Text('Batal'),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.danger,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
           onPressed: (_isSubmitting || isLockedOut) ? null : _handleVoidSubmit,
           child: _isSubmitting
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
               : Text(
-                  isLockedOut ? 'Terkunci ($remainingSeconds s)' : 'Void Transaksi',
+                  isLockedOut
+                      ? 'Terkunci ($remainingSeconds s)'
+                      : 'Void Transaksi',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
         ),

@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
@@ -8,11 +10,50 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
+import '../../cashier/presentation/pos_transaction_detail_sheet.dart';
+import '../../cashier/providers/cashier_provider.dart';
+import '../../printer/providers/printer_provider.dart';
+import '../../../core/services/thermal_printer_service.dart';
+import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../providers/booking_provider.dart';
 import 'direct_rental_screen.dart';
 import 'exchange_history_sheet.dart';
 import 'exchange_wizard_screen.dart';
 import 'return_wizard_screen.dart';
+
+int _getBookingPriority(Map<String, dynamic> b, DateTime now) {
+  final status = (b['status'] ?? '').toString().toLowerCase();
+  final endAt = b['end_at'] != null
+      ? DateTime.tryParse(b['end_at'].toString())
+      : null;
+
+  if (status == 'returned') return 5; // Completed
+  if (status == 'cancelled') return 6;
+
+  // 1. Overdue first
+  if (endAt != null && endAt.isBefore(now)) {
+    return 1;
+  }
+  // 2. Due Today
+  if (endAt != null &&
+      endAt.year == now.year &&
+      endAt.month == now.month &&
+      endAt.day == now.day) {
+    return 2;
+  }
+  // 3. Awaiting Handover
+  if (status == 'pending' ||
+      status == 'confirmed' ||
+      status == 'waiting_handover' ||
+      status == 'booked') {
+    return 3;
+  }
+  // 4. Active
+  if (status == 'rented' || status == 'active') {
+    return 4;
+  }
+  return 7;
+}
 
 class _AdjustmentTarget {
   final int? itemId;
@@ -46,9 +87,13 @@ class _DurationOption {
   });
 }
 
-List<_DurationOption> _getDurationOptionsForTarget(Map<String, dynamic>? model) {
-  final rawTiers = (model?['pricing_tiers'] as List?) ??
-      (model?['pricingTiers'] as List?) ?? [];
+List<_DurationOption> _getDurationOptionsForTarget(
+  Map<String, dynamic>? model,
+) {
+  final rawTiers =
+      (model?['pricing_tiers'] as List?) ??
+      (model?['pricingTiers'] as List?) ??
+      [];
   final options = <_DurationOption>[];
 
   for (final t in rawTiers) {
@@ -59,7 +104,8 @@ List<_DurationOption> _getDurationOptionsForTarget(Map<String, dynamic>? model) 
           : (double.tryParse(t['price']?.toString() ?? '0') ?? 0.0);
       final isActive = t['is_active'] != false;
       if (hours > 0 && isActive) {
-        final val = int.tryParse(t['duration_value']?.toString() ?? '') ?? hours;
+        final val =
+            int.tryParse(t['duration_value']?.toString() ?? '') ?? hours;
         final unit = (t['duration_unit']?.toString() ?? 'hour').toLowerCase();
         String lbl;
         if (unit == 'day') {
@@ -69,11 +115,7 @@ List<_DurationOption> _getDurationOptionsForTarget(Map<String, dynamic>? model) 
         } else {
           lbl = '$hours Jam';
         }
-        options.add(_DurationOption(
-          hours: hours,
-          price: price,
-          label: lbl,
-        ));
+        options.add(_DurationOption(hours: hours, price: price, label: lbl));
       }
     }
   }
@@ -82,13 +124,12 @@ List<_DurationOption> _getDurationOptionsForTarget(Map<String, dynamic>? model) 
 
   // Fallback if no specific pricing tiers configured
   if (options.isEmpty) {
-    final hourlyRate = ((model?['tier']?['hourly_rate'] ?? 15000) as num).toDouble();
+    final hourlyRate = ((model?['tier']?['hourly_rate'] ?? 15000) as num)
+        .toDouble();
     for (final h in [6, 12, 24]) {
-      options.add(_DurationOption(
-        hours: h,
-        price: h * hourlyRate,
-        label: '$h Jam',
-      ));
+      options.add(
+        _DurationOption(hours: h, price: h * hourlyRate, label: '$h Jam'),
+      );
     }
   }
 
@@ -101,8 +142,11 @@ IconData _getItemCategoryIcon({
   Map<String, dynamic>? primaryItem,
 }) {
   final rawCat = model?['category'];
-  final catName = (rawCat is Map ? rawCat['name'] : rawCat)?.toString().toLowerCase() ?? '';
-  final modelName = (model?['name'] ?? primaryItem?['name'] ?? '').toString().toLowerCase();
+  final catName =
+      (rawCat is Map ? rawCat['name'] : rawCat)?.toString().toLowerCase() ?? '';
+  final modelName = (model?['name'] ?? primaryItem?['name'] ?? '')
+      .toString()
+      .toLowerCase();
   final assetCode = (asset?['asset_code'] ?? '').toString().toLowerCase();
 
   final combined = '$catName $modelName $assetCode';
@@ -182,7 +226,9 @@ IconData _getItemCategoryIcon({
       combined.contains('smartphone')) {
     return Icons.phone_iphone_rounded;
   }
-  if (combined.contains('alat') || combined.contains('gear') || combined.contains('aksesoris')) {
+  if (combined.contains('alat') ||
+      combined.contains('gear') ||
+      combined.contains('aksesoris')) {
     return Icons.inventory_2_outlined;
   }
   return Icons.devices_other_rounded;
@@ -213,8 +259,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   }
 
   void _onBookingsScroll() async {
-    if (!_scrollController.hasClients || _isLoadingMoreBookings || !_hasMoreBookings) return;
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 250) {
+    if (!_scrollController.hasClients ||
+        _isLoadingMoreBookings ||
+        !_hasMoreBookings)
+      return;
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 250) {
       final bizState = ref.read(businessProvider);
       final repo = ref.read(bookingRepositoryProvider);
       final status = ref.read(bookingFilterStatusProvider);
@@ -323,12 +373,22 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                 textInputAction: TextInputAction.search,
                 onSubmitted: (val) {
                   _debounceTimer?.cancel();
-                  ref.read(bookingSearchQueryProvider.notifier).setQuery(val.trim());
+                  ref
+                      .read(bookingSearchQueryProvider.notifier)
+                      .setQuery(val.trim());
                 },
                 decoration: InputDecoration(
                   hintText: 'Cari kode booking, nama, telp, atau unit...',
-                  hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                  hintStyle: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w400,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: Color(0xFF94A3B8),
+                  ),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear_rounded, size: 18),
@@ -338,18 +398,30 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                   filled: true,
                   fillColor: Colors.white,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.obsidian, width: 1.2),
+                    borderSide: const BorderSide(
+                      color: AppColors.obsidian,
+                      width: 1.2,
+                    ),
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
                   ),
                 ),
                 onChanged: _onSearchChanged,
@@ -394,7 +466,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            isSearching ? Icons.search_off_rounded : Icons.inbox_outlined,
+                            isSearching
+                                ? Icons.search_off_rounded
+                                : Icons.inbox_outlined,
                             size: 48,
                             color: AppColors.textMuted,
                           ),
@@ -403,25 +477,36 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             isSearching
                                 ? 'Tidak ditemukan transaksi sewa yang cocok.'
                                 : 'Tidak ada data sewa untuk filter ini.',
-                            style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                           if (isSearching) ...[
                             const SizedBox(height: 6),
                             Text(
                               'Kata kunci: "$currentSearch"',
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 12,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 16),
                             OutlinedButton.icon(
                               onPressed: _clearSearch,
                               icon: const Icon(Icons.refresh_rounded, size: 16),
-                              label: const Text('Reset Pencarian', style: TextStyle(fontSize: 12)),
+                              label: const Text(
+                                'Reset Pencarian',
+                                style: TextStyle(fontSize: 12),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.obsidian,
                                 side: const BorderSide(color: AppColors.border),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
                           ],
@@ -432,6 +517,26 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                 }
 
                 final combinedBookings = [...bookings, ..._extraBookings];
+                final now = DateTime.now();
+                combinedBookings.sort((a, b) {
+                  final prioA = _getBookingPriority(a, now);
+                  final prioB = _getBookingPriority(b, now);
+                  if (prioA != prioB) {
+                    return prioA.compareTo(prioB);
+                  }
+                  final endA = a['end_at'] != null
+                      ? DateTime.tryParse(a['end_at'].toString())
+                      : null;
+                  final endB = b['end_at'] != null
+                      ? DateTime.tryParse(b['end_at'].toString())
+                      : null;
+                  if (endA != null && endB != null) {
+                    return endA.compareTo(endB);
+                  }
+                  final idA = int.tryParse(a['id']?.toString() ?? '0') ?? 0;
+                  final idB = int.tryParse(b['id']?.toString() ?? '0') ?? 0;
+                  return idB.compareTo(idA);
+                });
 
                 return RefreshIndicator(
                   onRefresh: () async {
@@ -440,8 +545,15 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                   },
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 100),
-                    itemCount: combinedBookings.length + (_isLoadingMoreBookings ? 1 : 0),
+                    padding: const EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      top: 4,
+                      bottom: 100,
+                    ),
+                    itemCount:
+                        combinedBookings.length +
+                        (_isLoadingMoreBookings ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index >= combinedBookings.length) {
                         return const Center(
@@ -467,17 +579,22 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                       for (final it in items) {
                         if (it is Map) {
                           final itMap = Map<String, dynamic>.from(it);
-                          final itemType = itMap['item_type']?.toString().toLowerCase();
+                          final itemType = itMap['item_type']
+                              ?.toString()
+                              .toLowerCase();
                           final asset = itMap['asset'] as Map?;
                           final m = asset?['model'] as Map?;
-                          final isAddon = itemType == 'addon' ||
+                          final isAddon =
+                              itemType == 'addon' ||
                               m?['is_addon'] == true ||
                               m?['is_addon'] == 1;
 
                           if (isAddon) {
                             addonItems.add(itMap);
                           } else {
-                            final isActive = itMap['status'] == 'active' || itMap['status'] == null;
+                            final isActive =
+                                itMap['status'] == 'active' ||
+                                itMap['status'] == null;
                             if (isActive && primaryItem == null) {
                               primaryItem = itMap;
                             } else {
@@ -488,20 +605,34 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                       }
 
                       // Fallback: If no primary item identified, use first item
-                      if (primaryItem == null && items.isNotEmpty && items.first is Map) {
-                        primaryItem = Map<String, dynamic>.from(items.first as Map);
+                      if (primaryItem == null &&
+                          items.isNotEmpty &&
+                          items.first is Map) {
+                        primaryItem = Map<String, dynamic>.from(
+                          items.first as Map,
+                        );
                         addonItems.remove(primaryItem);
                       }
 
-                      final activeAsset = (item['primary_asset'] as Map?)?.cast<String, dynamic>() ??
-                          (item['active_asset'] as Map?)?.cast<String, dynamic>() ??
-                          (primaryItem?['asset'] as Map?)?.cast<String, dynamic>();
+                      final activeAsset =
+                          (item['primary_asset'] as Map?)
+                              ?.cast<String, dynamic>() ??
+                          (item['active_asset'] as Map?)
+                              ?.cast<String, dynamic>() ??
+                          (primaryItem?['asset'] as Map?)
+                              ?.cast<String, dynamic>();
                       final model = activeAsset?['model'];
 
-                      final endAt = item['end_at'] != null ? DateTime.tryParse(item['end_at']) : null;
+                      final endAt = item['end_at'] != null
+                          ? DateTime.tryParse(item['end_at'])
+                          : null;
                       final isReturned = item['status'] == 'returned';
-                      final paymentStatus = (item['payment_status'] ?? 'paid').toString().toLowerCase();
-                      final hasUnpaidPenalty = isReturned && paymentStatus != 'paid';
+                      final paymentStatus = (item['payment_status'] ?? 'paid')
+                          .toString()
+                          .toLowerCase();
+                      final isPaid = paymentStatus == 'paid';
+                      final hasUnpaidPenalty =
+                          isReturned && paymentStatus != 'paid';
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -524,11 +655,18 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                     children: [
                                       Flexible(
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: AppColors.surfaceMuted,
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: AppColors.borderSubtle),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border.all(
+                                              color: AppColors.borderSubtle,
+                                            ),
                                           ),
                                           child: Text(
                                             item['booking_code'] ?? '',
@@ -545,25 +683,48 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       if (exchanges.isNotEmpty) ...[
                                         const SizedBox(width: 6),
                                         GestureDetector(
-                                          onTap: () => ExchangeHistorySheet.show(context, item),
+                                          onTap: () =>
+                                              ExchangeHistorySheet.show(
+                                                context,
+                                                item,
+                                              ),
                                           child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                              vertical: 3,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: AppColors.infoLight,
-                                              borderRadius: BorderRadius.circular(8),
-                                              border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: AppColors.info
+                                                    .withValues(alpha: 0.3),
+                                              ),
                                             ),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                const Icon(Icons.swap_horiz_rounded, size: 12, color: AppColors.info),
+                                                const Icon(
+                                                  Icons.swap_horiz_rounded,
+                                                  size: 12,
+                                                  color: AppColors.info,
+                                                ),
                                                 const SizedBox(width: 3),
                                                 Text(
                                                   'Ditukar (${exchanges.length}x)',
-                                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.info),
+                                                  style: const TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.info,
+                                                  ),
                                                 ),
                                                 const SizedBox(width: 2),
-                                                const Icon(Icons.info_outline_rounded, size: 11, color: AppColors.info),
+                                                const Icon(
+                                                  Icons.info_outline_rounded,
+                                                  size: 11,
+                                                  color: AppColors.info,
+                                                ),
                                               ],
                                             ),
                                           ),
@@ -575,24 +736,31 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                 const SizedBox(width: 8),
                                 StatusBadge(
                                   label: isReturned
-                                      ? (hasUnpaidPenalty ? 'SELESAI (DENDA BELUM LUNAS)' : 'SELESAI')
+                                      ? (hasUnpaidPenalty
+                                            ? 'SELESAI (DENDA BELUM LUNAS)'
+                                            : 'SELESAI')
                                       : DateFormatter.formatRelative(endAt),
                                   textColor: hasUnpaidPenalty
                                       ? AppColors.warning
                                       : isReturned
-                                          ? AppColors.textSecondary
-                                          : (endAt != null && endAt.isBefore(DateTime.now()))
-                                              ? AppColors.danger
-                                              : AppColors.info,
+                                      ? AppColors.textSecondary
+                                      : (endAt != null &&
+                                            endAt.isBefore(DateTime.now()))
+                                      ? AppColors.danger
+                                      : AppColors.info,
                                   backgroundColor: hasUnpaidPenalty
                                       ? AppColors.warningLight
                                       : isReturned
-                                          ? AppColors.surfaceMuted
-                                          : (endAt != null && endAt.isBefore(DateTime.now()))
-                                              ? AppColors.dangerLight
-                                              : AppColors.infoLight,
+                                      ? AppColors.surfaceMuted
+                                      : (endAt != null &&
+                                            endAt.isBefore(DateTime.now()))
+                                      ? AppColors.dangerLight
+                                      : AppColors.infoLight,
                                   borderRadius: 12,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                 ),
                               ],
                             ),
@@ -601,7 +769,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  const Icon(Icons.schedule_rounded, size: 11, color: AppColors.textSecondary),
+                                  const Icon(
+                                    Icons.schedule_rounded,
+                                    size: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
                                   const SizedBox(width: 3),
                                   Flexible(
                                     child: Text(
@@ -630,11 +802,15 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   decoration: BoxDecoration(
                                     color: AppColors.background,
                                     borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: AppColors.borderSubtle),
+                                    border: Border.all(
+                                      color: AppColors.borderSubtle,
+                                    ),
                                   ),
                                   child: Icon(
                                     _getItemCategoryIcon(
-                                      model: model is Map ? Map<String, dynamic>.from(model) : null,
+                                      model: model is Map
+                                          ? Map<String, dynamic>.from(model)
+                                          : null,
                                       asset: activeAsset,
                                       primaryItem: primaryItem,
                                     ),
@@ -645,7 +821,8 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         model?['name'] ?? 'Perangkat Sewa',
@@ -656,7 +833,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      if (activeAsset?['asset_code'] != null || activeAsset?['serial_number'] != null) ...[
+                                      if (activeAsset?['asset_code'] != null ||
+                                          activeAsset?['serial_number'] !=
+                                              null) ...[
                                         const SizedBox(height: 2),
                                         Text(
                                           '${activeAsset?['asset_code'] ?? ''}${activeAsset?['serial_number'] != null ? ' • SN: ${activeAsset?['serial_number']}' : ''}',
@@ -682,7 +861,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       const SizedBox(height: 6),
                                       Row(
                                         children: [
-                                          const Icon(Icons.lock_clock_outlined, size: 14, color: AppColors.textMuted),
+                                          const Icon(
+                                            Icons.lock_clock_outlined,
+                                            size: 14,
+                                            color: AppColors.textMuted,
+                                          ),
                                           const SizedBox(width: 4),
                                           Expanded(
                                             child: Text(
@@ -708,18 +891,27 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             if (addonItems.isNotEmpty) ...[
                               const SizedBox(height: 10),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.surfaceMuted,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.borderSubtle),
+                                  border: Border.all(
+                                    color: AppColors.borderSubtle,
+                                  ),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
                                       children: [
-                                        const Icon(Icons.extension_outlined, size: 14, color: AppColors.obsidian),
+                                        const Icon(
+                                          Icons.extension_outlined,
+                                          size: 14,
+                                          color: AppColors.obsidian,
+                                        ),
                                         const SizedBox(width: 6),
                                         Text(
                                           'Item Add-on (${addonItems.length}):',
@@ -736,36 +928,68 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       spacing: 6,
                                       runSpacing: 4,
                                       children: addonItems.map((addon) {
-                                        final aAsset = addon['asset'] as Map? ?? {};
-                                        final aModel = aAsset['model'] as Map? ?? {};
-                                        final aName = aModel['name']?.toString() ?? 'Aksesoris';
-                                        final aCode = aAsset['asset_code']?.toString();
-                                        final aPrice = addon['unit_price'] != null ? CurrencyFormatter.parse(addon['unit_price']) : 0.0;
+                                        final aAsset =
+                                            addon['asset'] as Map? ?? {};
+                                        final aModel =
+                                            aAsset['model'] as Map? ?? {};
+                                        final aName =
+                                            aModel['name']?.toString() ??
+                                            'Aksesoris';
+                                        final aCode = aAsset['asset_code']
+                                            ?.toString();
+                                        final aPrice =
+                                            addon['unit_price'] != null
+                                            ? CurrencyFormatter.parse(
+                                                addon['unit_price'],
+                                              )
+                                            : 0.0;
                                         return Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: AppColors.surface,
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: AppColors.border),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border.all(
+                                              color: AppColors.border,
+                                            ),
                                           ),
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              const Icon(Icons.check_circle_outline_rounded, size: 12, color: AppColors.success),
+                                              const Icon(
+                                                Icons
+                                                    .check_circle_outline_rounded,
+                                                size: 12,
+                                                color: AppColors.success,
+                                              ),
                                               const SizedBox(width: 4),
                                               Flexible(
                                                 child: Text(
-                                                  aCode != null ? '$aName ($aCode)' : aName,
-                                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                                  aCode != null
+                                                      ? '$aName ($aCode)'
+                                                      : aName,
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
                                                   maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
                                               if (aPrice > 0) ...[
                                                 const SizedBox(width: 4),
                                                 Text(
                                                   '• ${CurrencyFormatter.format(aPrice)}',
-                                                  style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                                  style: const TextStyle(
+                                                    fontSize: 10,
+                                                    color:
+                                                        AppColors.textSecondary,
+                                                  ),
                                                 ),
                                               ],
                                             ],
@@ -781,21 +1005,35 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             // Pricing & Subtotal Summary Container
                             Container(
                               margin: const EdgeInsets.only(top: 10),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceMuted,
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.borderSubtle),
+                                border: Border.all(
+                                  color: AppColors.borderSubtle,
+                                ),
                               ),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      (item['addon_subtotal'] != null && CurrencyFormatter.parse(item['addon_subtotal']) > 0)
+                                      (item['addon_subtotal'] != null &&
+                                              CurrencyFormatter.parse(
+                                                    item['addon_subtotal'],
+                                                  ) >
+                                                  0)
                                           ? 'Utama: ${CurrencyFormatter.format(item['primary_subtotal'] ?? 0)} • Add-on: ${CurrencyFormatter.format(item['addon_subtotal'])}'
                                           : 'Total Tagihan',
-                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -803,10 +1041,21 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   const SizedBox(width: 8),
                                   Builder(
                                     builder: (_) {
-                                      final totalBill = CurrencyFormatter.parse(item['total_bill'] ?? item['total_amount'] ?? 0);
-                                      final returnInspection = item['return_inspection'] as Map? ?? item['returnInspection'] as Map? ?? {};
-                                      final penaltyDue = CurrencyFormatter.parse(returnInspection['total_penalty']);
-                                      final effectiveTotal = totalBill + penaltyDue;
+                                      final totalBill = CurrencyFormatter.parse(
+                                        item['total_bill'] ??
+                                            item['total_amount'] ??
+                                            0,
+                                      );
+                                      final returnInspection =
+                                          item['return_inspection'] as Map? ??
+                                          item['returnInspection'] as Map? ??
+                                          {};
+                                      final penaltyDue =
+                                          CurrencyFormatter.parse(
+                                            returnInspection['total_penalty'],
+                                          );
+                                      final effectiveTotal =
+                                          totalBill + penaltyDue;
                                       return Text(
                                         penaltyDue > 0
                                             ? 'Total: ${CurrencyFormatter.format(effectiveTotal)} (+ Denda)'
@@ -824,12 +1073,15 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               ),
                             ),
 
-                            if (!isReturned) ...[
-                              const SizedBox(height: 14),
-                              const Divider(height: 1, color: AppColors.borderSubtle),
-                              const SizedBox(height: 12),
+                            const SizedBox(height: 14),
+                            const Divider(
+                              height: 1,
+                              color: AppColors.borderSubtle,
+                            ),
+                            const SizedBox(height: 12),
 
-                              // Direct Action Buttons
+                            if (isReturned) ...[
+                              // Actions for completed / returned rentals
                               Row(
                                 children: [
                                   Expanded(
@@ -838,57 +1090,298 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                         minimumSize: const Size.fromHeight(38),
                                         padding: EdgeInsets.zero,
                                         foregroundColor: AppColors.obsidian,
-                                        side: const BorderSide(color: AppColors.border),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
                                       ),
-                                      onPressed: () => _showExtendDialog(context, ref, item),
-                                      child: const Text('Tambah Jam', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                                      onPressed: () =>
+                                          _openTransactionDetailSheet(
+                                            context,
+                                            item,
+                                          ),
+                                      child: const Text(
+                                        'Rincian',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: OutlinedButton(
                                       style: OutlinedButton.styleFrom(
                                         minimumSize: const Size.fromHeight(38),
                                         padding: EdgeInsets.zero,
                                         foregroundColor: AppColors.obsidian,
-                                        side: const BorderSide(color: AppColors.border),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () => _printBookingReceipt(
+                                        context,
+                                        ref,
+                                        item,
+                                      ),
+                                      child: const Text(
+                                        'Cetak Struk',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (hasUnpaidPenalty) ...[
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              Colors.deepOrange.shade800,
+                                          foregroundColor: Colors.white,
+                                          minimumSize: const Size.fromHeight(
+                                            38,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: () =>
+                                            _openPosPaymentModal(context, item),
+                                        child: const Text(
+                                          'Bayar Denda',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ] else ...[
+                              // Secondary action row for active rentals: Rincian, Tambah Jam, Ganti Unit
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(34),
+                                        padding: EdgeInsets.zero,
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          _openTransactionDetailSheet(
+                                            context,
+                                            item,
+                                          ),
+                                      child: const Text(
+                                        'Rincian',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(34),
+                                        padding: EdgeInsets.zero,
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          _showExtendDialog(context, ref, item),
+                                      child: const Text(
+                                        'Tambah Jam',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(34),
+                                        padding: EdgeInsets.zero,
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
                                       ),
                                       onPressed: () async {
                                         final res = await Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => ExchangeWizardScreen(booking: item),
+                                            builder: (_) =>
+                                                ExchangeWizardScreen(
+                                                  booking: item,
+                                                ),
                                           ),
                                         );
                                         if (res != null) {
                                           ref.invalidate(bookingsListProvider);
                                         }
                                       },
-                                      child: const Text('Ganti Unit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                                      child: const Text(
+                                        'Ganti Unit',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+
+                              // Primary action row: Bayar (if unpaid), Cetak Struk, Kembalikan
+                              Row(
+                                children: [
+                                  if (!isPaid) ...[
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.obsidian,
+                                          foregroundColor: Colors.white,
+                                          minimumSize: const Size.fromHeight(
+                                            38,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: () =>
+                                            _openPosPaymentModal(context, item),
+                                        child: const Text(
+                                          'Bayar',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(38),
+                                        padding: EdgeInsets.zero,
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () => _printBookingReceipt(
+                                        context,
+                                        ref,
+                                        item,
+                                      ),
+                                      child: const Text(
+                                        'Cetak Struk',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.obsidian,
-                                        foregroundColor: Colors.white,
+                                        backgroundColor: isPaid
+                                            ? AppColors.obsidian
+                                            : AppColors.surfaceMuted,
+                                        foregroundColor: isPaid
+                                            ? Colors.white
+                                            : AppColors.obsidian,
                                         minimumSize: const Size.fromHeight(38),
                                         padding: EdgeInsets.zero,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          side: isPaid
+                                              ? BorderSide.none
+                                              : const BorderSide(
+                                                  color: AppColors.border,
+                                                ),
+                                        ),
                                         elevation: 0,
                                       ),
                                       onPressed: () {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => ReturnWizardScreen(booking: item),
+                                            builder: (_) => ReturnWizardScreen(
+                                              booking: item,
+                                            ),
                                           ),
                                         );
                                       },
-                                      child: const Text('Pengembalian', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                                      child: const Text(
+                                        'Kembalikan',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -908,7 +1401,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     );
   }
 
-  Widget _buildFilterChip(WidgetRef ref, String label, String value, String? currentFilter) {
+  Widget _buildFilterChip(
+    WidgetRef ref,
+    String label,
+    String value,
+    String? currentFilter,
+  ) {
     final isSelected = currentFilter == value;
 
     return ChoiceChip(
@@ -935,11 +1433,210 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     );
   }
 
-  void _showExtendDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> item) {
+  void _openTransactionDetailSheet(
+    BuildContext context,
+    Map<String, dynamic> booking,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PosTransactionDetailSheet(
+        booking: booking,
+        onPaymentRequested: (activeBooking) =>
+            _openPosPaymentModal(context, activeBooking),
+      ),
+    );
+  }
+
+  void _openPosPaymentModal(
+    BuildContext context,
+    Map<String, dynamic> booking,
+  ) {
+    final returnInspection =
+        booking['return_inspection'] as Map? ??
+        booking['returnInspection'] as Map? ??
+        {};
+    final totalPenaltyDue = CurrencyFormatter.parse(
+      returnInspection['total_penalty'] ??
+          returnInspection['late_fee'] ??
+          returnInspection['penalty_amount'] ??
+          booking['total_penalty'] ??
+          booking['penalty_amount'] ??
+          booking['late_fee'] ??
+          0,
+    );
+    final payments = (booking['payments'] as List?) ?? [];
+    double penaltyPaid = 0.0;
+    for (final p in payments) {
+      if (p['status']?.toString().toLowerCase() == 'void') continue;
+      if (p['type']?.toString().toLowerCase() == 'penalty') {
+        penaltyPaid += CurrencyFormatter.parse(p['amount']);
+      }
+    }
+    final remainingPenalty = (totalPenaltyDue - penaltyPaid).clamp(
+      0.0,
+      double.infinity,
+    );
+
+    final totalBill = CurrencyFormatter.parse(booking['total_bill']);
+    double rentalPaid = 0.0;
+    for (final p in payments) {
+      if (p['status']?.toString().toLowerCase() == 'void') continue;
+      final pt = p['type']?.toString().toLowerCase();
+      if (pt == 'settlement' ||
+          pt == 'dp' ||
+          pt == 'extension' ||
+          pt == 'rental' ||
+          pt == 'exchange') {
+        rentalPaid += CurrencyFormatter.parse(p['amount']);
+      }
+    }
+    final remainingRental = (totalBill - rentalPaid).clamp(
+      0.0,
+      double.infinity,
+    );
+
+    final isPenaltyTarget = remainingRental <= 0 && remainingPenalty > 0;
+    final paymentContext = isPenaltyTarget
+        ? PaymentContext.penalty(booking: booking, penaltyDue: remainingPenalty)
+        : PaymentContext.settlement(
+            booking: booking,
+            remainingDue: remainingRental > 0
+                ? remainingRental
+                : (remainingPenalty > 0 ? remainingPenalty : totalBill),
+          );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PaymentPage(
+        paymentContext: paymentContext,
+        isModal: true,
+        onPaymentSuccess: () {
+          ref.invalidate(bookingsListProvider);
+        },
+      ),
+    );
+  }
+
+  void _printBookingReceipt(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> booking,
+  ) async {
+    try {
+      final payments = (booking['payments'] as List?) ?? [];
+      final latestTx = payments.isNotEmpty ? payments.last : null;
+      final receiptId =
+          latestTx?['receipt_number'] ?? latestTx?['id'] ?? booking['id'];
+
+      final repo = ref.read(cashierRepositoryProvider);
+      final receiptData = await repo.fetchReceipt(receiptId);
+
+      if (!context.mounted) return;
+      final branchName =
+          receiptData['outlet_name'] ??
+          booking['affiliate']?['name'] ??
+          'RentCore';
+      final cashierName = receiptData['cashier_name'] ?? 'Kasir';
+      final receiptNum =
+          receiptData['receipt_number'] ?? booking['booking_code'] ?? '-';
+      final customerName =
+          receiptData['customer_name'] ?? booking['customer']?['name'] ?? '-';
+      final totalAmt = CurrencyFormatter.parse(
+        receiptData['total_amount'] ?? booking['total_bill'],
+      );
+      final cashRec = CurrencyFormatter.parse(receiptData['cash_received']);
+      final cashChg = CurrencyFormatter.parse(receiptData['cash_change']);
+      final method = receiptData['payment_method'] ?? 'Tunai';
+
+      final printerService = ThermalPrinterService();
+      final printerSettings = ref.read(printerProvider).settings;
+      final model = ReceiptDataModel(
+        type: ReceiptType.posPayment,
+        title: 'STRUK TRANSAKSI SEWA',
+        branchName: branchName,
+        receiptNumber: receiptNum,
+        bookingCode: booking['booking_code']?.toString(),
+        customerName: customerName,
+        cashierName: cashierName,
+        totalAmount: totalAmt,
+        paymentMethod: method,
+        cashReceived: cashRec,
+        cashChange: cashChg,
+        transactedAt:
+            receiptData['transacted_at']?.toString() ??
+            DateTime.now().toString().substring(0, 16),
+      );
+      final escposBytes = printerService.buildPosPaymentSlipBytes(
+        model,
+        printerSettings,
+      );
+
+      showDialog(
+        context: context,
+        builder: (ctx) => ThermalReceiptPreviewDialog(
+          title: 'Struk Transaksi Sewa',
+          branchName: branchName,
+          escposBytes: escposBytes,
+          content: Column(
+            children: [
+              const Text(
+                'STRUK SEWA CABANG',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              Text('No: $receiptNum', style: const TextStyle(fontSize: 11)),
+              Text(
+                'Pelanggan: $customerName',
+                style: const TextStyle(fontSize: 11),
+              ),
+              const Divider(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  Text(
+                    CurrencyFormatter.format(totalAmt),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat struk: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  void _showExtendDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> item,
+  ) {
     _showDurationAdjustmentDialog(context, ref, item);
   }
 
-  void _showDurationAdjustmentDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> item) {
+  void _showDurationAdjustmentDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> item,
+  ) {
     final bookingId = (item['id'] as num).toInt();
     final bookingCode = item['booking_code']?.toString() ?? '#$bookingId';
     final customer = (item['customer'] as Map?) ?? {};
@@ -958,9 +1655,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
       }
     }
     if (resolvedModel == null) {
-      final primaryAsset = (item['primary_asset'] as Map?) ??
+      final primaryAsset =
+          (item['primary_asset'] as Map?) ??
           (item['active_asset'] as Map?) ??
-          (item['device'] as Map?) ?? {};
+          (item['device'] as Map?) ??
+          {};
       if (primaryAsset['model'] is Map) {
         resolvedModel = Map<String, dynamic>.from(primaryAsset['model']);
       } else if (primaryAsset['asset_model'] is Map) {
@@ -969,7 +1668,8 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     }
 
     final deviceModel = resolvedModel?['name']?.toString() ?? 'Unit Sewa';
-    final currentEndAt = DateTime.tryParse(item['end_at']?.toString() ?? '')?.toLocal();
+    final currentEndAt = DateTime.tryParse(item['end_at']?.toString() ?? '')
+        ?.toLocal();
 
     // 2. Build Targets (Primary + Addons)
     final targets = <_AdjustmentTarget>[];
@@ -986,21 +1686,27 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
         final pAsset = primaryItem['asset'] as Map? ?? {};
         final pModel = pAsset['model'] as Map? ?? resolvedModel;
         final pName = pModel?['name']?.toString() ?? deviceModel;
-        final pDur = int.tryParse(primaryItem['duration_value']?.toString() ?? '') ??
-            int.tryParse(item['duration_hours']?.toString() ?? '24') ?? 24;
+        final pDur =
+            int.tryParse(primaryItem['duration_value']?.toString() ?? '') ??
+            int.tryParse(item['duration_hours']?.toString() ?? '24') ??
+            24;
         final pPrice = (primaryItem['unit_price'] != null)
             ? CurrencyFormatter.parse(primaryItem['unit_price'])
-            : CurrencyFormatter.parse(item['primary_subtotal'] ?? item['total_bill'] ?? 0);
+            : CurrencyFormatter.parse(
+                item['primary_subtotal'] ?? item['total_bill'] ?? 0,
+              );
 
-        targets.add(_AdjustmentTarget(
-          itemId: primaryItem['id'] as int?,
-          label: 'Utama: $pName',
-          shortName: pName,
-          isPrimary: true,
-          currentDurationHours: pDur,
-          currentPrice: pPrice,
-          model: pModel != null ? Map<String, dynamic>.from(pModel) : null,
-        ));
+        targets.add(
+          _AdjustmentTarget(
+            itemId: primaryItem['id'] as int?,
+            label: 'Utama: $pName',
+            shortName: pName,
+            isPrimary: true,
+            currentDurationHours: pDur,
+            currentPrice: pPrice,
+            model: pModel != null ? Map<String, dynamic>.from(pModel) : null,
+          ),
+        );
       }
 
       for (final it in rawItems) {
@@ -1008,35 +1714,44 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
           final aAsset = it['asset'] as Map? ?? {};
           final aModel = aAsset['model'] as Map?;
           final aName = aModel?['name']?.toString() ?? 'Aksesoris';
-          final aDur = int.tryParse(it['duration_value']?.toString() ?? '') ??
-              int.tryParse(item['duration_hours']?.toString() ?? '24') ?? 24;
+          final aDur =
+              int.tryParse(it['duration_value']?.toString() ?? '') ??
+              int.tryParse(item['duration_hours']?.toString() ?? '24') ??
+              24;
           final aPrice = CurrencyFormatter.parse(it['unit_price'] ?? 0);
 
-          targets.add(_AdjustmentTarget(
-            itemId: it['id'] as int?,
-            label: 'Add-on: $aName',
-            shortName: aName,
-            isPrimary: false,
-            currentDurationHours: aDur,
-            currentPrice: aPrice,
-            model: aModel != null ? Map<String, dynamic>.from(aModel) : null,
-          ));
+          targets.add(
+            _AdjustmentTarget(
+              itemId: it['id'] as int?,
+              label: 'Add-on: $aName',
+              shortName: aName,
+              isPrimary: false,
+              currentDurationHours: aDur,
+              currentPrice: aPrice,
+              model: aModel != null ? Map<String, dynamic>.from(aModel) : null,
+            ),
+          );
         }
       }
     }
 
     if (targets.isEmpty) {
-      final pDur = int.tryParse(item['duration_hours']?.toString() ?? '24') ?? 24;
-      final pPrice = CurrencyFormatter.parse(item['primary_subtotal'] ?? item['total_bill'] ?? 0);
-      targets.add(_AdjustmentTarget(
-        itemId: null,
-        label: 'Utama: $deviceModel',
-        shortName: deviceModel,
-        isPrimary: true,
-        currentDurationHours: pDur,
-        currentPrice: pPrice,
-        model: resolvedModel,
-      ));
+      final pDur =
+          int.tryParse(item['duration_hours']?.toString() ?? '24') ?? 24;
+      final pPrice = CurrencyFormatter.parse(
+        item['primary_subtotal'] ?? item['total_bill'] ?? 0,
+      );
+      targets.add(
+        _AdjustmentTarget(
+          itemId: null,
+          label: 'Utama: $deviceModel',
+          shortName: deviceModel,
+          isPrimary: true,
+          currentDurationHours: pDur,
+          currentPrice: pPrice,
+          model: resolvedModel,
+        ),
+      );
     }
 
     int selectedTargetIndex = 0;
@@ -1055,7 +1770,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
         final dir = p['direction']?.toString().toLowerCase();
         final type = p['type']?.toString().toLowerCase();
         final amt = CurrencyFormatter.parse(p['amount'] ?? 0);
-        if (dir == 'inflow' || type == 'settlement' || type == 'dp' || type == 'rental' || type == 'extension') {
+        if (dir == 'inflow' ||
+            type == 'settlement' ||
+            type == 'dp' ||
+            type == 'rental' ||
+            type == 'extension') {
           alreadyPaidNet += amt;
         } else if (dir == 'outflow' || type == 'refund') {
           alreadyPaidNet -= amt;
@@ -1063,7 +1782,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
       }
     }
 
-    final originalTotalBill = CurrencyFormatter.parse(item['total_bill'] ?? item['total_amount'] ?? 0);
+    final originalTotalBill = CurrencyFormatter.parse(
+      item['total_bill'] ?? item['total_amount'] ?? 0,
+    );
 
     showModalBottomSheet(
       context: context,
@@ -1078,16 +1799,24 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
             final isIncrease = direction == 'increase';
 
             // Available duration options configured on the model
-            final durationOptions = _getDurationOptionsForTarget(activeTarget.model);
+            final durationOptions = _getDurationOptionsForTarget(
+              activeTarget.model,
+            );
             if (!durationOptions.any((o) => o.hours == selectedHours)) {
-              selectedHours = durationOptions.isNotEmpty ? durationOptions.first.hours : 6;
+              selectedHours = durationOptions.isNotEmpty
+                  ? durationOptions.first.hours
+                  : 6;
             }
 
             final selectedOption = durationOptions.firstWhere(
               (o) => o.hours == selectedHours,
               orElse: () => durationOptions.isNotEmpty
                   ? durationOptions.first
-                  : const _DurationOption(hours: 6, price: 90000, label: '6 Jam'),
+                  : const _DurationOption(
+                      hours: 6,
+                      price: 90000,
+                      label: '6 Jam',
+                    ),
             );
             final fee = selectedOption.price;
             final deltaFee = isIncrease ? fee : -fee;
@@ -1099,25 +1828,34 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
               if (isIncrease) {
                 newEndAt = currentEndAt.add(Duration(hours: selectedHours));
               } else {
-                newEndAt = currentEndAt.subtract(Duration(hours: selectedHours));
+                newEndAt = currentEndAt.subtract(
+                  Duration(hours: selectedHours),
+                );
                 isEndAtInPast = newEndAt.isBefore(DateTime.now());
               }
             } else if (currentEndAt != null) {
               newEndAt = currentEndAt;
             }
 
-            final isBelowMinimumDuration = !isIncrease &&
+            final isBelowMinimumDuration =
+                !isIncrease &&
                 (activeTarget.currentDurationHours - selectedHours < 1);
 
             // Check if Overpayment / Refund is produced
-            final estimatedNewTotal = (originalTotalBill + deltaFee).clamp(0.0, double.infinity);
-            final refundDue = (!isIncrease && alreadyPaidNet > estimatedNewTotal)
+            final estimatedNewTotal = (originalTotalBill + deltaFee).clamp(
+              0.0,
+              double.infinity,
+            );
+            final refundDue =
+                (!isIncrease && alreadyPaidNet > estimatedNewTotal)
                 ? (alreadyPaidNet - estimatedNewTotal)
                 : 0.0;
 
             final hasBoundaryError = isEndAtInPast || isBelowMinimumDuration;
-            final canSubmitReduction = !hasBoundaryError &&
-                (!isIncrease && (refundDue == 0 || pinController.text.trim().length >= 4));
+            final canSubmitReduction =
+                !hasBoundaryError &&
+                (!isIncrease &&
+                    (refundDue == 0 || pinController.text.trim().length >= 4));
 
             return Padding(
               padding: EdgeInsets.only(
@@ -1150,13 +1888,17 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                         Expanded(
                           child: Text(
                             'Atur Durasi Sewa',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w800),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceMuted,
                             borderRadius: BorderRadius.circular(6),
@@ -1164,7 +1906,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           ),
                           child: Text(
                             bookingCode,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.obsidian),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                              color: AppColors.obsidian,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -1173,7 +1919,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Pelanggan: $customerName',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 14),
@@ -1182,7 +1931,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     if (targets.length > 1) ...[
                       const Text(
                         'Pilih Item yang Disesuaikan:',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Wrap(
@@ -1192,13 +1944,20 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           final t = targets[idx];
                           final isSel = selectedTargetIndex == idx;
                           return ChoiceChip(
-                            label: Text('${t.label} (${t.currentDurationHours}j)'),
+                            label: Text(
+                              '${t.label} (${t.currentDurationHours}j)',
+                            ),
                             selected: isSel,
-                            onSelected: (_) => setModalState(() => selectedTargetIndex = idx),
+                            onSelected: (_) =>
+                                setModalState(() => selectedTargetIndex = idx),
                             selectedColor: AppColors.obsidian,
                             labelStyle: TextStyle(
-                              color: isSel ? Colors.white : AppColors.textPrimary,
-                              fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                              color: isSel
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
+                              fontWeight: isSel
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                               fontSize: 12,
                             ),
                           );
@@ -1219,12 +1978,17 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                         children: [
                           Expanded(
                             child: InkWell(
-                              onTap: () => setModalState(() => direction = 'increase'),
+                              onTap: () =>
+                                  setModalState(() => direction = 'increase'),
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: isIncrease ? AppColors.obsidian : Colors.transparent,
+                                  color: isIncrease
+                                      ? AppColors.obsidian
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
                                   boxShadow: isIncrease
                                       ? const [
@@ -1241,8 +2005,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   '+ Tambah Jam',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: isIncrease ? FontWeight.w800 : FontWeight.w600,
-                                    color: isIncrease ? Colors.white : AppColors.textSecondary,
+                                    fontWeight: isIncrease
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: isIncrease
+                                        ? Colors.white
+                                        : AppColors.textSecondary,
                                   ),
                                 ),
                               ),
@@ -1250,12 +2018,17 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           ),
                           Expanded(
                             child: InkWell(
-                              onTap: () => setModalState(() => direction = 'decrease'),
+                              onTap: () =>
+                                  setModalState(() => direction = 'decrease'),
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: !isIncrease ? AppColors.obsidian : Colors.transparent,
+                                  color: !isIncrease
+                                      ? AppColors.obsidian
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
                                   boxShadow: !isIncrease
                                       ? const [
@@ -1272,8 +2045,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   '- Kurangi Jam',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: !isIncrease ? FontWeight.w800 : FontWeight.w600,
-                                    color: !isIncrease ? Colors.white : AppColors.textSecondary,
+                                    fontWeight: !isIncrease
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: !isIncrease
+                                        ? Colors.white
+                                        : AppColors.textSecondary,
                                   ),
                                 ),
                               ),
@@ -1289,7 +2066,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                       isIncrease
                           ? 'Pilihan Durasi Perpanjangan (Sesuai Tarif Model):'
                           : 'Pilihan Durasi Pengurangan (Sesuai Tarif Model):',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     SingleChildScrollView(
@@ -1297,14 +2077,22 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                       child: Row(
                         children: durationOptions.map((opt) {
                           final isSel = selectedHours == opt.hours;
-                          final wouldBePast = !isIncrease &&
+                          final wouldBePast =
+                              !isIncrease &&
                               activeTarget.isPrimary &&
                               currentEndAt != null &&
-                              currentEndAt.subtract(Duration(hours: opt.hours)).isBefore(DateTime.now());
-                          final wouldBeBelowOne = !isIncrease && (activeTarget.currentDurationHours - opt.hours < 1);
+                              currentEndAt
+                                  .subtract(Duration(hours: opt.hours))
+                                  .isBefore(DateTime.now());
+                          final wouldBeBelowOne =
+                              !isIncrease &&
+                              (activeTarget.currentDurationHours - opt.hours <
+                                  1);
                           final isDisabled = wouldBePast || wouldBeBelowOne;
 
-                          final priceFormatted = CurrencyFormatter.format(opt.price);
+                          final priceFormatted = CurrencyFormatter.format(
+                            opt.price,
+                          );
                           final chipText = isIncrease
                               ? '${opt.label} • $priceFormatted'
                               : '${opt.label} • -$priceFormatted';
@@ -1316,27 +2104,40 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               selected: isSel && !isDisabled,
                               onSelected: isDisabled
                                   ? null
-                                  : (_) => setModalState(() => selectedHours = opt.hours),
+                                  : (_) => setModalState(
+                                      () => selectedHours = opt.hours,
+                                    ),
                               showCheckmark: true,
-                              checkmarkColor: isSel && !isDisabled ? Colors.white : AppColors.obsidian,
+                              checkmarkColor: isSel && !isDisabled
+                                  ? Colors.white
+                                  : AppColors.obsidian,
                               selectedColor: AppColors.obsidian,
                               backgroundColor: AppColors.surface,
                               disabledColor: AppColors.surfaceMuted,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
                                   color: isSel && !isDisabled
                                       ? AppColors.obsidian
-                                      : (isDisabled ? AppColors.borderSubtle : AppColors.border),
+                                      : (isDisabled
+                                            ? AppColors.borderSubtle
+                                            : AppColors.border),
                                   width: isSel && !isDisabled ? 1.5 : 1.0,
                                 ),
                               ),
                               labelStyle: TextStyle(
                                 color: isSel && !isDisabled
                                     ? Colors.white
-                                    : (isDisabled ? AppColors.textMuted : AppColors.textPrimary),
-                                fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                                    : (isDisabled
+                                          ? AppColors.textMuted
+                                          : AppColors.textPrimary),
+                                fontWeight: isSel
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                                 fontSize: 12,
                               ),
                             ),
@@ -1349,20 +2150,33 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     // Boundary Warning Banner
                     if (isEndAtInPast) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.dangerLight,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.danger.withOpacity(0.3)),
+                          border: Border.all(
+                            color: AppColors.danger.withOpacity(0.3),
+                          ),
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.danger),
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 16,
+                              color: AppColors.danger,
+                            ),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 'Batas waktu baru tidak valid (lewat dari batas waktu saat ini).',
-                                style: TextStyle(color: AppColors.danger, fontSize: 11.5, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  color: AppColors.danger,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -1379,12 +2193,20 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
+                            Icon(
+                              Icons.error_outline_rounded,
+                              size: 16,
+                              color: AppColors.danger,
+                            ),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 'Durasi sewa tidak dapat dikurangi hingga kurang dari 1 jam.',
-                                style: TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  color: AppColors.danger,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -1409,8 +2231,14 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  isIncrease ? 'Biaya Tambahan:' : 'Selisih Pengurangan Biaya:',
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textSecondary),
+                                  isIncrease
+                                      ? 'Biaya Tambahan:'
+                                      : 'Selisih Pengurangan Biaya:',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -1422,7 +2250,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 14,
-                                  color: isIncrease ? AppColors.obsidian : AppColors.success,
+                                  color: isIncrease
+                                      ? AppColors.obsidian
+                                      : AppColors.success,
                                   letterSpacing: -0.2,
                                 ),
                               ),
@@ -1430,7 +2260,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           ),
                           if (newEndAt != null) ...[
                             const SizedBox(height: 10),
-                            const Divider(height: 1, color: AppColors.borderSubtle),
+                            const Divider(
+                              height: 1,
+                              color: AppColors.borderSubtle,
+                            ),
                             const SizedBox(height: 10),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1438,20 +2271,31 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                 const Expanded(
                                   child: Text(
                                     'Batas Waktu Pengembalian Baru:',
-                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   DateFormatter.formatFull(newEndAt),
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5, color: AppColors.obsidian),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11.5,
+                                    color: AppColors.obsidian,
+                                  ),
                                 ),
                               ],
                             ),
                           ],
                           const SizedBox(height: 10),
-                          const Divider(height: 1, color: AppColors.borderSubtle),
+                          const Divider(
+                            height: 1,
+                            color: AppColors.borderSubtle,
+                          ),
                           const SizedBox(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1459,7 +2303,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               const Expanded(
                                 child: Text(
                                   'Estimasi Total Tagihan Baru:',
-                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: AppColors.obsidian),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                    color: AppColors.obsidian,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -1487,19 +2335,29 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.surface,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.warning.withOpacity(0.4)),
+                          border: Border.all(
+                            color: AppColors.warning.withOpacity(0.4),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.payments_outlined, size: 18, color: AppColors.warning),
+                                const Icon(
+                                  Icons.payments_outlined,
+                                  size: 18,
+                                  color: AppColors.warning,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Pengembalian Dana (Refund): ${CurrencyFormatter.format(refundDue)}',
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: AppColors.obsidian),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12.5,
+                                      color: AppColors.obsidian,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -1508,7 +2366,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             const SizedBox(height: 4),
                             const Text(
                               'Otorisasi PIN Manager diperlukan untuk pengeluaran kas refund.',
-                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             TextField(
@@ -1520,14 +2381,22 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               decoration: InputDecoration(
                                 labelText: 'PIN Manager *',
                                 hintText: '6 digit PIN Manager',
-                                prefixIcon: const Icon(Icons.lock_outline_rounded, size: 18),
+                                prefixIcon: const Icon(
+                                  Icons.lock_outline_rounded,
+                                  size: 18,
+                                ),
                                 filled: true,
                                 fillColor: AppColors.surfaceMuted,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: AppColors.border),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.border,
+                                  ),
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
                                 counterText: '',
                               ),
                             ),
@@ -1547,8 +2416,13 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           prefixIcon: const Icon(Icons.notes_rounded, size: 20),
                           filled: true,
                           fillColor: AppColors.surface,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -1561,80 +2435,114 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           backgroundColor: AppColors.obsidian,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           elevation: 0,
                         ),
                         onPressed: isSubmitting
                             ? null
                             : () async {
                                 Navigator.pop(ctx);
-                                final result = await Navigator.push<PaymentResult>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => PaymentPage(
-                                      paymentContext: PaymentContext.extension(
-                                        booking: item,
-                                        bookingId: bookingId,
-                                        bookingCode: bookingCode,
-                                        customerName: customerName,
-                                        deviceModel: activeTarget.shortName,
-                                        additionalHours: selectedHours,
-                                        extensionFee: fee,
-                                        extraPayload: activeTarget.itemId != null
-                                            ? {'booking_item_id': activeTarget.itemId}
-                                            : null,
+                                final result =
+                                    await Navigator.push<PaymentResult>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => PaymentPage(
+                                          paymentContext:
+                                              PaymentContext.extension(
+                                                booking: item,
+                                                bookingId: bookingId,
+                                                bookingCode: bookingCode,
+                                                customerName: customerName,
+                                                deviceModel:
+                                                    activeTarget.shortName,
+                                                additionalHours: selectedHours,
+                                                extensionFee: fee,
+                                                extraPayload:
+                                                    activeTarget.itemId != null
+                                                    ? {
+                                                        'booking_item_id':
+                                                            activeTarget.itemId,
+                                                      }
+                                                    : null,
+                                              ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                );
+                                    );
 
                                 if (result != null && result.isSuccess) {
                                   ref.invalidate(bookingsListProvider);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Perpanjangan sewa $selectedHours jam berhasil dibayar & diperbarui!'),
+                                        content: Text(
+                                          'Perpanjangan sewa $selectedHours jam berhasil dibayar & diperbarui!',
+                                        ),
                                         backgroundColor: AppColors.success,
                                       ),
                                     );
                                   }
                                 }
                               },
-                        child: const Text('Proses pembayaran', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        child: const Text(
+                          'Proses pembayaran',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.obsidian,
-                          side: const BorderSide(color: AppColors.border, width: 1.2),
+                          side: const BorderSide(
+                            color: AppColors.border,
+                            width: 1.2,
+                          ),
                           backgroundColor: AppColors.surface,
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         onPressed: isSubmitting
                             ? null
                             : () async {
                                 setModalState(() => isSubmitting = true);
                                 try {
-                                  await ref.read(bookingRepositoryProvider).adjustDuration(
-                                    bookingId: bookingId,
-                                    bookingItemId: activeTarget.itemId,
-                                    direction: 'increase',
-                                    hoursDelta: selectedHours,
-                                    additionalFee: fee,
-                                  );
+                                  await ref
+                                      .read(bookingRepositoryProvider)
+                                      .adjustDuration(
+                                        bookingId: bookingId,
+                                        bookingItemId: activeTarget.itemId,
+                                        direction: 'increase',
+                                        hoursDelta: selectedHours,
+                                        additionalFee: fee,
+                                      );
                                   if (ctx.mounted) Navigator.pop(ctx);
                                   ref.invalidate(bookingsListProvider);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Sewa diperpanjang $selectedHours jam (tagihan dicatat).')),
+                                      SnackBar(
+                                        content: Text(
+                                          'Sewa diperpanjang $selectedHours jam (tagihan dicatat).',
+                                        ),
+                                      ),
                                     );
                                   }
                                 } catch (e) {
                                   setModalState(() => isSubmitting = false);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.danger),
+                                      SnackBar(
+                                        content: Text('Gagal: $e'),
+                                        backgroundColor: AppColors.danger,
+                                      ),
                                     );
                                   }
                                 }
@@ -1643,9 +2551,15 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
-                            : const Icon(Icons.receipt_long_outlined, size: 16, color: AppColors.obsidian),
+                            : const Icon(
+                                Icons.receipt_long_outlined,
+                                size: 16,
+                                color: AppColors.obsidian,
+                              ),
                         label: const Text(
                           'Perpanjang Tanpa Bayar Langsung (Catat ke Tagihan)',
                           style: TextStyle(
@@ -1659,10 +2573,16 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     ] else ...[
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: canSubmitReduction ? AppColors.obsidian : AppColors.surfaceMuted,
-                          foregroundColor: canSubmitReduction ? Colors.white : AppColors.textMuted,
+                          backgroundColor: canSubmitReduction
+                              ? AppColors.obsidian
+                              : AppColors.surfaceMuted,
+                          foregroundColor: canSubmitReduction
+                              ? Colors.white
+                              : AppColors.textMuted,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           elevation: 0,
                         ),
                         onPressed: (!canSubmitReduction || isSubmitting)
@@ -1670,17 +2590,24 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             : () async {
                                 setModalState(() => isSubmitting = true);
                                 try {
-                                  await ref.read(bookingRepositoryProvider).adjustDuration(
-                                    bookingId: bookingId,
-                                    bookingItemId: activeTarget.itemId,
-                                    direction: 'decrease',
-                                    hoursDelta: selectedHours,
-                                    additionalFee: fee,
-                                    managerPin: refundDue > 0 ? pinController.text.trim() : null,
-                                    reason: reasonController.text.trim().isNotEmpty
-                                        ? reasonController.text.trim()
-                                        : null,
-                                  );
+                                  await ref
+                                      .read(bookingRepositoryProvider)
+                                      .adjustDuration(
+                                        bookingId: bookingId,
+                                        bookingItemId: activeTarget.itemId,
+                                        direction: 'decrease',
+                                        hoursDelta: selectedHours,
+                                        additionalFee: fee,
+                                        managerPin: refundDue > 0
+                                            ? pinController.text.trim()
+                                            : null,
+                                        reason:
+                                            reasonController.text
+                                                .trim()
+                                                .isNotEmpty
+                                            ? reasonController.text.trim()
+                                            : null,
+                                      );
                                   if (ctx.mounted) Navigator.pop(ctx);
                                   ref.invalidate(bookingsListProvider);
                                   if (context.mounted) {
@@ -1689,7 +2616,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                         : '';
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Durasi sewa berhasil dikurangi $selectedHours jam.$refundText'),
+                                        content: Text(
+                                          'Durasi sewa berhasil dikurangi $selectedHours jam.$refundText',
+                                        ),
                                         backgroundColor: AppColors.success,
                                       ),
                                     );
@@ -1698,7 +2627,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   setModalState(() => isSubmitting = false);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.danger),
+                                      SnackBar(
+                                        content: Text('Gagal: $e'),
+                                        backgroundColor: AppColors.danger,
+                                      ),
                                     );
                                   }
                                 }
@@ -1707,14 +2639,29 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
-                            : const Text('Konfirmasi Pengurangan Durasi', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                            : const Text(
+                                'Konfirmasi Pengurangan Durasi',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
                       ),
                       const SizedBox(height: 8),
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                        child: const Text(
+                          'Batal',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ],
                   ],

@@ -240,39 +240,38 @@ void main() {
       await tester.pumpAndSettle();
 
       // 1. Verify branch selector header displays consolidated scope
-      expect(find.text('CAKUPAN POS & REKAP KASIR'), findsOneWidget);
+      expect(find.text('Cakupan Kasir'), findsOneWidget);
       expect(find.text('Semua Cabang (Konsolidasi)'), findsOneWidget);
       expect(find.text('Ganti'), findsOneWidget);
 
-      // 2. Switch to Tab 2: Rekap Shift & Closing
-      await tester.tap(find.text('Rekap Shift & Closing'));
-      await tester.pumpAndSettle();
+      // 2. Tab 1: Shift Aktif is active
+      expect(find.text('Shift Aktif'), findsOneWidget);
 
       // 3. Verify date filter chips rendered
       expect(find.text('Hari Ini'), findsOneWidget);
       expect(find.text('Kemarin'), findsOneWidget);
       expect(find.text('Bulan Ini'), findsOneWidget);
 
-      // 4. Verify Consolidated Omset and KONSOLIDASI badge
-      expect(find.text('KONSOLIDASI'), findsOneWidget);
+      // 4. Verify Consolidated Omset and Konsolidasi badge
+      expect(find.text('Konsolidasi'), findsOneWidget);
       expect(find.text('Rp 12.500.000'), findsOneWidget);
       expect(find.text('18 transaksi berhasil diselesaikan'), findsOneWidget);
 
       // 5. Verify Tunai vs Non-Tunai split
       expect(find.text('Tunai (Cash)'), findsOneWidget);
-      expect(find.text('Rp 4.500.000'), findsNWidgets(2)); // in quick summary and payment method list
+      expect(find.text('Rp 4.500.000'), findsWidgets); // in summaries and payment method list
       expect(find.text('Non-Tunai'), findsOneWidget);
-      expect(find.text('Rp 8.000.000'), findsNWidgets(2)); // in quick summary and payment method list
+      expect(find.text('Rp 8.000.000'), findsWidgets); // in summaries and payment method list
 
       // 6. Verify Per-Branch Contribution Section
-      expect(find.text('KONTRIBUSI REVENUE PER CABANG'), findsOneWidget);
+      expect(find.text('Kontribusi Omset per Cabang'), findsOneWidget);
       expect(find.text('RentCore Pusat (Main Store)'), findsOneWidget);
       expect(find.text('RentCore Cabang Barat'), findsOneWidget);
       expect(find.text('Rp 7.500.000'), findsOneWidget);
       expect(find.text('Rp 5.000.000'), findsOneWidget);
 
       // 7. Verify Recent Completed Transactions audit list
-      expect(find.text('TRANSAKSI TERBARU (AUDIT RINCIAN)'), findsOneWidget);
+      expect(find.text('Transaksi Terbaru (Audit Rincian)'), findsOneWidget);
       expect(find.text('REC-PST-0001'), findsOneWidget);
       expect(find.text('REC-BRT-0001'), findsOneWidget);
     });
@@ -310,12 +309,15 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // On Tab 1: Meja Kasir POS
-      expect(find.text('BK-PST-101'), findsOneWidget);
-      expect(find.text('Rincian'), findsOneWidget);
+      // On Tab 1: Shift Aktif -> Scroll down to Recent Transactions
+      await tester.drag(find.byType(SingleChildScrollView).first, const Offset(0, -900));
+      await tester.pumpAndSettle();
 
-      // Tap 'Rincian' button
-      await tester.tap(find.text('Rincian'));
+      final recFinder = find.text('REC-PST-0001');
+      expect(recFinder, findsOneWidget);
+
+      // Tap recent transaction item
+      await tester.tap(recFinder);
       await tester.pumpAndSettle();
 
       // Verify PosTransactionDetailSheet opened

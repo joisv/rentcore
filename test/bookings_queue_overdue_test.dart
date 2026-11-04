@@ -218,7 +218,7 @@ void main() {
 
       // Verify action buttons exist for overdue booking
       expect(find.text('Tambah Jam'), findsOneWidget);
-      expect(find.text('Pengembalian'), findsOneWidget);
+      expect(find.text('Kembalikan'), findsOneWidget);
     });
 
     testWidgets('Switching branch updates branchId parameter in bookingsListProvider', (tester) async {

@@ -179,8 +179,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify text tabs exist
-      expect(find.text('Meja Kasir POS'), findsOneWidget);
-      expect(find.text('Rekap Shift & Closing'), findsOneWidget);
+      expect(find.text('Shift Aktif'), findsOneWidget);
+      expect(find.text('Riwayat Shift'), findsOneWidget);
 
       // Verify tab icons were removed
       expect(find.byIcon(Icons.point_of_sale_rounded), findsNothing);
@@ -232,8 +232,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Switch to Rekap Shift & Closing tab
-      await tester.tap(find.text('Rekap Shift & Closing'));
+      // Verify Tab 1: Shift Aktif
+      await tester.tap(find.text('Shift Aktif'));
       await tester.pumpAndSettle();
 
       // Verify Bluetooth Printer card is not present

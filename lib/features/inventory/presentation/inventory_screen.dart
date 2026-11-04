@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
@@ -25,11 +27,13 @@ class InventoryScreen extends ConsumerStatefulWidget {
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTickerProviderStateMixin {
+class _InventoryScreenState extends ConsumerState<InventoryScreen>
+    with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TabController _tabController;
   final TextEditingController _unitsSearchController = TextEditingController();
-  final TextEditingController _catalogSearchController = TextEditingController();
+  final TextEditingController _catalogSearchController =
+      TextEditingController();
   final ScrollController _unitsScrollController = ScrollController();
   final GlobalKey<ExpandableInventoryFabState> _fabKey = GlobalKey();
   bool _isFabExpanded = false;
@@ -49,8 +53,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   }
 
   void _onUnitsScroll() async {
-    if (!_unitsScrollController.hasClients || _isLoadingMoreAssets || !_hasMoreAssets) return;
-    if (_unitsScrollController.position.pixels >= _unitsScrollController.position.maxScrollExtent - 250) {
+    if (!_unitsScrollController.hasClients ||
+        _isLoadingMoreAssets ||
+        !_hasMoreAssets)
+      return;
+    if (_unitsScrollController.position.pixels >=
+        _unitsScrollController.position.maxScrollExtent - 250) {
       final bizState = ref.read(businessProvider);
       final repo = ref.read(assetRepositoryProvider);
       final status = ref.read(selectedAssetStatusFilterProvider);
@@ -104,7 +112,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialStatusFilter != null) {
-        ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(widget.initialStatusFilter);
+        ref
+            .read(selectedAssetStatusFilterProvider.notifier)
+            .setFilter(widget.initialStatusFilter);
       }
       ref.read(assetSearchQueryProvider.notifier).setSearch('');
       ref.read(catalogSearchQueryProvider.notifier).setSearch('');
@@ -210,7 +220,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                   preferredSize: const Size.fromHeight(48),
                   child: Container(
                     decoration: const BoxDecoration(
-                      border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                      ),
                     ),
                     child: TabBar(
                       controller: _tabController,
@@ -218,8 +230,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                       unselectedLabelColor: const Color(0xFF94A3B8),
                       indicatorColor: const Color(0xFF0F172A),
                       indicatorWeight: 2.5,
-                      labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                      unselectedLabelStyle: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
                       tabs: const [
                         Tab(text: 'Unit Fisik (Inventaris)'),
                         Tab(text: 'Katalog & Tarif'),
@@ -248,7 +266,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 children: [
                   Column(
                     children: [
-                      if (bizState.isConsolidated) _buildBranchBar(context, bizState),
+                      if (bizState.isConsolidated)
+                        _buildBranchBar(context, bizState),
                       Expanded(
                         child: TabBarView(
                           controller: _tabController,
@@ -297,7 +316,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   // ==========================================
   Widget _buildBranchBar(BuildContext context, BusinessState bizState) {
     final isConsolidated = bizState.isConsolidated;
-    final branchName = isConsolidated ? 'Semua Cabang (Konsolidasi)' : (bizState.activeBranchName ?? 'Pilih Cabang');
+    final branchName = isConsolidated
+        ? 'Semua Cabang (Konsolidasi)'
+        : (bizState.activeBranchName ?? 'Pilih Cabang');
     final isCentral = !isConsolidated && bizState.isCentralBranch;
 
     return Container(
@@ -314,7 +335,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
         child: Row(
           children: [
             Icon(
-              isConsolidated ? Icons.hub_rounded : (isCentral ? Icons.store_rounded : Icons.storefront_outlined),
+              isConsolidated
+                  ? Icons.hub_rounded
+                  : (isCentral
+                        ? Icons.store_rounded
+                        : Icons.storefront_outlined),
               size: 16,
               color: AppColors.obsidian,
             ),
@@ -323,16 +348,26 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
               child: Text.rich(
                 TextSpan(
                   text: 'Cabang: ',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                   children: [
                     TextSpan(
                       text: branchName,
-                      style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     if (isCentral)
                       const TextSpan(
                         text: ' (Pusat)',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.info),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.info,
+                        ),
                       ),
                   ],
                 ),
@@ -348,9 +383,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Ganti', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.info)),
+                    Text(
+                      'Ganti',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.info,
+                      ),
+                    ),
                     SizedBox(width: 2),
-                    Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: AppColors.info),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 16,
+                      color: AppColors.info,
+                    ),
                   ],
                 ),
               ),
@@ -381,57 +427,94 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Row(
             children: [
-              _buildDrawerButton(hasActiveFilter: statusFilter != null || categoryFilter != null),
+              _buildDrawerButton(
+                hasActiveFilter: statusFilter != null || categoryFilter != null,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: SizedBox(
                   height: 44,
                   child: TextField(
                     controller: _unitsSearchController,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF0F172A),
+                    ),
                     decoration: InputDecoration(
-                      hintText: 'Cari kode unit, serial number, atau nama tipe...',
-                      hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                      hintText:
+                          'Cari kode unit, serial number, atau nama tipe...',
+                      hintStyle: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w400,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        size: 20,
+                        color: Color(0xFF94A3B8),
+                      ),
                       suffixIcon: _unitsSearchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear_rounded, size: 18),
                               onPressed: () {
                                 _unitsSearchController.clear();
                                 setState(() {});
-                                ref.read(assetSearchQueryProvider.notifier).setSearch('');
+                                ref
+                                    .read(assetSearchQueryProvider.notifier)
+                                    .setSearch('');
                               },
                             )
                           : null,
                       filled: true,
                       fillColor: Colors.white,
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.2),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF0F172A),
+                          width: 1.2,
+                        ),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
                       ),
                     ),
                     onChanged: (val) {
                       setState(() {});
                       _unitsSearchDebounceTimer?.cancel();
-                      final isTesting = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+                      final isTesting = WidgetsBinding.instance.runtimeType
+                          .toString()
+                          .contains('Test');
                       if (isTesting) {
-                        ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+                        ref
+                            .read(assetSearchQueryProvider.notifier)
+                            .setSearch(val.trim());
                       } else {
-                        _unitsSearchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-                          if (mounted) {
-                            ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
-                          }
-                        });
+                        _unitsSearchDebounceTimer = Timer(
+                          const Duration(milliseconds: 300),
+                          () {
+                            if (mounted) {
+                              ref
+                                  .read(assetSearchQueryProvider.notifier)
+                                  .setSearch(val.trim());
+                            }
+                          },
+                        );
                       }
                     },
                   ),
@@ -452,9 +535,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.danger),
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        size: 48,
+                        color: AppColors.danger,
+                      ),
                       const SizedBox(height: 12),
-                      Text('Gagal memuat inventaris: $err', textAlign: TextAlign.center),
+                      Text(
+                        'Gagal memuat inventaris: $err',
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () => ref.invalidate(inventoryListProvider),
@@ -468,14 +558,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             data: (assets) {
               if (assets.isEmpty) {
                 final hasSearch = searchQuery.isNotEmpty;
-                final hasFilter = statusFilter != null || categoryFilter != null;
+                final hasFilter =
+                    statusFilter != null || categoryFilter != null;
 
                 if (hasSearch) {
                   return RefreshIndicator(
-                    onRefresh: () async => ref.invalidate(inventoryListProvider),
+                    onRefresh: () async =>
+                        ref.invalidate(inventoryListProvider),
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       children: [
                         Center(
                           child: Container(
@@ -485,20 +580,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               shape: BoxShape.circle,
                               border: Border.all(color: AppColors.border),
                             ),
-                            child: const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textMuted),
+                            child: const Icon(
+                              Icons.search_off_rounded,
+                              size: 36,
+                              color: AppColors.textMuted,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
                         const Text(
                           'Tidak Ada Unit Ditemukan',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Tidak ada unit inventaris yang cocok dengan pencarian "$searchQuery"',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                         const SizedBox(height: 14),
                         Center(
@@ -506,14 +611,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.obsidian,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             icon: const Icon(Icons.clear_rounded, size: 16),
                             label: const Text('Reset Pencarian'),
                             onPressed: () {
                               _unitsSearchController.clear();
                               setState(() {});
-                              ref.read(assetSearchQueryProvider.notifier).setSearch('');
+                              ref
+                                  .read(assetSearchQueryProvider.notifier)
+                                  .setSearch('');
                             },
                           ),
                         ),
@@ -524,10 +633,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
                 if (hasFilter) {
                   return RefreshIndicator(
-                    onRefresh: () async => ref.invalidate(inventoryListProvider),
+                    onRefresh: () async =>
+                        ref.invalidate(inventoryListProvider),
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       children: [
                         Center(
                           child: Container(
@@ -537,20 +650,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               shape: BoxShape.circle,
                               border: Border.all(color: AppColors.border),
                             ),
-                            child: const Icon(Icons.filter_alt_off_rounded, size: 36, color: AppColors.textMuted),
+                            child: const Icon(
+                              Icons.filter_alt_off_rounded,
+                              size: 36,
+                              color: AppColors.textMuted,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
                         const Text(
                           'Tidak Ada Unit Sesuai Filter',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         const Text(
                           'Tidak ditemukan unit inventaris dengan status atau kategori yang dipilih',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                         const SizedBox(height: 14),
                         Center(
@@ -558,13 +681,24 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.obsidian,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             icon: const Icon(Icons.clear_rounded, size: 16),
                             label: const Text('Reset Semua Filter'),
                             onPressed: () {
-                              ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(null);
-                              ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null);
+                              ref
+                                  .read(
+                                    selectedAssetStatusFilterProvider.notifier,
+                                  )
+                                  .setFilter(null);
+                              ref
+                                  .read(
+                                    selectedAssetCategoryFilterProvider
+                                        .notifier,
+                                  )
+                                  .setFilter(null);
                             },
                           ),
                         ),
@@ -577,7 +711,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                   onRefresh: () async => ref.invalidate(inventoryListProvider),
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     children: [
                       Center(
                         child: Container(
@@ -587,20 +724,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             shape: BoxShape.circle,
                             border: Border.all(color: AppColors.border),
                           ),
-                          child: const Icon(Icons.inventory_2_outlined, size: 36, color: AppColors.textMuted),
+                          child: const Icon(
+                            Icons.inventory_2_outlined,
+                            size: 36,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 10),
                       const Text(
                         'Belum Ada Unit Inventaris',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       const Text(
                         'Bisnis rental Anda belum memiliki unit fisik terdaftar. Silakan registrasi unit baru atau tambahkan model di katalog.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 14),
                       Center(
@@ -613,8 +760,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.obsidian,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               icon: const Icon(Icons.add_rounded),
                               label: const Text('Registrasi Unit Baru'),
@@ -624,8 +776,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.obsidian,
                                 side: const BorderSide(color: AppColors.border),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               icon: const Icon(Icons.post_add_rounded),
                               label: const Text('Tambah Model & Tarif'),
@@ -649,7 +806,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 child: ListView.separated(
                   controller: _unitsScrollController,
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                  itemCount: combinedAssets.length + (_isLoadingMoreAssets ? 1 : 0),
+                  itemCount:
+                      combinedAssets.length + (_isLoadingMoreAssets ? 1 : 0),
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     if (index >= combinedAssets.length) {
@@ -688,11 +846,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
     final assetCode = asset['asset_code']?.toString() ?? '-';
     final rawSn = asset['serial_number']?.toString();
-    final serialNum = (rawSn != null && rawSn.trim().isNotEmpty) ? rawSn.trim() : '-';
+    final serialNum = (rawSn != null && rawSn.trim().isNotEmpty)
+        ? rawSn.trim()
+        : '-';
     final modelName = model?['name']?.toString() ?? 'Item Rental';
     final status = asset['status']?.toString() ?? 'ready';
     final grade = asset['condition_grade']?.toString() ?? 'A';
-    final battery = asset['battery_health'] != null ? int.tryParse(asset['battery_health'].toString()) : null;
+    final battery = asset['battery_health'] != null
+        ? int.tryParse(asset['battery_health'].toString())
+        : null;
 
     final rawAff = asset['affiliate'];
     final affiliate = rawAff is Map ? Map<String, dynamic>.from(rawAff) : null;
@@ -700,11 +862,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
     final specs = <String>[
       catName,
-      if (model?['color'] != null && model!['color'].toString().isNotEmpty) model['color'].toString(),
-      if (model?['storage_capacity'] != null && model!['storage_capacity'].toString().isNotEmpty)
-        (model['storage_capacity'].toString().toLowerCase().contains('gb') || model['storage_capacity'].toString().toLowerCase().contains('tb'))
-            ? model['storage_capacity'].toString()
-            : '${model['storage_capacity']}GB',
+      if (model?['color'] != null && model!['color'].toString().isNotEmpty)
+        model['color'].toString(),
+      if (model?['storage_capacity'] != null &&
+          model!['storage_capacity'].toString().isNotEmpty)
+        _formatSpecification(model!['storage_capacity'].toString()),
       if (branchName != null && branchName.isNotEmpty) branchName,
     ];
 
@@ -734,30 +896,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
               children: [
                 Expanded(
                   child: Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       Text(
-                         modelName,
-                         style: const TextStyle(
-                           fontWeight: FontWeight.w700,
-                           fontSize: 16,
-                           color: Color(0xFF0F172A),
-                         ),
-                       ),
-                       const SizedBox(height: 3),
-                       Text(
-                         specs.join(' • '),
-                         style: const TextStyle(
-                           color: Color(0xFF64748B),
-                           fontSize: 12.5,
-                           fontWeight: FontWeight.w400,
-                           height: 1.35,
-                         ),
-                         maxLines: 2,
-                         overflow: TextOverflow.ellipsis,
-                       ),
-                     ],
-                   ),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        modelName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        specs.join(' • '),
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w400,
+                          height: 1.35,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 8),
                 _buildStatusPill(status),
@@ -822,7 +984,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 ),
                 if (grade.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(6),
@@ -840,7 +1005,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 if (battery != null && battery > 0) ...[
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF0FDF4),
                       borderRadius: BorderRadius.circular(6),
@@ -874,12 +1042,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFECDD3), width: 1),
+                      border: Border.all(
+                        color: const Color(0xFFFECDD3),
+                        width: 1,
+                      ),
                     ),
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                        const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Color(0xFFEF4444),
+                        ),
                         Opacity(
                           opacity: 0,
                           child: SizedBox(
@@ -907,12 +1082,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
                     ),
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF334155)),
+                        const Icon(
+                          Icons.edit_outlined,
+                          size: 18,
+                          color: Color(0xFF334155),
+                        ),
                         Opacity(
                           opacity: 0,
                           child: SizedBox(
@@ -963,50 +1145,84 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                   height: 44,
                   child: TextField(
                     controller: _catalogSearchController,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF0F172A),
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Cari model, merk, atau spesifikasi...',
-                      hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                      hintStyle: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w400,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        size: 20,
+                        color: Color(0xFF94A3B8),
+                      ),
                       suffixIcon: _catalogSearchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear_rounded, size: 18),
                               onPressed: () {
                                 _catalogSearchController.clear();
                                 setState(() {});
-                                ref.read(catalogSearchQueryProvider.notifier).setSearch('');
+                                ref
+                                    .read(catalogSearchQueryProvider.notifier)
+                                    .setSearch('');
                               },
                             )
                           : null,
                       filled: true,
                       fillColor: Colors.white,
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.2),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF0F172A),
+                          width: 1.2,
+                        ),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
                       ),
                     ),
                     onChanged: (val) {
                       setState(() {});
                       _catalogSearchDebounceTimer?.cancel();
-                      final isTesting = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+                      final isTesting = WidgetsBinding.instance.runtimeType
+                          .toString()
+                          .contains('Test');
                       if (isTesting) {
-                        ref.read(catalogSearchQueryProvider.notifier).setSearch(val.trim());
+                        ref
+                            .read(catalogSearchQueryProvider.notifier)
+                            .setSearch(val.trim());
                       } else {
-                        _catalogSearchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-                          if (mounted) {
-                            ref.read(catalogSearchQueryProvider.notifier).setSearch(val.trim());
-                          }
-                        });
+                        _catalogSearchDebounceTimer = Timer(
+                          const Duration(milliseconds: 300),
+                          () {
+                            if (mounted) {
+                              ref
+                                  .read(catalogSearchQueryProvider.notifier)
+                                  .setSearch(val.trim());
+                            }
+                          },
+                        );
                       }
                     },
                   ),
@@ -1025,9 +1241,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.danger),
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      size: 48,
+                      color: AppColors.danger,
+                    ),
                     const SizedBox(height: 12),
-                    Text('Gagal memuat katalog: $err', textAlign: TextAlign.center),
+                    Text(
+                      'Gagal memuat katalog: $err',
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => ref.invalidate(productsProvider),
@@ -1058,20 +1281,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               shape: BoxShape.circle,
                               border: Border.all(color: AppColors.border),
                             ),
-                            child: const Icon(Icons.search_off_rounded, size: 44, color: AppColors.textMuted),
+                            child: const Icon(
+                              Icons.search_off_rounded,
+                              size: 44,
+                              color: AppColors.textMuted,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
                         const Text(
                           'Tidak Ada Katalog Ditemukan',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Tidak ada model produk yang cocok dengan pencarian "$searchQuery"',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                         const SizedBox(height: 24),
                         Center(
@@ -1079,14 +1312,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.obsidian,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             icon: const Icon(Icons.clear_rounded, size: 16),
                             label: const Text('Reset Pencarian'),
                             onPressed: () {
                               _catalogSearchController.clear();
                               setState(() {});
-                              ref.read(catalogSearchQueryProvider.notifier).setSearch('');
+                              ref
+                                  .read(catalogSearchQueryProvider.notifier)
+                                  .setSearch('');
                             },
                           ),
                         ),
@@ -1111,20 +1348,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               shape: BoxShape.circle,
                               border: Border.all(color: AppColors.border),
                             ),
-                            child: const Icon(Icons.filter_alt_off_rounded, size: 44, color: AppColors.textMuted),
+                            child: const Icon(
+                              Icons.filter_alt_off_rounded,
+                              size: 44,
+                              color: AppColors.textMuted,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
                         const Text(
                           'Tidak Ada Katalog Dalam Kategori Ini',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
                           'Belum ada model produk terdaftar untuk kategori yang dipilih.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                         const SizedBox(height: 24),
                         Center(
@@ -1132,12 +1379,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.obsidian,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             icon: const Icon(Icons.clear_rounded, size: 16),
                             label: const Text('Tampilkan Semua Kategori'),
                             onPressed: () {
-                              ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null);
+                              ref
+                                  .read(
+                                    selectedAssetCategoryFilterProvider
+                                        .notifier,
+                                  )
+                                  .setFilter(null);
                             },
                           ),
                         ),
@@ -1161,20 +1415,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             shape: BoxShape.circle,
                             border: Border.all(color: AppColors.border),
                           ),
-                          child: const Icon(Icons.style_outlined, size: 44, color: AppColors.textMuted),
+                          child: const Icon(
+                            Icons.style_outlined,
+                            size: 44,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
                       const Text(
                         'Belum Ada Katalog Produk',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
                         'Bisnis rental Anda belum memiliki katalog model atau paket tarif sewa. Tambahkan model katalog dan tarif sewa untuk mulai mengelola armada.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 24),
                       Center(
@@ -1182,8 +1446,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.obsidian,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                           icon: const Icon(Icons.post_add_rounded),
                           label: const Text('+ Tambah Model & Tarif Baru'),
@@ -1215,6 +1484,195 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   }
 
   // ==========================================
+  // SPECIFICATION & RATE FORMATTING HELPERS
+  // ==========================================
+  String _formatSpecification(String raw) {
+    var s = raw.trim();
+    if (s.isEmpty) return '';
+
+    // Remove erroneously appended "GB" if string already contains "mah" (e.g. "10000 MahGB")
+    if (RegExp(r'mah\s*gb$', caseSensitive: false).hasMatch(s)) {
+      s = s.replaceAll(RegExp(r'gb$', caseSensitive: false), '').trim();
+    }
+
+    // Match numbers with mAh
+    final mahMatch = RegExp(
+      r'^(\d+)\s*mah$',
+      caseSensitive: false,
+    ).firstMatch(s);
+    if (mahMatch != null) {
+      final numVal = int.tryParse(mahMatch.group(1)!) ?? 0;
+      final formattedNum = numVal >= 1000
+          ? numVal.toString().replaceAllMapped(
+              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+              (m) => '${m[1]}.',
+            )
+          : numVal.toString();
+      return '$formattedNum mAh';
+    }
+
+    // Match TB
+    final tbMatch = RegExp(r'^(\d+)\s*tb$', caseSensitive: false).firstMatch(s);
+    if (tbMatch != null) {
+      return '${tbMatch.group(1)} TB';
+    }
+
+    // Match GB
+    final gbMatch = RegExp(r'^(\d+)\s*gb$', caseSensitive: false).firstMatch(s);
+    if (gbMatch != null) {
+      return '${gbMatch.group(1)} GB';
+    }
+
+    // Numeric only
+    final numOnly = int.tryParse(s);
+    if (numOnly != null) {
+      if (numOnly >= 1000) {
+        final formattedNum = numOnly.toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]}.',
+        );
+        return '$formattedNum mAh';
+      } else {
+        return '$numOnly GB';
+      }
+    }
+
+    return s;
+  }
+
+  String? _extractDailyRate(
+    Map<String, dynamic> product,
+    List<Map<String, dynamic>> tiers,
+  ) {
+    if (tiers.isNotEmpty) {
+      final day1Tier = tiers.firstWhere(
+        (t) {
+          final unit = t['duration_unit']?.toString().toLowerCase();
+          final val = t['duration_value']?.toString();
+          return unit == 'day' && (val == '1' || val == null);
+        },
+        orElse: () => tiers.firstWhere(
+          (t) => t['duration_unit']?.toString().toLowerCase() == 'day',
+          orElse: () => tiers.first,
+        ),
+      );
+
+      final priceVal = day1Tier['price'];
+      if (priceVal != null) {
+        final priceNum = num.tryParse(priceVal.toString()) ?? 0;
+        final unitStr = day1Tier['duration_unit']?.toString().toLowerCase();
+        final valStr = day1Tier['duration_value']?.toString() ?? '1';
+        String suffix;
+        if (unitStr == 'day') {
+          suffix = valStr == '1' ? '/ hari' : '/ $valStr hari';
+        } else if (unitStr == 'hour') {
+          suffix = valStr == '1' ? '/ jam' : '/ $valStr jam';
+        } else {
+          suffix = '/ hari';
+        }
+        return '${CurrencyFormatter.format(priceNum)} $suffix';
+      }
+    }
+
+    final dailyRate =
+        product['daily_rate'] ?? product['price'] ?? product['rental_price'];
+    if (dailyRate != null) {
+      final priceNum = num.tryParse(dailyRate.toString()) ?? 0;
+      if (priceNum > 0) {
+        return '${CurrencyFormatter.format(priceNum)} / hari';
+      }
+    }
+
+    return null;
+  }
+
+  Widget _buildProductThumbnail(
+    String name,
+    String? catName,
+    String? imageUrl,
+  ) {
+    if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          imageUrl,
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildAvatarFallback(name, catName),
+        ),
+      );
+    }
+    return _buildAvatarFallback(name, catName);
+  }
+
+  Widget _buildAvatarFallback(String name, String? catName) {
+    final initial = name.trim().isNotEmpty
+        ? name.trim().substring(0, 1).toUpperCase()
+        : 'P';
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: AppColors.obsidian,
+          fontWeight: FontWeight.w800,
+          fontSize: 18,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStockPill(int readyCount, int totalCount) {
+    final isNone = totalCount == 0;
+    final hasReady = readyCount > 0;
+
+    final bgColor = isNone
+        ? AppColors.warning.withValues(alpha: 0.1)
+        : (hasReady
+              ? AppColors.success.withValues(alpha: 0.1)
+              : AppColors.surfaceMuted);
+
+    final textColor = isNone
+        ? AppColors.warning
+        : (hasReady ? AppColors.success : AppColors.textSecondary);
+
+    final borderColor = isNone
+        ? AppColors.warning.withValues(alpha: 0.25)
+        : (hasReady
+              ? AppColors.success.withValues(alpha: 0.25)
+              : AppColors.border);
+
+    final text = isNone
+        ? '0 Siap Sewa • 0 Total'
+        : '$readyCount Siap Sewa • $totalCount Total';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
   // PRODUCT CARD
   // ==========================================
   Widget _buildProductCard(BuildContext context, Map<String, dynamic> product) {
@@ -1226,126 +1684,187 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     final brand = product['brand']?.toString() ?? '';
     final color = product['color']?.toString() ?? '';
     final storage = product['storage_capacity']?.toString() ?? '';
+    final imageUrl =
+        (product['image_url'] ??
+                product['image'] ??
+                product['photo_url'] ??
+                product['thumbnail'])
+            ?.toString();
 
     final readyUnitsCount = product['ready_units_count'] ?? 0;
     final totalUnitsCount = product['assets_count'] ?? 0;
 
-    final rawTiers = product['pricing_tiers'];
-    final tiers = rawTiers is List ? rawTiers.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : [];
+    final rawTiers = product['pricing_tiers'] ?? product['pricingTiers'];
+    final tiers = rawTiers is List
+        ? rawTiers
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList()
+        : <Map<String, dynamic>>[];
+
+    final formattedSpec = _formatSpecification(storage);
+    final colorSpecParts = <String>[
+      if (color.isNotEmpty) color,
+      if (formattedSpec.isNotEmpty) formattedSpec,
+    ];
+    final colorSpec = colorSpecParts.join(' / ');
 
     final desc = <String>[
       if (brand.isNotEmpty) brand,
       catName,
-      if (color.isNotEmpty) color,
-      if (storage.isNotEmpty) '${storage}GB',
+      if (colorSpec.isNotEmpty) colorSpec,
     ].join(' • ');
 
-    final unitCountText = totalUnitsCount == 0
-        ? '0 Unit • Belum Ada Unit Fisik'
-        : '$readyUnitsCount Siap Sewa • $totalUnitsCount Total Unit';
+    final dailyRateText = _extractDailyRate(product, tiers);
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.style_rounded, size: 24, color: AppColors.obsidian),
-              ),
+              _buildProductThumbnail(name, catName, imageUrl),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                    const SizedBox(height: 2),
-                    Text(desc, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                    const SizedBox(height: 4),
-                    Text(
-                      unitCountText,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: totalUnitsCount == 0 ? AppColors.warning : AppColors.success,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              color: AppColors.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (dailyRateText != null) ...[
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              dailyRateText,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                color: AppColors.obsidian,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.end,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
+                    const SizedBox(height: 3),
+                    Text(
+                      desc,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    _buildStockPill(readyUnitsCount, totalUnitsCount),
                   ],
                 ),
               ),
             ],
           ),
-          if (tiers.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: tiers.map((tier) {
-                final duration = '${tier['duration_value'] ?? 1} ${tier['duration_unit'] ?? 'hari'}';
-                final price = CurrencyFormatter.format(tier['price'] ?? 0);
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Text(
-                    '$duration: $price',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: AppColors.borderSubtle),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          const Divider(height: 1, color: AppColors.borderSubtle),
+          const SizedBox(height: 8),
+          Row(
             children: [
-              if (totalUnitsCount == 0)
-                TextButton.icon(
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('+ Daftarkan Unit', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                  onPressed: () => _openAddAssetSheet(context, initialModelId: int.tryParse(product['id']?.toString() ?? '')),
-                )
-              else
-                TextButton.icon(
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('Registrasi Unit Tipe Ini', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                  onPressed: () => _openAddAssetSheet(context, initialModelId: int.tryParse(product['id']?.toString() ?? '')),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: AppColors.obsidian,
+                    side: const BorderSide(color: AppColors.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                  ),
+                  icon: const Icon(Icons.edit_outlined, size: 14),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Edit Tarif',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                  onPressed: () => _openEditProductSheet(context, product),
                 ),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 32),
-                  visualDensity: VisualDensity.compact,
-                  foregroundColor: AppColors.obsidian,
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: AppColors.obsidian,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 15),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '+ Unit Baru',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                  onPressed: () => _openAddAssetSheet(
+                    context,
+                    initialModelId: int.tryParse(
+                      product['id']?.toString() ?? '',
+                    ),
+                  ),
                 ),
-                icon: const Icon(Icons.edit_outlined, size: 14),
-                label: const Text('Edit Model & Tarif', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                onPressed: () => _openEditProductSheet(context, product),
               ),
             ],
           ),
@@ -1370,7 +1889,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             color: hasActiveFilter ? const Color(0xFF0F172A) : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: hasActiveFilter ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+              color: hasActiveFilter
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFE2E8F0),
               width: 1,
             ),
           ),
@@ -1426,7 +1947,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.tune_rounded, size: 20, color: Color(0xFF0F172A)),
+                      Icon(
+                        Icons.tune_rounded,
+                        size: 20,
+                        color: Color(0xFF0F172A),
+                      ),
                       SizedBox(width: 8),
                       Text(
                         'Filter Aset',
@@ -1439,7 +1964,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 22, color: Color(0xFF64748B)),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 22,
+                      color: Color(0xFF64748B),
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -1470,35 +1999,45 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         selected: statusFilter == null,
                         label: 'Semua Status',
                         onTap: () {
-                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(null);
+                          ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter(null);
                         },
                       ),
                       _buildChip(
                         selected: statusFilter == 'ready',
                         label: 'Siap Sewa',
                         onTap: () {
-                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('ready');
+                          ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('ready');
                         },
                       ),
                       _buildChip(
                         selected: statusFilter == 'rented',
                         label: 'Sedang Sewa',
                         onTap: () {
-                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('rented');
+                          ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('rented');
                         },
                       ),
                       _buildChip(
                         selected: statusFilter == 'maintenance',
                         label: 'Perawatan',
                         onTap: () {
-                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('maintenance');
+                          ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('maintenance');
                         },
                       ),
                       _buildChip(
                         selected: statusFilter == 'in_transit',
                         label: 'Dalam Mutasi',
                         onTap: () {
-                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter('in_transit');
+                          ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('in_transit');
                         },
                       ),
                     ],
@@ -1527,7 +2066,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                           selected: categoryFilter == null,
                           label: 'Semua Kategori',
                           onTap: () {
-                            ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null);
+                            ref
+                                .read(
+                                  selectedAssetCategoryFilterProvider.notifier,
+                                )
+                                .setFilter(null);
                           },
                         ),
                         ...categories.map((cat) {
@@ -1537,7 +2080,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             selected: categoryFilter == catId,
                             label: catName,
                             onTap: () {
-                              ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(catId);
+                              ref
+                                  .read(
+                                    selectedAssetCategoryFilterProvider
+                                        .notifier,
+                                  )
+                                  .setFilter(catId);
                             },
                           );
                         }),
@@ -1545,7 +2093,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     ),
                     loading: () => const Padding(
                       padding: EdgeInsets.all(12),
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     ),
                     error: (_, _) => const Text(
                       'Gagal memuat kategori',
@@ -1561,7 +2111,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+                border: Border(
+                  top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1573,14 +2125,28 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF64748B),
                           side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         onPressed: () {
-                          ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null);
-                          ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(null);
+                          ref
+                              .read(
+                                selectedAssetCategoryFilterProvider.notifier,
+                              )
+                              .setFilter(null);
+                          ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter(null);
                         },
-                        child: const Text('Reset Filter', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        child: const Text(
+                          'Reset Filter',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -1591,12 +2157,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0F172A),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         elevation: 0,
                       ),
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Terapkan Filter', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                      child: const Text(
+                        'Terapkan Filter',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1607,38 +2181,40 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       ),
     );
   }
+
   Widget _buildStatusPill(String status) {
-    final (String label, Color bg, Color border, Color text) = switch (status.toLowerCase()) {
+    final (String label, Color bg, Color border, Color text) = switch (status
+        .toLowerCase()) {
       'ready' || 'siap sewa' => (
-          'Siap Sewa',
-          const Color(0xFFF0FDF4),
-          const Color(0xFFBBF7D0),
-          const Color(0xFF15803D),
-        ),
+        'Siap Sewa',
+        const Color(0xFFF0FDF4),
+        const Color(0xFFBBF7D0),
+        const Color(0xFF15803D),
+      ),
       'maintenance' || 'perawatan' => (
-          'Perawatan',
-          const Color(0xFFFEF2F2),
-          const Color(0xFFFECDD3),
-          const Color(0xFFDC2626),
-        ),
+        'Perawatan',
+        const Color(0xFFFEF2F2),
+        const Color(0xFFFECDD3),
+        const Color(0xFFDC2626),
+      ),
       'rented' || 'sedang sewa' => (
-          'Sedang Sewa',
-          const Color(0xFFEFF6FF),
-          const Color(0xFFBFDBFE),
-          const Color(0xFF2563EB),
-        ),
+        'Sedang Sewa',
+        const Color(0xFFEFF6FF),
+        const Color(0xFFBFDBFE),
+        const Color(0xFF2563EB),
+      ),
       'in_transit' || 'dalam mutasi' => (
-          'Dalam Mutasi',
-          const Color(0xFFFAF5FF),
-          const Color(0xFFE9D5FF),
-          const Color(0xFF9333EA),
-        ),
+        'Dalam Mutasi',
+        const Color(0xFFFAF5FF),
+        const Color(0xFFE9D5FF),
+        const Color(0xFF9333EA),
+      ),
       _ => (
-          status,
-          const Color(0xFFF1F5F9),
-          const Color(0xFFE2E8F0),
-          const Color(0xFF475569),
-        ),
+        status,
+        const Color(0xFFF1F5F9),
+        const Color(0xFFE2E8F0),
+        const Color(0xFF475569),
+      ),
     };
 
     return Container(
@@ -1659,7 +2235,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     );
   }
 
-  Widget _buildChip({required bool selected, required String label, required VoidCallback onTap}) {
+  Widget _buildChip({
+    required bool selected,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1671,7 +2251,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             color: selected ? const Color(0xFF0F172A) : Colors.white,
             borderRadius: BorderRadius.circular(100),
             border: Border.all(
-              color: selected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+              color: selected
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFE2E8F0),
               width: 1,
             ),
           ),
@@ -1695,9 +2277,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.storefront_rounded, size: 48, color: AppColors.textSecondary),
+            const Icon(
+              Icons.storefront_rounded,
+              size: 48,
+              color: AppColors.textSecondary,
+            ),
             const SizedBox(height: 16),
-            const Text('Belum Ada Bisnis Rental', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            const Text(
+              'Belum Ada Bisnis Rental',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+            ),
             const SizedBox(height: 8),
             const Text(
               'Silakan pilih atau daftarkan bisnis rental Anda untuk mengelola inventaris.',
@@ -1720,21 +2309,26 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => AddProductSheet(onSuccess: _refreshAll),
     );
   }
 
-  void _openEditProductSheet(BuildContext context, Map<String, dynamic> product) {
+  void _openEditProductSheet(
+    BuildContext context,
+    Map<String, dynamic> product,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => AddProductSheet(
-        initialProduct: product,
-        onSuccess: _refreshAll,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (ctx) =>
+          AddProductSheet(initialProduct: product, onSuccess: _refreshAll),
     );
   }
 
@@ -1743,8 +2337,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => _AddAssetSheet(initialModelId: initialModelId, onSuccess: _refreshAll),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _AddAssetSheet(
+        initialModelId: initialModelId,
+        onSuccess: _refreshAll,
+      ),
     );
   }
 
@@ -1753,12 +2352,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => _EditAssetSheet(asset: asset, onSuccess: _refreshAll),
     );
   }
 
-  void _confirmDeleteFromCard(BuildContext context, Map<String, dynamic> asset) {
+  void _confirmDeleteFromCard(
+    BuildContext context,
+    Map<String, dynamic> asset,
+  ) {
     final assetCode = asset['asset_code']?.toString() ?? '-';
     final assetId = asset['id'] as int;
 
@@ -1767,9 +2371,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       builder: (dialogCtx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 24),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: AppColors.danger,
+              size: 24,
+            ),
             SizedBox(width: 8),
-            Text('Hapus Unit Inventaris', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              'Hapus Unit Inventaris',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         content: Text(
@@ -1795,7 +2406,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 final repo = ref.read(assetRepositoryProvider);
                 final res = await repo.deleteAsset(assetId);
                 _refreshAll();
-                final msg = res['message']?.toString() ?? 'Unit inventaris berhasil diproses.';
+                final msg =
+                    res['message']?.toString() ??
+                    'Unit inventaris berhasil diproses.';
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(msg),
@@ -1822,12 +2435,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 // ==========================================
 // ADAPTIVE FIELD HELPERS
 // ==========================================
-bool _checkImeiRelevant(Map<String, dynamic>? model, List<String> bizCategories) {
+bool _checkImeiRelevant(
+  Map<String, dynamic>? model,
+  List<String> bizCategories,
+) {
   if (model != null) {
     if (model['requires_frp_check'] == true) return true;
     final cat = model['category'];
-    final catSlug = (cat is Map ? cat['slug']?.toString() ?? '' : '').toLowerCase();
-    final catName = (cat is Map ? cat['name']?.toString() ?? '' : '').toLowerCase();
+    final catSlug = (cat is Map ? cat['slug']?.toString() ?? '' : '')
+        .toLowerCase();
+    final catName = (cat is Map ? cat['name']?.toString() ?? '' : '')
+        .toLowerCase();
     final modelName = (model['name']?.toString() ?? '').toLowerCase();
     if (catSlug.contains('phone') ||
         catSlug.contains('cellular') ||
@@ -1853,14 +2471,21 @@ bool _checkImeiRelevant(Map<String, dynamic>? model, List<String> bizCategories)
       return false;
     }
   }
-  return bizCategories.isEmpty || bizCategories.contains('electronics') || bizCategories.contains('other');
+  return bizCategories.isEmpty ||
+      bizCategories.contains('electronics') ||
+      bizCategories.contains('other');
 }
 
-bool _checkBatteryRelevant(Map<String, dynamic>? model, List<String> bizCategories) {
+bool _checkBatteryRelevant(
+  Map<String, dynamic>? model,
+  List<String> bizCategories,
+) {
   if (model != null) {
     final cat = model['category'];
-    final catSlug = (cat is Map ? cat['slug']?.toString() ?? '' : '').toLowerCase();
-    final catName = (cat is Map ? cat['name']?.toString() ?? '' : '').toLowerCase();
+    final catSlug = (cat is Map ? cat['slug']?.toString() ?? '' : '')
+        .toLowerCase();
+    final catName = (cat is Map ? cat['name']?.toString() ?? '' : '')
+        .toLowerCase();
     final combined = '$catSlug $catName ${(model['name'] ?? '')}'.toLowerCase();
     if (combined.contains('tenda') ||
         combined.contains('kursi') ||
@@ -1890,7 +2515,8 @@ bool _checkBatteryRelevant(Map<String, dynamic>? model, List<String> bizCategori
     }
   }
   if (bizCategories.isNotEmpty) {
-    final hasElectronic = bizCategories.contains('electronics') ||
+    final hasElectronic =
+        bizCategories.contains('electronics') ||
         bizCategories.contains('cameras') ||
         bizCategories.contains('other');
     if (!hasElectronic) return false;
@@ -1926,7 +2552,8 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
   void initState() {
     super.initState();
     _selectedModelId = widget.initialModelId;
-    _assetCodeController.text = 'AST-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    _assetCodeController.text =
+        'AST-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
   }
 
   @override
@@ -1944,11 +2571,18 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
     final modelsAsync = ref.watch(allCatalogModelsProvider);
     final bizState = ref.watch(businessProvider);
     final models = modelsAsync.asData?.value ?? [];
-    final selectedModel = models.where((m) => m['id'] == _selectedModelId).firstOrNull;
-    final bool hasSerial = selectedModel == null || selectedModel['has_serial_number'] != false;
+    final selectedModel = models
+        .where((m) => m['id'] == _selectedModelId)
+        .firstOrNull;
+    final bool hasSerial =
+        selectedModel == null || selectedModel['has_serial_number'] != false;
     final bizCategories = bizState.activeBusinessCategories;
-    final isImeiApplicable = _checkImeiRelevant(selectedModel, bizCategories) || _imei1Controller.text.trim().isNotEmpty;
-    final isBatteryApplicable = _checkBatteryRelevant(selectedModel, bizCategories) || _batteryHealthController.text.trim().isNotEmpty;
+    final isImeiApplicable =
+        _checkImeiRelevant(selectedModel, bizCategories) ||
+        _imei1Controller.text.trim().isNotEmpty;
+    final isBatteryApplicable =
+        _checkBatteryRelevant(selectedModel, bizCategories) ||
+        _batteryHealthController.text.trim().isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -1967,13 +2601,22 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Registrasi Unit Baru', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
-                  IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(context)),
+                  const Text(
+                    'Registrasi Unit Baru',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
               // Model Dropdown
-              const Text('Model / Tipe Perangkat', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const Text(
+                'Model / Tipe Perangkat',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
               const SizedBox(height: 6),
               modelsAsync.when(
                 data: (models) {
@@ -1982,8 +2625,14 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: AppColors.surfaceMuted,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                     hint: const Text('Pilih Model Katalog'),
                     items: models.map((m) {
@@ -1996,48 +2645,81 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                       );
                     }).toList(),
                     onChanged: (val) => setState(() => _selectedModelId = val),
-                    validator: (val) => val == null ? 'Pilih tipe model terlebih dahulu' : null,
+                    validator: (val) =>
+                        val == null ? 'Pilih tipe model terlebih dahulu' : null,
                   );
                 },
                 loading: () => const LinearProgressIndicator(),
-                error: (e, _) => Text('Gagal memuat model: $e', style: const TextStyle(color: AppColors.danger)),
+                error: (e, _) => Text(
+                  'Gagal memuat model: $e',
+                  style: const TextStyle(color: AppColors.danger),
+                ),
               ),
               const SizedBox(height: 12),
               // Asset Code
-              const Text('Kode Unit / Barcode', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const Text(
+                'Kode Unit / Barcode',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _assetCodeController,
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
-                validator: (val) => (val == null || val.trim().isEmpty) ? 'Kode unit wajib diisi' : null,
+                validator: (val) => (val == null || val.trim().isEmpty)
+                    ? 'Kode unit wajib diisi'
+                    : null,
               ),
               const SizedBox(height: 12),
               // Serial Number (Adaptive)
               Text(
                 hasSerial ? 'Serial Number *' : 'Serial Number (Opsional)',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _serialNumberController,
                 decoration: InputDecoration(
-                  hintText: hasSerial ? 'Nomor seri pabrik (SN)' : 'Kosongkan jika barang tanpa SN fisik',
+                  hintText: hasSerial
+                      ? 'Nomor seri pabrik (SN)'
+                      : 'Kosongkan jika barang tanpa SN fisik',
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
-                validator: hasSerial ? (val) => (val == null || val.trim().isEmpty) ? 'Serial number wajib diisi' : null : null,
+                validator: hasSerial
+                    ? (val) => (val == null || val.trim().isEmpty)
+                          ? 'Serial number wajib diisi'
+                          : null
+                    : null,
               ),
               // IMEI 1 (Adaptive)
               if (isImeiApplicable) ...[
                 const SizedBox(height: 12),
-                const Text('IMEI 1 (Opsional untuk Smartphone)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                const Text(
+                  'IMEI 1 (Opsional untuk Smartphone)',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _imei1Controller,
@@ -2045,8 +2727,14 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                     hintText: '15 digit IMEI',
                     filled: true,
                     fillColor: AppColors.surfaceMuted,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ],
@@ -2059,18 +2747,38 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const Text(
+                            'Kondisi Fisik',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
                             initialValue: _grade,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppColors.surfaceMuted,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                             ),
-                            items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
-                            onChanged: (val) => setState(() => _grade = val ?? 'A'),
+                            items: ['A', 'B', 'C']
+                                .map(
+                                  (g) => DropdownMenuItem(
+                                    value: g,
+                                    child: Text('Grade $g'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (val) =>
+                                setState(() => _grade = val ?? 'A'),
                           ),
                         ],
                       ),
@@ -2080,7 +2788,13 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Battery Health (%)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const Text(
+                            'Battery Health (%)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _batteryHealthController,
@@ -2089,8 +2803,14 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                               hintText: 'Misal: 100',
                               filled: true,
                               fillColor: AppColors.surfaceMuted,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ],
@@ -2102,17 +2822,36 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    const Text(
+                      'Kondisi Fisik',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: _grade,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppColors.surfaceMuted,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
-                      items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
+                      items: ['A', 'B', 'C']
+                          .map(
+                            (g) => DropdownMenuItem(
+                              value: g,
+                              child: Text('Grade $g'),
+                            ),
+                          )
+                          .toList(),
                       onChanged: (val) => setState(() => _grade = val ?? 'A'),
                     ),
                   ],
@@ -2120,7 +2859,10 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
               ],
               const SizedBox(height: 12),
               // Notes
-              const Text('Catatan Tambahan', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const Text(
+                'Catatan Tambahan',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _notesController,
@@ -2129,8 +2871,14 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                   hintText: 'Kondisi fisik, kelengkapan, nomor segel...',
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -2142,7 +2890,9 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                     backgroundColor: AppColors.obsidian,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: _isLoading
                       ? null
@@ -2165,7 +2915,8 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                               if (imei.isNotEmpty) 'imei_1': imei,
                               'status': 'ready',
                               'condition_grade': _grade,
-                              if (bh.isNotEmpty) 'battery_health': int.tryParse(bh),
+                              if (bh.isNotEmpty)
+                                'battery_health': int.tryParse(bh),
                               if (_notesController.text.trim().isNotEmpty)
                                 'notes': _notesController.text.trim(),
                               if (bizState.activeBranchId != null)
@@ -2176,20 +2927,40 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                             nav.pop();
                             widget.onSuccess();
                             messenger.showSnackBar(
-                              const SnackBar(content: Text('Unit inventaris berhasil didaftarkan!')),
+                              const SnackBar(
+                                content: Text(
+                                  'Unit inventaris berhasil didaftarkan!',
+                                ),
+                              ),
                             );
                           } catch (e) {
                             if (mounted) {
                               setState(() => _isLoading = false);
                               messenger.showSnackBar(
-                                SnackBar(content: Text('Gagal mendaftar unit: $e'), backgroundColor: AppColors.danger),
+                                SnackBar(
+                                  content: Text('Gagal mendaftar unit: $e'),
+                                  backgroundColor: AppColors.danger,
+                                ),
                               );
                             }
                           }
                         },
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Simpan & Daftarkan Unit', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Simpan & Daftarkan Unit',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -2228,11 +2999,21 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
   @override
   void initState() {
     super.initState();
-    _assetCodeController = TextEditingController(text: widget.asset['asset_code']?.toString() ?? '');
-    _serialNumberController = TextEditingController(text: widget.asset['serial_number']?.toString() ?? '');
-    _imei1Controller = TextEditingController(text: widget.asset['imei_1']?.toString() ?? '');
-    _batteryHealthController = TextEditingController(text: widget.asset['battery_health']?.toString() ?? '');
-    _notesController = TextEditingController(text: widget.asset['notes']?.toString() ?? '');
+    _assetCodeController = TextEditingController(
+      text: widget.asset['asset_code']?.toString() ?? '',
+    );
+    _serialNumberController = TextEditingController(
+      text: widget.asset['serial_number']?.toString() ?? '',
+    );
+    _imei1Controller = TextEditingController(
+      text: widget.asset['imei_1']?.toString() ?? '',
+    );
+    _batteryHealthController = TextEditingController(
+      text: widget.asset['battery_health']?.toString() ?? '',
+    );
+    _notesController = TextEditingController(
+      text: widget.asset['notes']?.toString() ?? '',
+    );
     _status = widget.asset['status']?.toString() ?? 'ready';
     _grade = widget.asset['condition_grade']?.toString() ?? 'A';
   }
@@ -2256,8 +3037,12 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
     final bool hasSerial = model == null || model['has_serial_number'] != false;
     final bizState = ref.watch(businessProvider);
     final bizCategories = bizState.activeBusinessCategories;
-    final isImeiApplicable = _checkImeiRelevant(model, bizCategories) || _imei1Controller.text.trim().isNotEmpty;
-    final isBatteryApplicable = _checkBatteryRelevant(model, bizCategories) || _batteryHealthController.text.trim().isNotEmpty;
+    final isImeiApplicable =
+        _checkImeiRelevant(model, bizCategories) ||
+        _imei1Controller.text.trim().isNotEmpty;
+    final isBatteryApplicable =
+        _checkBatteryRelevant(model, bizCategories) ||
+        _batteryHealthController.text.trim().isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -2279,34 +3064,82 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Edit Unit Inventaris', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
-                      Text(modelName, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                      const Text(
+                        'Edit Unit Inventaris',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                        ),
+                      ),
+                      Text(
+                        modelName,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
-                  IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(context)),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
               // Status Dropdown
-              const Text('Status Operasional Unit', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const Text(
+                'Status Operasional Unit',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: _status,
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: isLocked ? AppColors.surfaceMuted : AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  fillColor: isLocked
+                      ? AppColors.surfaceMuted
+                      : AppColors.surfaceMuted,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
                 items: [
-                  const DropdownMenuItem(value: 'ready', child: Text('Siap Sewa (Ready)')),
-                  const DropdownMenuItem(value: 'rented', child: Text('Sedang Sewa (Rented)')),
-                  const DropdownMenuItem(value: 'maintenance', child: Text('Dalam Perawatan (Maintenance)')),
-                  const DropdownMenuItem(value: 'in_transit', child: Text('Dalam Mutasi / Transfer')),
-                  if (!['ready', 'rented', 'maintenance', 'in_transit'].contains(_status))
-                    DropdownMenuItem(value: _status, child: Text('$_status (Terkunci)')),
+                  const DropdownMenuItem(
+                    value: 'ready',
+                    child: Text('Siap Sewa (Ready)'),
+                  ),
+                  const DropdownMenuItem(
+                    value: 'rented',
+                    child: Text('Sedang Sewa (Rented)'),
+                  ),
+                  const DropdownMenuItem(
+                    value: 'maintenance',
+                    child: Text('Dalam Perawatan (Maintenance)'),
+                  ),
+                  const DropdownMenuItem(
+                    value: 'in_transit',
+                    child: Text('Dalam Mutasi / Transfer'),
+                  ),
+                  if (![
+                    'ready',
+                    'rented',
+                    'maintenance',
+                    'in_transit',
+                  ].contains(_status))
+                    DropdownMenuItem(
+                      value: _status,
+                      child: Text('$_status (Terkunci)'),
+                    ),
                 ],
-                onChanged: isLocked ? null : (val) => setState(() => _status = val ?? 'ready'),
+                onChanged: isLocked
+                    ? null
+                    : (val) => setState(() => _status = val ?? 'ready'),
               ),
               if (_status == 'rented') ...[
                 const SizedBox(height: 8),
@@ -2315,11 +3148,17 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                   decoration: BoxDecoration(
                     color: AppColors.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.lock_rounded, size: 20, color: AppColors.warning),
+                      Icon(
+                        Icons.lock_rounded,
+                        size: 20,
+                        color: AppColors.warning,
+                      ),
                       SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -2327,12 +3166,19 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                           children: [
                             Text(
                               'Sedang Disewa (Terkunci)',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
                             SizedBox(height: 2),
                             Text(
                               'Unit sedang aktif disewa pelanggan. Status operasional tidak dapat diubah manual.',
-                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -2347,11 +3193,17 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                   decoration: BoxDecoration(
                     color: AppColors.info.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.info.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: AppColors.info.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.local_shipping_outlined, size: 20, color: AppColors.info),
+                      Icon(
+                        Icons.local_shipping_outlined,
+                        size: 20,
+                        color: AppColors.info,
+                      ),
                       SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -2359,12 +3211,19 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                           children: [
                             Text(
                               'Dalam Mutasi (Terkunci)',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
                             SizedBox(height: 2),
                             Text(
                               'Unit sedang dalam perjalanan mutasi antar cabang. Status operasional tidak dapat diubah manual.',
-                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -2375,48 +3234,83 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
               ],
               const SizedBox(height: 12),
               // Kode Unit
-              const Text('Kode Unit', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const Text(
+                'Kode Unit',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _assetCodeController,
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
-                validator: (val) => (val == null || val.trim().isEmpty) ? 'Kode unit wajib diisi' : null,
+                validator: (val) => (val == null || val.trim().isEmpty)
+                    ? 'Kode unit wajib diisi'
+                    : null,
               ),
               const SizedBox(height: 12),
               // Serial Number (Adaptive)
               Text(
                 hasSerial ? 'Serial Number *' : 'Serial Number (Opsional)',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _serialNumberController,
                 decoration: InputDecoration(
-                  hintText: hasSerial ? 'Nomor seri pabrik (SN)' : 'Kosongkan jika barang tanpa SN fisik',
+                  hintText: hasSerial
+                      ? 'Nomor seri pabrik (SN)'
+                      : 'Kosongkan jika barang tanpa SN fisik',
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
-                validator: hasSerial ? (val) => (val == null || val.trim().isEmpty) ? 'Serial number wajib diisi' : null : null,
+                validator: hasSerial
+                    ? (val) => (val == null || val.trim().isEmpty)
+                          ? 'Serial number wajib diisi'
+                          : null
+                    : null,
               ),
               // IMEI 1 (Adaptive)
               if (isImeiApplicable) ...[
                 const SizedBox(height: 12),
-                const Text('IMEI 1', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                const Text(
+                  'IMEI 1',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _imei1Controller,
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: AppColors.surfaceMuted,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ],
@@ -2429,18 +3323,38 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const Text(
+                            'Kondisi Fisik',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
                             initialValue: _grade,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppColors.surfaceMuted,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                             ),
-                            items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
-                            onChanged: (val) => setState(() => _grade = val ?? 'A'),
+                            items: ['A', 'B', 'C']
+                                .map(
+                                  (g) => DropdownMenuItem(
+                                    value: g,
+                                    child: Text('Grade $g'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (val) =>
+                                setState(() => _grade = val ?? 'A'),
                           ),
                         ],
                       ),
@@ -2450,7 +3364,13 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Battery Health (%)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const Text(
+                            'Battery Health (%)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _batteryHealthController,
@@ -2459,8 +3379,14 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                               hintText: 'Misal: 100',
                               filled: true,
                               fillColor: AppColors.surfaceMuted,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ],
@@ -2472,17 +3398,36 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Kondisi Fisik', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    const Text(
+                      'Kondisi Fisik',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: _grade,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppColors.surfaceMuted,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
-                      items: ['A', 'B', 'C'].map((g) => DropdownMenuItem(value: g, child: Text('Grade $g'))).toList(),
+                      items: ['A', 'B', 'C']
+                          .map(
+                            (g) => DropdownMenuItem(
+                              value: g,
+                              child: Text('Grade $g'),
+                            ),
+                          )
+                          .toList(),
                       onChanged: (val) => setState(() => _grade = val ?? 'A'),
                     ),
                   ],
@@ -2490,7 +3435,10 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
               ],
               const SizedBox(height: 12),
               // Notes
-              const Text('Catatan Perangkat', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const Text(
+                'Catatan Perangkat',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _notesController,
@@ -2498,8 +3446,14 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -2511,7 +3465,9 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                     backgroundColor: AppColors.obsidian,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: _isLoading
                       ? null
@@ -2534,7 +3490,9 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                               'imei_1': imei.isNotEmpty ? imei : null,
                               if (!isLocked) 'status': _status,
                               'condition_grade': _grade,
-                              'battery_health': bh.isNotEmpty ? int.tryParse(bh) : null,
+                              'battery_health': bh.isNotEmpty
+                                  ? int.tryParse(bh)
+                                  : null,
                               'notes': _notesController.text.trim(),
                             };
 
@@ -2542,20 +3500,40 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                             nav.pop();
                             widget.onSuccess();
                             messenger.showSnackBar(
-                              const SnackBar(content: Text('Perubahan data unit berhasil disimpan!')),
+                              const SnackBar(
+                                content: Text(
+                                  'Perubahan data unit berhasil disimpan!',
+                                ),
+                              ),
                             );
                           } catch (e) {
                             if (mounted) {
                               setState(() => _isLoading = false);
                               messenger.showSnackBar(
-                                SnackBar(content: Text('Gagal menyimpan: $e'), backgroundColor: AppColors.danger),
+                                SnackBar(
+                                  content: Text('Gagal menyimpan: $e'),
+                                  backgroundColor: AppColors.danger,
+                                ),
                               );
                             }
                           }
                         },
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Simpan Perubahan', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Simpan Perubahan',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -2566,10 +3544,15 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                     foregroundColor: AppColors.danger,
                     side: const BorderSide(color: AppColors.danger),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                  label: const Text('Hapus / Arsipkan Unit', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  label: const Text(
+                    'Hapus / Arsipkan Unit',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
                   onPressed: _isLoading ? null : () => _confirmDelete(context),
                 ),
               ),
@@ -2590,9 +3573,16 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
       builder: (dialogCtx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 24),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: AppColors.danger,
+              size: 24,
+            ),
             SizedBox(width: 8),
-            Text('Hapus Unit Inventaris', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              'Hapus Unit Inventaris',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         content: Text(
@@ -2621,7 +3611,9 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                 final res = await repo.deleteAsset(assetId);
                 nav.pop();
                 widget.onSuccess();
-                final msg = res['message']?.toString() ?? 'Unit inventaris berhasil diproses.';
+                final msg =
+                    res['message']?.toString() ??
+                    'Unit inventaris berhasil diproses.';
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(msg),

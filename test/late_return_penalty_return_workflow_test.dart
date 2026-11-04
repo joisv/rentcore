@@ -61,9 +61,11 @@ class _FakeBookingRepositoryForReturn extends BookingRepository {
 }
 
 class _TestBusinessNotifier extends BusinessNotifier {
-  _TestBusinessNotifier(BusinessState state) : super() {
-    this.state = state;
-  }
+  final BusinessState _initialState;
+  _TestBusinessNotifier(this._initialState);
+
+  @override
+  BusinessState build() => _initialState;
 }
 
 void main() {

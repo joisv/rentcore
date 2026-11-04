@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/presentation/user_profile_screen.dart';
@@ -30,7 +31,10 @@ class StoreSettingsScreen extends ConsumerWidget {
           children: [
             Icon(Icons.logout_rounded, color: AppColors.danger, size: 22),
             SizedBox(width: 8),
-            Text('Keluar Akun', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            Text(
+              'Keluar Akun',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
           ],
         ),
         content: const Text(
@@ -40,7 +44,13 @@ class StoreSettingsScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+            child: const Text(
+              'Batal',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -50,12 +60,150 @@ class StoreSettingsScreen extends ConsumerWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.danger,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               elevation: 0,
             ),
-            child: const Text('Keluar', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Keluar',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openShiftMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Shift Kasir & Jam Operasional',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        size: 20,
+                        color: AppColors.textSecondary,
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.border),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.obsidian.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.point_of_sale_outlined,
+                    color: AppColors.obsidian,
+                    size: 20,
+                  ),
+                ),
+                title: const Text(
+                  'Kasir & Tutup Buku Shift',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Pembayaran, kas & laci kasir',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: AppColors.textSecondary,
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CashierScreen()),
+                  );
+                },
+              ),
+              const Divider(
+                height: 1,
+                indent: 56,
+                endIndent: 20,
+                color: AppColors.border,
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.obsidian.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.schedule_rounded,
+                    color: AppColors.obsidian,
+                    size: 20,
+                  ),
+                ),
+                title: const Text(
+                  'Jadwal & Jam Operasional Shift',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Atur jam buka, tutup & toleransi cabang',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: AppColors.textSecondary,
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ShiftScheduleScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -66,10 +214,15 @@ class StoreSettingsScreen extends ConsumerWidget {
     final user = authState.user;
     final bState = ref.watch(businessProvider);
 
-    final isSuperAdmin = user?['is_platform_admin'] == true || user?['role'] == 'super_admin';
+    final isSuperAdmin =
+        user?['is_platform_admin'] == true || user?['role'] == 'super_admin';
     final currentBiz = bState.currentBusiness;
-    final userRole = currentBiz?['role']?.toString().toLowerCase() ?? user?['role']?.toString().toLowerCase() ?? '';
-    final isOwnerOrAdmin = userRole == 'owner' || userRole == 'admin' || isSuperAdmin;
+    final userRole =
+        currentBiz?['role']?.toString().toLowerCase() ??
+        user?['role']?.toString().toLowerCase() ??
+        '';
+    final isOwnerOrAdmin =
+        userRole == 'owner' || userRole == 'admin' || isSuperAdmin;
 
     final userName = user?['name']?.toString() ?? 'Pengguna RentCore';
     final userEmail = user?['email']?.toString() ?? '-';
@@ -77,11 +230,14 @@ class StoreSettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const RentCoreAppBar(
-        title: 'Pengaturan',
-      ),
+      appBar: const RentCoreAppBar(title: 'Pengaturan'),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: 100,
+        ),
         children: [
           // User Card Summary
           InkWell(
@@ -147,7 +303,10 @@ class StoreSettingsScreen extends ConsumerWidget {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceMuted,
                                 borderRadius: BorderRadius.circular(4),
@@ -167,20 +326,24 @@ class StoreSettingsScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                    color: AppColors.textSecondary,
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 20),
 
-          // GROUP 1: PROFIL & BISNIS
-          _buildGroupHeader('PROFIL & IDENTITAS'),
+          // GROUP 1: AKUN & TOKO
+          _buildGroupHeader('AKUN & TOKO'),
           _buildSettingsCard([
             _buildListTile(
               icon: Icons.person_outline_rounded,
-              title: 'Profil Saya & Keamanan',
-              subtitle: 'Ubah nama, telepon, dan kelola kata sandi',
+              title: 'Profil Pengguna',
+              subtitle: 'Keamanan & data pribadi',
               onTap: () {
                 Navigator.push(
                   context,
@@ -191,7 +354,7 @@ class StoreSettingsScreen extends ConsumerWidget {
             _buildDivider(),
             _buildListTile(
               icon: Icons.storefront_outlined,
-              title: 'Profil Usaha & Slogan',
+              title: 'Profil Usaha & Cabang',
               subtitle: storeName,
               badge: isOwnerOrAdmin ? null : 'Lihat Saja',
               onTap: () {
@@ -206,7 +369,7 @@ class StoreSettingsScreen extends ConsumerWidget {
               _buildListTile(
                 icon: Icons.badge_outlined,
                 title: 'Status Kepegawaian & Resign',
-                subtitle: 'Penugasan cabang dan pengajuan pengunduran diri',
+                subtitle: 'Penugasan cabang & resign',
                 badge: 'Kepegawaian',
                 badgeColor: const Color(0xFFFEF3C7),
                 badgeTextColor: const Color(0xFFD97706),
@@ -220,27 +383,37 @@ class StoreSettingsScreen extends ConsumerWidget {
               ),
             ],
           ]),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
 
-          // GROUP 2: OPERASIONAL & PERANGKAT
-          _buildGroupHeader('OPERASIONAL & PERANGKAT'),
+          // GROUP 2: OPERASIONAL KASIR
+          _buildGroupHeader('OPERASIONAL KASIR'),
           _buildSettingsCard([
             _buildListTile(
-              icon: Icons.print_outlined,
-              title: 'Printer Thermal & Kasir',
-              subtitle: 'Sambungkan printer Bluetooth ESC/POS & format struk',
+              icon: Icons.payments_outlined,
+              title: 'Metode Pembayaran',
+              subtitle: 'QRIS, Tunai, Bank & E-Wallet',
+              badge: isOwnerOrAdmin ? null : 'Lihat Saja',
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const PaymentMethodSettingsScreen(),
+                  ),
                 );
               },
             ),
             _buildDivider(),
             _buildListTile(
+              icon: Icons.schedule_rounded,
+              title: 'Shift Kasir & Jam Operasional',
+              subtitle: 'Buku kas & jam operasional',
+              onTap: () => _openShiftMenu(context),
+            ),
+            _buildDivider(),
+            _buildListTile(
               icon: Icons.confirmation_number_outlined,
-              title: 'Voucher Promo & Diskon',
-              subtitle: 'Manajemen voucher sewa & cetak slip kupon',
+              title: 'Voucher & Promo',
+              subtitle: 'Manajemen diskon & voucher sewa',
               onTap: () {
                 Navigator.push(
                   context,
@@ -250,9 +423,42 @@ class StoreSettingsScreen extends ConsumerWidget {
             ),
             _buildDivider(),
             _buildListTile(
+              icon: Icons.print_outlined,
+              title: 'Printer Thermal',
+              subtitle: 'Koneksi Bluetooth ESC/POS',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PrinterSettingsScreen(),
+                  ),
+                );
+              },
+            ),
+          ]),
+          const SizedBox(height: 20),
+
+          // GROUP 3: INVENTARIS & PELANGGAN
+          _buildGroupHeader('INVENTARIS & PELANGGAN'),
+          _buildSettingsCard([
+            _buildListTile(
+              icon: Icons.people_alt_outlined,
+              title: 'Direktori Pelanggan & Blacklist',
+              subtitle: 'Data pelanggan & verifikasi KTP',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CustomerDirectoryScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildDivider(),
+            _buildListTile(
               icon: Icons.swap_horiz_rounded,
-              title: 'Mutasi / Transfer Unit',
-              subtitle: 'Kirim, setujui, dan terima mutasi unit antar-cabang',
+              title: 'Mutasi Unit',
+              subtitle: 'Transfer unit antar-cabang',
               onTap: () {
                 Navigator.push(
                   context,
@@ -262,63 +468,9 @@ class StoreSettingsScreen extends ConsumerWidget {
             ),
             _buildDivider(),
             _buildListTile(
-              icon: Icons.point_of_sale_outlined,
-              title: 'Kasir & Tutup Buku Shift',
-              subtitle: 'Pembayaran counter, pengeluaran kasir & shift drawer',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CashierScreen()),
-                );
-              },
-            ),
-            _buildDivider(),
-            _buildListTile(
-              icon: Icons.access_time_rounded,
-              title: 'Jadwal & Jam Operasional Shift',
-              subtitle: 'Atur jam operasional, toleransi tutup, dan override cabang',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ShiftScheduleScreen()),
-                );
-              },
-            ),
-            _buildDivider(),
-            _buildListTile(
-              icon: Icons.payments_outlined,
-              title: 'Metode Pembayaran',
-              subtitle: 'Atur E-Wallet, QRIS Statis, dan upload gambar barcode QR',
-              badge: isOwnerOrAdmin ? null : 'Lihat Saja',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PaymentMethodSettingsScreen()),
-                );
-              },
-            ),
-            _buildDivider(),
-            _buildListTile(
-              icon: Icons.people_alt_outlined,
-              title: 'Direktori Pelanggan & Blacklist',
-              subtitle: 'Pencarian penyewa, verifikasi KTP, dan status risiko',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CustomerDirectoryScreen()),
-                );
-              },
-            ),
-          ]),
-          const SizedBox(height: 18),
-
-          // GROUP 3: ORGANISASI (OWNER/ADMIN)
-          _buildGroupHeader('ORGANISASI'),
-          _buildSettingsCard([
-            _buildListTile(
-              icon: Icons.people_outline_rounded,
+              icon: Icons.badge_outlined,
               title: 'Kelola Tim & Staf Cabang',
-              subtitle: 'Anggota tim, peran pengguna, dan akses cabang',
+              subtitle: 'Anggota tim & hak akses',
               badge: isOwnerOrAdmin ? null : 'Owner / Admin',
               badgeColor: isOwnerOrAdmin ? null : const Color(0xFFFEF3C7),
               badgeTextColor: isOwnerOrAdmin ? null : const Color(0xFFD97706),
@@ -326,7 +478,9 @@ class StoreSettingsScreen extends ConsumerWidget {
                 if (!isOwnerOrAdmin) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Kelola Tim hanya dapat diakses oleh Owner atau Admin.'),
+                      content: Text(
+                        'Kelola Tim hanya dapat diakses oleh Owner atau Admin.',
+                      ),
                       backgroundColor: AppColors.warning,
                     ),
                   );
@@ -339,7 +493,8 @@ class StoreSettingsScreen extends ConsumerWidget {
                     MaterialPageRoute(
                       builder: (_) => ManageOrganizationScreen(
                         businessId: bizId,
-                        businessName: bState.activeBusinessName ?? 'Bisnis Rental',
+                        businessName:
+                            bState.activeBusinessName ?? 'Bisnis Rental',
                       ),
                     ),
                   );
@@ -354,15 +509,15 @@ class StoreSettingsScreen extends ConsumerWidget {
               },
             ),
           ]),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
 
-          // GROUP 4: SESI
+          // GROUP 4: SESI AKUN
           _buildGroupHeader('SESI AKUN'),
           _buildSettingsCard([
             _buildListTile(
               icon: Icons.logout_rounded,
               title: 'Keluar Akun',
-              subtitle: 'Akhiri sesi aktif pada perangkat ini',
+              subtitle: 'Akhiri sesi pada perangkat ini',
               iconColor: AppColors.danger,
               titleColor: AppColors.danger,
               onTap: () => _confirmLogout(context, ref),
@@ -416,13 +571,14 @@ class StoreSettingsScreen extends ConsumerWidget {
   Widget _buildListTile({
     required IconData icon,
     required String title,
-    required String subtitle,
+    String? subtitle,
     required VoidCallback onTap,
     Color? iconColor,
     Color? titleColor,
     String? badge,
     Color? badgeColor,
     Color? badgeTextColor,
+    bool showChevron = true,
   }) {
     return InkWell(
       onTap: onTap,
@@ -434,10 +590,16 @@ class StoreSettingsScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: (iconColor ?? AppColors.obsidian).withValues(alpha: 0.08),
+                color: (iconColor ?? AppColors.obsidian).withValues(
+                  alpha: 0.08,
+                ),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: iconColor ?? AppColors.obsidian, size: 20),
+              child: Icon(
+                icon,
+                color: iconColor ?? AppColors.obsidian,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -460,7 +622,10 @@ class StoreSettingsScreen extends ConsumerWidget {
                       if (badge != null) ...[
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: badgeColor ?? AppColors.surfaceMuted,
                             borderRadius: BorderRadius.circular(4),
@@ -477,21 +642,29 @@ class StoreSettingsScreen extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                  if (subtitle != null && subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textSecondary),
+            if (showChevron) ...[
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+            ],
           ],
         ),
       ),
@@ -499,7 +672,12 @@ class StoreSettingsScreen extends ConsumerWidget {
   }
 
   Widget _buildDivider() {
-    return const Divider(height: 1, indent: 56, endIndent: 16, color: AppColors.border);
+    return const Divider(
+      height: 1,
+      indent: 56,
+      endIndent: 16,
+      color: AppColors.border,
+    );
   }
 
   String _getInitials(String name) {

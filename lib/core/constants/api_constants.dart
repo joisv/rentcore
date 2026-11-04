@@ -23,16 +23,28 @@ class ApiConstants {
   static const String businesses = '/businesses';
   static String businessDetail(dynamic id) => '/businesses/$id';
   static String businessMembers(dynamic id) => '/businesses/$id/members';
-  static String businessMember(dynamic bizId, dynamic memberId) => '/businesses/$bizId/members/$memberId';
-  static String reassignMemberBranch(dynamic bizId, dynamic memberId) => '/businesses/$bizId/members/$memberId/reassign-branch';
-  static String removeMemberBranch(dynamic bizId, dynamic memberId, dynamic branchId) => '/businesses/$bizId/members/$memberId/branches/$branchId';
-  static String memberManagerPin(dynamic bizId, dynamic memberId) => '/businesses/$bizId/members/$memberId/pin';
+  static String businessMember(dynamic bizId, dynamic memberId) =>
+      '/businesses/$bizId/members/$memberId';
+  static String reassignMemberBranch(dynamic bizId, dynamic memberId) =>
+      '/businesses/$bizId/members/$memberId/reassign-branch';
+  static String removeMemberBranch(
+    dynamic bizId,
+    dynamic memberId,
+    dynamic branchId,
+  ) => '/businesses/$bizId/members/$memberId/branches/$branchId';
+  static String memberManagerPin(dynamic bizId, dynamic memberId) =>
+      '/businesses/$bizId/members/$memberId/pin';
   static String businessBranches(dynamic id) => '/businesses/$id/branches';
-  static String businessRentalRules(dynamic id) => '/businesses/$id/rental-rules';
-  static String resignationRequests(dynamic id) => '/businesses/$id/resignation-requests';
-  static String cancelResignation(dynamic bizId, dynamic reqId) => '/businesses/$bizId/resignation-requests/$reqId/cancel';
-  static String approveResignation(dynamic bizId, dynamic reqId) => '/businesses/$bizId/resignation-requests/$reqId/approve';
-  static String rejectResignation(dynamic bizId, dynamic reqId) => '/businesses/$bizId/resignation-requests/$reqId/reject';
+  static String businessRentalRules(dynamic id) =>
+      '/businesses/$id/rental-rules';
+  static String resignationRequests(dynamic id) =>
+      '/businesses/$id/resignation-requests';
+  static String cancelResignation(dynamic bizId, dynamic reqId) =>
+      '/businesses/$bizId/resignation-requests/$reqId/cancel';
+  static String approveResignation(dynamic bizId, dynamic reqId) =>
+      '/businesses/$bizId/resignation-requests/$reqId/approve';
+  static String rejectResignation(dynamic bizId, dynamic reqId) =>
+      '/businesses/$bizId/resignation-requests/$reqId/reject';
 
   // Dashboard
   static const String dashboardKpi = '/dashboard/kpi';
@@ -57,10 +69,13 @@ class ApiConstants {
   static const String bookings = '/bookings';
   static String bookingDetail(dynamic id) => '/bookings/$id';
   static String extendBooking(dynamic id) => '/bookings/$id/extend';
-  static String adjustBookingDuration(dynamic id) => '/bookings/$id/adjust-duration';
+  static String adjustBookingDuration(dynamic id) =>
+      '/bookings/$id/adjust-duration';
   static String returnBooking(dynamic id) => '/bookings/$id/return';
   static String availableReplacements(dynamic id, {dynamic assetId}) =>
-      assetId != null ? '/bookings/$id/available-replacements?asset_id=$assetId' : '/bookings/$id/available-replacements';
+      assetId != null
+      ? '/bookings/$id/available-replacements?asset_id=$assetId'
+      : '/bookings/$id/available-replacements';
   static String exchangeBooking(dynamic id) => '/bookings/$id/exchange';
 
   // Cashier
@@ -68,13 +83,16 @@ class ApiConstants {
   static const String paymentMethods = '/cashier/payment-methods';
   static const String cashierPay = '/cashier/pay';
   static String voidTransaction(dynamic id) => '/cashier/transactions/$id/void';
-  static String cashierReceipt(dynamic id) => '/cashier/transactions/$id/receipt';
+  static String cashierReceipt(dynamic id) =>
+      '/cashier/transactions/$id/receipt';
   static const String cashierExpenses = '/cashier/expenses';
   static String approveExpense(dynamic id) => '/cashier/expenses/$id/approve';
   static String voidExpense(dynamic id) => '/cashier/expenses/$id/void';
   static const String currentShift = '/cashier/shift/current';
   static const String openShift = '/cashier/shift/open';
   static const String closeShift = '/cashier/shift/close';
+  static const String shiftHistory = '/cashier/shift/history';
+  static const String shifts = '/cashier/shifts';
   static const String shiftSchedule = '/cashier/shift/schedule';
   static const String paymentSettings = '/payment-settings';
   static const String qrisImage = '/payment-settings/qris-image';
@@ -82,7 +100,8 @@ class ApiConstants {
   // Inter-Affiliate Stock Transfers
   static const String transfers = '/transfers';
   static const String transferDestinations = '/transfers/destinations';
-  static String transferRecipients(dynamic branchId) => '/transfers/recipients?branch_id=$branchId';
+  static String transferRecipients(dynamic branchId) =>
+      '/transfers/recipients?branch_id=$branchId';
   static String approveTransfer(dynamic id) => '/transfers/$id/approve';
   static String rejectTransfer(dynamic id) => '/transfers/$id/reject';
   static String receiveTransfer(dynamic id) => '/transfers/$id/receive';
@@ -93,8 +112,10 @@ class ApiConstants {
   // Customers & Identity Verification
   static const String customers = '/customers';
   static const String customerLookup = '/customers/lookup';
-  static String customerIdentityDoc(dynamic id) => '/customers/$id/identity-document';
-  static String toggleCustomerBlacklist(dynamic id) => '/customers/$id/blacklist';
+  static String customerIdentityDoc(dynamic id) =>
+      '/customers/$id/identity-document';
+  static String toggleCustomerBlacklist(dynamic id) =>
+      '/customers/$id/blacklist';
 
   // Tenant Notifications
   static const String notifications = '/notifications';

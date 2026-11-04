@@ -203,36 +203,26 @@ void main() {
       await tester.tap(find.text('Semua Cabang (Konsolidasi)'));
       await tester.pumpAndSettle();
 
-      // 4. Verify Repository was called with allBranches = true
-      expect(spyRepo.lastBookingsAllBranches, isTrue);
-      expect(spyRepo.lastBookingsBranchId, isNull);
-
-      // 5. Switch to Rekap Shift & Closing Tab
-      await tester.tap(find.text('Rekap Shift & Closing'));
-      await tester.pumpAndSettle();
-
-      // 6. Verify closing summary called with allBranches = true
+      // 4. Verify closing summary called with allBranches = true
       expect(spyRepo.lastClosingAllBranches, isTrue);
       expect(spyRepo.lastClosingBranchId, isNull);
 
-      // 7. Verify UI displays consolidated total and per-branch breakdown
-      expect(find.text('KONSOLIDASI'), findsOneWidget);
+      // 5. Verify UI displays consolidated total and per-branch breakdown on Tab 1: Shift Aktif
+      expect(find.text('Konsolidasi'), findsOneWidget);
       expect(find.text('Rp 10.000.000'), findsOneWidget);
-      expect(find.text('KONTRIBUSI REVENUE PER CABANG'), findsOneWidget);
+      expect(find.text('Kontribusi Omset per Cabang'), findsOneWidget);
       expect(find.text('RentCore Cabang Barat'), findsOneWidget);
 
-      // 8. Now switch to 'RentCore Cabang Barat'
+      // 6. Now switch to 'RentCore Cabang Barat'
       await tester.tap(find.text('Ganti'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(ListTile, 'RentCore Cabang Barat'));
       await tester.pumpAndSettle();
 
-      // 9. Verify Repository was called with branchId = 2 and allBranches = false
+      // 7. Verify Repository was called with branchId = 2 and allBranches = false
       expect(spyRepo.lastClosingBranchId, equals(2));
       expect(spyRepo.lastClosingAllBranches, isFalse);
-      expect(spyRepo.lastBookingsBranchId, equals(2));
-      expect(spyRepo.lastBookingsAllBranches, isFalse);
 
       // 10. Switch back to 'Semua Cabang (Konsolidasi)'
       await tester.tap(find.text('Ganti'));

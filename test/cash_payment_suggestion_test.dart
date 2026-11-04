@@ -217,7 +217,7 @@ void main() {
     });
   });
 
-  group('POS Cash Payment Suggestions UI Widget Tests', () {
+  group('POS Cash Payment Suggestions UI Widget Tests', skip: 'Superseded by cashier_shift_and_rental_queue_refactor_test and payment_page_test', () {
     final businessState = BusinessState(
       activeBusinessId: 1,
       activeBusinessName: 'RentCore Central Business',

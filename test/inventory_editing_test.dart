@@ -38,7 +38,10 @@ class _TrackingAssetRepository extends AssetRepository {
   ];
 
   @override
-  Future<List<Map<String, dynamic>>> fetchProducts({int? categoryId, String? search}) async => [
+  Future<List<Map<String, dynamic>>> fetchProducts({
+    int? categoryId,
+    String? search,
+  }) async => [
     {
       'id': 10,
       'name': 'Sony Alpha A7 IV',
@@ -70,14 +73,20 @@ class _TrackingAssetRepository extends AssetRepository {
   ];
 
   @override
-  Future<Map<String, dynamic>> updateAsset(int id, Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> updateAsset(
+    int id,
+    Map<String, dynamic> payload,
+  ) async {
     lastUpdatedAssetId = id;
     lastUpdatedAssetPayload = payload;
     return {'id': id, ...payload};
   }
 
   @override
-  Future<Map<String, dynamic>> updateProduct(int id, Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> updateProduct(
+    int id,
+    Map<String, dynamic> payload,
+  ) async {
     lastUpdatedProductId = id;
     lastUpdatedProductPayload = payload;
     return {'id': id, ...payload};
@@ -106,7 +115,7 @@ void main() {
     activeBranchId: 1,
     activeBranchName: 'Pusat',
     businesses: [
-      {'id': 10, 'name': 'RentCore Store'}
+      {'id': 10, 'name': 'RentCore Store'},
     ],
   );
 
@@ -130,203 +139,249 @@ void main() {
   };
 
   group('Inventory Unit & Catalog Editing Tests', () {
-    testWidgets('InventoryScreen renders TabBar with Unit Fisik and Katalog & Tarif tabs', (tester) async {
-      final repo = _TrackingAssetRepository();
+    testWidgets(
+      'InventoryScreen renders TabBar with Unit Fisik and Katalog & Tarif tabs',
+      (tester) async {
+        final repo = _TrackingAssetRepository();
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            businessProvider.overrideWith(() => _TestBusinessNotifier(mockBusiness)),
-            assetRepositoryProvider.overrideWithValue(repo),
-            inventoryListProvider.overrideWith((ref) => Future.value([sampleAsset])),
-          ],
-          child: MaterialApp(
-            navigatorKey: rootNavigatorKey,
-            home: const InventoryScreen(),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              businessProvider.overrideWith(
+                () => _TestBusinessNotifier(mockBusiness),
+              ),
+              assetRepositoryProvider.overrideWithValue(repo),
+              inventoryListProvider.overrideWith(
+                (ref) => Future.value([sampleAsset]),
+              ),
+            ],
+            child: MaterialApp(
+              navigatorKey: rootNavigatorKey,
+              home: const InventoryScreen(),
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Daftar Aset'), findsOneWidget);
-      expect(find.text('Unit Fisik (Inventaris)'), findsOneWidget);
-      expect(find.text('Katalog & Tarif'), findsOneWidget);
-      expect(find.text('CAM-001'), findsOneWidget);
-      expect(find.text('Edit Unit'), findsOneWidget);
-    });
+        expect(find.text('Daftar Aset'), findsOneWidget);
+        expect(find.text('Unit Fisik (Inventaris)'), findsOneWidget);
+        expect(find.text('Katalog & Tarif'), findsOneWidget);
+        expect(find.text('CAM-001'), findsOneWidget);
+        expect(find.text('Edit Unit'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Tapping drawer button opens filter drawer with Category and Status filters', (tester) async {
-      final repo = _TrackingAssetRepository();
+    testWidgets(
+      'Tapping drawer button opens filter drawer with Category and Status filters',
+      (tester) async {
+        final repo = _TrackingAssetRepository();
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            businessProvider.overrideWith(() => _TestBusinessNotifier(mockBusiness)),
-            assetRepositoryProvider.overrideWithValue(repo),
-            inventoryListProvider.overrideWith((ref) => Future.value([sampleAsset])),
-          ],
-          child: MaterialApp(
-            navigatorKey: rootNavigatorKey,
-            home: const InventoryScreen(),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              businessProvider.overrideWith(
+                () => _TestBusinessNotifier(mockBusiness),
+              ),
+              assetRepositoryProvider.overrideWithValue(repo),
+              inventoryListProvider.overrideWith(
+                (ref) => Future.value([sampleAsset]),
+              ),
+            ],
+            child: MaterialApp(
+              navigatorKey: rootNavigatorKey,
+              home: const InventoryScreen(),
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Daftar Aset'), findsOneWidget);
-      expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
+        expect(find.text('Daftar Aset'), findsOneWidget);
+        expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
 
-      // Open drawer
-      await tester.tap(find.byIcon(Icons.tune_rounded));
-      await tester.pumpAndSettle();
+        // Open drawer
+        await tester.tap(find.byIcon(Icons.tune_rounded));
+        await tester.pumpAndSettle();
 
-      // Drawer contents
-      expect(find.text('Filter Aset'), findsOneWidget);
-      expect(find.text('Status Unit'), findsOneWidget);
-      expect(find.text('Kategori'), findsOneWidget);
-      expect(find.descendant(of: find.byType(Drawer), matching: find.text('Siap Sewa')), findsOneWidget);
-      expect(find.text('Sedang Sewa'), findsOneWidget);
-      expect(find.text('Perawatan'), findsOneWidget);
-      expect(find.text('Terapkan Filter'), findsOneWidget);
-
-      // Close drawer
-      await tester.tap(find.text('Terapkan Filter'));
-      await tester.pumpAndSettle();
-
-      // Back to main screen
-      expect(find.text('CAM-001'), findsOneWidget);
-    });
-
-    testWidgets('Tapping Edit Unit opens _EditAssetSheet with prefilled values and submits updates', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      final repo = _TrackingAssetRepository();
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            businessProvider.overrideWith(() => _TestBusinessNotifier(mockBusiness)),
-            assetRepositoryProvider.overrideWithValue(repo),
-            inventoryListProvider.overrideWith((ref) => Future.value([sampleAsset])),
-          ],
-          child: MaterialApp(
-            navigatorKey: rootNavigatorKey,
-            home: const InventoryScreen(),
+        // Drawer contents
+        expect(find.text('Filter Aset'), findsOneWidget);
+        expect(find.text('Status Unit'), findsOneWidget);
+        expect(find.text('Kategori'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(Drawer),
+            matching: find.text('Siap Sewa'),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+          findsOneWidget,
+        );
+        expect(find.text('Sedang Sewa'), findsOneWidget);
+        expect(find.text('Perawatan'), findsOneWidget);
+        expect(find.text('Terapkan Filter'), findsOneWidget);
 
-      // Tap the prominent Edit Unit button
-      await tester.tap(find.text('Edit Unit'));
-      await tester.pumpAndSettle();
+        // Close drawer
+        await tester.tap(find.text('Terapkan Filter'));
+        await tester.pumpAndSettle();
 
-      // Verify fields prefilled
-      expect(find.text('CAM-001'), findsAtLeast(1));
-      expect(find.text('SN-CAM-001'), findsAtLeast(1));
-      expect(find.text('351234567890123'), findsOneWidget);
-      expect(find.text('Simpan Perubahan'), findsOneWidget);
+        // Back to main screen
+        expect(find.text('CAM-001'), findsOneWidget);
+      },
+    );
 
-      // Submit changes
-      await tester.ensureVisible(find.text('Simpan Perubahan'));
-      await tester.tap(find.text('Simpan Perubahan'));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Tapping Edit Unit opens _EditAssetSheet with prefilled values and submits updates',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      expect(repo.lastUpdatedAssetId, 101);
-      expect(repo.lastUpdatedAssetPayload?['asset_code'], 'CAM-001');
-      expect(repo.lastUpdatedAssetPayload?['serial_number'], 'SN-CAM-001');
-    });
+        final repo = _TrackingAssetRepository();
 
-    testWidgets('Switching to Katalog & Tarif tab displays products with Edit Model & Tarif action', (tester) async {
-      tester.view.physicalSize = const Size(800, 1600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      final repo = _TrackingAssetRepository();
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            businessProvider.overrideWith(() => _TestBusinessNotifier(mockBusiness)),
-            assetRepositoryProvider.overrideWithValue(repo),
-            inventoryListProvider.overrideWith((ref) => Future.value([sampleAsset])),
-          ],
-          child: MaterialApp(
-            navigatorKey: rootNavigatorKey,
-            home: const InventoryScreen(initialTabIndex: 1),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              businessProvider.overrideWith(
+                () => _TestBusinessNotifier(mockBusiness),
+              ),
+              assetRepositoryProvider.overrideWithValue(repo),
+              inventoryListProvider.overrideWith(
+                (ref) => Future.value([sampleAsset]),
+              ),
+            ],
+            child: MaterialApp(
+              navigatorKey: rootNavigatorKey,
+              home: const InventoryScreen(),
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Verify product card in catalog tab
-      expect(find.text('Sony Alpha A7 IV'), findsOneWidget);
-      expect(find.text('3 Siap Sewa • 5 Total Unit'), findsOneWidget);
-      expect(find.text('Edit Model & Tarif'), findsOneWidget);
+        // Tap the prominent Edit Unit button
+        await tester.tap(find.text('Edit Unit'));
+        await tester.pumpAndSettle();
 
-      // Tap Edit Model & Tarif to open prefilled AddProductSheet
-      await tester.tap(find.text('Edit Model & Tarif'));
-      await tester.pumpAndSettle();
+        // Verify fields prefilled
+        expect(find.text('CAM-001'), findsAtLeast(1));
+        expect(find.text('SN-CAM-001'), findsAtLeast(1));
+        expect(find.text('351234567890123'), findsOneWidget);
+        expect(find.text('Simpan Perubahan'), findsOneWidget);
 
-      expect(find.text('Edit Model & Tarif Sewa'), findsOneWidget);
-      expect(find.text('Perbarui informasi katalog & konfigurasi paket harga'), findsOneWidget);
-      expect(find.text('Simpan Perubahan Katalog'), findsOneWidget);
+        // Submit changes
+        await tester.ensureVisible(find.text('Simpan Perubahan'));
+        await tester.tap(find.text('Simpan Perubahan'));
+        await tester.pumpAndSettle();
 
-      // Verify rates loaded
-      expect(find.text('300000'), findsOneWidget);
-      expect(find.text('800000'), findsOneWidget);
+        expect(repo.lastUpdatedAssetId, 101);
+        expect(repo.lastUpdatedAssetPayload?['asset_code'], 'CAM-001');
+        expect(repo.lastUpdatedAssetPayload?['serial_number'], 'SN-CAM-001');
+      },
+    );
 
-      // Submit product edits
-      await tester.ensureVisible(find.text('Simpan Perubahan Katalog'));
-      await tester.tap(find.text('Simpan Perubahan Katalog'));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Switching to Katalog & Tarif tab displays products with Edit Model & Tarif action',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      expect(repo.lastUpdatedProductId, 10);
-      expect(repo.lastUpdatedProductPayload?['name'], 'Sony Alpha A7 IV');
-      expect(repo.lastUpdatedProductPayload?['brand'], 'Sony');
-    });
+        final repo = _TrackingAssetRepository();
 
-    testWidgets('Active rented unit shows locked banner and allows safe descriptive updates', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      final repo = _TrackingAssetRepository();
-      final rentedAsset = {
-        ...sampleAsset,
-        'status': 'rented',
-      };
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            businessProvider.overrideWith(() => _TestBusinessNotifier(mockBusiness)),
-            assetRepositoryProvider.overrideWithValue(repo),
-            inventoryListProvider.overrideWith((ref) => Future.value([rentedAsset])),
-          ],
-          child: MaterialApp(
-            navigatorKey: rootNavigatorKey,
-            home: const InventoryScreen(),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              businessProvider.overrideWith(
+                () => _TestBusinessNotifier(mockBusiness),
+              ),
+              assetRepositoryProvider.overrideWithValue(repo),
+              inventoryListProvider.overrideWith(
+                (ref) => Future.value([sampleAsset]),
+              ),
+            ],
+            child: MaterialApp(
+              navigatorKey: rootNavigatorKey,
+              home: const InventoryScreen(initialTabIndex: 1),
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Edit Unit'));
-      await tester.pumpAndSettle();
+        // Verify product card in catalog tab
+        expect(find.text('Sony Alpha A7 IV'), findsOneWidget);
+        expect(find.text('3 Siap Sewa • 5 Total'), findsOneWidget);
+        expect(find.text('Edit Tarif'), findsOneWidget);
+        expect(find.text('+ Unit Baru'), findsOneWidget);
+        expect(find.text('Rp 300.000 / hari'), findsOneWidget);
 
-      expect(find.text('Sedang Disewa (Terkunci)'), findsOneWidget);
-      expect(find.textContaining('Unit sedang aktif disewa pelanggan'), findsOneWidget);
+        // Tap Edit Tarif to open prefilled AddProductSheet
+        await tester.tap(find.text('Edit Tarif'));
+        await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Simpan Perubahan'));
-      await tester.tap(find.text('Simpan Perubahan'));
-      await tester.pumpAndSettle();
+        expect(find.text('Edit Model & Tarif Sewa'), findsOneWidget);
+        expect(
+          find.text('Perbarui informasi katalog & konfigurasi paket harga'),
+          findsOneWidget,
+        );
+        expect(find.text('Simpan Perubahan Katalog'), findsOneWidget);
 
-      expect(repo.lastUpdatedAssetId, 101);
-      // Status is locked so not sent or preserved
-      expect(repo.lastUpdatedAssetPayload?.containsKey('status'), isFalse);
-    });
+        // Verify rates loaded
+        expect(find.text('300000'), findsOneWidget);
+        expect(find.text('800000'), findsOneWidget);
+
+        // Submit product edits
+        await tester.ensureVisible(find.text('Simpan Perubahan Katalog'));
+        await tester.tap(find.text('Simpan Perubahan Katalog'));
+        await tester.pumpAndSettle();
+
+        expect(repo.lastUpdatedProductId, 10);
+        expect(repo.lastUpdatedProductPayload?['name'], 'Sony Alpha A7 IV');
+        expect(repo.lastUpdatedProductPayload?['brand'], 'Sony');
+      },
+    );
+
+    testWidgets(
+      'Active rented unit shows locked banner and allows safe descriptive updates',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final repo = _TrackingAssetRepository();
+        final rentedAsset = {...sampleAsset, 'status': 'rented'};
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              businessProvider.overrideWith(
+                () => _TestBusinessNotifier(mockBusiness),
+              ),
+              assetRepositoryProvider.overrideWithValue(repo),
+              inventoryListProvider.overrideWith(
+                (ref) => Future.value([rentedAsset]),
+              ),
+            ],
+            child: MaterialApp(
+              navigatorKey: rootNavigatorKey,
+              home: const InventoryScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Edit Unit'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Sedang Disewa (Terkunci)'), findsOneWidget);
+        expect(
+          find.textContaining('Unit sedang aktif disewa pelanggan'),
+          findsOneWidget,
+        );
+
+        await tester.ensureVisible(find.text('Simpan Perubahan'));
+        await tester.tap(find.text('Simpan Perubahan'));
+        await tester.pumpAndSettle();
+
+        expect(repo.lastUpdatedAssetId, 101);
+        // Status is locked so not sent or preserved
+        expect(repo.lastUpdatedAssetPayload?.containsKey('status'), isFalse);
+      },
+    );
   });
 }

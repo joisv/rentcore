@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -15,10 +17,12 @@ class PaymentMethodSettingsScreen extends ConsumerStatefulWidget {
   const PaymentMethodSettingsScreen({super.key});
 
   @override
-  ConsumerState<PaymentMethodSettingsScreen> createState() => _PaymentMethodSettingsScreenState();
+  ConsumerState<PaymentMethodSettingsScreen> createState() =>
+      _PaymentMethodSettingsScreenState();
 }
 
-class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSettingsScreen> {
+class _PaymentMethodSettingsScreenState
+    extends ConsumerState<PaymentMethodSettingsScreen> {
   int? _selectedBranchId;
   bool _isInitialized = false;
   bool _isSaving = false;
@@ -42,22 +46,38 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
   bool _removeQrisImage = false;
 
   bool get _hasValidQrisPayload =>
-      !_removeQrisImage && (_qrisRawPayload != null && _qrisRawPayload!.trim().isNotEmpty);
+      !_removeQrisImage &&
+      (_qrisRawPayload != null && _qrisRawPayload!.trim().isNotEmpty);
 
-  void _populateFromConfig(Map<String, dynamic> data) {
-    if (_isInitialized) return;
+  void _populateFromConfig(Map<String, dynamic> data, {bool force = false}) {
+    if (_isInitialized && !force) return;
     _isInitialized = true;
 
-    final config = (data['config'] as Map<String, dynamic>?) ?? {};
-    _ewalletMasterEnabled = config['ewallet_enabled'] != false;
+    final config =
+        (data['config'] is Map
+            ? data['config'] as Map<String, dynamic>
+            : null) ??
+        (data['payment_methods_config'] is Map
+            ? data['payment_methods_config'] as Map<String, dynamic>
+            : null) ??
+        (data['payment_methods_config_override'] is Map
+            ? data['payment_methods_config_override'] as Map<String, dynamic>
+            : null) ??
+        data;
 
-    final providers = (config['ewallet_providers'] as Map<String, dynamic>?) ?? {};
+    _ewalletMasterEnabled =
+        config['ewallet_enabled'] != false && config['wallet_enable'] != false;
+
+    final providers =
+        (config['ewallet_providers'] as Map<String, dynamic>?) ?? {};
     _shopeepayEnabled = providers['shopeepay'] != false;
     _danaEnabled = providers['dana'] != false;
     _linkajaEnabled = providers['linkaja'] != false;
     _ovoEnabled = providers['ovo'] != false;
 
-    _qrisEnabled = config['qris_statis_enabled'] != false;
+    _qrisEnabled =
+        config['qris_statis_enabled'] != false &&
+        config['is_qris_enabled'] != false;
     _isDynamicQrisEnabled = config['is_dynamic_qris_enabled'] == true;
     _qrisRawPayload = config['qris_raw_payload'] as String?;
     _cashEnabled = config['cash_enabled'] != false;
@@ -82,7 +102,9 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Ukuran gambar melebihi batas 2MB. Harap pilih gambar lain.'),
+              content: Text(
+                'Ukuran gambar melebihi batas 2MB. Harap pilih gambar lain.',
+              ),
               backgroundColor: AppColors.danger,
             ),
           );
@@ -95,7 +117,9 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Format gambar tidak didukung. Harap pilih file PNG atau JPG.'),
+              content: Text(
+                'Format gambar tidak didukung. Harap pilih file PNG atau JPG.',
+              ),
               backgroundColor: AppColors.danger,
             ),
           );
@@ -113,7 +137,9 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gambar "${picked.name}" berhasil dipilih. Klik "Simpan Pengaturan" untuk menerapkan.'),
+            content: Text(
+              'Gambar "${picked.name}" berhasil dipilih. Klik "Simpan Pengaturan" untuk menerapkan.',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -138,9 +164,16 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.qr_code_scanner_rounded, color: AppColors.obsidian, size: 22),
+            Icon(
+              Icons.qr_code_scanner_rounded,
+              color: AppColors.obsidian,
+              size: 22,
+            ),
             SizedBox(width: 8),
-            Text('Unggah Gambar QRIS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            Text(
+              'Unggah Gambar QRIS',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
           ],
         ),
         content: Column(
@@ -149,7 +182,11 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
           children: [
             const Text(
               'Masukkan data gambar QRIS berupa Base64 URI atau pilih sampel barcode toko untuk demonstrasi kasir.',
-              style: TextStyle(fontSize: 12, height: 1.4, color: AppColors.textSecondary),
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 14),
             TextField(
@@ -159,17 +196,21 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
               decoration: InputDecoration(
                 labelText: 'Data Gambar Base64',
                 hintText: 'data:image/png;base64,iVBORw0KGgo...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               icon: const Icon(Icons.auto_awesome_rounded, size: 16),
-              label: const Text('Gunakan Sampel QRIS Toko', style: TextStyle(fontSize: 12)),
+              label: const Text(
+                'Gunakan Sampel QRIS Toko',
+                style: TextStyle(fontSize: 12),
+              ),
               onPressed: () {
                 // Standard transparent 1x1 PNG data URI for quick test
-                textController.text =
-                    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                textController.text = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
               },
             ),
           ],
@@ -195,7 +236,9 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.obsidian,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('Gunakan Gambar'),
           ),
@@ -209,6 +252,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
     try {
       final repo = ref.read(cashierRepositoryProvider);
 
+      Map<String, dynamic> updatedData;
       if (_pickedQrisImage != null && _pickedQrisBytes != null) {
         final formData = FormData.fromMap({
           if (_selectedBranchId != null) 'branch_id': _selectedBranchId,
@@ -219,6 +263,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
           'ewallet_providers[linkaja]': _linkajaEnabled ? 1 : 0,
           'ewallet_providers[ovo]': _ovoEnabled ? 1 : 0,
           'qris_statis_enabled': _qrisEnabled ? 1 : 0,
+          'is_qris_enabled': _qrisEnabled ? 1 : 0,
           'is_dynamic_qris_enabled': _isDynamicQrisEnabled ? 1 : 0,
           'cash_enabled': _cashEnabled ? 1 : 0,
           'bank_transfer_enabled': _bankTransferEnabled ? 1 : 0,
@@ -228,7 +273,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
             filename: _pickedQrisImage!.name,
           ),
         });
-        await repo.updatePaymentSettings(formData);
+        updatedData = await repo.updatePaymentSettings(formData);
       } else {
         final payload = <String, dynamic>{
           if (_selectedBranchId != null) 'branch_id': _selectedBranchId,
@@ -241,6 +286,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
             'ovo': _ovoEnabled,
           },
           'qris_statis_enabled': _qrisEnabled,
+          'is_qris_enabled': _qrisEnabled,
           'is_dynamic_qris_enabled': _isDynamicQrisEnabled,
           'cash_enabled': _cashEnabled,
           'bank_transfer_enabled': _bankTransferEnabled,
@@ -252,22 +298,42 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
           payload['qris_image_base64'] = _newQrisBase64;
         }
 
-        await repo.updatePaymentSettings(payload);
+        updatedData = await repo.updatePaymentSettings(payload);
       }
 
-      // Invalidate relevant providers to force fresh refresh
+      // 1. Immediately mutate local state from freshly returned data
+      if (updatedData.isNotEmpty) {
+        setState(() {
+          _populateFromConfig(updatedData, force: true);
+          _pickedQrisImage = null;
+          _pickedQrisBytes = null;
+          _newQrisBase64 = null;
+          _removeQrisImage = false;
+        });
+      }
+
+      // 2. Invalidate caches for all related providers
       ref.invalidate(paymentSettingsProvider(_selectedBranchId));
+      ref.invalidate(paymentSettingsProvider(null));
       ref.invalidate(paymentMethodsProvider);
       ref.invalidate(paymentMethodsForBranchProvider(_selectedBranchId));
+      ref.invalidate(paymentMethodsForBranchProvider(null));
 
-      setState(() {
-        _isInitialized = false;
-        _pickedQrisImage = null;
-        _pickedQrisBytes = null;
-        _newQrisBase64 = null;
-        _removeQrisImage = false;
-      });
+      // 3. Synchronously refresh paymentSettingsProvider to ensure Riverpod cache is in sync
+      try {
+        final freshData = await ref.refresh(
+          paymentSettingsProvider(_selectedBranchId).future,
+        );
+        if (mounted && freshData.isNotEmpty) {
+          setState(() {
+            _populateFromConfig(freshData, force: true);
+          });
+        }
+      } catch (_) {
+        // Fallback: local state already updated from updatedData
+      }
 
+      // 4. Show success notification strictly after network execution & state sync succeed
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -303,9 +369,14 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
     final user = authState.user;
     final bState = ref.watch(businessProvider);
     final currentBiz = bState.currentBusiness;
-    final userRole = currentBiz?['role']?.toString().toLowerCase() ?? user?['role']?.toString().toLowerCase() ?? '';
-    final isSuperAdmin = user?['is_platform_admin'] == true || user?['role'] == 'super_admin';
-    final isOwnerOrAdmin = userRole == 'owner' || userRole == 'admin' || isSuperAdmin;
+    final userRole =
+        currentBiz?['role']?.toString().toLowerCase() ??
+        user?['role']?.toString().toLowerCase() ??
+        '';
+    final isSuperAdmin =
+        user?['is_platform_admin'] == true || user?['role'] == 'super_admin';
+    final isOwnerOrAdmin =
+        userRole == 'owner' || userRole == 'admin' || isSuperAdmin;
 
     final branches = ref.watch(organizationProvider).branches;
 
@@ -313,9 +384,7 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const RentCoreAppBar(
-        title: 'Metode Pembayaran',
-      ),
+      appBar: const RentCoreAppBar(title: 'Metode Pembayaran'),
       bottomNavigationBar: isOwnerOrAdmin
           ? Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -331,18 +400,29 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                     backgroundColor: AppColors.obsidian,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   icon: _isSaving
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                      : const Icon(Icons.check_circle_outline_rounded, size: 20),
+                      : const Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 20,
+                        ),
                   label: Text(
                     _isSaving ? 'Menyimpan...' : 'Simpan Pengaturan',
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
@@ -356,12 +436,21 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.danger),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 48,
+                  color: AppColors.danger,
+                ),
                 const SizedBox(height: 12),
-                Text('Gagal memuat pengaturan:\n$err', textAlign: TextAlign.center),
+                Text(
+                  'Gagal memuat pengaturan:\n$err',
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () => ref.invalidate(paymentSettingsProvider(_selectedBranchId)),
+                  onPressed: () => ref.invalidate(
+                    paymentSettingsProvider(_selectedBranchId),
+                  ),
                   child: const Text('Coba Lagi'),
                 ),
               ],
@@ -386,12 +475,20 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.lock_outline_rounded, color: Color(0xFFD97706), size: 20),
+                      Icon(
+                        Icons.lock_outline_rounded,
+                        color: Color(0xFFD97706),
+                        size: 20,
+                      ),
                       SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'Pengaturan metode pembayaran hanya dapat diubah oleh Owner atau Admin. Anda melihat konfigurasi aktif ini dalam mode baca saja.',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF92400E), height: 1.3),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF92400E),
+                            height: 1.3,
+                          ),
                         ),
                       ),
                     ],
@@ -412,22 +509,37 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                     children: [
                       const Text(
                         'CAKUPAN CABANG',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.textMuted),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<int?>(
                         initialValue: _selectedBranchId,
                         decoration: InputDecoration(
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                         ),
                         items: [
                           const DropdownMenuItem<int?>(
                             value: null,
-                            child: Text('Semua Cabang (Standar Bisnis Pusat)', style: TextStyle(fontWeight: FontWeight.w700)),
+                            child: Text(
+                              'Semua Cabang (Standar Bisnis Pusat)',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
                           ),
                           ...branches.map((b) {
-                            final bId = b['id'] is int ? b['id'] as int : int.parse(b['id'].toString());
+                            final bId = b['id'] is int
+                                ? b['id'] as int
+                                : int.parse(b['id'].toString());
                             return DropdownMenuItem<int?>(
                               value: bId,
                               child: Text(b['name'] ?? 'Cabang #$bId'),
@@ -467,8 +579,20 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('QRIS Statis', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                              Text('Tampilkan barcode QR untuk pembayaran m-Banking/E-Wallet', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                              Text(
+                                'QRIS Statis',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                'Tampilkan barcode QR untuk pembayaran m-Banking/E-Wallet',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -476,7 +600,9 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                           key: const Key('qris_statis_toggle'),
                           value: _qrisEnabled,
                           activeThumbColor: AppColors.obsidian,
-                          onChanged: isOwnerOrAdmin ? (val) => setState(() => _qrisEnabled = val) : null,
+                          onChanged: isOwnerOrAdmin
+                              ? (val) => setState(() => _qrisEnabled = val)
+                              : null,
                         ),
                       ],
                     ),
@@ -484,10 +610,17 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                       const Divider(height: 24),
                       const Text(
                         'GAMBAR KODE QRIS TOKO',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.textMuted),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                       const SizedBox(height: 10),
-                      if (!_removeQrisImage && (_newQrisBase64 != null || _qrisImageUrl != null)) ...[
+                      if (!_removeQrisImage &&
+                          (_newQrisBase64 != null ||
+                              _qrisImageUrl != null)) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -509,25 +642,47 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                 child: _pickedQrisBytes != null
                                     ? ClipRRect(
                                         borderRadius: BorderRadius.circular(6),
-                                        child: Image.memory(_pickedQrisBytes!, fit: BoxFit.contain),
+                                        child: Image.memory(
+                                          _pickedQrisBytes!,
+                                          fit: BoxFit.contain,
+                                        ),
                                       )
                                     : (_newQrisBase64 != null
-                                        ? const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 32)
-                                        : Image.network(
-                                            _qrisImageUrl!,
-                                            fit: BoxFit.contain,
-                                            loadingBuilder: (context, child, loadingProgress) {
-                                              if (loadingProgress == null) return child;
-                                              return const Center(
-                                                child: SizedBox(
-                                                  width: 20,
-                                                  height: 20,
-                                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.obsidian),
-                                                ),
-                                              );
-                                            },
-                                            errorBuilder: (_, _, _) => const Icon(Icons.qr_code_rounded, size: 36),
-                                          )),
+                                          ? const Icon(
+                                              Icons.check_circle_rounded,
+                                              color: AppColors.success,
+                                              size: 32,
+                                            )
+                                          : Image.network(
+                                              _qrisImageUrl!,
+                                              fit: BoxFit.contain,
+                                              loadingBuilder:
+                                                  (
+                                                    context,
+                                                    child,
+                                                    loadingProgress,
+                                                  ) {
+                                                    if (loadingProgress == null)
+                                                      return child;
+                                                    return const Center(
+                                                      child: SizedBox(
+                                                        width: 20,
+                                                        height: 20,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                              color: AppColors
+                                                                  .obsidian,
+                                                            ),
+                                                      ),
+                                                    );
+                                                  },
+                                              errorBuilder: (_, _, _) =>
+                                                  const Icon(
+                                                    Icons.qr_code_rounded,
+                                                    size: 36,
+                                                  ),
+                                            )),
                               ),
                               const SizedBox(width: 14),
                               Expanded(
@@ -535,17 +690,25 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _pickedQrisImage != null || _newQrisBase64 != null
+                                      _pickedQrisImage != null ||
+                                              _newQrisBase64 != null
                                           ? 'Gambar Baru Dipilih'
                                           : 'Gambar QRIS Aktif Tersimpan',
-                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      _pickedQrisImage != null || _newQrisBase64 != null
+                                      _pickedQrisImage != null ||
+                                              _newQrisBase64 != null
                                           ? 'Klik "Simpan Pengaturan" untuk menerapkan gambar.'
                                           : 'Tampil di layar pembayaran kasir.',
-                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary,
+                                      ),
                                     ),
                                     const SizedBox(height: 8),
                                     if (isOwnerOrAdmin)
@@ -553,24 +716,48 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                         children: [
                                           OutlinedButton.icon(
                                             style: OutlinedButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 4,
+                                                  ),
                                               minimumSize: Size.zero,
-                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
                                             ),
-                                            icon: const Icon(Icons.swap_horiz_rounded, size: 14),
-                                            label: const Text('Ganti', style: TextStyle(fontSize: 11)),
+                                            icon: const Icon(
+                                              Icons.swap_horiz_rounded,
+                                              size: 14,
+                                            ),
+                                            label: const Text(
+                                              'Ganti',
+                                              style: TextStyle(fontSize: 11),
+                                            ),
                                             onPressed: _pickQrisImage,
                                           ),
                                           const SizedBox(width: 8),
                                           TextButton.icon(
                                             style: TextButton.styleFrom(
                                               foregroundColor: AppColors.danger,
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
                                               minimumSize: Size.zero,
-                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
                                             ),
-                                            icon: const Icon(Icons.delete_outline_rounded, size: 14),
-                                            label: const Text('Hapus', style: TextStyle(fontSize: 11)),
+                                            icon: const Icon(
+                                              Icons.delete_outline_rounded,
+                                              size: 14,
+                                            ),
+                                            label: const Text(
+                                              'Hapus',
+                                              style: TextStyle(fontSize: 11),
+                                            ),
                                             onPressed: () => setState(() {
                                               _removeQrisImage = true;
                                               _newQrisBase64 = null;
@@ -592,37 +779,65 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 24,
+                              horizontal: 16,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceMuted,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+                              border: Border.all(
+                                color: AppColors.border,
+                                style: BorderStyle.solid,
+                              ),
                             ),
                             child: Column(
                               children: [
-                                const Icon(Icons.cloud_upload_outlined, size: 36, color: AppColors.textSecondary),
+                                const Icon(
+                                  Icons.cloud_upload_outlined,
+                                  size: 36,
+                                  color: AppColors.textSecondary,
+                                ),
                                 const SizedBox(height: 8),
                                 const Text(
                                   'Belum ada gambar barcode QRIS',
-                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 const Text(
                                   'Ketuk di sini untuk mengunggah gambar QRIS toko (PNG, JPG, maks. 2MB)',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                                 if (isOwnerOrAdmin) ...[
                                   const SizedBox(height: 12),
                                   ElevatedButton.icon(
                                     onPressed: _pickQrisImage,
-                                    icon: const Icon(Icons.add_photo_alternate_rounded, size: 16),
-                                    label: const Text('Pilih Gambar QRIS', style: TextStyle(fontSize: 12)),
+                                    icon: const Icon(
+                                      Icons.add_photo_alternate_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text(
+                                      'Pilih Gambar QRIS',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
                                   ),
                                   const SizedBox(height: 6),
                                   TextButton(
                                     onPressed: _showImageUploadDialog,
-                                    child: const Text('Atau masukkan manual / sampel test', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                                    child: const Text(
+                                      'Atau masukkan manual / sampel test',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: AppColors.textMuted,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ],
@@ -642,13 +857,21 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                   children: [
                                     const Text(
                                       'QRIS Dinamis',
-                                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                     const SizedBox(width: 8),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.obsidian.withOpacity(0.08),
+                                        color: AppColors.obsidian.withOpacity(
+                                          0.08,
+                                        ),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: const Text(
@@ -666,7 +889,10 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                                 const SizedBox(height: 3),
                                 const Text(
                                   'Kunci nominal transaksi secara real-time pada barcode aplikasi pelanggan',
-                                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                               ],
                             ),
@@ -676,7 +902,9 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                             value: _isDynamicQrisEnabled,
                             activeThumbColor: AppColors.obsidian,
                             onChanged: (isOwnerOrAdmin && _hasValidQrisPayload)
-                                ? (val) => setState(() => _isDynamicQrisEnabled = val)
+                                ? (val) => setState(
+                                    () => _isDynamicQrisEnabled = val,
+                                  )
                                 : null,
                           ),
                         ],
@@ -692,12 +920,20 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.lock_outline_rounded, size: 16, color: Color(0xFFD97706)),
+                              Icon(
+                                Icons.lock_outline_rounded,
+                                size: 16,
+                                color: Color(0xFFD97706),
+                              ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'Unggah gambar QRIS statis terlebih dahulu untuk mengaktifkan QRIS Dinamis.',
-                                  style: TextStyle(fontSize: 11, color: Color(0xFF92400E), height: 1.3),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF92400E),
+                                    height: 1.3,
+                                  ),
                                 ),
                               ),
                             ],
@@ -713,12 +949,20 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.check_circle_outline_rounded, size: 16, color: Color(0xFF16A34A)),
+                              Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 16,
+                                color: Color(0xFF16A34A),
+                              ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'Barcode QRIS terdeteksi & siap untuk nominal otomatis.',
-                                  style: TextStyle(fontSize: 11, color: Color(0xFF166534), height: 1.3),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF166534),
+                                    height: 1.3,
+                                  ),
                                 ),
                               ),
                             ],
@@ -748,8 +992,20 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Dompet Digital (E-Wallet)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                              Text('Aktifkan semua e-wallet', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                              Text(
+                                'Dompet Digital (E-Wallet)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                'Aktifkan semua e-wallet',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -757,19 +1013,30 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                           key: const Key('ewallet_master_toggle'),
                           value: _ewalletMasterEnabled,
                           activeThumbColor: AppColors.obsidian,
-                          onChanged: isOwnerOrAdmin ? (val) => setState(() => _ewalletMasterEnabled = val) : null,
+                          onChanged: isOwnerOrAdmin
+                              ? (val) =>
+                                    setState(() => _ewalletMasterEnabled = val)
+                              : null,
                         ),
                       ],
                     ),
                     const Divider(height: 24),
                     const Text(
                       'PENYEDIA E-WALLET',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.textMuted),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Preferensi pilihan masing-masing penyedia akan tetap tersimpan meskipun master toggle dimatikan.',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 12),
 
@@ -781,7 +1048,8 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                       value: _shopeepayEnabled,
                       enabled: isOwnerOrAdmin,
                       isEwalletProvider: true,
-                      onChanged: (val) => setState(() => _shopeepayEnabled = val),
+                      onChanged: (val) =>
+                          setState(() => _shopeepayEnabled = val),
                     ),
                     const Divider(height: 16),
 
@@ -837,7 +1105,12 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                   children: [
                     const Text(
                       'METODE LAINNYA',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.textMuted),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     _buildProviderTile(
@@ -853,11 +1126,13 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                     _buildProviderTile(
                       key: 'toggle_bank_transfer',
                       name: 'Transfer Bank (BCA / Mandiri / BRI)',
-                      subtitle: 'Transfer rekening bank langsung ke rekening toko',
+                      subtitle:
+                          'Transfer rekening bank langsung ke rekening toko',
                       value: _bankTransferEnabled,
                       enabled: isOwnerOrAdmin,
                       isEwalletProvider: false,
-                      onChanged: (val) => setState(() => _bankTransferEnabled = val),
+                      onChanged: (val) =>
+                          setState(() => _bankTransferEnabled = val),
                     ),
                   ],
                 ),
@@ -879,7 +1154,8 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
     required ValueChanged<bool> onChanged,
     bool isEwalletProvider = false,
   }) {
-    final effectiveEnabled = enabled && (!isEwalletProvider || _ewalletMasterEnabled);
+    final effectiveEnabled =
+        enabled && (!isEwalletProvider || _ewalletMasterEnabled);
     final isDimmed = isEwalletProvider && !_ewalletMasterEnabled;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -900,7 +1176,10 @@ class _PaymentMethodSettingsScreenState extends ConsumerState<PaymentMethodSetti
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ],

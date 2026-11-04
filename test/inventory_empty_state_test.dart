@@ -23,18 +23,31 @@ class _ConfigurableAssetRepository extends AssetRepository {
   });
 
   @override
-  Future<List<Map<String, dynamic>>> fetchCategories() async => categoriesToReturn;
+  Future<List<Map<String, dynamic>>> fetchCategories() async =>
+      categoriesToReturn;
 
   @override
-  Future<List<Map<String, dynamic>>> fetchModels({int? categoryId}) async => modelsToReturn;
+  Future<List<Map<String, dynamic>>> fetchModels({int? categoryId}) async =>
+      modelsToReturn;
 
   @override
-  Future<List<Map<String, dynamic>>> fetchProducts({int? categoryId, String? search}) async {
+  Future<List<Map<String, dynamic>>> fetchProducts({
+    int? categoryId,
+    String? search,
+  }) async {
     if (search != null && search.isNotEmpty) {
-      return productsToReturn.where((p) => (p['name'] as String).toLowerCase().contains(search.toLowerCase())).toList();
+      return productsToReturn
+          .where(
+            (p) => (p['name'] as String).toLowerCase().contains(
+              search.toLowerCase(),
+            ),
+          )
+          .toList();
     }
     if (categoryId != null) {
-      return productsToReturn.where((p) => p['category']?['id'] == categoryId).toList();
+      return productsToReturn
+          .where((p) => p['category']?['id'] == categoryId)
+          .toList();
     }
     return productsToReturn;
   }
@@ -61,7 +74,9 @@ class _ConfigurableAssetRepository extends AssetRepository {
       result = result.where((a) => a['status'] == status).toList();
     }
     if (categoryId != null) {
-      result = result.where((a) => a['model']?['category']?['id'] == categoryId).toList();
+      result = result
+          .where((a) => a['model']?['category']?['id'] == categoryId)
+          .toList();
     }
     return result;
   }
@@ -89,7 +104,7 @@ void main() {
     activeBranchId: 101,
     activeBranchName: 'Cabang Pusat',
     businesses: [
-      {'id': 1, 'name': 'Alpha Rental Store'}
+      {'id': 1, 'name': 'Alpha Rental Store'},
     ],
   );
 
@@ -100,7 +115,9 @@ void main() {
   }) {
     return ProviderScope(
       overrides: [
-        businessProvider.overrideWith(() => _TestBusinessNotifier(baseBusinessState)),
+        businessProvider.overrideWith(
+          () => _TestBusinessNotifier(baseBusinessState),
+        ),
         assetRepositoryProvider.overrideWithValue(repo),
       ],
       child: MaterialApp(
@@ -114,257 +131,331 @@ void main() {
   }
 
   group('Inventory Empty State Tests', () {
-    testWidgets('Empty Physical Units tab displays context-appropriate empty state with actions', (tester) async {
-      final repo = _ConfigurableAssetRepository(
-        assetsToReturn: [],
-        productsToReturn: [],
-        modelsToReturn: [],
-        categoriesToReturn: [
-          {'id': 1, 'name': 'Kamera', 'slug': 'kamera'},
-        ],
-      );
+    testWidgets(
+      'Empty Physical Units tab displays context-appropriate empty state with actions',
+      (tester) async {
+        final repo = _ConfigurableAssetRepository(
+          assetsToReturn: [],
+          productsToReturn: [],
+          modelsToReturn: [],
+          categoriesToReturn: [
+            {'id': 1, 'name': 'Kamera', 'slug': 'kamera'},
+          ],
+        );
 
-      await tester.pumpWidget(createTestWidget(repo: repo, initialTabIndex: 0));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(repo: repo, initialTabIndex: 0),
+        );
+        await tester.pumpAndSettle();
 
-      // Should show the True Empty State for Units
-      expect(find.text('Belum Ada Unit Inventaris'), findsOneWidget);
-      expect(find.textContaining('Bisnis rental Anda belum memiliki unit fisik terdaftar'), findsOneWidget);
-      expect(find.text('Registrasi Unit Baru'), findsOneWidget);
-      expect(find.text('Tambah Model & Tarif'), findsOneWidget);
-    });
+        // Should show the True Empty State for Units
+        expect(find.text('Belum Ada Unit Inventaris'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Bisnis rental Anda belum memiliki unit fisik terdaftar',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Registrasi Unit Baru'), findsOneWidget);
+        expect(find.text('Tambah Model & Tarif'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Search query with no matching units displays search empty state and Reset Pencarian button', (tester) async {
-      final repo = _ConfigurableAssetRepository(
-        assetsToReturn: [
-          {
-            'id': 50,
-            'asset_code': 'CAM-001',
-            'serial_number': 'SN-CAM-1',
-            'status': 'ready',
-            'condition_grade': 'A',
-            'battery_health': null,
-            'model': {
-              'id': 10,
-              'name': 'Sony Alpha A7 IV',
-              'category': {'id': 1, 'name': 'Kamera'},
+    testWidgets(
+      'Search query with no matching units displays search empty state and Reset Pencarian button',
+      (tester) async {
+        final repo = _ConfigurableAssetRepository(
+          assetsToReturn: [
+            {
+              'id': 50,
+              'asset_code': 'CAM-001',
+              'serial_number': 'SN-CAM-1',
+              'status': 'ready',
+              'condition_grade': 'A',
+              'battery_health': null,
+              'model': {
+                'id': 10,
+                'name': 'Sony Alpha A7 IV',
+                'category': {'id': 1, 'name': 'Kamera'},
+              },
             },
-          },
-        ],
-        categoriesToReturn: [],
-      );
+          ],
+          categoriesToReturn: [],
+        );
 
-      await tester.pumpWidget(createTestWidget(repo: repo, initialTabIndex: 0));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(repo: repo, initialTabIndex: 0),
+        );
+        await tester.pumpAndSettle();
 
-      // Initially, asset is found
-      expect(find.text('CAM-001'), findsOneWidget);
+        // Initially, asset is found
+        expect(find.text('CAM-001'), findsOneWidget);
 
-      // Enter search query that doesn't match
-      final searchField = find.byType(TextField).first;
-      await tester.enterText(searchField, 'NonExistentDevice');
-      await tester.pumpAndSettle();
+        // Enter search query that doesn't match
+        final searchField = find.byType(TextField).first;
+        await tester.enterText(searchField, 'NonExistentDevice');
+        await tester.pumpAndSettle();
 
-      // Now should show search empty state
-      expect(find.text('Tidak Ada Unit Ditemukan'), findsOneWidget);
-      expect(find.textContaining('Tidak ada unit inventaris yang cocok dengan pencarian "NonExistentDevice"'), findsOneWidget);
-      expect(find.text('Reset Pencarian'), findsOneWidget);
+        // Now should show search empty state
+        expect(find.text('Tidak Ada Unit Ditemukan'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Tidak ada unit inventaris yang cocok dengan pencarian "NonExistentDevice"',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Reset Pencarian'), findsOneWidget);
 
-      // Tap Reset Pencarian
-      await tester.tap(find.text('Reset Pencarian'));
-      await tester.pumpAndSettle();
+        // Tap Reset Pencarian
+        await tester.tap(find.text('Reset Pencarian'));
+        await tester.pumpAndSettle();
 
-      // Original asset restored
-      expect(find.text('CAM-001'), findsOneWidget);
-    });
+        // Original asset restored
+        expect(find.text('CAM-001'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Status filter with no matching units displays filter empty state and Reset Semua Filter button', (tester) async {
-      final repo = _ConfigurableAssetRepository(
-        assetsToReturn: [
-          {
-            'id': 50,
-            'asset_code': 'CAM-001',
-            'serial_number': 'SN-CAM-1',
-            'status': 'ready',
-            'condition_grade': 'A',
-            'battery_health': null,
-            'model': {
-              'id': 10,
-              'name': 'Sony Alpha A7 IV',
-              'category': {'id': 1, 'name': 'Kamera'},
+    testWidgets(
+      'Status filter with no matching units displays filter empty state and Reset Semua Filter button',
+      (tester) async {
+        final repo = _ConfigurableAssetRepository(
+          assetsToReturn: [
+            {
+              'id': 50,
+              'asset_code': 'CAM-001',
+              'serial_number': 'SN-CAM-1',
+              'status': 'ready',
+              'condition_grade': 'A',
+              'battery_health': null,
+              'model': {
+                'id': 10,
+                'name': 'Sony Alpha A7 IV',
+                'category': {'id': 1, 'name': 'Kamera'},
+              },
             },
-          },
-        ],
-        categoriesToReturn: [],
-      );
+          ],
+          categoriesToReturn: [],
+        );
 
-      await tester.pumpWidget(createTestWidget(repo: repo, initialTabIndex: 0));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(repo: repo, initialTabIndex: 0),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('CAM-001'), findsOneWidget);
+        expect(find.text('CAM-001'), findsOneWidget);
 
-      // Open filter drawer and tap 'Sedang Sewa' filter chip (which has 0 units)
-      await tester.tap(find.byIcon(Icons.tune_rounded).first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Sedang Sewa'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Terapkan Filter'));
-      await tester.pumpAndSettle();
+        // Open filter drawer and tap 'Sedang Sewa' filter chip (which has 0 units)
+        await tester.tap(find.byIcon(Icons.tune_rounded).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Sedang Sewa'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Terapkan Filter'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Tidak Ada Unit Sesuai Filter'), findsOneWidget);
-      expect(find.textContaining('Tidak ditemukan unit inventaris dengan status atau kategori yang dipilih'), findsOneWidget);
-      expect(find.text('Reset Semua Filter'), findsOneWidget);
+        expect(find.text('Tidak Ada Unit Sesuai Filter'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Tidak ditemukan unit inventaris dengan status atau kategori yang dipilih',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Reset Semua Filter'), findsOneWidget);
 
-      // Tap Reset Semua Filter
-      await tester.tap(find.text('Reset Semua Filter'));
-      await tester.pumpAndSettle();
+        // Tap Reset Semua Filter
+        await tester.tap(find.text('Reset Semua Filter'));
+        await tester.pumpAndSettle();
 
-      // Original asset restored
-      expect(find.text('CAM-001'), findsOneWidget);
-    });
+        // Original asset restored
+        expect(find.text('CAM-001'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Empty Catalog tab displays context-appropriate empty state with Add Model button', (tester) async {
-      final repo = _ConfigurableAssetRepository(
-        assetsToReturn: [],
-        productsToReturn: [],
-        modelsToReturn: [],
-        categoriesToReturn: [],
-      );
+    testWidgets(
+      'Empty Catalog tab displays context-appropriate empty state with Add Model button',
+      (tester) async {
+        final repo = _ConfigurableAssetRepository(
+          assetsToReturn: [],
+          productsToReturn: [],
+          modelsToReturn: [],
+          categoriesToReturn: [],
+        );
 
-      await tester.pumpWidget(createTestWidget(repo: repo, initialTabIndex: 1));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(repo: repo, initialTabIndex: 1),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Belum Ada Katalog Produk'), findsOneWidget);
-      expect(find.textContaining('Bisnis rental Anda belum memiliki katalog model atau paket tarif sewa'), findsOneWidget);
-      expect(find.text('+ Tambah Model & Tarif Baru'), findsOneWidget);
-    });
+        expect(find.text('Belum Ada Katalog Produk'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Bisnis rental Anda belum memiliki katalog model atau paket tarif sewa',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('+ Tambah Model & Tarif Baru'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Catalog product with 0 units displays Belum Ada Unit Fisik and + Daftarkan Unit button', (tester) async {
-      final repo = _ConfigurableAssetRepository(
-        productsToReturn: [
-          {
-            'id': 10,
-            'name': 'PlayStation 5 Slim',
-            'brand': 'Sony',
-            'category': {'id': 3, 'name': 'Konsol Game'},
-            'ready_units_count': 0,
-            'assets_count': 0,
-            'pricing_tiers': [],
-          },
-        ],
-        modelsToReturn: [
-          {
-            'id': 10,
-            'name': 'PlayStation 5 Slim',
-            'brand': 'Sony',
-            'category': {'id': 3, 'name': 'Konsol Game'},
-          },
-        ],
-        categoriesToReturn: [],
-      );
+    testWidgets(
+      'Catalog product with 0 units displays Belum Ada Unit Fisik and + Daftarkan Unit button',
+      (tester) async {
+        final repo = _ConfigurableAssetRepository(
+          productsToReturn: [
+            {
+              'id': 10,
+              'name': 'PlayStation 5 Slim',
+              'brand': 'Sony',
+              'category': {'id': 3, 'name': 'Konsol Game'},
+              'ready_units_count': 0,
+              'assets_count': 0,
+              'pricing_tiers': [],
+            },
+          ],
+          modelsToReturn: [
+            {
+              'id': 10,
+              'name': 'PlayStation 5 Slim',
+              'brand': 'Sony',
+              'category': {'id': 3, 'name': 'Konsol Game'},
+            },
+          ],
+          categoriesToReturn: [],
+        );
 
-      await tester.pumpWidget(createTestWidget(repo: repo, initialTabIndex: 1));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(repo: repo, initialTabIndex: 1),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('PlayStation 5 Slim'), findsOneWidget);
-      expect(find.text('0 Unit • Belum Ada Unit Fisik'), findsOneWidget);
-      expect(find.text('+ Daftarkan Unit'), findsOneWidget);
+        expect(find.text('PlayStation 5 Slim'), findsOneWidget);
+        expect(find.text('0 Siap Sewa • 0 Total'), findsOneWidget);
+        expect(find.text('+ Unit Baru'), findsOneWidget);
 
-      // Tapping + Daftarkan Unit opens registration sheet with preselected model
-      await tester.tap(find.text('+ Daftarkan Unit'));
-      await tester.pumpAndSettle();
+        // Tapping + Unit Baru opens registration sheet with preselected model
+        await tester.tap(find.text('+ Unit Baru'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Registrasi Unit Baru'), findsOneWidget);
-      expect(find.textContaining('PlayStation 5 Slim'), findsWidgets);
-    });
+        expect(find.text('Registrasi Unit Baru'), findsOneWidget);
+        expect(find.textContaining('PlayStation 5 Slim'), findsWidgets);
+      },
+    );
 
-    testWidgets('Catalog tab search with no matching products displays search empty state and Reset button', (tester) async {
-      final repo = _ConfigurableAssetRepository(
-        productsToReturn: [
-          {
-            'id': 10,
-            'name': 'MacBook Pro M3 Max',
-            'brand': 'Apple',
-            'category': {'id': 2, 'name': 'Laptop'},
-            'ready_units_count': 1,
-            'assets_count': 1,
-            'pricing_tiers': [],
-          },
-        ],
-        categoriesToReturn: [],
-      );
+    testWidgets(
+      'Catalog tab search with no matching products displays search empty state and Reset button',
+      (tester) async {
+        final repo = _ConfigurableAssetRepository(
+          productsToReturn: [
+            {
+              'id': 10,
+              'name': 'MacBook Pro M3 Max',
+              'brand': 'Apple',
+              'category': {'id': 2, 'name': 'Laptop'},
+              'ready_units_count': 1,
+              'assets_count': 1,
+              'pricing_tiers': [],
+            },
+          ],
+          categoriesToReturn: [],
+        );
 
-      await tester.pumpWidget(createTestWidget(repo: repo, initialTabIndex: 1));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(repo: repo, initialTabIndex: 1),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('MacBook Pro M3 Max'), findsOneWidget);
+        expect(find.text('MacBook Pro M3 Max'), findsOneWidget);
 
-      // Search for non-existent product
-      final searchField = find.byType(TextField).first;
-      await tester.enterText(searchField, 'Drone4K');
-      await tester.pumpAndSettle();
+        // Search for non-existent product
+        final searchField = find.byType(TextField).first;
+        await tester.enterText(searchField, 'Drone4K');
+        await tester.pumpAndSettle();
 
-      expect(find.text('Tidak Ada Katalog Ditemukan'), findsOneWidget);
-      expect(find.textContaining('Tidak ada model produk yang cocok dengan pencarian "Drone4K"'), findsOneWidget);
-      expect(find.text('Reset Pencarian'), findsOneWidget);
+        expect(find.text('Tidak Ada Katalog Ditemukan'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Tidak ada model produk yang cocok dengan pencarian "Drone4K"',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Reset Pencarian'), findsOneWidget);
 
-      // Tap Reset Pencarian
-      await tester.tap(find.text('Reset Pencarian'));
-      await tester.pumpAndSettle();
+        // Tap Reset Pencarian
+        await tester.tap(find.text('Reset Pencarian'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('MacBook Pro M3 Max'), findsOneWidget);
-    });
+        expect(find.text('MacBook Pro M3 Max'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Catalog tab category filter with no products displays category empty state', (tester) async {
-      final repo = _ConfigurableAssetRepository(
-        productsToReturn: [
-          {
-            'id': 10,
-            'name': 'MacBook Pro M3',
-            'brand': 'Apple',
-            'category': {'id': 2, 'name': 'Laptop'},
-            'ready_units_count': 1,
-            'assets_count': 1,
-            'pricing_tiers': [],
-          },
-        ],
-        categoriesToReturn: [
-          {'id': 1, 'name': 'Kamera', 'slug': 'kamera'},
-          {'id': 2, 'name': 'Laptop', 'slug': 'laptop'},
-        ],
-      );
+    testWidgets(
+      'Catalog tab category filter with no products displays category empty state',
+      (tester) async {
+        final repo = _ConfigurableAssetRepository(
+          productsToReturn: [
+            {
+              'id': 10,
+              'name': 'MacBook Pro M3',
+              'brand': 'Apple',
+              'category': {'id': 2, 'name': 'Laptop'},
+              'ready_units_count': 1,
+              'assets_count': 1,
+              'pricing_tiers': [],
+            },
+          ],
+          categoriesToReturn: [
+            {'id': 1, 'name': 'Kamera', 'slug': 'kamera'},
+            {'id': 2, 'name': 'Laptop', 'slug': 'laptop'},
+          ],
+        );
 
-      await tester.pumpWidget(createTestWidget(repo: repo, initialTabIndex: 1));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          createTestWidget(repo: repo, initialTabIndex: 1),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('MacBook Pro M3'), findsOneWidget);
+        expect(find.text('MacBook Pro M3'), findsOneWidget);
 
-      // Open filter drawer and filter by Kamera (which has 0 products)
-      await tester.tap(find.byIcon(Icons.tune_rounded).first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Kamera'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Terapkan Filter'));
-      await tester.pumpAndSettle();
+        // Open filter drawer and filter by Kamera (which has 0 products)
+        await tester.tap(find.byIcon(Icons.tune_rounded).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Kamera'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Terapkan Filter'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Tidak Ada Katalog Dalam Kategori Ini'), findsOneWidget);
-      expect(find.textContaining('Belum ada model produk terdaftar untuk kategori yang dipilih'), findsOneWidget);
-      expect(find.text('Tampilkan Semua Kategori'), findsOneWidget);
+        expect(
+          find.text('Tidak Ada Katalog Dalam Kategori Ini'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Belum ada model produk terdaftar untuk kategori yang dipilih',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Tampilkan Semua Kategori'), findsOneWidget);
 
-      // Tap Tampilkan Semua Kategori
-      await tester.tap(find.text('Tampilkan Semua Kategori'));
-      await tester.pumpAndSettle();
+        // Tap Tampilkan Semua Kategori
+        await tester.tap(find.text('Tampilkan Semua Kategori'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('MacBook Pro M3'), findsOneWidget);
-    });
+        expect(find.text('MacBook Pro M3'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Loading and error states remain distinct from empty state', (tester) async {
+    testWidgets('Loading and error states remain distinct from empty state', (
+      tester,
+    ) async {
       // Create a widget where inventoryListProvider errors out
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            businessProvider.overrideWith(() => _TestBusinessNotifier(baseBusinessState)),
-            inventoryListProvider.overrideWith((ref) => Future.error('Connection timeout')),
+            businessProvider.overrideWith(
+              () => _TestBusinessNotifier(baseBusinessState),
+            ),
+            inventoryListProvider.overrideWith(
+              (ref) => Future.error('Connection timeout'),
+            ),
           ],
           child: MaterialApp(
             navigatorKey: rootNavigatorKey,
@@ -381,7 +472,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Should show error view with retry button
-      expect(find.textContaining('Gagal memuat inventaris: Connection timeout'), findsOneWidget);
+      expect(
+        find.textContaining('Gagal memuat inventaris: Connection timeout'),
+        findsOneWidget,
+      );
       expect(find.text('Coba Lagi'), findsOneWidget);
       // Empty state widgets should still not be present
       expect(find.text('Belum Ada Unit Inventaris'), findsNothing);
@@ -406,11 +500,7 @@ void main() {
       expect(repo.extractList(flat), hasLength(2));
 
       // Paginated Map with empty data
-      final paginatedEmpty = {
-        'current_page': 1,
-        'data': [],
-        'total': 0,
-      };
+      final paginatedEmpty = {'current_page': 1, 'data': [], 'total': 0};
       expect(repo.extractList(paginatedEmpty), isEmpty);
 
       // Paginated Map with items
@@ -426,10 +516,7 @@ void main() {
       expect(extracted.first['asset_code'], 'AST-10');
 
       // Paginated Map with null data
-      final paginatedNull = {
-        'current_page': 1,
-        'data': null,
-      };
+      final paginatedNull = {'current_page': 1, 'data': null};
       expect(repo.extractList(paginatedNull), isEmpty);
 
       // Unexpected primitive types

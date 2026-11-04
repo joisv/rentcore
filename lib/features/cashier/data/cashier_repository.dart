@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 
@@ -23,7 +24,10 @@ class CashierRepository {
       headers['X-Branch-Id'] = branchId.toString();
     }
 
-    if (startDate != null && startDate.isNotEmpty && endDate != null && endDate.isNotEmpty) {
+    if (startDate != null &&
+        startDate.isNotEmpty &&
+        endDate != null &&
+        endDate.isNotEmpty) {
       queryParams['start_date'] = startDate;
       queryParams['end_date'] = endDate;
     } else if (date != null && date.isNotEmpty) {
@@ -41,7 +45,9 @@ class CashierRepository {
     return {};
   }
 
-  Future<List<Map<String, dynamic>>> fetchPaymentMethods({int? branchId}) async {
+  Future<List<Map<String, dynamic>>> fetchPaymentMethods({
+    int? branchId,
+  }) async {
     final queryParams = <String, dynamic>{};
     if (branchId != null) queryParams['branch_id'] = branchId;
     final response = await _client.dio.get(
@@ -56,11 +62,10 @@ class CashierRepository {
   }
 
   Future<Map<String, dynamic>> fetchPaymentSettings({int? branchId}) async {
-    final queryParams = <String, dynamic>{};
-    if (branchId != null) queryParams['branch_id'] = branchId;
+    final queryParams = <String, dynamic>{'branch_id': branchId ?? 'all'};
     final response = await _client.dio.get(
       ApiConstants.paymentSettings,
-      queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      queryParameters: queryParams,
     );
     final data = response.data['data'];
     if (data is Map) {
@@ -73,9 +78,7 @@ class CashierRepository {
     final response = await _client.dio.request(
       ApiConstants.paymentSettings,
       data: payload,
-      options: Options(
-        method: payload is FormData ? 'POST' : 'PUT',
-      ),
+      options: Options(method: payload is FormData ? 'POST' : 'PUT'),
     );
     final data = response.data['data'];
     if (data is Map) {
@@ -123,9 +126,7 @@ class CashierRepository {
     required String reason,
     String? managerPin,
   }) async {
-    final payload = <String, dynamic>{
-      'reason': reason,
-    };
+    final payload = <String, dynamic>{'reason': reason};
     if (managerPin != null && managerPin.isNotEmpty) {
       payload['manager_pin'] = managerPin;
     }
@@ -146,9 +147,7 @@ class CashierRepository {
     required String reason,
     String? managerPin,
   }) async {
-    final payload = <String, dynamic>{
-      'reason': reason,
-    };
+    final payload = <String, dynamic>{'reason': reason};
     if (managerPin != null && managerPin.isNotEmpty) {
       payload['manager_pin'] = managerPin;
     }
@@ -164,8 +163,12 @@ class CashierRepository {
     return {};
   }
 
-  Future<Map<String, dynamic>> fetchReceipt(dynamic transactionOrReceiptId) async {
-    final response = await _client.dio.get(ApiConstants.cashierReceipt(transactionOrReceiptId));
+  Future<Map<String, dynamic>> fetchReceipt(
+    dynamic transactionOrReceiptId,
+  ) async {
+    final response = await _client.dio.get(
+      ApiConstants.cashierReceipt(transactionOrReceiptId),
+    );
     final data = response.data['data'];
     if (data is Map) {
       return Map<String, dynamic>.from(data);
@@ -179,9 +182,7 @@ class CashierRepository {
     String? search,
     String? paymentStatus,
   }) async {
-    final queryParams = <String, dynamic>{
-      'per_page': 25,
-    };
+    final queryParams = <String, dynamic>{'per_page': 25};
     final headers = <String, dynamic>{};
 
     if (allBranches) {
@@ -204,13 +205,17 @@ class CashierRepository {
     );
     final data = response.data['data'];
     if (data is Map && data['data'] is List) {
-      return (data['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      return (data['data'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
     }
     return [];
   }
 
   Future<Map<String, dynamic>> fetchBookingDetail(dynamic bookingId) async {
-    final response = await _client.dio.get('${ApiConstants.bookings}/$bookingId');
+    final response = await _client.dio.get(
+      '${ApiConstants.bookings}/$bookingId',
+    );
     final data = response.data['data'];
     if (data is Map) {
       return Map<String, dynamic>.from(data);
@@ -235,7 +240,10 @@ class CashierRepository {
       headers['X-Branch-Id'] = branchId.toString();
     }
 
-    if (startDate != null && startDate.isNotEmpty && endDate != null && endDate.isNotEmpty) {
+    if (startDate != null &&
+        startDate.isNotEmpty &&
+        endDate != null &&
+        endDate.isNotEmpty) {
       queryParams['start_date'] = startDate;
       queryParams['end_date'] = endDate;
     }
@@ -270,7 +278,8 @@ class CashierRepository {
     };
     if (branchId != null) payload['branch_id'] = branchId;
     if (notes != null && notes.isNotEmpty) payload['notes'] = notes;
-    if (managerPin != null && managerPin.isNotEmpty) payload['manager_pin'] = managerPin;
+    if (managerPin != null && managerPin.isNotEmpty)
+      payload['manager_pin'] = managerPin;
     if (receiptImageBase64 != null && receiptImageBase64.isNotEmpty) {
       payload['receipt_image'] = receiptImageBase64;
     }
@@ -310,9 +319,7 @@ class CashierRepository {
     int? branchId,
     String? notes,
   }) async {
-    final payload = <String, dynamic>{
-      'opening_cash_float': openingCashFloat,
-    };
+    final payload = <String, dynamic>{'opening_cash_float': openingCashFloat};
     if (branchId != null) payload['branch_id'] = branchId;
     if (notes != null) payload['notes'] = notes;
 
@@ -338,9 +345,7 @@ class CashierRepository {
     String? closingNotes,
     int? branchId,
   }) async {
-    final payload = <String, dynamic>{
-      'actual_cash_counted': actualCashCounted,
-    };
+    final payload = <String, dynamic>{'actual_cash_counted': actualCashCounted};
     if (shiftId != null) payload['shift_id'] = shiftId;
     if (differenceReason != null && differenceReason.isNotEmpty) {
       payload['difference_reason'] = differenceReason;
@@ -364,6 +369,65 @@ class CashierRepository {
     return {};
   }
 
+  Future<List<Map<String, dynamic>>> fetchShiftHistory({
+    int? branchId,
+    bool allBranches = false,
+    String? startDate,
+    String? endDate,
+  }) async {
+    final queryParams = <String, dynamic>{};
+    final headers = <String, dynamic>{};
+
+    if (allBranches) {
+      queryParams['all_branches'] = 1;
+      headers['X-Branch-Id'] = '';
+    } else if (branchId != null) {
+      queryParams['branch_id'] = branchId;
+      headers['X-Branch-Id'] = branchId.toString();
+    }
+
+    if (startDate != null &&
+        startDate.isNotEmpty &&
+        endDate != null &&
+        endDate.isNotEmpty) {
+      queryParams['start_date'] = startDate;
+      queryParams['end_date'] = endDate;
+    }
+
+    try {
+      final response = await _client.dio.get(
+        ApiConstants.shiftHistory,
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+        options: headers.isNotEmpty ? Options(headers: headers) : null,
+      );
+      final data = response.data['data'];
+      if (data is List) {
+        return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } else if (data is Map && data['data'] is List) {
+        return (data['data'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+    } catch (_) {
+      try {
+        final response = await _client.dio.get(
+          ApiConstants.shifts,
+          queryParameters: queryParams.isNotEmpty ? queryParams : null,
+          options: headers.isNotEmpty ? Options(headers: headers) : null,
+        );
+        final data = response.data['data'];
+        if (data is List) {
+          return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        } else if (data is Map && data['data'] is List) {
+          return (data['data'] as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+        }
+      } catch (_) {}
+    }
+    return [];
+  }
+
   Future<Map<String, dynamic>> fetchShiftSchedule({int? branchId}) async {
     final queryParams = <String, dynamic>{};
     final headers = <String, dynamic>{};
@@ -384,7 +448,9 @@ class CashierRepository {
     return {};
   }
 
-  Future<Map<String, dynamic>> updateShiftSchedule(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> updateShiftSchedule(
+    Map<String, dynamic> payload,
+  ) async {
     final response = await _client.dio.put(
       ApiConstants.shiftSchedule,
       data: payload,

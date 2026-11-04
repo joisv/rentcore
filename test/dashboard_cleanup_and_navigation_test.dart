@@ -27,250 +27,289 @@ void main() {
   };
 
   group('FloatingCapsuleDock 4-Tab Navigation Tests', () {
-    testWidgets('renders exactly 4 navigation items and Pengaturan at index 3', (tester) async {
-      int selectedIndex = 0;
+    testWidgets(
+      'renders exactly 4 navigation items and Pengaturan at index 3',
+      (tester) async {
+        int selectedIndex = 0;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            bottomNavigationBar: FloatingCapsuleDock(
-              currentIndex: selectedIndex,
-              onTabSelected: (idx) => selectedIndex = idx,
-            ),
-          ),
-        ),
-      );
-
-      // Verify 4 dock items exist
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Sewa'), findsNothing); // Unselected tabs don't show text label, only icon
-      expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
-      expect(find.byIcon(Icons.dashboard_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
-
-      // Verify Voucher and old Kasir icons are completely removed from dock
-      expect(find.byIcon(Icons.confirmation_number_outlined), findsNothing);
-      expect(find.byIcon(Icons.point_of_sale_outlined), findsNothing);
-
-      // Tap index 3 (Pengaturan)
-      await tester.tap(find.byIcon(Icons.settings_outlined));
-      await tester.pumpAndSettle();
-      expect(selectedIndex, 3);
-    });
-  });
-
-  group('HomeScreen Header & Quick Actions Cleanup Tests', () {
-    testWidgets('renders New Rental FAB, branch switcher icon in header, and removes Return/Inventory shortcuts', (tester) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      bool directRentalOpened = false;
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            dashboardKpiProvider.overrideWith((ref) => Future.value(fakeDashboardData)),
-          ],
-          child: MaterialApp(
+        await tester.pumpWidget(
+          MaterialApp(
             home: Scaffold(
-              body: HomeScreen(
-                onNavigateTab: (_) {},
-                onOpenDirectRental: () {
-                  directRentalOpened = true;
-                },
+              bottomNavigationBar: FloatingCapsuleDock(
+                currentIndex: selectedIndex,
+                onTabSelected: (idx) => selectedIndex = idx,
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
 
-      // 1. FAB: FloatingActionButton.extended with 'Sewa Baru' exists and triggers onOpenDirectRental
-      expect(find.byType(FloatingActionButton), findsOneWidget);
-      expect(find.widgetWithText(FloatingActionButton, 'Sewa Baru'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FloatingActionButton, 'Sewa Baru'));
-      await tester.pumpAndSettle();
-      expect(directRentalOpened, isTrue);
+        // Verify 4 dock items exist
+        expect(find.text('Home'), findsOneWidget);
+        expect(
+          find.text('Sewa'),
+          findsNothing,
+        ); // Unselected tabs don't show text label, only icon
+        expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
+        expect(find.byIcon(Icons.dashboard_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
 
-      // 2. Return & Inventory shortcuts are removed from the dashboard body
-      expect(find.text('Pengembalian'), findsNothing);
-      expect(find.text('Inventaris'), findsNothing);
-      expect(find.text('Transfer Unit'), findsNothing);
-      expect(find.text('Voucher'), findsNothing);
-      expect(find.text('Kasir'), findsNothing);
-      expect(find.text('Kelola Tim'), findsNothing);
+        // Verify Voucher and old Kasir icons are completely removed from dock
+        expect(find.byIcon(Icons.confirmation_number_outlined), findsNothing);
+        expect(find.byIcon(Icons.point_of_sale_outlined), findsNothing);
 
-      // 3. Profile header has branch switcher icon and NOT settings icon or logout icon
-      expect(find.byTooltip('Pengaturan'), findsNothing);
-      expect(find.byTooltip('Keluar'), findsNothing);
-      expect(find.byTooltip('Ganti Cabang'), findsOneWidget);
-      expect(find.byIcon(Icons.storefront_rounded), findsWidgets);
+        // Tap index 3 (Pengaturan)
+        await tester.tap(find.byIcon(Icons.settings_outlined));
+        await tester.pumpAndSettle();
+        expect(selectedIndex, 3);
+      },
+    );
+  });
 
-      // 4. Separate "Pilih Cabang" button below user's name is removed
-      expect(find.text('Pilih Cabang'), findsNothing);
+  group('HomeScreen Header & Quick Actions Cleanup Tests', () {
+    testWidgets(
+      'renders New Rental FAB, branch switcher icon in header, and removes Return/Inventory shortcuts',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      // 5. Tapping the header branch switch icon opens BusinessSelectorSheet
-      await tester.tap(find.byTooltip('Ganti Cabang'));
-      await tester.pumpAndSettle();
-      expect(find.text('Belum Terhubung ke Usaha Rental'), findsOneWidget); // Empty business selector sheet opens
-    });
+        bool directRentalOpened = false;
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              dashboardKpiProvider.overrideWith(
+                (ref) => Future.value(fakeDashboardData),
+              ),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: HomeScreen(
+                  onNavigateTab: (_) {},
+                  onOpenDirectRental: () {
+                    directRentalOpened = true;
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. FAB: FloatingActionButton.extended with 'Sewa Baru' exists and triggers onOpenDirectRental
+        expect(find.byType(FloatingActionButton), findsOneWidget);
+        expect(
+          find.widgetWithText(FloatingActionButton, 'Sewa Baru'),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.widgetWithText(FloatingActionButton, 'Sewa Baru'),
+        );
+        await tester.pumpAndSettle();
+        expect(directRentalOpened, isTrue);
+
+        // 2. Return & Inventory shortcuts are removed from the dashboard body
+        expect(find.text('Pengembalian'), findsNothing);
+        expect(find.text('Inventaris'), findsNothing);
+        expect(find.text('Transfer Unit'), findsNothing);
+        expect(find.text('Voucher'), findsNothing);
+        expect(find.text('Kasir'), findsNothing);
+        expect(find.text('Kelola Tim'), findsNothing);
+
+        // 3. Profile header has branch switcher icon and NOT settings icon or logout icon
+        expect(find.byTooltip('Pengaturan'), findsNothing);
+        expect(find.byTooltip('Keluar'), findsNothing);
+        expect(find.byTooltip('Ganti Cabang'), findsOneWidget);
+        expect(find.byIcon(Icons.storefront_rounded), findsWidgets);
+
+        // 4. Separate "Pilih Cabang" button below user's name is removed
+        expect(find.text('Pilih Cabang'), findsNothing);
+
+        // 5. Tapping the header branch switch icon opens BusinessSelectorSheet
+        await tester.tap(find.byTooltip('Ganti Cabang'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Belum Terhubung ke Usaha Rental'),
+          findsOneWidget,
+        ); // Empty business selector sheet opens
+      },
+    );
   });
 
   group('SettingsScreen List-Based Menu Tests', () {
-    testWidgets('renders all categorized settings list items and logout dialog', (tester) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+    testWidgets(
+      'renders all categorized settings list items and logout dialog',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: StoreSettingsScreen(),
+        await tester.pumpWidget(
+          const ProviderScope(child: MaterialApp(home: StoreSettingsScreen())),
+        );
+        await tester.pumpAndSettle();
+
+        // Verify headers and menu items
+        expect(find.text('AKUN & TOKO'), findsOneWidget);
+        expect(find.text('Profil Pengguna'), findsOneWidget);
+        expect(find.text('Profil Usaha & Cabang'), findsOneWidget);
+
+        expect(find.text('OPERASIONAL KASIR'), findsOneWidget);
+        expect(find.text('Metode Pembayaran'), findsOneWidget);
+        expect(find.text('Shift Kasir & Jam Operasional'), findsOneWidget);
+        expect(find.text('Voucher & Promo'), findsOneWidget);
+        expect(find.text('Printer Thermal'), findsOneWidget);
+
+        expect(find.text('INVENTARIS & PELANGGAN'), findsOneWidget);
+        expect(find.text('Direktori Pelanggan & Blacklist'), findsOneWidget);
+        expect(find.text('Mutasi Unit'), findsOneWidget);
+        expect(find.text('Kelola Tim & Staf Cabang'), findsOneWidget);
+
+        expect(find.text('SESI AKUN'), findsOneWidget);
+        expect(find.text('Keluar Akun'), findsOneWidget);
+
+        // Tap Keluar Akun and verify confirmation dialog appears
+        await tester.tap(find.text('Keluar Akun'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'Apakah Anda yakin ingin keluar dari akun ini? Sesi Anda pada perangkat ini akan diakhiri.',
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+          findsOneWidget,
+        );
+        expect(find.text('Batal'), findsOneWidget);
+        expect(find.text('Keluar'), findsOneWidget);
 
-      // Verify headers and menu items
-      expect(find.text('PROFIL & IDENTITAS'), findsOneWidget);
-      expect(find.text('Profil Saya & Keamanan'), findsOneWidget);
-      expect(find.text('Profil Usaha & Slogan'), findsOneWidget);
-
-      expect(find.text('OPERASIONAL & PERANGKAT'), findsOneWidget);
-      expect(find.text('Printer Thermal & Kasir'), findsOneWidget);
-      expect(find.text('Voucher Promo & Diskon'), findsOneWidget);
-      expect(find.text('Mutasi / Transfer Unit'), findsOneWidget);
-      expect(find.text('Kasir & Tutup Buku Shift'), findsOneWidget);
-
-      expect(find.text('ORGANISASI'), findsOneWidget);
-      expect(find.text('Kelola Tim & Staf Cabang'), findsOneWidget);
-
-      expect(find.text('SESI AKUN'), findsOneWidget);
-      expect(find.text('Keluar Akun'), findsOneWidget);
-
-      // Tap Keluar Akun and verify confirmation dialog appears
-      await tester.tap(find.text('Keluar Akun'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Apakah Anda yakin ingin keluar dari akun ini? Sesi Anda pada perangkat ini akan diakhiri.'), findsOneWidget);
-      expect(find.text('Batal'), findsOneWidget);
-      expect(find.text('Keluar'), findsOneWidget);
-
-      // Cancel dialog
-      await tester.tap(find.text('Batal'));
-      await tester.pumpAndSettle();
-      expect(find.text('Batal'), findsNothing);
-    });
+        // Cancel dialog
+        await tester.tap(find.text('Batal'));
+        await tester.pumpAndSettle();
+        expect(find.text('Batal'), findsNothing);
+      },
+    );
   });
 
   group('UserProfileScreen Google and Password Tests', () {
-    testWidgets('displays Google account badge and Buat Kata Sandi when user has no password', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authProvider.overrideWith(() => _MockGoogleAuthNotifier()),
-          ],
-          child: const MaterialApp(
-            home: UserProfileScreen(),
+    testWidgets(
+      'displays Google account badge and Buat Kata Sandi when user has no password',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authProvider.overrideWith(() => _MockGoogleAuthNotifier()),
+            ],
+            child: const MaterialApp(home: UserProfileScreen()),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Google Account'), findsOneWidget);
-      expect(find.text('Buat Kata Sandi Akun'), findsOneWidget);
-      expect(find.text('Buat Kata Sandi Sekarang'), findsOneWidget);
-      expect(find.text('Kata Sandi Saat Ini *'), findsNothing); // Not required for first-time Google user!
-    });
+        expect(find.text('Google Account'), findsOneWidget);
+        expect(find.text('Buat Kata Sandi Akun'), findsOneWidget);
+        expect(find.text('Buat Kata Sandi Sekarang'), findsOneWidget);
+        expect(
+          find.text('Kata Sandi Saat Ini *'),
+          findsNothing,
+        ); // Not required for first-time Google user!
+      },
+    );
 
-    testWidgets('displays Ubah Kata Sandi with current password field when user has existing password', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authProvider.overrideWith(() => _MockPasswordAuthNotifier()),
-          ],
-          child: const MaterialApp(
-            home: UserProfileScreen(),
+    testWidgets(
+      'displays Ubah Kata Sandi with current password field when user has existing password',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authProvider.overrideWith(() => _MockPasswordAuthNotifier()),
+            ],
+            child: const MaterialApp(home: UserProfileScreen()),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Ubah Kata Sandi'), findsOneWidget);
-      expect(find.text('Kata Sandi Saat Ini *'), findsOneWidget);
-      expect(find.text('Perbarui Kata Sandi'), findsOneWidget);
-    });
+        expect(find.text('Ubah Kata Sandi'), findsOneWidget);
+        expect(find.text('Kata Sandi Saat Ini *'), findsOneWidget);
+        expect(find.text('Perbarui Kata Sandi'), findsOneWidget);
+      },
+    );
 
-    testWidgets('saving personal profile triggers updateProfile and shows success message', (tester) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+    testWidgets(
+      'saving personal profile triggers updateProfile and shows success message',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      final notifier = _MockGoogleAuthNotifier();
+        final notifier = _MockGoogleAuthNotifier();
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authProvider.overrideWith(() => notifier),
-          ],
-          child: const MaterialApp(
-            home: UserProfileScreen(),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [authProvider.overrideWith(() => notifier)],
+            child: const MaterialApp(home: UserProfileScreen()),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Enter new name
-      final nameFinder = find.widgetWithText(TextFormField, 'Nama Lengkap *');
-      await tester.enterText(nameFinder, 'Updated Staff Name');
-      await tester.pumpAndSettle();
+        // Enter new name
+        final nameFinder = find.widgetWithText(TextFormField, 'Nama Lengkap *');
+        await tester.enterText(nameFinder, 'Updated Staff Name');
+        await tester.pumpAndSettle();
 
-      // Tap Simpan Perubahan Profil
-      await tester.tap(find.text('Simpan Perubahan Profil'));
-      await tester.pumpAndSettle();
+        // Tap Simpan Perubahan Profil
+        await tester.tap(find.text('Simpan Perubahan Profil'));
+        await tester.pumpAndSettle();
 
-      expect(notifier.lastUpdatedName, 'Updated Staff Name');
-      expect(find.text('Profil berhasil diperbarui.'), findsOneWidget);
-    });
+        expect(notifier.lastUpdatedName, 'Updated Staff Name');
+        expect(find.text('Profil berhasil diperbarui.'), findsOneWidget);
+      },
+    );
 
-    testWidgets('google user creates password successfully without current password', (tester) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+    testWidgets(
+      'google user creates password successfully without current password',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      final notifier = _MockGoogleAuthNotifier();
+        final notifier = _MockGoogleAuthNotifier();
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authProvider.overrideWith(() => notifier),
-          ],
-          child: const MaterialApp(
-            home: UserProfileScreen(),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [authProvider.overrideWith(() => notifier)],
+            child: const MaterialApp(home: UserProfileScreen()),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Enter new password and confirmation
-      final newPwdFinder = find.widgetWithText(TextFormField, 'Buat Kata Sandi Baru *');
-      final confirmPwdFinder = find.widgetWithText(TextFormField, 'Konfirmasi Kata Sandi Baru *');
+        // Enter new password and confirmation
+        final newPwdFinder = find.widgetWithText(
+          TextFormField,
+          'Buat Kata Sandi Baru *',
+        );
+        final confirmPwdFinder = find.widgetWithText(
+          TextFormField,
+          'Konfirmasi Kata Sandi Baru *',
+        );
 
-      await tester.enterText(newPwdFinder, 'secretPass123');
-      await tester.enterText(confirmPwdFinder, 'secretPass123');
-      await tester.pumpAndSettle();
+        await tester.enterText(newPwdFinder, 'secretPass123');
+        await tester.enterText(confirmPwdFinder, 'secretPass123');
+        await tester.pumpAndSettle();
 
-      // Tap Buat Kata Sandi Sekarang
-      await tester.tap(find.text('Buat Kata Sandi Sekarang'));
-      await tester.pumpAndSettle();
+        // Tap Buat Kata Sandi Sekarang
+        await tester.tap(find.text('Buat Kata Sandi Sekarang'));
+        await tester.pumpAndSettle();
 
-      expect(notifier.lastNewPassword, 'secretPass123');
-      expect(notifier.lastCurrentPassword, isNull);
-      expect(find.text('Kata sandi berhasil dibuat. Anda dapat login dengan email dan kata sandi.'), findsOneWidget);
-    });
+        expect(notifier.lastNewPassword, 'secretPass123');
+        expect(notifier.lastCurrentPassword, isNull);
+        expect(
+          find.text(
+            'Kata sandi berhasil dibuat. Anda dapat login dengan email dan kata sandi.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }
 
@@ -301,11 +340,7 @@ class _MockGoogleAuthNotifier extends AuthNotifier {
     lastUpdatedName = name;
     lastUpdatedPhone = phone;
     state = state.copyWith(
-      user: {
-        ...?state.user,
-        'name': name,
-        'phone': phone,
-      },
+      user: {...?state.user, 'name': name, 'phone': phone},
     );
     return true;
   }
@@ -318,12 +353,7 @@ class _MockGoogleAuthNotifier extends AuthNotifier {
   }) async {
     lastCurrentPassword = currentPassword;
     lastNewPassword = newPassword;
-    state = state.copyWith(
-      user: {
-        ...?state.user,
-        'has_password': true,
-      },
-    );
+    state = state.copyWith(user: {...?state.user, 'has_password': true});
     return true;
   }
 }

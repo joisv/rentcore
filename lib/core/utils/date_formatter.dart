@@ -3,7 +3,9 @@ import 'package:intl/intl.dart';
 class DateFormatter {
   static String formatFull(dynamic dateTime) {
     if (dateTime == null) return '-';
-    final dt = dateTime is DateTime ? dateTime : DateTime.tryParse(dateTime.toString());
+    final dt = dateTime is DateTime
+        ? dateTime
+        : DateTime.tryParse(dateTime.toString());
     if (dt == null) return dateTime.toString();
     try {
       return DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(dt);
@@ -14,7 +16,9 @@ class DateFormatter {
 
   static String formatShort(dynamic dateTime) {
     if (dateTime == null) return '-';
-    final dt = dateTime is DateTime ? dateTime : DateTime.tryParse(dateTime.toString());
+    final dt = dateTime is DateTime
+        ? dateTime
+        : DateTime.tryParse(dateTime.toString());
     if (dt == null) return dateTime.toString();
     try {
       return DateFormat('d MMM yyyy', 'id_ID').format(dt);
@@ -25,7 +29,11 @@ class DateFormatter {
 
   static String formatTime(DateTime? dateTime) {
     if (dateTime == null) return '-';
-    return DateFormat('HH:mm', 'id_ID').format(dateTime);
+    try {
+      return DateFormat('HH:mm', 'id_ID').format(dateTime);
+    } catch (_) {
+      return DateFormat('HH:mm').format(dateTime);
+    }
   }
 
   static String formatRelative(DateTime? dateTime) {

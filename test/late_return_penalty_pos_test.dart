@@ -250,7 +250,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Switch to Tab 2: Rekap Shift & Closing
-      final closingTabFinder = find.text('Rekap Shift & Closing');
+      final closingTabFinder = find.text('Shift Aktif');
       expect(closingTabFinder, findsOneWidget);
       await tester.tap(closingTabFinder);
       await tester.pumpAndSettle();
