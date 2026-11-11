@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/providers/business_provider.dart';
+import '../../features/onboarding/presentation/business_setup_wizard_screen.dart';
 import '../../features/organization/presentation/manage_organization_screen.dart';
 
 class BusinessSelectorSheet extends ConsumerStatefulWidget {
@@ -24,9 +25,11 @@ class BusinessSelectorSheet extends ConsumerStatefulWidget {
 class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
   void _openOnboardingDialog() {
     Navigator.pop(context);
-    showDialog(
-      context: context,
-      builder: (ctx) => const _BusinessOnboardingDialog(),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BusinessSetupWizardScreen(),
+      ),
     );
   }
 

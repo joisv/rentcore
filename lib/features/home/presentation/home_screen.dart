@@ -19,6 +19,7 @@ import '../../inventory/presentation/inventory_screen.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../notifications/providers/notification_provider.dart';
 import '../providers/dashboard_provider.dart';
+import 'widgets/progressive_checklist_banner.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   final ValueChanged<int> onNavigateTab;
@@ -249,8 +250,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(height: 14),
                 ],
 
-                // 4. Onboarding Banner (if user has 0 businesses)
-                if (businessState.error == null &&
+                // 4. Progressive Setup Checklist Banner (Non-blocking & Dismissible)
+                if (businessState.activeBusinessId != null) ...[
+                  ProgressiveChecklistBanner(
+                    totalAssetCount: (kpiAsync.value?['kpi']?['units_total'] as num?)?.toInt() ??
+                        (kpiAsync.value?['kpi']?['total_units'] as num?)?.toInt() ??
+                        (kpiAsync.value?['kpi']?['total_assets'] as num?)?.toInt() ??
+                        (kpiAsync.value?['stats']?['total_units'] as num?)?.toInt() ??
+                        0,
+                    onOpenInventory: () => widget.onNavigateTab(2),
+                  ),
+                ] else if (businessState.error == null &&
                     !businessState.isLoading &&
                     (businessState.activeBusinessId == null ||
                         businessState.businesses.isEmpty)) ...[

@@ -160,9 +160,9 @@ void main() {
         expect(find.text('Rp 35.000 / hari'), findsOneWidget);
         expect(find.text('Rp 300.000 / hari'), findsOneWidget);
 
-        // 2. Verify Single Action Row: Edit Tarif (left) and + Unit Baru (right)
+        // 2. Verify Single Action Row: Edit Tarif (left) and + Tambah Unit (right)
         expect(find.text('Edit Tarif'), findsNWidgets(4));
-        expect(find.text('+ Unit Baru'), findsNWidgets(4));
+        expect(find.text('+ Tambah Unit'), findsNWidgets(4));
 
         // 3. Verify old stacked buttons are removed
         expect(find.text('+ Registrasi Unit Tipe Ini'), findsNothing);
@@ -277,7 +277,7 @@ void main() {
         expect(find.text('Sony Alpha A7 IV'), findsOneWidget);
         expect(find.text('Rp 250.000 / hari'), findsOneWidget);
         expect(find.text('Edit Tarif'), findsWidgets);
-        expect(find.text('+ Unit Baru'), findsWidgets);
+        expect(find.text('+ Tambah Unit'), findsWidgets);
       },
     );
 
@@ -298,7 +298,7 @@ void main() {
     });
 
     testWidgets(
-      'tapping + Unit Baru opens AddAssetSheet with preselected model',
+      'tapping + Tambah Unit opens AddAssetSheet with preselected model',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -307,7 +307,7 @@ void main() {
         await tester.pumpWidget(buildCatalogScreen(products: sampleProducts));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('+ Unit Baru').first);
+        await tester.tap(find.text('+ Tambah Unit').first);
         await tester.pumpAndSettle();
 
         expect(find.text('Registrasi Unit Baru'), findsOneWidget);

@@ -7,6 +7,7 @@ import 'package:rentcore_mobile/core/constants/navigation_keys.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
 import 'package:rentcore_mobile/features/inventory/presentation/inventory_screen.dart';
+import 'package:rentcore_mobile/features/inventory/presentation/add_product_sheet.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
 
 class _ConfigurableAssetRepository extends AssetRepository {
@@ -132,7 +133,7 @@ void main() {
 
   group('Inventory Empty State Tests', () {
     testWidgets(
-      'Empty Physical Units tab displays context-appropriate empty state with actions',
+      'Empty Physical Units tab displays structured onboarding guidance explaining hierarchy',
       (tester) async {
         final repo = _ConfigurableAssetRepository(
           assetsToReturn: [],
@@ -148,16 +149,21 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Should show the True Empty State for Units
-        expect(find.text('Belum Ada Unit Inventaris'), findsOneWidget);
+        // Should show the Structured Onboarding Empty State for Units
+        expect(find.text('Mulai Catat Inventaris Rental Anda'), findsOneWidget);
+        expect(find.text('1. Model / Katalog'), findsOneWidget);
         expect(
-          find.textContaining(
-            'Bisnis rental Anda belum memiliki unit fisik terdaftar',
-          ),
+          find.textContaining('Tipe barang dan tarif sewanya'),
           findsOneWidget,
         );
-        expect(find.text('Registrasi Unit Baru'), findsOneWidget);
-        expect(find.text('Tambah Model & Tarif'), findsOneWidget);
+        expect(find.text('2. Unit Fisik'), findsOneWidget);
+        expect(
+          find.textContaining('Barang nyata yang diserahkan ke pelanggan'),
+          findsOneWidget,
+        );
+        expect(find.text('+ Buat Model Pertama'), findsOneWidget);
+        expect(find.text('Registrasi Unit Baru'), findsNothing);
+        expect(find.byKey(const Key('inventory_expandable_main_fab')), findsNothing);
       },
     );
 
@@ -271,7 +277,7 @@ void main() {
     );
 
     testWidgets(
-      'Empty Catalog tab displays context-appropriate empty state with Add Model button',
+      'Empty Catalog tab displays structured onboarding guidance with primary CTA',
       (tester) async {
         final repo = _ConfigurableAssetRepository(
           assetsToReturn: [],
@@ -285,14 +291,34 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Belum Ada Katalog Produk'), findsOneWidget);
-        expect(
-          find.textContaining(
-            'Bisnis rental Anda belum memiliki katalog model atau paket tarif sewa',
-          ),
-          findsOneWidget,
+        expect(find.text('Mulai Catat Inventaris Rental Anda'), findsOneWidget);
+        expect(find.text('1. Model / Katalog'), findsOneWidget);
+        expect(find.text('2. Unit Fisik'), findsOneWidget);
+        expect(find.text('+ Buat Model Pertama'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Tapping + Buat Model Pertama opens AddProductSheet modal',
+      (tester) async {
+        final repo = _ConfigurableAssetRepository(
+          assetsToReturn: [],
+          productsToReturn: [],
+          modelsToReturn: [],
+          categoriesToReturn: [
+            {'id': 1, 'name': 'Kamera', 'slug': 'kamera'},
+          ],
         );
-        expect(find.text('+ Tambah Model & Tarif Baru'), findsOneWidget);
+
+        await tester.pumpWidget(
+          createTestWidget(repo: repo, initialTabIndex: 0),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('+ Buat Model Pertama'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AddProductSheet), findsOneWidget);
       },
     );
 
@@ -329,10 +355,10 @@ void main() {
 
         expect(find.text('PlayStation 5 Slim'), findsOneWidget);
         expect(find.text('0 Siap Sewa • 0 Total'), findsOneWidget);
-        expect(find.text('+ Unit Baru'), findsOneWidget);
+        expect(find.text('+ Tambah Unit'), findsOneWidget);
 
-        // Tapping + Unit Baru opens registration sheet with preselected model
-        await tester.tap(find.text('+ Unit Baru'));
+        // Tapping + Tambah Unit opens registration sheet with preselected model
+        await tester.tap(find.text('+ Tambah Unit'));
         await tester.pumpAndSettle();
 
         expect(find.text('Registrasi Unit Baru'), findsOneWidget);

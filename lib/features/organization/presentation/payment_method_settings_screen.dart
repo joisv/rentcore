@@ -318,6 +318,9 @@ class _PaymentMethodSettingsScreenState
       ref.invalidate(paymentMethodsProvider);
       ref.invalidate(paymentMethodsForBranchProvider(_selectedBranchId));
       ref.invalidate(paymentMethodsForBranchProvider(null));
+      try {
+        ref.read(businessProvider.notifier).refresh();
+      } catch (_) {}
 
       // 3. Synchronously refresh paymentSettingsProvider to ensure Riverpod cache is in sync
       try {

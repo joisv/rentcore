@@ -18,6 +18,7 @@ class ApiConstants {
   static const String me = '/auth/me';
   static const String updateProfile = '/auth/profile';
   static const String updatePassword = '/auth/password';
+  static const String completeWalkthrough = '/auth/walkthrough-completed';
 
   // Multi-Tenant Businesses
   static const String businesses = '/businesses';

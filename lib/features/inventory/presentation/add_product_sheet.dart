@@ -474,10 +474,11 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
         'rates': formattedRates,
       };
 
+      Map<String, dynamic>? createdProduct;
       if (_isEditing) {
         await repo.updateProduct(widget.initialProduct!['id'] as int, payload);
       } else {
-        await repo.createProduct(payload);
+        createdProduct = await repo.createProduct(payload);
       }
 
       // Refresh catalog providers
@@ -489,7 +490,10 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
 
       widget.onSuccess();
       if (mounted) {
-        Navigator.pop(context);
+        final resultModel = createdProduct ?? {
+          'name': _nameController.text.trim(),
+        };
+        Navigator.pop(context, resultModel);
         messenger.showSnackBar(
           SnackBar(content: Text(_isEditing ? 'Katalog berhasil diperbarui!' : 'Produk baru berhasil didaftarkan!')),
         );

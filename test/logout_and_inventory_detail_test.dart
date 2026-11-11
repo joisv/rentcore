@@ -10,6 +10,7 @@ import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
 import 'package:rentcore_mobile/features/inventory/presentation/inventory_screen.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
+import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
 
 class _ThrowingAuthRepository extends AuthRepository {
   @override
@@ -110,6 +111,61 @@ void main() {
       expect(bizState.activeBusinessId, isNull);
       expect(bizState.activeBusinessName, isNull);
       expect(bizState.activeBranchId, isNull);
+    });
+
+    testWidgets('StoreSettingsScreen logout button prompts dialog and redirects cleanly to /login route', (tester) async {
+      bool loginRoutePushed = false;
+
+      final testBiz = const BusinessState(
+        activeBusinessId: 99,
+        activeBusinessName: 'Active Rental Biz',
+        businesses: [
+          {'id': 99, 'name': 'Active Rental Biz', 'role': 'owner'}
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(_ThrowingAuthRepository()),
+            businessProvider.overrideWith(() => _TestBusinessNotifier(testBiz)),
+          ],
+          child: MaterialApp(
+            navigatorKey: rootNavigatorKey,
+            routes: {
+              '/login': (context) {
+                loginRoutePushed = true;
+                return const Scaffold(body: Text('LOGIN_SCREEN_LANDING'));
+              },
+            },
+            home: const StoreSettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Scroll down to find and tap "Keluar Akun"
+      final logoutTile = find.text('Keluar Akun');
+      await tester.scrollUntilVisible(
+        logoutTile,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(logoutTile, findsOneWidget);
+      await tester.tap(logoutTile);
+      await tester.pumpAndSettle();
+
+      // Confirm dialog appears
+      expect(find.text('Apakah Anda yakin ingin keluar dari akun ini? Sesi Anda pada perangkat ini akan diakhiri.'), findsOneWidget);
+      final confirmBtn = find.widgetWithText(ElevatedButton, 'Keluar');
+      expect(confirmBtn, findsOneWidget);
+
+      await tester.tap(confirmBtn);
+      await tester.pumpAndSettle();
+
+      // Navigation backstack wiped and redirected to /login
+      expect(loginRoutePushed, isTrue);
+      expect(find.text('LOGIN_SCREEN_LANDING'), findsOneWidget);
     });
   });
 

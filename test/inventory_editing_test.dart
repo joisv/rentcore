@@ -307,7 +307,7 @@ void main() {
         expect(find.text('Sony Alpha A7 IV'), findsOneWidget);
         expect(find.text('3 Siap Sewa • 5 Total'), findsOneWidget);
         expect(find.text('Edit Tarif'), findsOneWidget);
-        expect(find.text('+ Unit Baru'), findsOneWidget);
+        expect(find.text('+ Tambah Unit'), findsOneWidget);
         expect(find.text('Rp 300.000 / hari'), findsOneWidget);
 
         // Tap Edit Tarif to open prefilled AddProductSheet

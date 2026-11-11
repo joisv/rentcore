@@ -77,6 +77,37 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
     });
   }
 
+  Future<void> _confirmResetToDefault() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Pengaturan Struk?'),
+        content: const Text(
+          'Semua perubahan desain struk akan dikembalikan ke pengaturan bawaan toko. Lanjutkan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset ke Bawaan'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      _resetToDefault();
+    }
+  }
+
   void _resetToDefault() {
     final biz = ref.read(businessProvider);
     final defaultShop = biz.activeBusinessName ?? 'RENTCORE GADGETS';
@@ -126,50 +157,34 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
         title: 'Desain & Layout Struk',
         actions: [
           TextButton(
-            onPressed: _resetToDefault,
+            key: const Key('receipt_layout_reset_button'),
+            onPressed: _confirmResetToDefault,
             child: const Text('Reset', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
           ),
-          IconButton(
-            icon: const Icon(Icons.check_rounded, color: AppColors.obsidian),
-            tooltip: 'Simpan',
+          TextButton(
+            key: const Key('receipt_layout_save_button'),
             onPressed: _saveSettings,
+            child: const Text('Simpan', style: TextStyle(color: AppColors.obsidian, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Preview Card Section
-            _buildLivePreviewCard(),
-            const SizedBox(height: 20),
+      body: ListView(
+        cacheExtent: 2500,
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        children: [
+          // Preview Card Section
+          _buildLivePreviewCard(),
+          const SizedBox(height: 20),
 
-            // Form Controls
-            _buildHeaderSettingsCard(),
-            const SizedBox(height: 16),
+          // Form Controls
+          _buildHeaderSettingsCard(),
+          const SizedBox(height: 16),
 
-            _buildFieldTogglesCard(),
-            const SizedBox(height: 16),
+          _buildFieldTogglesCard(),
+          const SizedBox(height: 16),
 
-            _buildFooterSettingsCard(),
-            const SizedBox(height: 24),
-
-            // Bottom Actions
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.obsidian,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              icon: const Icon(Icons.save_rounded, size: 20),
-              label: const Text('Simpan Pengaturan Desain', style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: _saveSettings,
-            ),
-            const SizedBox(height: 32),
-          ],
-        ),
+          _buildFooterSettingsCard(),
+        ],
       ),
     );
   }
@@ -194,21 +209,28 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.visibility_rounded, size: 16, color: AppColors.textSecondary),
-                  SizedBox(width: 6),
-                  Text(
-                    'PRATINJAU LANGSUNG (LIVE PREVIEW)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                      color: AppColors.textMuted,
+              const Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.visibility_rounded, size: 16, color: AppColors.textSecondary),
+                    SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'PRATINJAU LANGSUNG',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: AppColors.textMuted,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -216,7 +238,9 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  _currentSettings.paperWidth.label,
+                  _currentSettings.paperWidth == ReceiptPaperWidth.mm80
+                      ? '80mm POS'
+                      : '58mm Standar',
                   style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -236,7 +260,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
               children: [
                 Expanded(
                   child: _buildPreviewTabButton(
-                    title: 'Standard (Kertas Thermal)',
+                    title: 'Standar (58mm)',
                     icon: Icons.receipt_long_rounded,
                     isSelected: _previewTab == PrintMode.normal,
                     onTap: () => setState(() => _previewTab = PrintMode.normal),
@@ -245,7 +269,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                 const SizedBox(width: 4),
                 Expanded(
                   child: _buildPreviewTabButton(
-                    title: 'Echo (Kompak)',
+                    title: 'Kompak',
                     icon: Icons.eco_outlined,
                     isSelected: _previewTab == PrintMode.echo,
                     onTap: () => setState(() => _previewTab = PrintMode.echo),
@@ -897,7 +921,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
             value: _currentSettings.showCashierName,
             onChanged: (val) => setState(() => _currentSettings = _currentSettings.copyWith(showCashierName: val)),
           ),
-          const Divider(height: 16),
+          Divider(height: 1, color: Colors.grey.shade100),
           _buildSwitchRow(
             title: 'Tampilkan Nomor Telepon Pelanggan',
             subtitle: 'Mencetak kontak customer pada struk sewa',
@@ -905,7 +929,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
             onChanged: (val) => setState(() => _currentSettings = _currentSettings.copyWith(showCustomerPhone: val)),
           ),
           if (_currentSettings.showCustomerPhone) ...[
-            const Divider(height: 16),
+            Divider(height: 1, color: Colors.grey.shade100),
             _buildSwitchRow(
               title: 'Sensor Nomor HP (Privasi Masking)',
               subtitle: 'Sembunyikan angka tengah: 0812****8890',
@@ -913,28 +937,28 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
               onChanged: (val) => setState(() => _currentSettings = _currentSettings.copyWith(maskCustomerPhone: val)),
             ),
           ],
-          const Divider(height: 16),
+          Divider(height: 1, color: Colors.grey.shade100),
           _buildSwitchRow(
             title: 'Tampilkan Slot Jaminan KTP',
             subtitle: 'Memudahkan identifikasi brankas saat pengembalian',
             value: _currentSettings.showCollateralInfo,
             onChanged: (val) => setState(() => _currentSettings = _currentSettings.copyWith(showCollateralInfo: val)),
           ),
-          const Divider(height: 16),
+          Divider(height: 1, color: Colors.grey.shade100),
           _buildSwitchRow(
             title: 'Cetak QR Code Booking',
             subtitle: 'Bisa di-scan cepat oleh kasir saat unit dikembalikan',
             value: _currentSettings.showQrBarcode,
             onChanged: (val) => setState(() => _currentSettings = _currentSettings.copyWith(showQrBarcode: val)),
           ),
-          const Divider(height: 16),
+          Divider(height: 1, color: Colors.grey.shade100),
           _buildSwitchRow(
             title: 'Tampilkan Uang Diterima & Kembalian',
             subtitle: 'Rincian nominal tunai pelanggan',
             value: _currentSettings.showChangeDue,
             onChanged: (val) => setState(() => _currentSettings = _currentSettings.copyWith(showChangeDue: val)),
           ),
-          const Divider(height: 16),
+          Divider(height: 1, color: Colors.grey.shade100),
           _buildSwitchRow(
             title: 'Garis Pembatas Ganda (=)',
             subtitle: 'Gunakan karakter ganda "=" bukan garis putus-putus "-"',
@@ -962,7 +986,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
             'CATATAN FOOTER & SYARAT PENGEMBALIAN',
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.textMuted),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           _buildSwitchRow(
             title: 'Cetak Ketentuan Pengembalian',
             subtitle: 'Tampilkan klausul jadwal & denda di bagian bawah struk',
@@ -970,26 +994,57 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
             onChanged: (val) => setState(() => _currentSettings = _currentSettings.copyWith(showReturnTerms: val)),
           ),
           if (_currentSettings.showReturnTerms) ...[
-            const SizedBox(height: 10),
-            TextField(
+            Divider(height: 1, color: Colors.grey.shade100),
+            const SizedBox(height: 12),
+            TextFormField(
               controller: _termsCtrl,
               maxLines: 2,
-              decoration: const InputDecoration(
+              maxLength: 150,
+              decoration: InputDecoration(
                 labelText: 'Klausul Pengembalian',
                 hintText: 'Harap mengembalikan unit tepat waktu...',
                 isDense: true,
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.obsidian, width: 1.5),
+                ),
               ),
               onChanged: (_) => _syncTextToSettings(),
             ),
           ],
           const SizedBox(height: 14),
-          TextField(
+          TextFormField(
             controller: _footerMsgCtrl,
             maxLines: 2,
-            decoration: const InputDecoration(
+            maxLength: 120,
+            decoration: InputDecoration(
               labelText: 'Pesan Penutup / Ucapan Terima Kasih',
               hintText: '*** TERIMA KASIH ***\nSimpan struk ini...',
               isDense: true,
+              filled: true,
+              fillColor: Colors.grey.shade50,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.obsidian, width: 1.5),
+              ),
             ),
             onChanged: (_) => _syncTextToSettings(),
           ),
@@ -1004,24 +1059,27 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              ],
+            ),
           ),
-        ),
-        Switch.adaptive(
-          value: value,
-          activeTrackColor: AppColors.obsidian,
-          onChanged: onChanged,
-        ),
-      ],
+          Switch.adaptive(
+            value: value,
+            activeTrackColor: AppColors.obsidian,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
     );
   }
 

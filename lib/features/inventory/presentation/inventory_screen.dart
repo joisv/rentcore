@@ -8,6 +8,7 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../auth/providers/business_provider.dart';
+import '../../home/providers/dashboard_provider.dart';
 import '../providers/asset_provider.dart';
 import 'add_product_sheet.dart';
 import 'widgets/expandable_inventory_fab.dart';
@@ -22,6 +23,138 @@ class InventoryScreen extends ConsumerStatefulWidget {
     this.initialStatusFilter,
     this.initialTabIndex = 0,
   });
+
+  /// Displays the chained bottom sheet after an asset model is created.
+  static Future<void> showModelCreatedBottomSheet(
+    BuildContext context, {
+    required Map<String, dynamic> model,
+    VoidCallback? onRegisterUnit,
+  }) {
+    final modelName = model['name']?.toString() ?? 'Model Baru';
+
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Centered status indicator badge & header
+              Center(
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: AppColors.success,
+                    size: 32,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Center(
+                child: Text(
+                  'Model Berhasil Dibuat!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: Text.rich(
+                  TextSpan(
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      height: 1.45,
+                      color: AppColors.textSecondary,
+                    ),
+                    children: [
+                      const TextSpan(
+                        text: 'Langkah berikutnya: Daftarkan nomor seri atau identitas fisik untuk ',
+                      ),
+                      TextSpan(
+                        text: modelName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const TextSpan(
+                        text: ' agar siap disewakan.',
+                      ),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                key: const Key('register_unit_now_button'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.obsidian,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text(
+                  'Daftarkan Unit Fisik Sekarang',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  onRegisterUnit?.call();
+                },
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                key: const Key('dismiss_model_created_button'),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Selesai / Nanti Saja',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
@@ -55,8 +188,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   void _onUnitsScroll() async {
     if (!_unitsScrollController.hasClients ||
         _isLoadingMoreAssets ||
-        !_hasMoreAssets)
+        !_hasMoreAssets) {
       return;
+    }
+    // Prevent immediate trigger upon initial load when list is short or scroll offset is zero
+    if (_unitsScrollController.position.maxScrollExtent <= 0 ||
+        _unitsScrollController.position.pixels <= 0) {
+      return;
+    }
     if (_unitsScrollController.position.pixels >=
         _unitsScrollController.position.maxScrollExtent - 250) {
       final bizState = ref.read(businessProvider);
@@ -78,10 +217,26 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         );
 
         if (mounted) {
+          final existingIds = <dynamic>{};
+          for (final a in _extraAssets) {
+            final id = a['id'];
+            if (id != null) existingIds.add(id);
+          }
+          final currentBaseAssets = ref.read(inventoryListProvider).value ?? [];
+          for (final a in currentBaseAssets) {
+            final id = a['id'];
+            if (id != null) existingIds.add(id);
+          }
+
+          final uniqueNewItems = res.items.where((item) {
+            final id = item['id'];
+            return id == null || existingIds.add(id);
+          }).toList();
+
           setState(() {
             _currentAssetPage = nextPage;
             _hasMoreAssets = res.hasMore;
-            _extraAssets.addAll(res.items);
+            _extraAssets.addAll(uniqueNewItems);
             _isLoadingMoreAssets = false;
           });
         }
@@ -164,6 +319,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     ref.invalidate(categoriesProvider);
     ref.invalidate(catalogModelsProvider);
     ref.invalidate(allCatalogModelsProvider);
+    ref.invalidate(dashboardKpiProvider);
   }
 
   @override
@@ -179,6 +335,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final categoriesAsync = ref.watch(categoriesProvider);
     final assetsAsync = ref.watch(inventoryListProvider);
     final productsAsync = ref.watch(productsProvider);
+
+    ref.listen<AsyncValue<List<Map<String, dynamic>>>>(
+      inventoryListProvider,
+      (previous, next) {
+        if (next.hasValue && _extraAssets.isNotEmpty) {
+          _resetAssetPagination();
+        }
+      },
+    );
+
+    final products = productsAsync.value ?? [];
+    final assets = assetsAsync.value ?? [];
+    final hasAnyInventory = products.isNotEmpty || assets.isNotEmpty;
+    final showFab = hasBusiness && hasAnyInventory;
 
     return PopScope(
       canPop: !_isFabExpanded,
@@ -247,9 +417,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 ),
               )
             : null,
-        floatingActionButton: hasBusiness
+        floatingActionButton: showFab
             ? ExpandableInventoryFab(
                 key: _fabKey,
+                heroTag: 'Buat Model Baru',
+                tooltip: 'Buat Model Baru',
                 onExpansionChanged: (expanded) {
                   if (mounted && _isFabExpanded != expanded) {
                     setState(() => _isFabExpanded = expanded);
@@ -281,6 +453,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               unitSearchQuery,
                               categoriesAsync,
                               assetsAsync,
+                              productsAsync,
                             ),
                             // TAB 1: KATALOG & TARIF
                             _buildCatalogView(
@@ -418,6 +591,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     String searchQuery,
     AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
     AsyncValue<List<Map<String, dynamic>>> assetsAsync,
+    AsyncValue<List<Map<String, dynamic>>> productsAsync,
   ) {
     return Column(
       children: [
@@ -707,96 +881,27 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   );
                 }
 
-                return RefreshIndicator(
+                final products = productsAsync.value ?? [];
+                final hasModels = products.isNotEmpty;
+
+                return _buildInventoryOnboardingEmptyState(
+                  context: context,
+                  hasModels: hasModels,
+                  onCreateModel: () => _openAddProductSheet(context),
+                  onRegisterUnit:
+                      hasModels ? () => _openAddAssetSheet(context) : null,
                   onRefresh: () async => ref.invalidate(inventoryListProvider),
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    children: [
-                      Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Icon(
-                            Icons.inventory_2_outlined,
-                            size: 36,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Belum Ada Unit Inventaris',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Bisnis rental Anda belum memiliki unit fisik terdaftar. Silakan registrasi unit baru atau tambahkan model di katalog.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Center(
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 12,
-                          runSpacing: 10,
-                          children: [
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.obsidian,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              icon: const Icon(Icons.add_rounded),
-                              label: const Text('Registrasi Unit Baru'),
-                              onPressed: () => _openAddAssetSheet(context),
-                            ),
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.obsidian,
-                                side: const BorderSide(color: AppColors.border),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              icon: const Icon(Icons.post_add_rounded),
-                              label: const Text('Tambah Model & Tarif'),
-                              onPressed: () => _openAddProductSheet(context),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
                 );
               }
 
-              final combinedAssets = [...assets, ..._extraAssets];
+              final seenIds = <dynamic>{};
+              final combinedAssets = <Map<String, dynamic>>[];
+              for (final asset in [...assets, ..._extraAssets]) {
+                final id = asset['id'];
+                if (id == null || seenIds.add(id)) {
+                  combinedAssets.add(asset);
+                }
+              }
 
               return RefreshIndicator(
                 onRefresh: () async {
@@ -863,7 +968,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final specs = <String>[
       catName,
       if (model?['color'] != null && model!['color'].toString().isNotEmpty)
-        model['color'].toString(),
+        _toTitleCase(model['color'].toString()),
       if (model?['storage_capacity'] != null &&
           model!['storage_capacity'].toString().isNotEmpty)
         _formatSpecification(model!['storage_capacity'].toString()),
@@ -1150,7 +1255,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       color: Color(0xFF0F172A),
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Cari model, merk, atau spesifikasi...',
+                      hintText: 'Cari model, merk, tipe...',
                       hintStyle: const TextStyle(
                         fontSize: 13,
                         color: Color(0xFF94A3B8),
@@ -1400,67 +1505,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   );
                 }
 
-                return RefreshIndicator(
+                return _buildInventoryOnboardingEmptyState(
+                  context: context,
+                  onCreateModel: () => _openAddProductSheet(context),
                   onRefresh: () async => ref.invalidate(productsProvider),
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(32),
-                    children: [
-                      const SizedBox(height: 32),
-                      Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Icon(
-                            Icons.style_outlined,
-                            size: 44,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Belum Ada Katalog Produk',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Bisnis rental Anda belum memiliki katalog model atau paket tarif sewa. Tambahkan model katalog dan tarif sewa untuk mulai mengelola armada.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Center(
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.obsidian,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(Icons.post_add_rounded),
-                          label: const Text('+ Tambah Model & Tarif Baru'),
-                          onPressed: () => _openAddProductSheet(context),
-                        ),
-                      ),
-                    ],
-                  ),
                 );
               }
 
@@ -1486,6 +1534,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   // ==========================================
   // SPECIFICATION & RATE FORMATTING HELPERS
   // ==========================================
+  String _toTitleCase(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed.split(RegExp(r'\s+')).map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
   String _formatSpecification(String raw) {
     var s = raw.trim();
     if (s.isEmpty) return '';
@@ -1537,7 +1594,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       }
     }
 
-    return s;
+    return _toTitleCase(s);
   }
 
   String? _extractDailyRate(
@@ -1682,7 +1739,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
     final name = product['name']?.toString() ?? '-';
     final brand = product['brand']?.toString() ?? '';
-    final color = product['color']?.toString() ?? '';
+    final color = _toTitleCase(product['color']?.toString() ?? '');
     final storage = product['storage_capacity']?.toString() ?? '';
     final imageUrl =
         (product['image_url'] ??
@@ -1800,7 +1857,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
+                child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 32),
                     visualDensity: VisualDensity.compact,
@@ -1814,8 +1871,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       vertical: 4,
                     ),
                   ),
-                  icon: const Icon(Icons.edit_outlined, size: 14),
-                  label: const FittedBox(
+                  onPressed: () => _openEditProductSheet(context, product),
+                  child: const FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
                       'Edit Tarif',
@@ -1826,12 +1883,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       maxLines: 1,
                     ),
                   ),
-                  onPressed: () => _openEditProductSheet(context, product),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: ElevatedButton.icon(
+                child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, 32),
                     visualDensity: VisualDensity.compact,
@@ -1846,22 +1902,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                     ),
                     elevation: 0,
                   ),
-                  icon: const Icon(Icons.add_rounded, size: 15),
-                  label: const FittedBox(
+                  onPressed: () => _openAddAssetSheet(
+                    context,
+                    initialModelId: int.tryParse(
+                      product['id']?.toString() ?? '',
+                    ),
+                  ),
+                  child: const FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      '+ Unit Baru',
+                      '+ Tambah Unit',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                       maxLines: 1,
-                    ),
-                  ),
-                  onPressed: () => _openAddAssetSheet(
-                    context,
-                    initialModelId: int.tryParse(
-                      product['id']?.toString() ?? '',
                     ),
                   ),
                 ),
@@ -2304,8 +2359,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     );
   }
 
-  void _openAddProductSheet(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _openAddProductSheet(BuildContext context) async {
+    final createdProduct = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
@@ -2313,6 +2368,281 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => AddProductSheet(onSuccess: _refreshAll),
+    );
+
+    if (createdProduct != null && context.mounted) {
+      _showChainedUnitRegistrationPrompt(context, createdProduct);
+    }
+  }
+
+  void _showChainedUnitRegistrationPrompt(
+    BuildContext context,
+    Map<String, dynamic> model,
+  ) {
+    final modelId = (model['id'] as num?)?.toInt();
+    InventoryScreen.showModelCreatedBottomSheet(
+      context,
+      model: model,
+      onRegisterUnit: () {
+        _openAddAssetSheet(context, initialModelId: modelId);
+      },
+    );
+  }
+
+  Widget _buildInventoryOnboardingEmptyState({
+    required BuildContext context,
+    bool hasModels = false,
+    required VoidCallback onCreateModel,
+    VoidCallback? onRegisterUnit,
+    required Future<void> Function() onRefresh,
+  }) {
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
+        children: [
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Icon(
+                Icons.inventory_2_outlined,
+                size: 38,
+                color: AppColors.obsidian,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            hasModels
+                ? 'Model Sudah Tersedia'
+                : 'Mulai Catat Inventaris Rental Anda',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            hasModels
+                ? 'Model sudah tersedia. Daftarkan unit fisik pertama Anda.'
+                : 'Sebelum mendaftarkan unit fisik, pahami hierarki inventaris rental berikut:',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.obsidian,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        '1',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '1. Model / Katalog',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Tipe barang dan tarif sewanya (contoh: iPhone 13 128GB, PS5 Digital, Aerox 2021).',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(color: AppColors.border, height: 1),
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        '2',
+                        style: TextStyle(
+                          color: AppColors.obsidian,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '2. Unit Fisik',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Barang nyata yang diserahkan ke pelanggan lengkap dengan nomor seri / barcode unik.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                if (!hasModels) ...[
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.obsidian,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 13,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: onCreateModel,
+                    child: const Text(
+                      '+ Buat Model Pertama',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  if (onRegisterUnit != null)
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.obsidian,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 13,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: onRegisterUnit,
+                      child: const Text(
+                        '+ Registrasi Unit Pertama',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.obsidian,
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 13,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: onCreateModel,
+                    child: const Text(
+                      '+ Buat Model Baru',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2924,6 +3254,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                             };
 
                             await repo.createAsset(payload);
+                            ref.invalidate(dashboardKpiProvider);
                             nav.pop();
                             widget.onSuccess();
                             messenger.showSnackBar(

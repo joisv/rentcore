@@ -59,12 +59,20 @@ class AssetRepository {
         final extracted = _extractList(data['data']);
         print('>>> [ASSET_REPO] extracted count from data["data"]: ${extracted.length}');
         if (extracted.isNotEmpty || data['data'] is List || (data['data'] is Map && (data['data'] as Map)['data'] is List)) {
-          return extracted;
+          final seenIds = <dynamic>{};
+          return extracted.where((item) {
+            final id = item['id'];
+            return id == null || seenIds.add(id);
+          }).toList();
         }
       }
       final extractedFallback = _extractList(data);
       print('>>> [ASSET_REPO] extractedFallback count: ${extractedFallback.length}');
-      return extractedFallback;
+      final fallbackSeen = <dynamic>{};
+      return extractedFallback.where((item) {
+        final id = item['id'];
+        return id == null || fallbackSeen.add(id);
+      }).toList();
     } catch (e, st) {
       print('>>> [ASSET_REPO] dio get error: $e\n$st');
       rethrow;
@@ -101,12 +109,17 @@ class AssetRepository {
         final inner = data['data'];
         if (inner is Map) {
           final items = _extractList(inner['data']);
+          final seenIds = <dynamic>{};
+          final uniqueItems = items.where((item) {
+            final id = item['id'];
+            return id == null || seenIds.add(id);
+          }).toList();
           final currentPage = (inner['current_page'] as num?)?.toInt() ?? page;
           final lastPage = (inner['last_page'] as num?)?.toInt() ?? 1;
-          final total = (inner['total'] as num?)?.toInt() ?? items.length;
+          final total = (inner['total'] as num?)?.toInt() ?? uniqueItems.length;
           final actualPerPage = (inner['per_page'] as num?)?.toInt() ?? perPage;
           return PaginatedResult(
-            items: items,
+            items: uniqueItems,
             currentPage: currentPage,
             lastPage: lastPage,
             total: total,
@@ -115,22 +128,32 @@ class AssetRepository {
           );
         }
         final items = _extractList(inner);
+        final seenIds = <dynamic>{};
+        final uniqueItems = items.where((item) {
+          final id = item['id'];
+          return id == null || seenIds.add(id);
+        }).toList();
         return PaginatedResult(
-          items: items,
+          items: uniqueItems,
           currentPage: 1,
           lastPage: 1,
-          total: items.length,
-          perPage: items.length,
+          total: uniqueItems.length,
+          perPage: uniqueItems.length,
           hasMore: false,
         );
       }
       final items = _extractList(data);
+      final seenIds = <dynamic>{};
+      final uniqueItems = items.where((item) {
+        final id = item['id'];
+        return id == null || seenIds.add(id);
+      }).toList();
       return PaginatedResult(
-        items: items,
+        items: uniqueItems,
         currentPage: 1,
         lastPage: 1,
-        total: items.length,
-        perPage: items.length,
+        total: uniqueItems.length,
+        perPage: uniqueItems.length,
         hasMore: false,
       );
     } catch (e) {

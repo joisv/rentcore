@@ -175,6 +175,14 @@ final currentShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
   return repo.fetchCurrentShift(branchId: effectiveBranchId);
 });
 
+final currentShiftByBranchProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, int?>((
+  ref,
+  branchId,
+) async {
+  final repo = ref.watch(cashierRepositoryProvider);
+  return repo.fetchCurrentShift(branchId: branchId);
+});
+
 class ShiftHistoryDateRangeState {
   final String label;
   final String? startDate;

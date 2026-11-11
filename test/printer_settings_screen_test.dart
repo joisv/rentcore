@@ -68,7 +68,7 @@ void main() {
 
       expect(find.byType(ReceiptCustomizationScreen), findsOneWidget);
       expect(find.text('Desain & Layout Struk'), findsOneWidget);
-      expect(find.text('PRATINJAU LANGSUNG (LIVE PREVIEW)'), findsOneWidget);
+      expect(find.text('PRATINJAU LANGSUNG'), findsOneWidget);
     });
 
     testWidgets('tapping Test Print in Normal mode without connected printer shows error feedback', (tester) async {
@@ -143,11 +143,15 @@ void main() {
 
   group('ReceiptCustomizationScreen UI Widget Tests', () {
     testWidgets('renders preview and allows editing fields and toggling options', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
       await tester.pumpWidget(buildTestableWidget(const ReceiptCustomizationScreen()));
       await tester.pumpAndSettle();
 
       expect(find.text('Desain & Layout Struk'), findsOneWidget);
-      expect(find.text('PRATINJAU LANGSUNG (LIVE PREVIEW)'), findsOneWidget);
+      expect(find.text('PRATINJAU LANGSUNG'), findsOneWidget);
       expect(find.text('STRUK SEWA PERANGKAT'), findsOneWidget);
 
       // Verify toggles
@@ -164,14 +168,19 @@ void main() {
       // Verify preview paper contains updated text
       expect(find.text('TOKO GADGET SUPER'), findsAtLeastNWidgets(1));
 
-      // Test Reset button
+      // Test Reset button with confirmation dialog
       final resetButton = find.text('Reset');
       expect(resetButton, findsOneWidget);
       await tester.tap(resetButton);
       await tester.pumpAndSettle();
 
-      // Save button exists
-      expect(find.text('Simpan Pengaturan Desain'), findsOneWidget);
+      expect(find.text('Reset Pengaturan Struk?'), findsOneWidget);
+      await tester.tap(find.text('Reset ke Bawaan'));
+      await tester.pumpAndSettle();
+
+      // Consolidated AppBar save button exists (bottom duplicate removed)
+      expect(find.widgetWithText(TextButton, 'Simpan'), findsOneWidget);
+      expect(find.text('Simpan Pengaturan Desain'), findsNothing);
     });
 
     testWidgets('switching between Standard and Echo preview tabs updates layout and allows per-mode printing', (tester) async {
@@ -179,8 +188,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Check preview tab buttons exist
-      expect(find.text('Standard (Kertas Thermal)'), findsOneWidget);
-      expect(find.text('Echo (Kompak)'), findsOneWidget);
+      expect(find.text('Standar (58mm)'), findsOneWidget);
+      expect(find.text('Kompak'), findsOneWidget);
 
       // Initially in Standard mode: tear bar indicator and Print Standard button are visible
       expect(find.text('TEAR BAR MANUAL (58MM)'), findsOneWidget);
@@ -198,7 +207,7 @@ void main() {
       expect(find.textContaining('Belum ada printer yang dipilih'), findsOneWidget);
 
       // Switch to Echo mode preview
-      final echoTab = find.text('Echo (Kompak)');
+      final echoTab = find.text('Kompak');
       await tester.ensureVisible(echoTab);
       await tester.pumpAndSettle();
       await tester.tap(echoTab);
@@ -220,7 +229,7 @@ void main() {
       expect(find.textContaining('Belum ada printer yang dipilih'), findsOneWidget);
 
       // Switch back to Standard mode preview
-      final standardTab = find.text('Standard (Kertas Thermal)');
+      final standardTab = find.text('Standar (58mm)');
       await tester.ensureVisible(standardTab);
       await tester.pumpAndSettle();
       await tester.tap(standardTab);

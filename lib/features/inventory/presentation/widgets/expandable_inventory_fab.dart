@@ -14,6 +14,8 @@ class ExpandableInventoryFab extends StatefulWidget {
   final VoidCallback onAddModel;
   final VoidCallback? onManageTarif;
   final ValueChanged<bool>? onExpansionChanged;
+  final Object? heroTag;
+  final String? tooltip;
 
   const ExpandableInventoryFab({
     super.key,
@@ -21,6 +23,8 @@ class ExpandableInventoryFab extends StatefulWidget {
     required this.onAddModel,
     this.onManageTarif,
     this.onExpansionChanged,
+    this.heroTag = 'Buat Model Baru',
+    this.tooltip = 'Buat Model Baru',
   });
 
   @override
@@ -222,7 +226,7 @@ class ExpandableInventoryFabState extends State<ExpandableInventoryFab>
   }
 
   Widget _buildMainFab() {
-    return Material(
+    Widget fabChild = Material(
       color: Colors.transparent,
       elevation: 0,
       child: InkWell(
@@ -258,5 +262,21 @@ class ExpandableInventoryFabState extends State<ExpandableInventoryFab>
         ),
       ),
     );
+
+    if (widget.tooltip != null) {
+      fabChild = Tooltip(
+        message: widget.tooltip!,
+        child: fabChild,
+      );
+    }
+
+    if (widget.heroTag != null) {
+      fabChild = Hero(
+        tag: widget.heroTag!,
+        child: fabChild,
+      );
+    }
+
+    return fabChild;
   }
 }

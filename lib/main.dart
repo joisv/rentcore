@@ -4,6 +4,10 @@ import 'core/constants/navigation_keys.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/auth/providers/business_provider.dart';
+import 'features/onboarding/presentation/business_setup_wizard_screen.dart';
+import 'features/onboarding/presentation/feature_walkthrough_screen.dart';
+import 'features/onboarding/providers/onboarding_provider.dart';
 import 'features/bookings/presentation/bookings_screen.dart';
 import 'features/bookings/presentation/direct_rental_screen.dart';
 import 'features/home/presentation/home_screen.dart';
@@ -27,17 +31,59 @@ class RentCoreApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
       title: 'RentCore Mobile',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: authState.isAuthenticated
-          ? const MainShellScreen()
-          : const LoginScreen(),
+      home: const AuthRoutingGate(),
+      routes: {
+        '/login': (context) => const AuthRoutingGate(),
+      },
     );
+  }
+}
+
+class AuthRoutingGate extends ConsumerWidget {
+  const AuthRoutingGate({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
+    if (!authState.isAuthenticated) {
+      return const LoginScreen();
+    }
+
+    final businessState = ref.watch(businessProvider);
+    final onboardingState = ref.watch(onboardingProvider);
+
+    // Initial session & business resolution in progress
+    if (authState.isLoading || businessState.isLoading || onboardingState.isLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppColors.obsidian,
+            strokeWidth: 2.5,
+          ),
+        ),
+      );
+    }
+
+    // Tenant Owner setup gate: 0 businesses registered
+    final isPlatformAdmin = authState.user?['is_platform_admin'] == true;
+    if (businessState.businesses.isEmpty && !isPlatformAdmin) {
+      return const BusinessSetupWizardScreen();
+    }
+
+    // Feature Walkthrough gate (Owners & Cashiers)
+    if (!onboardingState.hasCompletedWalkthrough) {
+      return const FeatureWalkthroughScreen();
+    }
+
+    // Active Dashboard Workspace
+    return const MainShellScreen();
   }
 }
 

@@ -18,6 +18,12 @@ class PrinterState {
   final String? lastEchoLog;
   final String? errorMessage;
 
+  bool get isPairedOrConnected =>
+      (connectedDevice != null &&
+          (connectedDevice!.address.trim().isNotEmpty ||
+              connectedDevice!.name.trim().isNotEmpty)) ||
+      status == PrinterConnectionStatus.connected;
+
   const PrinterState({
     this.connectedDevice,
     this.discoveredDevices = const [],
@@ -96,6 +102,18 @@ class PrinterNotifier extends Notifier<PrinterState> {
           device = ThermalPrinterDevice.fromJson(decoded);
         } catch (e) {
           debugPrint('[PrinterNotifier] Error parsing saved device: $e');
+        }
+      }
+
+      // Check legacy or alternate persistent keys if null
+      if (device == null) {
+        final legacyMac = prefs.getString('last_connected_printer_mac') ??
+            prefs.getString('selected_printer_device');
+        if (legacyMac != null && legacyMac.trim().isNotEmpty) {
+          device = ThermalPrinterDevice(
+            name: prefs.getString('last_connected_printer_name') ?? 'Thermal Printer',
+            address: legacyMac.trim(),
+          );
         }
       }
 

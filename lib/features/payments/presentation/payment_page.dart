@@ -9,7 +9,7 @@ import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/business_provider.dart';
-import '../../cashier/presentation/widgets/cash_drawer_shift_modal.dart';
+import '../../cashier/presentation/widgets/quick_open_shift_modal.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../data/payment_repository.dart';
@@ -19,12 +19,14 @@ class PaymentPage extends ConsumerStatefulWidget {
   final PaymentContext paymentContext;
   final bool isModal;
   final VoidCallback? onPaymentSuccess;
+  final PaymentResult? initialResult;
 
   const PaymentPage({
     super.key,
     required this.paymentContext,
     this.isModal = false,
     this.onPaymentSuccess,
+    this.initialResult,
   });
 
   /// Factory constructor to launch universal payment screen with raw transaction parameters
@@ -98,6 +100,9 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialResult != null) {
+      _completedResult = widget.initialResult;
+    }
     _cashReceivedController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -123,6 +128,94 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     return buffer.toString();
   }
 
+  bool _checkShiftActive(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    if (data['has_active_shift'] == true) return true;
+    if (data['is_active'] == true) return true;
+    final shift = data['shift'] ?? data['data']?['shift'];
+    if (shift is Map && (shift['status'] == 'open' || shift['is_active'] == true)) {
+      return true;
+    }
+    return false;
+  }
+
+  void _showQuickOpenShiftModal(BuildContext context, int? branchId) {
+    QuickOpenShiftModal.show(
+      context,
+      branchId: branchId,
+      onShiftOpened: () {
+        ref.invalidate(currentShiftProvider);
+        if (branchId != null) {
+          ref.invalidate(currentShiftByBranchProvider(branchId));
+        }
+      },
+    );
+  }
+
+  Widget _buildShiftWarningBanner(BuildContext context, int? branchId) {
+    return Container(
+      key: const Key('shift_activation_warning_banner'),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade300, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.amber.shade800,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Shift kasir belum dibuka. Buka shift agar pembayaran ini tercatat rapi di laporan laci kasir.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.amber.shade900,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 38,
+            child: ElevatedButton.icon(
+              key: const Key('open_shift_now_button'),
+              onPressed: () => _showQuickOpenShiftModal(context, branchId),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF18181B),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text(
+                '+ Buka Shift Sekarang',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ctx = widget.paymentContext;
@@ -131,6 +224,11 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     final effectiveBranchId = ctx.branchId ?? bizState.activeBranchId;
     final paymentMethodsAsync = ref.watch(paymentMethodsProvider);
     final paymentSettingsAsync = ref.watch(paymentSettingsProvider(effectiveBranchId));
+
+    final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
+    final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
+    final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
+    final hasActiveShift = _checkShiftActive(currentShiftData);
 
     final settingsData = paymentSettingsAsync.value;
     final config = (settingsData?['config'] as Map<String, dynamic>?) ??
@@ -298,118 +396,128 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
               // Bottom Action Buttons: Dynamically filtered based on toggles
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                child: Builder(
-                  builder: (context) {
-                    final activeCards = <Widget>[];
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!hasActiveShift) ...[
+                      _buildShiftWarningBanner(context, effectiveBranchId),
+                      const SizedBox(height: 8),
+                    ],
+                    Builder(
+                      builder: (context) {
+                        final activeCards = <Widget>[];
 
-                    if (isQrisEnabled) {
-                      activeCards.add(
-                        Expanded(
-                          child: _buildBottomMethodCard(
-                            title: 'QRIS',
-                            customIcon: _buildQrisLogoWidget(),
-                            onTap: () {
-                              final qMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
-                              _selectedMethodId = qMethod?['id'] as int? ?? 2;
-                              _selectedMethodCode = 'QRIS';
-                              _selectedMethodName = qMethod?['name'] ?? 'QRIS';
-                              _selectedQrisImageUrl = qrisImageUrl;
-                              _isDynamicQrisEnabled = isDynamicQrisEnabled;
-                              _qrisRawPayload = qrisRawPayload;
-                              _showQrisSheet(context, ctx, amountDue);
-                            },
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (isCashEnabled) {
-                      activeCards.add(
-                        Expanded(
-                          child: _buildBottomMethodCard(
-                            title: 'Tunai',
-                            customIcon: _buildCashBillIconWidget(),
-                            onTap: () {
-                              final cashMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull;
-                              _selectedMethodId = cashMethod?['id'] as int? ?? 1;
-                              _selectedMethodCode = 'CASH';
-                              _selectedMethodName = cashMethod?['name'] ?? 'Tunai';
-                              _cashReceivedController.text = amountDue.toInt().toString();
-                              _showCashSheet(context, ctx, amountDue);
-                            },
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (isOtherEnabled) {
-                      activeCards.add(
-                        Expanded(
-                          child: _buildBottomMethodCard(
-                            title: 'Lainnya',
-                            customIcon: _buildOptionIconWidget(),
-                            onTap: () {
-                              if (_selectedEwallet.isNotEmpty) {
-                                _applySelectedPaymentOption(_selectedEwallet, paymentMethods);
-                              } else {
-                                final otherMethod = paymentMethods.where((m) {
-                                  final code = (m['code'] ?? '').toString().toUpperCase();
-                                  return code != 'CASH' && code != 'QRIS';
-                                }).firstOrNull;
-                                _selectedMethodId = otherMethod?['id'] as int? ?? 3;
-                                _selectedMethodCode = otherMethod?['code']?.toString().toUpperCase() ?? 'TRANSFER';
-                                _selectedMethodName = otherMethod?['name'] ?? 'Pembayaran Lainnya';
-                              }
-                              _showEwalletSheet(
-                                context,
-                                ctx,
-                                amountDue,
-                                paymentMethods,
-                                isEwalletMasterEnabled: isEwalletMasterEnabled,
-                                isBankTransferEnabled: isBankTransferEnabled,
-                                isShopeePayEnabled: isShopeePayEnabled,
-                                isDanaEnabled: isDanaEnabled,
-                                isLinkAjaEnabled: isLinkAjaEnabled,
-                                isOvoEnabled: isOvoEnabled,
-                                isGopayEnabled: isGopayEnabled,
-                              );
-                            },
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (activeCards.isEmpty) {
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFEF4444)),
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.info_outline_rounded, color: Color(0xFFDC2626), size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Tidak ada metode pembayaran aktif.',
-                              style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold, fontSize: 13),
+                        if (isQrisEnabled) {
+                          activeCards.add(
+                            Expanded(
+                              child: _buildBottomMethodCard(
+                                title: 'QRIS',
+                                customIcon: _buildQrisLogoWidget(),
+                                onTap: () {
+                                  final qMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
+                                  _selectedMethodId = qMethod?['id'] as int? ?? 2;
+                                  _selectedMethodCode = 'QRIS';
+                                  _selectedMethodName = qMethod?['name'] ?? 'QRIS';
+                                  _selectedQrisImageUrl = qrisImageUrl;
+                                  _isDynamicQrisEnabled = isDynamicQrisEnabled;
+                                  _qrisRawPayload = qrisRawPayload;
+                                  _showQrisSheet(context, ctx, amountDue);
+                                },
+                              ),
                             ),
-                          ],
-                        ),
-                      );
-                    }
+                          );
+                        }
 
-                    return Row(
-                      children: [
-                        for (int i = 0; i < activeCards.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 12),
-                          activeCards[i],
-                        ],
-                      ],
-                    );
-                  },
+                        if (isCashEnabled) {
+                          activeCards.add(
+                            Expanded(
+                              child: _buildBottomMethodCard(
+                                title: 'Tunai',
+                                customIcon: _buildCashBillIconWidget(),
+                                onTap: () {
+                                  final cashMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull;
+                                  _selectedMethodId = cashMethod?['id'] as int? ?? 1;
+                                  _selectedMethodCode = 'CASH';
+                                  _selectedMethodName = cashMethod?['name'] ?? 'Tunai';
+                                  _cashReceivedController.text = amountDue.toInt().toString();
+                                  _showCashSheet(context, ctx, amountDue);
+                                },
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (isOtherEnabled) {
+                          activeCards.add(
+                            Expanded(
+                              child: _buildBottomMethodCard(
+                                title: 'Lainnya',
+                                customIcon: _buildOptionIconWidget(),
+                                onTap: () {
+                                  if (_selectedEwallet.isNotEmpty) {
+                                    _applySelectedPaymentOption(_selectedEwallet, paymentMethods);
+                                  } else {
+                                    final otherMethod = paymentMethods.where((m) {
+                                      final code = (m['code'] ?? '').toString().toUpperCase();
+                                      return code != 'CASH' && code != 'QRIS';
+                                    }).firstOrNull;
+                                    _selectedMethodId = otherMethod?['id'] as int? ?? 3;
+                                    _selectedMethodCode = otherMethod?['code']?.toString().toUpperCase() ?? 'TRANSFER';
+                                    _selectedMethodName = otherMethod?['name'] ?? 'Pembayaran Lainnya';
+                                  }
+                                  _showEwalletSheet(
+                                    context,
+                                    ctx,
+                                    amountDue,
+                                    paymentMethods,
+                                    isEwalletMasterEnabled: isEwalletMasterEnabled,
+                                    isBankTransferEnabled: isBankTransferEnabled,
+                                    isShopeePayEnabled: isShopeePayEnabled,
+                                    isDanaEnabled: isDanaEnabled,
+                                    isLinkAjaEnabled: isLinkAjaEnabled,
+                                    isOvoEnabled: isOvoEnabled,
+                                    isGopayEnabled: isGopayEnabled,
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (activeCards.isEmpty) {
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFEF4444)),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.info_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Tidak ada metode pembayaran aktif.',
+                                  style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            for (int i = 0; i < activeCards.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 12),
+                              activeCards[i],
+                            ],
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -435,7 +543,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black, width: 1.5),
+          border: Border.all(
+            color: Colors.black,
+            width: 1.5,
+          ),
         ),
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
@@ -502,9 +613,18 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
+        return Consumer(
+          builder: (context, ref, _) {
+            final bizState = ref.watch(businessProvider);
+            final effectiveBranchId = ctx.branchId ?? bizState.activeBranchId;
+            final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
+            final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
+            final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
+            final hasActiveShift = _checkShiftActive(currentShiftData);
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -705,15 +825,25 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  if (!hasActiveShift) ...[
+                    _buildShiftWarningBanner(sheetContext, effectiveBranchId),
+                    const SizedBox(height: 12),
+                  ],
+
                   // Button: KONFIRMASI PEMBAYARAN
                   ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(sheetContext);
-                      _showCashSheet(context, ctx, amountDue);
-                    },
+                    key: const Key('detail_sheet_confirm_button'),
+                    onPressed: !hasActiveShift
+                        ? null
+                        : () {
+                            Navigator.pop(sheetContext);
+                            _showCashSheet(context, ctx, amountDue);
+                          },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF18181B),
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFF18181B).withValues(alpha: 0.4),
+                      disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
                       minimumSize: const Size.fromHeight(48),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -729,6 +859,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         );
       },
     );
+  },
+);
   }
 
   // =========================================================================
@@ -743,8 +875,17 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final bizState = ref.watch(businessProvider);
+            final effectiveBranchId = ctx.branchId ?? bizState.activeBranchId;
+            final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
+            final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
+            final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
+            final hasActiveShift = _checkShiftActive(currentShiftData);
+
+            return StatefulBuilder(
+              builder: (context, setSheetState) {
             final cashReceived = CurrencyFormatter.parse(_cashReceivedController.text);
             final cashShortage = CashPaymentSuggestionHelper.calculateShortage(amountDue: amountDue, cashReceived: cashReceived);
             final cashChange = CashPaymentSuggestionHelper.calculateChange(amountDue: amountDue, cashReceived: cashReceived);
@@ -929,9 +1070,15 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       ),
                       const SizedBox(height: 24),
 
+                      if (!hasActiveShift) ...[
+                        _buildShiftWarningBanner(sheetContext, effectiveBranchId),
+                        const SizedBox(height: 12),
+                      ],
+
                       // Button: PROSES PEMBAYARAN
                       ElevatedButton(
-                        onPressed: _isProcessing || cashShortage > 0
+                        key: const Key('cash_sheet_process_button'),
+                        onPressed: _isProcessing || cashShortage > 0 || !hasActiveShift
                             ? null
                             : () async {
                                 Navigator.pop(sheetContext);
@@ -961,6 +1108,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         );
       },
     );
+  },
+);
   }
 
   // =========================================================================
@@ -982,9 +1131,18 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
+        return Consumer(
+          builder: (context, ref, _) {
+            final bizState = ref.watch(businessProvider);
+            final effectiveBranchId = ctx.branchId ?? bizState.activeBranchId;
+            final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
+            final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
+            final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
+            final hasActiveShift = _checkShiftActive(currentShiftData);
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1044,7 +1202,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                               border: Border.all(color: const Color(0xFFE2E8F0)),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
+                                  color: Colors.black.withValues(alpha: 0.04),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -1105,9 +1263,15 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   ),
                   const SizedBox(height: 24),
 
+                  if (!hasActiveShift) ...[
+                    _buildShiftWarningBanner(sheetContext, effectiveBranchId),
+                    const SizedBox(height: 12),
+                  ],
+
                   // Button: PROSES PEMBAYARAN
                   ElevatedButton(
-                    onPressed: _isProcessing
+                    key: const Key('qris_sheet_process_button'),
+                    onPressed: _isProcessing || !hasActiveShift
                         ? null
                         : () async {
                             Navigator.pop(sheetContext);
@@ -1116,6 +1280,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF18181B),
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFF18181B).withValues(alpha: 0.4),
+                      disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
                       minimumSize: const Size.fromHeight(48),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -1133,6 +1299,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         );
       },
     );
+  },
+);
   }
 
   Widget _buildQrCodePattern() {
@@ -1174,8 +1342,17 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final bizState = ref.watch(businessProvider);
+            final effectiveBranchId = ctx.branchId ?? bizState.activeBranchId;
+            final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
+            final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
+            final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
+            final hasActiveShift = _checkShiftActive(currentShiftData);
+
+            return StatefulBuilder(
+              builder: (context, setSheetState) {
             final activeEwalletTiles = <Widget>[
               if (isShopeePayEnabled) _buildEwalletTile('ShopeePay', _buildShopeeBadge(), setSheetState, paymentMethods),
               if (isDanaEnabled) _buildEwalletTile('DANA', _buildDanaBadge(), setSheetState, paymentMethods),
@@ -1303,9 +1480,15 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                         const SizedBox(height: 24),
                       ],
 
+                      if (!hasActiveShift) ...[
+                        _buildShiftWarningBanner(sheetContext, effectiveBranchId),
+                        const SizedBox(height: 12),
+                      ],
+
                       // Button: PROSES PEMBAYARAN
                       ElevatedButton(
-                        onPressed: (_isProcessing || availableOptionIds.isEmpty)
+                        key: const Key('ewallet_sheet_process_button'),
+                        onPressed: (_isProcessing || availableOptionIds.isEmpty || !hasActiveShift)
                             ? null
                             : () async {
                                 Navigator.pop(sheetContext);
@@ -1314,6 +1497,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF18181B),
                           foregroundColor: Colors.white,
+                          disabledBackgroundColor: const Color(0xFF18181B).withValues(alpha: 0.4),
+                          disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
                           minimumSize: const Size.fromHeight(48),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
@@ -1333,6 +1518,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         );
       },
     );
+  },
+);
   }
 
   Widget _buildDynamicTileGrid(List<Widget> tiles, {int columns = 3}) {
@@ -1610,8 +1797,13 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     } catch (e) {
       if (!mounted) return;
       final errorStr = e.toString().toLowerCase();
-      if (errorStr.contains('shift kasir belum dibuka') || errorStr.contains('cash_shift')) {
-        _showOpenShiftPromptDialog(context);
+      if (errorStr.contains('shift kasir belum dibuka') ||
+          errorStr.contains('cash_shift') ||
+          errorStr.contains('shift belum dibuka') ||
+          errorStr.contains('shift_not_active')) {
+        final bizState = ref.read(businessProvider);
+        final effectiveBranchId = widget.paymentContext.branchId ?? bizState.activeBranchId;
+        _showQuickOpenShiftModal(context, effectiveBranchId);
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1627,63 +1819,21 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     }
   }
 
-  void _showOpenShiftPromptDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.lock_clock_rounded, color: AppColors.warning),
-            SizedBox(width: 8),
-            Text('Shift Kasir Belum Dibuka'),
-          ],
-        ),
-        content: const Text(
-          'Transaksi kasir memerlukan shift kasir yang aktif.\n\n'
-          'Silakan buka shift kasir terlebih dahulu untuk mencatat modal awal dan mengaktifkan laci kasir.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.obsidian,
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.meeting_room_rounded, size: 18),
-            label: const Text('Buka Shift Sekarang'),
-            onPressed: () {
-              Navigator.pop(ctx);
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => CashDrawerShiftModal(
-                  branchId: widget.paymentContext.branchId,
-                  onShiftUpdated: () {
-                    ref.invalidate(currentShiftProvider);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Shift kasir berhasil dibuka! Silakan lanjutkan konfirmasi pembayaran.'),
-                          backgroundColor: AppColors.success,
-                        ),
-                      );
-                    }
-                  },
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
+  String _normalizePaymentMethodDisplayName(String? name, String? code) {
+    final raw = (name ?? code ?? '').trim();
+    if (raw.isEmpty) return 'Tunai';
+    if (raw.contains('QRIS Dinamis / Statis') || raw.toUpperCase() == 'QRIS') {
+      return 'QRIS Dinamis';
+    }
+    return raw;
   }
 
   Widget _buildSuccessView(BuildContext context, PaymentResult result) {
-    final ctx = widget.paymentContext;
+    final methodCode = (result.paymentMethodCode ?? _selectedMethodCode).toUpperCase();
+    final rawMethodName = result.paymentMethodName ?? _selectedMethodName;
+    final displayMethodName = _normalizePaymentMethodDisplayName(rawMethodName, methodCode);
+    final isCash = methodCode == 'CASH' || rawMethodName.toLowerCase().contains('tunai');
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
@@ -1707,10 +1857,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.obsidian),
           ),
           const SizedBox(height: 6),
-          Text(
-            'Transaksi ${ctx.transactionTypeTitle} berhasil diselesaikan.',
+          const Text(
+            'Pembayaran sewa unit berhasil diselesaikan.',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 24),
           Container(
@@ -1737,7 +1887,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Metode Pembayaran', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    Text(result.paymentMethodName ?? _selectedMethodName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(displayMethodName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1748,7 +1898,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     Text(CurrencyFormatter.format(result.amountPaid), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.obsidian)),
                   ],
                 ),
-                if (result.cashReceived > 0) ...[
+                if (isCash) ...[
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1765,17 +1915,43 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       Text(CurrencyFormatter.format(result.cashChange), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.success)),
                     ],
                   ),
+                ] else ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Status', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'LUNAS OTOMATIS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.success,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ],
             ),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
+            key: const Key('print_payment_receipt_button'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.obsidian,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
             ),
             icon: const Icon(Icons.print_rounded, size: 18),
             label: const Text('Cetak Struk Transaksi (ESC/POS)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -1783,9 +1959,14 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
           ),
           const SizedBox(height: 10),
           OutlinedButton(
+            key: const Key('payment_success_done_button'),
             style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF18181B),
+              backgroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
             ),
             child: const Text('Selesai', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             onPressed: () => Navigator.pop(context, result),

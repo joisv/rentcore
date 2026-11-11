@@ -6,6 +6,7 @@ import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/providers/customer_provider.dart';
 import '../../inventory/providers/asset_provider.dart';
 import '../../organization/providers/organization_provider.dart';
+import '../../onboarding/providers/onboarding_provider.dart';
 import '../../transfers/providers/transfer_provider.dart';
 import '../../vouchers/providers/voucher_provider.dart';
 import '../data/auth_repository.dart';
@@ -239,6 +240,12 @@ class AuthNotifier extends Notifier<AuthState> {
         if (ref.exists(businessProvider)) {
           ref.read(businessProvider.notifier).reset();
         }
+        if (ref.exists(onboardingProvider)) {
+          try {
+            ref.read(onboardingProvider.notifier).reset();
+            ref.invalidate(onboardingProvider);
+          } catch (_) {}
+        }
         if (ref.exists(voucherProvider)) {
           try { ref.read(voucherProvider.notifier).reset(); } catch (_) {}
         }
@@ -274,7 +281,15 @@ class AuthNotifier extends Notifier<AuthState> {
         }
         state = const AuthState();
       }
-      rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+      try {
+        rootNavigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
+      } catch (e) {
+        debugPrint('[AuthProvider] logout navigation fallback: $e');
+        rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+      }
     }
   }
 }

@@ -257,8 +257,10 @@ class BusinessNotifier extends Notifier<BusinessState> {
     String? address,
     String? phone,
     List<String>? businessCategories,
+    String? branchStructure,
     String? initialBranchName,
     String? initialBranchCode,
+    int? pendingBusinessId,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
@@ -268,8 +270,10 @@ class BusinessNotifier extends Notifier<BusinessState> {
         address: address,
         phone: phone,
         businessCategories: businessCategories,
+        branchStructure: branchStructure,
         initialBranchName: initialBranchName,
         initialBranchCode: initialBranchCode,
+        pendingBusinessId: pendingBusinessId,
       );
 
       final list = await _repository.fetchBusinesses();
