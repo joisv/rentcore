@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/organization_provider.dart';
 
@@ -193,7 +194,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
   // --- TAB 1: Cabang & Outlets ---
   Widget _buildBranchesTab(OrganizationState state) {
     if (state.isLoading && state.branches.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.obsidian));
+      return const PhysicalUnitsTabSkeleton(count: 5);
     }
 
     if (state.error != null && state.branches.isEmpty) {
@@ -375,7 +376,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
   // --- TAB 2: Tim & Staf ---
   Widget _buildMembersTab(OrganizationState state) {
     if (state.isLoading && state.members.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.obsidian));
+      return const PhysicalUnitsTabSkeleton(count: 5);
     }
 
     if (state.error != null && state.members.isEmpty) {

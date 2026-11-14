@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/cashier_provider.dart';
 import 'pos_transaction_detail_sheet.dart';
@@ -93,7 +94,7 @@ class _FinancialActivityLedgerScreenState
           // Ledger Activity List
           Expanded(
             child: closingAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const PhysicalUnitsTabSkeleton(count: 5),
               error: (e, _) => Center(
                 child: Text(
                   'Gagal memuat buku kas: $e',

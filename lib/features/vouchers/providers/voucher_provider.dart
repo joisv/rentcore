@@ -46,11 +46,10 @@ class VoucherState {
 }
 
 class VoucherNotifier extends Notifier<VoucherState> {
-  late final VoucherRepository _repository;
+  VoucherRepository get _repository => ref.read(voucherRepositoryProvider);
 
   @override
   VoucherState build() {
-    _repository = ref.watch(voucherRepositoryProvider);
     ref.watch(businessProvider.select((s) => s.activeBusinessId));
     Future.microtask(() => loadVouchers());
     return const VoucherState();

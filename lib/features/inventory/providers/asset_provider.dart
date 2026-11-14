@@ -188,6 +188,10 @@ class PhysicalUnitsNotifier extends Notifier<PhysicalUnitsState> {
       );
     }
   }
+
+  void reset() {
+    state = const PhysicalUnitsState();
+  }
 }
 
 final physicalUnitsProvider =

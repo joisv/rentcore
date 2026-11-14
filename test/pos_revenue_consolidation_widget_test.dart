@@ -5,6 +5,7 @@ import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
 import 'package:rentcore_mobile/features/cashier/presentation/cashier_screen.dart';
 import 'package:rentcore_mobile/features/cashier/presentation/pos_transaction_detail_sheet.dart';
+import 'package:rentcore_mobile/features/cashier/presentation/revenue_report_screen.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
 
 class _MockCashierRepository extends CashierRepository {
@@ -232,7 +233,7 @@ void main() {
             posFilterBranchIdProvider.overrideWith(() => _TestPosFilterBranchIdNotifier(-1)), // Consolidated
           ],
           child: const MaterialApp(
-            home: CashierScreen(),
+            home: RevenueReportScreen(),
           ),
         ),
       );
@@ -244,10 +245,7 @@ void main() {
       expect(find.text('Semua Cabang (Konsolidasi)'), findsOneWidget);
       expect(find.text('Ganti'), findsOneWidget);
 
-      // 2. Tab 1: Shift Aktif is active
-      expect(find.text('Shift Aktif'), findsOneWidget);
-
-      // 3. Verify date filter chips rendered
+      // 2. Verify date filter chips rendered
       expect(find.text('Hari Ini'), findsOneWidget);
       expect(find.text('Kemarin'), findsOneWidget);
       expect(find.text('Bulan Ini'), findsOneWidget);

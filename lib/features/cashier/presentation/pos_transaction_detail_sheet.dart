@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../bookings/presentation/exchange_history_sheet.dart';
 import '../../bookings/presentation/exchange_wizard_screen.dart';
@@ -78,8 +79,9 @@ class PosTransactionDetailSheet extends ConsumerWidget {
           // Body
           Expanded(
             child: detailAsync.when(
-              loading: () =>
-                  _buildContent(context, ref, booking, isLoadingDeep: true),
+              loading: () => booking.isEmpty
+                  ? const DetailViewSkeleton()
+                  : _buildContent(context, ref, booking, isLoadingDeep: true),
               error: (_, _) => _buildContent(context, ref, booking),
               data: (deepData) => _buildContent(
                 context,

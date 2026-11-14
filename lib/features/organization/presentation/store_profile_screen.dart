@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
+import '../../onboarding/providers/onboarding_provider.dart';
 
 class StoreProfileScreen extends ConsumerStatefulWidget {
   const StoreProfileScreen({super.key});
@@ -82,6 +84,8 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
 
       await repo.updateBusiness(bizId, payload);
       await ref.read(businessProvider.notifier).refresh();
+      ref.invalidate(onboardingProvider);
+      ref.invalidate(storeChecklistProvider);
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -91,6 +95,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
             backgroundColor: AppColors.success,
           ),
         );
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
@@ -115,14 +120,15 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
     final currentBiz = bState.currentBusiness;
     final userRole = currentBiz?['role']?.toString().toLowerCase() ?? user?['role']?.toString().toLowerCase() ?? '';
     final isOwnerOrAdmin = userRole == 'owner' || userRole == 'admin' || isSuperAdmin;
+    final isInitialLoading = !_isInitLoaded || (bState.isLoading && bState.currentBusiness == null);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: const RentCoreAppBar(
         title: 'Profil Usaha & Toko',
       ),
-      body: !_isInitLoaded
-          ? const Center(child: CircularProgressIndicator(color: AppColors.obsidian))
+      body: isInitialLoading
+          ? const SettingsGroupSkeleton(groupCount: 1, itemsPerGroup: 4)
           : SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               child: Form(

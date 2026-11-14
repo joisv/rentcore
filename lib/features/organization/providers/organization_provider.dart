@@ -60,11 +60,10 @@ class OrganizationState {
 }
 
 class OrganizationNotifier extends Notifier<OrganizationState> {
-  late final AuthRepository _repository;
+  AuthRepository get _repository => ref.read(authRepositoryProvider);
 
   @override
   OrganizationState build() {
-    _repository = ref.watch(authRepositoryProvider);
     return const OrganizationState();
   }
 

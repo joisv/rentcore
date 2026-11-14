@@ -355,14 +355,14 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // Section Header
+        // Section Header + Quick Status Filter Bar
         expect(find.text('Antrean Sewa Cabang'), findsOneWidget);
-        expect(find.textContaining('Lihat Semua'), findsOneWidget);
-
-        // Tap 'Lihat Semua' navigates to Bookings tab (index 1)
-        await tester.tap(find.textContaining('Lihat Semua'));
-        await tester.pumpAndSettle();
-        expect(navigatedTab, 1);
+        expect(find.text('Semua'), findsOneWidget);
+        expect(find.text('Terlambat'), findsOneWidget);
+        expect(find.text('Hari Ini'), findsOneWidget);
+        expect(find.text('Booking'), findsOneWidget);
+        expect(find.text('Selesai'), findsOneWidget);
+        expect(navigatedTab, -1);
 
         // All 5 bookings rendered
         expect(find.text('RC-OVERDUE-01'), findsOneWidget);
@@ -400,12 +400,14 @@ void main() {
           reason: 'P4 Active must appear before P5 Completed',
         );
 
-        // Card Content & Status Pills
-        expect(find.text('TERLAMBAT'), findsOneWidget);
-        expect(find.text('JATUH TEMPO'), findsOneWidget);
-        expect(find.text('SIAP DIAMBIL'), findsOneWidget);
-        expect(find.text('LUNAS'), findsWidgets);
+        // Card Content & Status Pills (Antrean Sewa Cabang layout)
+        expect(find.textContaining('Terlambat '), findsOneWidget);
+        expect(find.text('Jatuh Tempo'), findsOneWidget);
+        expect(find.text('Siap Diambil'), findsOneWidget);
+        expect(find.textContaining('Sisa '), findsOneWidget);
         expect(find.text('SELESAI'), findsOneWidget);
+        expect(find.text('Total Tagihan'), findsNWidgets(5));
+        expect(find.textContaining('Batas sewa:'), findsNWidgets(5));
 
         // Action buttons
         expect(find.text('Rincian'), findsWidgets);

@@ -63,23 +63,28 @@ class PrinterState {
   }
 }
 
+final thermalPrinterServiceProvider = Provider<ThermalPrinterService>((ref) {
+  return ThermalPrinterService();
+});
+
 final printerProvider = NotifierProvider<PrinterNotifier, PrinterState>(() {
   return PrinterNotifier();
 });
 
 class PrinterNotifier extends Notifier<PrinterState> {
-  late final ThermalPrinterService _service;
+  ThermalPrinterService get _service => ref.read(thermalPrinterServiceProvider);
 
   @override
   PrinterState build() {
-    _service = ThermalPrinterService();
     Future.microtask(() => _init());
     return const PrinterState();
   }
 
   Future<void> _init() async {
     try {
+      if (!ref.mounted) return;
       final prefs = await SharedPreferences.getInstance();
+      if (!ref.mounted) return;
 
       // 1. Load saved customization settings
       final settingsJson = prefs.getString(_kPrinterSettingsKey);
@@ -117,6 +122,8 @@ class PrinterNotifier extends Notifier<PrinterState> {
         }
       }
 
+      if (!ref.mounted) return;
+
       // Fallback: if no saved device, check ThermalPrinterService current device
       device ??= _service.connectedDevice;
 
@@ -128,10 +135,12 @@ class PrinterNotifier extends Notifier<PrinterState> {
         } catch (_) {
           isActuallyConnected = false;
         }
+        if (!ref.mounted) return;
         device = device.copyWith(isConnected: isActuallyConnected);
       }
       _service.setConnectedDevice(device);
 
+      if (!ref.mounted) return;
       state = state.copyWith(
         settings: settings,
         connectedDevice: device,
@@ -449,5 +458,9 @@ class PrinterNotifier extends Notifier<PrinterState> {
       );
       return false;
     }
+  }
+
+  void reset() {
+    state = const PrinterState();
   }
 }

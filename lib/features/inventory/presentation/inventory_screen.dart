@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../auth/providers/business_provider.dart';
@@ -701,7 +702,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         // List Area
         Expanded(
           child: assetsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const PhysicalUnitsTabSkeleton(count: 5),
             error: (err, st) {
               return Center(
                 child: Padding(
@@ -1339,7 +1340,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
         Expanded(
           child: productsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const CatalogTabSkeleton(count: 4),
             error: (err, _) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),

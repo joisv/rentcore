@@ -38,13 +38,13 @@ class FloatingCapsuleDock extends StatelessWidget {
             index: 0,
             icon: Icons.dashboard_outlined,
             activeIcon: Icons.dashboard_rounded,
-            label: 'Home',
+            label: 'Beranda',
           ),
           _buildDockItem(
             index: 1,
-            icon: Icons.receipt_long_outlined,
-            activeIcon: Icons.receipt_long_rounded,
-            label: 'Sewa',
+            icon: Icons.analytics_outlined,
+            activeIcon: Icons.analytics_rounded,
+            label: 'Laporan',
           ),
           _buildDockItem(
             index: 2,

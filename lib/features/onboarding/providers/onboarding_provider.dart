@@ -34,16 +34,16 @@ class OnboardingState {
 }
 
 class OnboardingNotifier extends Notifier<OnboardingState> {
-  late final AuthRepository _repository;
+  AuthRepository get _repository => ref.read(authRepositoryProvider);
 
   @override
   OnboardingState build() {
-    _repository = ref.watch(authRepositoryProvider);
     Future.microtask(() => checkStatus());
     return const OnboardingState();
   }
 
   Future<void> checkStatus() async {
+    if (!ref.mounted) return;
     state = state.copyWith(isLoading: true);
     final user = ref.read(authProvider).user;
     final userId = user?['id']?.toString();
@@ -54,13 +54,17 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
     if (user != null && user['has_completed_walkthrough_v1'] == true) {
       completed = true;
     } else {
+      if (!ref.mounted) return;
       completed = await _repository.isWalkthroughCompleted(userId: userId);
     }
 
+    if (!ref.mounted) return;
     final draft = await _repository.loadWizardDraft(userId: userId);
     final step = draft['step'] as int? ?? 0;
+    if (!ref.mounted) return;
     final dismissed = await _repository.isChecklistDismissed(businessId);
 
+    if (!ref.mounted) return;
     state = state.copyWith(
       isLoading: false,
       hasCompletedWalkthrough: completed,
@@ -110,3 +114,6 @@ final onboardingProvider =
     NotifierProvider<OnboardingNotifier, OnboardingState>(
   OnboardingNotifier.new,
 );
+
+/// Alias for storeChecklistProvider
+final storeChecklistProvider = onboardingProvider;

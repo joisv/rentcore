@@ -119,7 +119,10 @@ class ProgressiveChecklistBanner extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
                           const Text(
                             'Panduan Persiapan Toko',
@@ -129,7 +132,6 @@ class ProgressiveChecklistBanner extends ConsumerWidget {
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 1),

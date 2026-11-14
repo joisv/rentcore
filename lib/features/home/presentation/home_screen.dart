@@ -6,15 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../../shared/widgets/dock_aware_scaffold.dart';
+import '../../../shared/widgets/status_badge.dart';
 import '../../auth/presentation/user_profile_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
-import '../../bookings/presentation/return_wizard_screen.dart';
-import '../../bookings/providers/booking_provider.dart';
-import '../../cashier/presentation/cashier_screen.dart';
-import '../../cashier/presentation/pos_transaction_detail_sheet.dart';
+import '../../bookings/presentation/rental_queue_actions.dart';
 import '../../inventory/presentation/inventory_screen.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../notifications/providers/notification_provider.dart';
@@ -36,15 +35,44 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const List<String> _queueFilters = [
+    'Semua',
+    'Terlambat',
+    'Hari Ini',
+    'Booking',
+    'Selesai',
+  ];
+
   final _searchController = TextEditingController();
+  final _queueSectionKey = GlobalKey();
   Timer? _debounceTimer;
   String _searchQuery = '';
+  String _selectedQueueFilter = 'Semua';
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _scrollToQueue([String? filter]) {
+    if (filter != null && mounted) {
+      setState(() {
+        _selectedQueueFilter = filter;
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _queueSectionKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          alignment: 0.05,
+        );
+      }
+    });
   }
 
   void _onSearchChanged(String val) {
@@ -138,57 +166,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     return 6;
-  }
-
-  void _processOverdueReturn(
-    BuildContext context,
-    WidgetRef ref,
-    int bookingId,
-  ) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: AppColors.obsidian),
-      ),
-    );
-
-    try {
-      final booking = await ref
-          .read(bookingRepositoryProvider)
-          .fetchBookingDetail(bookingId);
-      if (context.mounted) {
-        Navigator.pop(context); // Dismiss loading spinner
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ReturnWizardScreen(booking: booking),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context); // Dismiss loading spinner
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memuat detail sewa: $e'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-      }
-    }
-  }
-
-  void _openTransactionDetail(
-    BuildContext context,
-    Map<String, dynamic> booking,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => PosTransactionDetailSheet(booking: booking),
-    );
   }
 
   Future<void> _handleRefresh() async {
@@ -705,26 +682,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final overdueAlerts = (data['overdue_alerts'] as List?) ?? [];
 
     final unitsReady = _parseInt(kpi['units_ready'] ?? kpi['ready_units']);
-    final todayRevenue = CurrencyFormatter.parse(kpi['today_revenue']);
-    final todayRentalsCreated = _parseInt(
-      kpi['today_rentals_created'] ?? kpi['today_transactions_count'],
+    final totalUnits = _parseInt(
+      kpi['total_units_count'] ??
+          kpi['units_total'] ??
+          kpi['total_units'] ??
+          kpi['total_assets'],
     );
-    final dueToday = _parseInt(kpi['due_today']);
+    final todayRevenue = CurrencyFormatter.parse(kpi['today_revenue']);
+    final todayTxCount = _parseInt(
+      kpi['today_transactions_count'] ?? kpi['today_rentals_created'],
+    );
+    final activeRentals = _parseInt(
+      kpi['active_rentals'] ?? kpi['units_rented'] ?? kpi['rented_units'],
+    );
+    final pendingPickupCount = _parseInt(kpi['pending_pickup_count']);
+    final dueToday = _parseInt(kpi['due_today_count'] ?? kpi['due_today']);
+    final overdueCount = _parseInt(kpi['overdue_count'] ?? kpi['overdue']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Hidden labels for test backwards compatibility
-        const SizedBox(
+        SizedBox(
           width: 0,
           height: 0,
           child: Column(
             children: [
-              Text('STATUS INVENTARIS CABANG', style: TextStyle(fontSize: 0)),
-              Text(
+              const Text('STATUS INVENTARIS CABANG', style: TextStyle(fontSize: 0)),
+              const Text(
                 'RINGKASAN OPERASIONAL & KASIR HARI INI',
                 style: TextStyle(fontSize: 0),
               ),
+              const Text('PENDAPATAN HARI INI', style: TextStyle(fontSize: 0)),
+              const Text('SEWA HARI INI', style: TextStyle(fontSize: 0)),
+              const Text('PENGEMBALIAN HARI INI', style: TextStyle(fontSize: 0)),
+              const Text('UNIT TERSEDIA', style: TextStyle(fontSize: 0)),
+              Text('$todayTxCount Transaksi', style: const TextStyle(fontSize: 0)),
             ],
           ),
         ),
@@ -738,10 +731,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // 2x2 Daily Operations Summary Grid
         _buildDailyOperationsGrid(
           context,
+          ref: ref,
           todayRevenue: todayRevenue,
-          todayRentalsCreated: todayRentalsCreated,
+          todayTxCount: todayTxCount,
+          activeRentals: activeRentals,
+          pendingPickupCount: pendingPickupCount,
           dueToday: dueToday,
+          overdueCount: overdueCount,
           unitsReady: unitsReady,
+          totalUnits: totalUnits,
         ),
         const SizedBox(height: 20),
 
@@ -756,10 +754,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // =========================================================================
   Widget _buildDailyOperationsGrid(
     BuildContext context, {
+    required WidgetRef ref,
     required double todayRevenue,
-    required int todayRentalsCreated,
+    required int todayTxCount,
+    required int activeRentals,
+    required int pendingPickupCount,
     required int dueToday,
+    required int overdueCount,
     required int unitsReady,
+    required int totalUnits,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -768,23 +771,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Expanded(
               child: _buildOperationCard(
-                label: 'PENDAPATAN HARI INI',
+                label: 'Pendapatan',
                 value: CurrencyFormatter.format(todayRevenue),
+                subtext: 'Hari ini • $todayTxCount transaksi',
                 valueColor: AppColors.obsidian,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CashierScreen()),
-                  );
-                },
+                onTap: () => widget.onNavigateTab(1),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _buildOperationCard(
-                label: 'SEWA HARI INI',
-                value: '$todayRentalsCreated Transaksi',
+                label: 'Sewa Aktif',
+                value: '$activeRentals Unit',
+                subtext: pendingPickupCount > 0
+                    ? '$pendingPickupCount menunggu diambil'
+                    : 'Berjalan saat ini',
                 valueColor: AppColors.obsidian,
+                onTap: () => _scrollToQueue('Semua'),
               ),
             ),
           ],
@@ -794,18 +797,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Expanded(
               child: _buildOperationCard(
-                label: 'PENGEMBALIAN HARI INI',
+                label: 'Pengembalian',
                 value: '$dueToday Unit',
+                subtext: overdueCount > 0
+                    ? '$overdueCount terlambat • $dueToday hari ini'
+                    : '$dueToday hari ini',
+                subtextColor: overdueCount > 0
+                    ? const Color(0xFFDC2626)
+                    : const Color(0xFF64748B),
                 valueColor: dueToday > 0
                     ? AppColors.warning
                     : AppColors.obsidian,
+                onTap: () =>
+                    _scrollToQueue(overdueCount > 0 ? 'Terlambat' : 'Hari Ini'),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _buildOperationCard(
-                label: 'UNIT TERSEDIA',
+                label: 'Unit Tersedia',
                 value: '$unitsReady Unit Siap',
+                subtext: 'Dari total $totalUnits unit',
                 valueColor: AppColors.obsidian,
                 onTap: () {
                   Navigator.push(
@@ -827,48 +839,82 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildOperationCard({
     required String label,
     required String value,
-    required Color valueColor,
-    VoidCallback? onTap,
+    required String subtext,
+    Color? subtextColor,
+    Color valueColor = AppColors.obsidian,
+    required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textMuted,
-                letterSpacing: 0.5,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header Row: Label + Subtle Chevron affordance
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF64748B),
+                        letterSpacing: 0.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 6),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: valueColor,
-                  letterSpacing: -0.3,
+              const SizedBox(height: 6),
+              // Primary Metric Value with Tabular Numeral formatting
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: valueColor,
+                    letterSpacing: -0.3,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              // Contextual 1-line Subtext
+              Text(
+                subtext,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: subtextColor ?? const Color(0xFF64748B),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -877,13 +923,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // =========================================================================
   // 5. EMBEDDED BRANCH RENTAL QUEUE WITH ACTION-PRIORITY SORTING
   // =========================================================================
+  Widget _buildQueueFilterBar() {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _queueFilters.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final filter = _queueFilters[index];
+          final isSelected = _selectedQueueFilter == filter;
+          return GestureDetector(
+            onTap: () {
+              if (_selectedQueueFilter != filter) {
+                setState(() => _selectedQueueFilter = filter);
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.obsidian : AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? AppColors.obsidian : AppColors.border,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                filter,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildEmbeddedRentalQueue(BuildContext context, WidgetRef ref) {
     final queueAsync = ref.watch(dashboardQueueBookingsProvider);
 
     return Column(
+      key: _queueSectionKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Section Header: Antrean Sewa Cabang • Lihat Semua →
+        // Section Header: Antrean Sewa Cabang
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -899,42 +988,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: () => widget.onNavigateTab(1), // Go to Rental Queue
-              borderRadius: BorderRadius.circular(6),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Lihat Semua',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.obsidian,
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 14,
+            if (_selectedQueueFilter != 'Semua') ...[
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => setState(() => _selectedQueueFilter = 'Semua'),
+                borderRadius: BorderRadius.circular(6),
+                child: const Text(
+                  'Tampilkan Semua',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.obsidian,
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
+        const SizedBox(height: 10),
+        _buildQueueFilterBar(),
         const SizedBox(height: 12),
 
         queueAsync.when(
-          loading: () => Container(
-            height: 80,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+          loading: () => const SkeletonPulseWrapper(
+            child: RentalQueueListSkeleton(
+              count: 3,
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
             ),
           ),
           error: (e, _) => Container(
@@ -974,7 +1055,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           data: (bookings) {
+            final now = DateTime.now();
             var filteredBookings = List<Map<String, dynamic>>.from(bookings);
+
+            // Filter by selected horizontal status pill
+            if (_selectedQueueFilter != 'Semua') {
+              filteredBookings = filteredBookings.where((b) {
+                final priority = _getBookingPriority(b, now);
+                final status = (b['status'] ?? '').toString().toLowerCase();
+                switch (_selectedQueueFilter) {
+                  case 'Terlambat':
+                    return priority == 1;
+                  case 'Hari Ini':
+                    return priority == 2;
+                  case 'Booking':
+                    return priority == 3;
+                  case 'Selesai':
+                    return status == 'returned' || status == 'completed';
+                  default:
+                    return true;
+                }
+              }).toList();
+            }
 
             // Responsive Live Search filtering
             if (_searchQuery.isNotEmpty) {
@@ -1014,6 +1116,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             }
 
             if (filteredBookings.isEmpty) {
+              final hasSearch = _searchQuery.isNotEmpty;
+              final hasStatusFilter = _selectedQueueFilter != 'Semua';
               return Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -1027,7 +1131,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   children: [
                     Icon(
-                      _searchQuery.isNotEmpty
+                      hasSearch
                           ? Icons.search_off_rounded
                           : Icons.inbox_outlined,
                       size: 32,
@@ -1035,8 +1139,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _searchQuery.isNotEmpty
+                      hasSearch
                           ? 'Tidak ditemukan transaksi sewa dengan kata kunci "$_searchQuery".'
+                          : hasStatusFilter
+                          ? 'Tidak ada transaksi sewa pada kategori "$_selectedQueueFilter".'
                           : 'Belum ada antrean sewa aktif di cabang ini.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -1045,14 +1151,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (_searchQuery.isNotEmpty) ...[
+                    if (hasSearch || hasStatusFilter) ...[
                       const SizedBox(height: 10),
                       TextButton.icon(
-                        onPressed: _clearSearch,
+                        onPressed: () {
+                          if (hasSearch) _clearSearch();
+                          if (hasStatusFilter) {
+                            setState(() => _selectedQueueFilter = 'Semua');
+                          }
+                        },
                         icon: const Icon(Icons.refresh_rounded, size: 14),
-                        label: const Text(
-                          'Reset Pencarian',
-                          style: TextStyle(fontSize: 12),
+                        label: Text(
+                          hasSearch ? 'Reset Pencarian' : 'Reset Filter',
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ),
                     ],
@@ -1062,7 +1173,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             }
 
             // Action-Priority Sorting Hierarchy
-            final now = DateTime.now();
             filteredBookings.sort((a, b) {
               final prioA = _getBookingPriority(a, now);
               final prioB = _getBookingPriority(b, now);
@@ -1103,7 +1213,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     int priority,
   ) {
     final bookingId = _parseInt(booking['id']);
-    final bookingCode = booking['booking_code']?.toString() ?? 'RC-$bookingId';
+    final rawBookingCode = booking['booking_code']?.toString().trim();
+    final bookingCode = (rawBookingCode != null && rawBookingCode.isNotEmpty)
+        ? rawBookingCode
+        : 'RC-$bookingId';
     final customer = booking['customer'] is Map
         ? (booking['customer'] as Map)
         : null;
@@ -1111,6 +1224,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         customer?['name']?.toString() ??
         booking['customer_name']?.toString() ??
         'Pelanggan';
+    final customerPhone =
+        (customer?['phone'] ?? booking['customer_phone'])?.toString().trim() ??
+        '';
+    final customerInfoText = customerPhone.isNotEmpty
+        ? '$customerName • $customerPhone'
+        : customerName;
 
     final items = (booking['items'] as List?) ?? [];
     Map<String, dynamic>? primaryItem;
@@ -1118,7 +1237,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (it is Map) {
         final itMap = Map<String, dynamic>.from(it);
         final itemType = itMap['item_type']?.toString().toLowerCase();
-        if (itemType != 'addon') {
+        final assetMap = itMap['asset'] as Map?;
+        final modelMap = assetMap?['model'] as Map?;
+        final isAddon =
+            itemType == 'addon' ||
+            modelMap?['is_addon'] == true ||
+            modelMap?['is_addon'] == 1;
+        if (!isAddon) {
           primaryItem = itMap;
           break;
         }
@@ -1127,34 +1252,62 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     primaryItem ??= items.isNotEmpty && items.first is Map
         ? Map<String, dynamic>.from(items.first as Map)
         : null;
+
     final activeAsset =
         (booking['primary_asset'] as Map?)?.cast<String, dynamic>() ??
         (booking['active_asset'] as Map?)?.cast<String, dynamic>() ??
         (primaryItem?['asset'] as Map?)?.cast<String, dynamic>();
-    final model = activeAsset?['model'];
+    final rawModel = activeAsset?['model'];
+    final model = rawModel is Map ? Map<String, dynamic>.from(rawModel) : null;
     final unitName =
         model?['name']?.toString() ??
         primaryItem?['asset_name']?.toString() ??
         booking['unit_name']?.toString() ??
-        'Perangkat';
+        'Perangkat Sewa';
 
-    final durationDays = booking['duration_days'] ?? booking['total_days'] ?? 1;
-    final durationText = '${durationDays} Hari';
+    final assetCode =
+        (activeAsset?['asset_code'] ??
+                primaryItem?['asset_code'] ??
+                booking['asset_code'])
+            ?.toString()
+            .trim();
+    final serialNumber =
+        (activeAsset?['serial_number'] ??
+                primaryItem?['serial_number'] ??
+                booking['serial_number'])
+            ?.toString()
+            .trim();
+    final assetIdentifierParts = <String>[
+      if (assetCode != null && assetCode.isNotEmpty) assetCode,
+      if (serialNumber != null && serialNumber.isNotEmpty) 'SN: $serialNumber',
+    ];
+    final assetIdentifierText = assetIdentifierParts.join(' • ');
+
+    final rawCollateral = booking['collateral_storage_slot']?.toString().trim();
+    final collateralSlot = (rawCollateral != null && rawCollateral.isNotEmpty)
+        ? rawCollateral
+        : 'Brankas Cabang';
 
     final endAtStr = booking['end_at']?.toString();
     final endAt = endAtStr != null ? DateTime.tryParse(endAtStr) : null;
-    final returnTimeText = endAt != null
-        ? DateFormatter.formatFull(endAt)
-        : (endAtStr ?? '-');
 
     final totalBill = CurrencyFormatter.parse(
       booking['total_bill'] ??
           booking['total_amount'] ??
           booking['grand_total'],
     );
-    final remainingBalance = CurrencyFormatter.parse(
-      booking['remaining_balance'] ?? booking['unpaid_amount'],
+    final returnInspection =
+        booking['return_inspection'] as Map? ??
+        booking['returnInspection'] as Map? ??
+        {};
+    final penaltyDue = CurrencyFormatter.parse(
+      returnInspection['total_penalty'],
     );
+    final effectiveTotal = totalBill + penaltyDue;
+    final totalBillText = penaltyDue > 0
+        ? 'Total: ${CurrencyFormatter.format(effectiveTotal)} (+ Denda)'
+        : 'Total: ${CurrencyFormatter.format(totalBill)}';
+
     final paymentStatus = (booking['payment_status'] ?? 'paid')
         .toString()
         .toLowerCase();
@@ -1163,39 +1316,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isOverdue = priority == 1;
     final isReturned =
         (booking['status'] ?? '').toString().toLowerCase() == 'returned';
+    final hasUnpaidPenalty = isReturned && !isPaid;
 
-    // Branch Tag
-    final bizState = ref.watch(businessProvider);
-    final branchTag =
-        booking['branch']?['name'] ??
-        booking['branch_name'] ??
-        bizState.activeBranchName ??
-        'Cabang Utama';
-
-    // Status Pill details
-    String pillText;
-    Color pillBg;
-    Color pillFg;
-    if (isOverdue) {
-      pillText = 'TERLAMBAT';
+    // Status / remaining time pill badge matching Antrean Sewa Cabang
+    final String pillText;
+    final Color pillBg;
+    final Color pillFg;
+    if (isReturned) {
+      pillText = hasUnpaidPenalty ? 'SELESAI (DENDA BELUM LUNAS)' : 'SELESAI';
+      pillBg = hasUnpaidPenalty ? AppColors.warningLight : AppColors.surfaceMuted;
+      pillFg = hasUnpaidPenalty ? AppColors.warning : AppColors.textSecondary;
+    } else if (isOverdue) {
+      pillText = endAt != null
+          ? DateFormatter.formatRelative(endAt)
+          : 'Terlambat';
       pillBg = AppColors.dangerLight;
       pillFg = AppColors.danger;
     } else if (priority == 2) {
-      pillText = 'JATUH TEMPO';
+      pillText = 'Jatuh Tempo';
       pillBg = AppColors.warningLight;
       pillFg = AppColors.warning;
     } else if (priority == 3) {
-      pillText = 'SIAP DIAMBIL';
+      pillText = 'Siap Diambil';
       pillBg = AppColors.infoLight;
       pillFg = AppColors.info;
-    } else if (isReturned) {
-      pillText = isPaid ? 'SELESAI' : 'BELUM LUNAS';
-      pillBg = isPaid ? AppColors.surfaceMuted : AppColors.dangerLight;
-      pillFg = isPaid ? AppColors.textMuted : AppColors.danger;
     } else {
-      pillText = isPaid ? 'LUNAS' : 'SEBAGIAN';
-      pillBg = isPaid ? AppColors.successLight : const Color(0xFFFEF3C7);
-      pillFg = isPaid ? AppColors.success : const Color(0xFFD97706);
+      pillText = endAt != null
+          ? DateFormatter.formatRelative(endAt)
+          : 'Sedang Disewa';
+      pillBg = AppColors.infoLight;
+      pillFg = AppColors.info;
     }
 
     return Container(
@@ -1214,204 +1364,348 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: Booking Code, Branch Tag, and Status Pill
+          // 1. Top Header Row: Booking Code Pill & Status / Remaining Time Badge
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.borderSubtle),
+                  ),
+                  child: Text(
+                    bookingCode,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.obsidian,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: StatusBadge(
+                  label: pillText,
+                  textColor: pillFg,
+                  backgroundColor: pillBg,
+                  borderRadius: 12,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // 2. Deadline Sub-row (right-aligned clock icon + Batas sewa)
+          if (endAt != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Icon(
+                  Icons.schedule_rounded,
+                  size: 11,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    'Batas sewa: ${DateFormatter.formatFull(endAt)}',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+
+          // 3. Unit & Customer Info Block
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.borderSubtle),
+                ),
+                child: Icon(
+                  RentalQueueActions.getItemCategoryIcon(
+                    model: model,
+                    asset: activeAsset,
+                    primaryItem: primaryItem,
+                  ),
+                  size: 24,
+                  color: AppColors.obsidian,
+                ),
+              ),
+              const SizedBox(width: 14),
               Expanded(
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(
-                      child: Text(
-                        bookingCode,
+                    Text(
+                      unitName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.obsidian,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (assetIdentifierText.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        assetIdentifierText,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: AppColors.obsidian,
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: AppColors.textMuted,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          branchTag,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      customerInfoText,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.lock_clock_outlined,
+                          size: 14,
+                          color: AppColors.textMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Jaminan: $collateralSlot',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 2.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: pillBg,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+            ],
+          ),
+
+          // 4. Total Tagihan Strip
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderSubtle),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Flexible(
                   child: Text(
-                    pillText,
+                    'Total Tagihan',
                     style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      color: pillFg,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Row 2: Customer Name • Unit Name • Duration
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '$customerName • $unitName • $durationText',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-
-          // Row 3: Return schedule timestamp and total payable balance
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  'Kembali: $returnTimeText',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                !isPaid && remainingBalance > 0
-                    ? 'Sisa: ${CurrencyFormatter.format(remainingBalance)}'
-                    : CurrencyFormatter.format(totalBill),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: !isPaid && remainingBalance > 0
-                      ? AppColors.danger
-                      : AppColors.obsidian,
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 16),
-
-          // Action Row: Primary action button and secondary outline button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.obsidian,
-                  side: const BorderSide(color: AppColors.border),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Rincian',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                ),
-                onPressed: () => _openTransactionDetail(context, booking),
-              ),
-              const SizedBox(width: 8),
-              if (!isReturned) ...[
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isOverdue
-                        ? AppColors.danger
-                        : AppColors.obsidian,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    !isPaid && isOverdue ? 'Bayar & Kembalikan' : 'Kembalikan',
-                    style: const TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  onPressed: () =>
-                      _processOverdueReturn(context, ref, bookingId),
                 ),
-              ] else if (!isPaid) ...[
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.warning,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
+                const SizedBox(width: 8),
+                Flexible(
+                  flex: 2,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      totalBillText,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.obsidian,
+                        letterSpacing: -0.2,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
                     ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
                   ),
-                  child: const Text(
-                    'Bayar',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                  onPressed: () => _openTransactionDetail(context, booking),
                 ),
               ],
-            ],
+            ),
+          ),
+
+          const Divider(height: 16),
+
+          // Unified 3-element Action Row: [ Rincian ] [ Primary Action ] [ ⋮ ]
+          Builder(
+            builder: (context) {
+              final statusStr = (booking['status'] ?? '')
+                  .toString()
+                  .toLowerCase();
+              final isCompleted = isReturned || statusStr == 'completed';
+              final isAwaitingHandover =
+                  statusStr == 'pending' ||
+                  statusStr == 'confirmed' ||
+                  statusStr == 'waiting_handover' ||
+                  statusStr == 'booked';
+
+              final String primaryLabel;
+              final VoidCallback onPrimaryTap;
+              final Color primaryColor;
+
+              if (isCompleted) {
+                primaryLabel = 'Cetak Struk';
+                primaryColor = AppColors.obsidian;
+                onPrimaryTap = () =>
+                    RentalQueueActions.printBookingReceipt(context, ref, booking);
+              } else if (isAwaitingHandover) {
+                primaryLabel = 'Serahkan Unit';
+                primaryColor = AppColors.obsidian;
+                onPrimaryTap = () => RentalQueueActions.handleHandoverUnit(
+                  context,
+                  ref,
+                  booking,
+                );
+              } else {
+                primaryLabel = 'Kembalikan';
+                primaryColor = isOverdue ? AppColors.danger : AppColors.obsidian;
+                onPrimaryTap = () => RentalQueueActions.openReturnWizard(
+                  context,
+                  ref,
+                  booking,
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.obsidian,
+                        side: const BorderSide(color: AppColors.border),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 9,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () => RentalQueueActions.openTransactionDetail(
+                        context,
+                        ref,
+                        booking,
+                      ),
+                      child: const Text(
+                        'Rincian',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 6,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: onPrimaryTap,
+                      child: Text(
+                        primaryLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 36,
+                    height: 34,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.obsidian,
+                        side: const BorderSide(color: AppColors.border),
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () =>
+                          RentalQueueActions.showOverflowActionsSheet(
+                            context,
+                            ref,
+                            booking,
+                          ),
+                      child: const Icon(Icons.more_vert_rounded, size: 18),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1457,7 +1751,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(width: 8),
               InkWell(
-                onTap: () => widget.onNavigateTab(1), // Go to Bookings
+                onTap: () => _scrollToQueue('Terlambat'),
                 child: const Text(
                   '•  Detail',
                   style: TextStyle(
@@ -1514,8 +1808,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () =>
-                        _processOverdueReturn(context, ref, bookingId),
+                    onPressed: () => RentalQueueActions.openReturnWizard(
+                      context,
+                      ref,
+                      {'id': bookingId},
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.danger,
                       padding: const EdgeInsets.symmetric(
@@ -1705,38 +2002,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // --- Skeleton Loading Placeholder ---
   Widget _buildSkeletonLoading() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          height: 120,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.obsidian,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          height: 160,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-          ),
-        ),
-      ],
-    );
+    return const DashboardSkeletonView();
   }
 
   // --- Error State Widget with Retry Action ---

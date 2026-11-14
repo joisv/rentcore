@@ -193,6 +193,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('Shift Kasir & Jam Operasional'), findsOneWidget);
+    expect(find.text('Jam Operasional Shift'), findsOneWidget);
+    expect(find.text('Kasir & Tutup Buku Shift'), findsNothing);
   });
 }

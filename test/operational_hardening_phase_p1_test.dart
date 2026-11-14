@@ -44,12 +44,16 @@ void main() {
         ),
       );
 
-      // Verify all 5 tab items exist
+      // Verify all 4 tab items exist (inactive items render icon-only)
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing); // Active item (index 0) has filled icon
       expect(find.byIcon(Icons.dashboard_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
       expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      expect(find.text('Beranda'), findsOneWidget);
+      expect(find.text('Laporan'), findsNothing);
+      expect(find.text('Aset'), findsNothing);
+      expect(find.text('Pengaturan'), findsNothing);
 
       // Tap index 2 (Aset / Inventaris)
       await tester.tap(find.byIcon(Icons.inventory_2_outlined));
@@ -57,6 +61,7 @@ void main() {
 
       expect(selectedIndex, equals(2));
       expect(find.text('Aset'), findsOneWidget);
+      expect(find.text('Beranda'), findsNothing);
     });
   });
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/skeleton_loading.dart';
 import '../../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -172,7 +173,7 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
         title: 'Jadwal Operasional Shift',
       ),
       body: scheduleAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const SettingsGroupSkeleton(groupCount: 2, itemsPerGroup: 3),
         error: (err, stack) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

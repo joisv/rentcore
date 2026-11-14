@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/skeleton_loading.dart';
 import '../../providers/asset_provider.dart';
 
 /// Bottom sheet dialog to manage rental pricing tiers and duration options (Tarif Sewa).
@@ -97,9 +98,7 @@ class TarifSewaSheet extends ConsumerWidget {
               // Content Body
               Expanded(
                 child: productsAsync.when(
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(color: AppColors.obsidian),
-                  ),
+                  loading: () => const CatalogTabSkeleton(count: 4),
                   error: (err, _) => Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),

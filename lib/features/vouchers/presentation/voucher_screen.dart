@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
@@ -201,8 +202,8 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
           Expanded(
             child: Builder(
               builder: (context) {
-                if (voucherState.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                if (voucherState.isLoading && voucherState.vouchers.isEmpty) {
+                  return const CatalogTabSkeleton(count: 4);
                 }
 
                 if (voucherState.error != null) {

@@ -43,23 +43,29 @@ void main() {
           ),
         );
 
-        // Verify 4 dock items exist
-        expect(find.text('Home'), findsOneWidget);
-        expect(
-          find.text('Sewa'),
-          findsNothing,
-        ); // Unselected tabs don't show text label, only icon
+        // Verify 4 dock items exist with active-pill-only label behavior
+        expect(find.text('Beranda'), findsOneWidget);
+        expect(find.text('Laporan'), findsNothing);
+        expect(find.text('Aset'), findsNothing);
+        expect(find.text('Pengaturan'), findsNothing);
+        expect(find.text('Sewa'), findsNothing);
         expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
         expect(find.byIcon(Icons.dashboard_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
         expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
         expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
 
-        // Verify Voucher and old Kasir icons are completely removed from dock
+        // Verify Voucher, old Sewa, and old Kasir icons are removed from dock
+        expect(find.byIcon(Icons.receipt_long_outlined), findsNothing);
         expect(find.byIcon(Icons.confirmation_number_outlined), findsNothing);
         expect(find.byIcon(Icons.point_of_sale_outlined), findsNothing);
 
-        // Tap index 3 (Pengaturan)
+        // Tap index 1 (Laporan) by icon
+        await tester.tap(find.byIcon(Icons.analytics_outlined));
+        await tester.pumpAndSettle();
+        expect(selectedIndex, 1);
+
+        // Tap index 3 (Pengaturan) by icon
         await tester.tap(find.byIcon(Icons.settings_outlined));
         await tester.pumpAndSettle();
         expect(selectedIndex, 3);
@@ -110,8 +116,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(directRentalOpened, isTrue);
 
-        // 2. Return & Inventory shortcuts are removed from the dashboard body
-        expect(find.text('Pengembalian'), findsNothing);
+        // 2. Legacy Return & Inventory quick action shortcuts are removed from the dashboard body
+        expect(find.byIcon(Icons.assignment_return_outlined), findsNothing);
         expect(find.text('Inventaris'), findsNothing);
         expect(find.text('Transfer Unit'), findsNothing);
         expect(find.text('Voucher'), findsNothing);
@@ -158,7 +164,8 @@ void main() {
 
         expect(find.text('OPERASIONAL KASIR'), findsOneWidget);
         expect(find.text('Metode Pembayaran'), findsOneWidget);
-        expect(find.text('Shift Kasir & Jam Operasional'), findsOneWidget);
+        expect(find.text('Jam Operasional Shift'), findsOneWidget);
+        expect(find.text('Kasir & Tutup Buku Shift'), findsNothing);
         expect(find.text('Voucher & Promo'), findsOneWidget);
         expect(find.text('Printer Thermal'), findsOneWidget);
 

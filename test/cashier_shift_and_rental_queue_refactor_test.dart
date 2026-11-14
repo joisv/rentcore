@@ -291,7 +291,8 @@ void main() {
 
         // Quick Action Bar
         expect(find.text('+ Catat Beban Pengeluaran'), findsOneWidget);
-        expect(find.text('Tutup Shift & Closing'), findsOneWidget);
+        expect(find.text('Tutup Shift & Closing'), findsNothing);
+        expect(find.text('Tutup Shift'), findsOneWidget);
 
         // Verify no RenderFlex errors
         expect(tester.takeException(), isNull);
@@ -647,8 +648,8 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // Tap 'Tutup Shift & Closing'
-        await tester.tap(find.text('Tutup Shift & Closing'));
+        // Tap 'Tutup Shift' in sticky bottom bar
+        await tester.tap(find.text('Tutup Shift'));
         await tester.pumpAndSettle();
 
         // Verify CashDrawerShiftModal opened

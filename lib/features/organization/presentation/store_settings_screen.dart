@@ -6,7 +6,6 @@ import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/presentation/user_profile_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
-import '../../cashier/presentation/cashier_screen.dart';
 import '../../customers/presentation/customer_directory_screen.dart';
 import '../../printer/presentation/printer_settings_screen.dart';
 import '../../transfers/presentation/transfers_screen.dart';
@@ -77,139 +76,6 @@ class StoreSettingsScreen extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _openShiftMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Shift Kasir & Jam Operasional',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        size: 20,
-                        color: AppColors.textSecondary,
-                      ),
-                      onPressed: () => Navigator.pop(ctx),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: AppColors.border),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.obsidian.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.point_of_sale_outlined,
-                    color: AppColors.obsidian,
-                    size: 20,
-                  ),
-                ),
-                title: const Text(
-                  'Kasir & Tutup Buku Shift',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-                subtitle: const Text(
-                  'Pembayaran, kas & laci kasir',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                trailing: const Icon(
-                  Icons.chevron_right,
-                  size: 20,
-                  color: AppColors.textSecondary,
-                ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CashierScreen()),
-                  );
-                },
-              ),
-              const Divider(
-                height: 1,
-                indent: 56,
-                endIndent: 20,
-                color: AppColors.border,
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.obsidian.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.schedule_rounded,
-                    color: AppColors.obsidian,
-                    size: 20,
-                  ),
-                ),
-                title: const Text(
-                  'Jadwal & Jam Operasional Shift',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-                subtitle: const Text(
-                  'Atur jam buka, tutup & toleransi cabang',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                trailing: const Icon(
-                  Icons.chevron_right,
-                  size: 20,
-                  color: AppColors.textSecondary,
-                ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ShiftScheduleScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -411,9 +277,16 @@ class StoreSettingsScreen extends ConsumerWidget {
             _buildDivider(),
             _buildListTile(
               icon: Icons.schedule_rounded,
-              title: 'Shift Kasir & Jam Operasional',
-              subtitle: 'Buku kas & jam operasional',
-              onTap: () => _openShiftMenu(context),
+              title: 'Jam Operasional Shift',
+              subtitle: 'Atur jam buka, tutup & toleransi cabang',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ShiftScheduleScreen(),
+                  ),
+                );
+              },
             ),
             _buildDivider(),
             _buildListTile(

@@ -8,7 +8,7 @@ import 'features/auth/providers/business_provider.dart';
 import 'features/onboarding/presentation/business_setup_wizard_screen.dart';
 import 'features/onboarding/presentation/feature_walkthrough_screen.dart';
 import 'features/onboarding/providers/onboarding_provider.dart';
-import 'features/bookings/presentation/bookings_screen.dart';
+import 'features/cashier/presentation/financial_hub_screen.dart';
 import 'features/bookings/presentation/direct_rental_screen.dart';
 import 'features/home/presentation/home_screen.dart';
 import 'features/inventory/presentation/inventory_screen.dart';
@@ -185,7 +185,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
                     );
                   },
                 ),
-                const BookingsScreen(),
+                const FinancialHubScreen(),
                 const InventoryScreen(),
                 const StoreSettingsScreen(),
               ],

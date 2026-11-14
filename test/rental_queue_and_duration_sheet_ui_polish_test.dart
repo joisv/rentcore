@@ -234,7 +234,7 @@ void main() {
       expect(shape.borderRadius, BorderRadius.circular(12));
 
       // Verify Cost Breakdown elements
-      expect(find.text('Biaya Tambahan:'), findsOneWidget);
+      expect(find.textContaining('Biaya Tambahan ('), findsOneWidget);
       expect(find.text('Estimasi Total Tagihan Baru:'), findsOneWidget);
       expect(find.byType(Divider), findsAtLeastNWidgets(1));
 

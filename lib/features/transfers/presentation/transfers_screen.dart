@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -109,7 +110,7 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
           // Content List
           Expanded(
             child: transfersAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const PhysicalUnitsTabSkeleton(count: 5),
               error: (err, _) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),

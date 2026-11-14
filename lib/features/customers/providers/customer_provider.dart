@@ -53,11 +53,10 @@ class CustomerState {
 }
 
 class CustomerNotifier extends Notifier<CustomerState> {
-  late final CustomerRepository _repository;
+  CustomerRepository get _repository => ref.read(customerRepositoryProvider);
 
   @override
   CustomerState build() {
-    _repository = ref.watch(customerRepositoryProvider);
     ref.watch(businessProvider.select((s) => s.activeBusinessId));
     Future.microtask(() => loadCustomers(refresh: true));
     return const CustomerState();
@@ -213,6 +212,10 @@ class CustomerNotifier extends Notifier<CustomerState> {
       );
       return false;
     }
+  }
+
+  void reset() {
+    state = const CustomerState();
   }
 }
 

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/skeleton_loading.dart';
 import '../../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -432,7 +433,7 @@ class _PaymentMethodSettingsScreenState
             )
           : null,
       body: settingsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const SettingsGroupSkeleton(groupCount: 2, itemsPerGroup: 3),
         error: (err, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

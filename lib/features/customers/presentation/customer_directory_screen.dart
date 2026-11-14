@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/customer_provider.dart';
 import 'widgets/add_customer_sheet.dart';
@@ -175,7 +176,7 @@ class _CustomerDirectoryScreenState extends ConsumerState<CustomerDirectoryScree
 
   Widget _buildCustomerList(CustomerState state) {
     if (state.isLoading && state.customers.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.obsidian));
+      return const PhysicalUnitsTabSkeleton(count: 5);
     }
 
     if (state.error != null && state.customers.isEmpty) {

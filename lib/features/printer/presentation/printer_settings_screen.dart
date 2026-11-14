@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/thermal_printer_models.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/printer_provider.dart';
 import 'receipt_customization_screen.dart';
@@ -467,7 +468,56 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
         ),
         const SizedBox(height: 10),
 
-        if (state.discoveredDevices.isEmpty && !state.isScanning)
+        if (state.discoveredDevices.isEmpty && state.isScanning)
+          const SkeletonPulseWrapper(
+            child: Column(
+              children: [
+                SkeletonCard(
+                  margin: EdgeInsets.only(bottom: 8),
+                  padding: EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      SkeletonBox(width: 32, height: 32, borderRadius: 8),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonBox(width: 140, height: 13, borderRadius: 4),
+                            SizedBox(height: 4),
+                            SkeletonBox(width: 90, height: 11, borderRadius: 4),
+                          ],
+                        ),
+                      ),
+                      SkeletonBox(width: 68, height: 26, borderRadius: 6),
+                    ],
+                  ),
+                ),
+                SkeletonCard(
+                  margin: EdgeInsets.only(bottom: 8),
+                  padding: EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      SkeletonBox(width: 32, height: 32, borderRadius: 8),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonBox(width: 120, height: 13, borderRadius: 4),
+                            SizedBox(height: 4),
+                            SkeletonBox(width: 80, height: 11, borderRadius: 4),
+                          ],
+                        ),
+                      ),
+                      SkeletonBox(width: 68, height: 26, borderRadius: 6),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        else if (state.discoveredDevices.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(

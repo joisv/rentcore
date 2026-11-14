@@ -175,6 +175,9 @@ final currentShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
   return repo.fetchCurrentShift(branchId: effectiveBranchId);
 });
 
+/// Alias for activeShiftProvider
+final activeShiftProvider = currentShiftProvider;
+
 final currentShiftByBranchProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, int?>((
   ref,
   branchId,

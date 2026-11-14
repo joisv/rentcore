@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rentcore_mobile/features/auth/presentation/user_profile_screen.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/cashier_screen.dart';
 import 'package:rentcore_mobile/features/customers/presentation/customer_directory_screen.dart';
 import 'package:rentcore_mobile/features/organization/presentation/manage_organization_screen.dart';
 import 'package:rentcore_mobile/features/organization/presentation/payment_method_settings_screen.dart';
@@ -88,8 +87,10 @@ void main() {
       expect(find.text('OPERASIONAL KASIR'), findsOneWidget);
       expect(find.text('Metode Pembayaran'), findsOneWidget);
       expect(find.text('QRIS, Tunai, Bank & E-Wallet'), findsOneWidget);
-      expect(find.text('Shift Kasir & Jam Operasional'), findsOneWidget);
-      expect(find.text('Buku kas & jam operasional'), findsOneWidget);
+      expect(find.text('Jam Operasional Shift'), findsOneWidget);
+      expect(find.text('Atur jam buka, tutup & toleransi cabang'), findsOneWidget);
+      expect(find.text('Shift Kasir & Jam Operasional'), findsNothing);
+      expect(find.text('Kasir & Tutup Buku Shift'), findsNothing);
       expect(find.text('Voucher & Promo'), findsOneWidget);
       expect(find.text('Manajemen diskon & voucher sewa'), findsOneWidget);
       expect(find.text('Printer Thermal'), findsOneWidget);
@@ -140,7 +141,7 @@ void main() {
     );
 
     testWidgets(
-      'tapping Shift Kasir & Jam Operasional opens bottom sheet with both options',
+      'does not render redundant Cashier & Shift or Revenue Report links in Settings',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -149,16 +150,10 @@ void main() {
         await tester.pumpWidget(buildSettingsWidget());
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Shift Kasir & Jam Operasional'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('Kasir & Tutup Buku Shift'), findsOneWidget);
-        expect(find.text('Jadwal & Jam Operasional Shift'), findsOneWidget);
-
-        // Close bottom sheet
-        await tester.tap(find.byIcon(Icons.close_rounded));
-        await tester.pumpAndSettle();
         expect(find.text('Kasir & Tutup Buku Shift'), findsNothing);
+        expect(find.text('Shift Kasir & Jam Operasional'), findsNothing);
+        expect(find.text('Laporan Pendapatan'), findsNothing);
+        expect(find.text('Jam Operasional Shift'), findsOneWidget);
       },
     );
 
@@ -332,7 +327,7 @@ void main() {
       },
     );
 
-    testWidgets('navigates to CashierScreen from Shift bottom sheet', (
+    testWidgets('navigates directly to ShiftScheduleScreen from Jam Operasional Shift', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(1080, 2400);
@@ -342,30 +337,7 @@ void main() {
       await tester.pumpWidget(buildSettingsWidget());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Shift Kasir & Jam Operasional'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Kasir & Tutup Buku Shift'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-
-      expect(find.byType(CashierScreen), findsOneWidget);
-    });
-
-    testWidgets('navigates to ShiftScheduleScreen from Shift bottom sheet', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(buildSettingsWidget());
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Shift Kasir & Jam Operasional'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Jadwal & Jam Operasional Shift'));
+      await tester.tap(find.text('Jam Operasional Shift'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/skeleton_loading.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/bookings_screen.dart';
 import '../../bookings/providers/booking_provider.dart';
@@ -146,9 +147,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
 
   Widget _buildBody(NotificationState state) {
     if (state.isLoading && state.notifications.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.obsidian),
-      );
+      return const PhysicalUnitsTabSkeleton(count: 6);
     }
 
     if (state.errorMessage != null && state.notifications.isEmpty) {

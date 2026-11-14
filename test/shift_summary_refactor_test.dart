@@ -157,9 +157,7 @@ void main() {
       // 1. Verify Sentence Case Section Headers
       expect(find.text('Cakupan Kasir'), findsOneWidget);
       expect(find.text('Rekonsiliasi Kas Laci & Beban'), findsOneWidget);
-      expect(find.text('Sumber Pendapatan'), findsOneWidget);
       expect(find.text('Rincian Metode Pembayaran'), findsOneWidget);
-      expect(find.text('Kontribusi Omset per Cabang'), findsOneWidget);
       expect(find.text('Transaksi Terbaru (Audit Rincian)'), findsOneWidget);
 
       // Verify all-caps old labels are NOT present
@@ -174,32 +172,28 @@ void main() {
 
       // 3. Verify Cash Drawer Reconciliation structure & "+ Catat Beban Pengeluaran" button
       expect(find.text('Kas Masuk Bersih (Sistem)'), findsOneWidget);
+      expect(find.text('Total Kas Wajib di Laci'), findsOneWidget);
       expect(find.text('Total Fisik Kas Wajib di Laci'), findsOneWidget);
       expect(find.text('+ Catat Beban Pengeluaran'), findsOneWidget);
 
-      // 4. Verify Consolidated Revenue Sources list items inside a single card
-      expect(find.text('Sewa Kontrak Pokok'), findsOneWidget);
-      expect(find.text('Perpanjangan Sewa'), findsOneWidget);
-      expect(find.text('Denda Keterlambatan'), findsOneWidget);
-
-      // 5. Verify Consolidated Payment Methods
-      expect(find.text('Tunai (Cash)'), findsWidgets); // May appear in revenue card and payment methods
+      // 4. Verify Payment Methods in shift reconciliation
+      expect(find.text('Tunai (Cash)'), findsWidgets);
       expect(find.text('QRIS'), findsOneWidget);
       expect(find.text('Transfer Bank'), findsOneWidget);
 
-      // 6. Verify Sticky Bottom Navigation Bar buttons
-      expect(find.text('Cetak Struk Closing'), findsOneWidget);
+      // 5. Verify Sticky Bottom Navigation Bar buttons
+      expect(find.text('Cetak Struk'), findsOneWidget);
       expect(find.text('Tutup Shift'), findsOneWidget);
 
-      // 7. Verify single clean text link for Buku Kas Lengkap
+      // 6. Verify single clean text link for Buku Kas Lengkap
       expect(find.text('Buku Kas Lengkap'), findsOneWidget);
-      // Duplicate old button title is gone
       expect(find.text('Buku Kas Lengkap (Audit Ledger Finansial)'), findsNothing);
 
-      // 8. Verify compact filter chips
-      expect(find.text('Hari Ini'), findsOneWidget);
-      expect(find.text('Kemarin'), findsOneWidget);
-      expect(find.text('Bulan Ini'), findsOneWidget);
+      // 7. Verify Revenue Analytics & Redundant buttons cleanly moved out of Shift Aktif tab
+      expect(find.text('Sumber Pendapatan'), findsNothing);
+      expect(find.text('Kontribusi Omset per Cabang'), findsNothing);
+      expect(find.text('Keluar dari Akun Kasir'), findsNothing);
+      expect(find.text('Tutup Shift & Closing'), findsNothing);
     });
 
     testWidgets('Sticky Bottom Bar actions respond properly on standard 390x844 screen', (tester) async {
@@ -233,12 +227,15 @@ void main() {
 
       expect(tester.takeException(), isNull);
 
-      // Find bottom bar buttons
-      final printBtn = find.text('Cetak Struk Closing');
+      // Find inline closing action buttons and scroll into view on 390x844 screen
+      final printBtn = find.text('Cetak Struk');
       final closeShiftBtn = find.text('Tutup Shift');
 
       expect(printBtn, findsOneWidget);
       expect(closeShiftBtn, findsOneWidget);
+
+      await tester.ensureVisible(closeShiftBtn);
+      await tester.pumpAndSettle();
 
       // Tap Tutup Shift button -> should open CashDrawerShiftModal
       await tester.tap(closeShiftBtn);

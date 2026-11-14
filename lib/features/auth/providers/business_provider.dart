@@ -90,11 +90,10 @@ class BusinessState {
 }
 
 class BusinessNotifier extends Notifier<BusinessState> {
-  late final AuthRepository _repository;
+  AuthRepository get _repository => ref.read(authRepositoryProvider);
 
   @override
   BusinessState build() {
-    _repository = ref.watch(authRepositoryProvider);
     return const BusinessState();
   }
 
@@ -307,3 +306,6 @@ class BusinessNotifier extends Notifier<BusinessState> {
 }
 
 final businessProvider = NotifierProvider<BusinessNotifier, BusinessState>(BusinessNotifier.new);
+
+/// Alias for businessProfileProvider
+final businessProfileProvider = businessProvider;

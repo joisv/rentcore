@@ -2,10 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
+import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
+import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/home/data/dashboard_repository.dart';
 import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
 import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _FakeBookingRepository extends BookingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> fetchBookings({
+    String? status,
+    String? search,
+    int? branchId,
+    bool allBranches = false,
+  }) async => [];
+}
 
 class _CapturingDashboardRepository extends DashboardRepository {
   int? lastBranchId;
@@ -106,6 +118,7 @@ void main() {
           overrides: [
             businessProvider.overrideWith(() => _ActiveBusinessNotifier()),
             dashboardRepositoryProvider.overrideWithValue(capturingRepo),
+            bookingRepositoryProvider.overrideWithValue(_FakeBookingRepository()),
           ],
           child: MaterialApp(
             home: HomeScreen(
