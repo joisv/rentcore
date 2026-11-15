@@ -252,14 +252,7 @@ class _BusinessSetupWizardScreenState
                 tooltip: 'Kembali',
               )
             : null,
-        title: const Text(
-          'Inisialisasi Bisnis Rental',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-        ),
+        title: const Text('Inisialisasi Bisnis Rental'),
         centerTitle: true,
         actions: [
           if (_currentStep == 2)

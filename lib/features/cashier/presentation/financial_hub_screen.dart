@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import 'cashier_screen.dart';
 import 'revenue_report_screen.dart';
 
@@ -45,73 +46,69 @@ class _FinancialHubScreenState extends ConsumerState<FinancialHubScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: false,
+        automaticallyImplyLeading: false,
+        title: const Text('Laporan', style: AppTextStyles.pageHeader),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Container(
+            decoration: const BoxDecoration(
               color: AppColors.surface,
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Laporan',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.obsidian,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicator: BoxDecoration(
-                        color: AppColors.obsidian,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      dividerColor: Colors.transparent,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: AppColors.textSecondary,
-                      labelStyle: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                      unselectedLabelStyle: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                      tabs: const [
-                        Tab(height: 38, text: 'Pendapatan'),
-                        Tab(height: 38, text: 'Kasir & Shift'),
-                      ],
-                    ),
-                  ),
-                ],
+              border: Border(
+                bottom: BorderSide(color: AppColors.border, width: 1),
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
-            Expanded(
-              child: TabBarView(
+            padding: const EdgeInsets.fromLTRB(
+              AppTextStyles.pageHeaderHorizontalPadding,
+              0,
+              AppTextStyles.pageHeaderHorizontalPadding,
+              12,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: TabBar(
                 controller: _tabController,
-                children: const [
-                  RevenueReportView(embedded: true),
-                  CashierShiftView(embedded: true),
+                indicator: BoxDecoration(
+                  color: AppColors.obsidian,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: Colors.white,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+                tabs: const [
+                  Tab(height: 38, text: 'Pendapatan'),
+                  Tab(height: 38, text: 'Kasir & Shift'),
                 ],
               ),
             ),
-          ],
+          ),
         ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: const [
+          RevenueReportView(embedded: true),
+          CashierShiftView(embedded: true),
+        ],
       ),
     );
   }

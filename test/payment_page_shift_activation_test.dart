@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,11 +15,15 @@ class FakeCashierRepoForShiftTest extends CashierRepository {
   double? openedFloat;
   int? openedBranchId;
   int openShiftCallCount = 0;
+  Completer<Map<String, dynamic>>? pendingShiftCheck;
 
-  FakeCashierRepoForShiftTest({this.hasActiveShift = false});
+  FakeCashierRepoForShiftTest({this.hasActiveShift = false, this.pendingShiftCheck});
 
   @override
   Future<Map<String, dynamic>> fetchCurrentShift({int? branchId}) async {
+    if (pendingShiftCheck != null) {
+      return pendingShiftCheck!.future;
+    }
     if (hasActiveShift) {
       return {
         'has_active_shift': true,
@@ -104,14 +110,11 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // 1. Verify warning container is rendered
+        // 1. Verify compact single-line warning banner is rendered
         expect(find.byKey(const Key('shift_activation_warning_banner')), findsOneWidget);
-        expect(
-          find.text(
-            'Shift kasir belum dibuka. Buka shift agar pembayaran ini tercatat rapi di laporan laci kasir.',
-          ),
-          findsOneWidget,
-        );
+        expect(find.text('Shift kasir belum dibuka'), findsOneWidget);
+        expect(find.text('Buka Shift ›'), findsOneWidget);
+        expect(find.byIcon(Icons.info_outline_rounded), findsOneWidget);
         expect(find.byKey(const Key('open_shift_now_button')), findsOneWidget);
 
         // 2. Open detail sewa sheet
@@ -268,6 +271,120 @@ void main() {
 
         final activeProcessBtn = tester.widget<ElevatedButton>(find.byKey(const Key('cash_sheet_process_button')));
         expect(activeProcessBtn.onPressed, isNotNull);
+      },
+    );
+
+    testWidgets(
+      'Zero flash/blip while active shift check is loading and remains hidden when shift is already open',
+      (tester) async {
+        final shiftCompleter = Completer<Map<String, dynamic>>();
+        final fakeRepo = FakeCashierRepoForShiftTest(
+          hasActiveShift: true,
+          pendingShiftCheck: shiftCompleter,
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              cashierRepositoryProvider.overrideWithValue(fakeRepo),
+              paymentMethodsProvider.overrideWith(
+                (ref) => Future.value(defaultPaymentMethods),
+              ),
+              paymentSettingsProvider(1).overrideWith(
+                (ref) => Future.value({
+                  'config': {
+                    'cash_enabled': true,
+                    'qris_statis_enabled': true,
+                    'bank_transfer_enabled': true,
+                  },
+                }),
+              ),
+            ],
+            child: MaterialApp(
+              home: PaymentPage(paymentContext: testPaymentContext),
+            ),
+          ),
+        );
+
+        // Initial frame & intermediate loading frames: banner must remain hidden (zero blip)
+        expect(find.byKey(const Key('shift_activation_warning_banner')), findsNothing);
+        expect(find.text('Shift kasir belum dibuka'), findsNothing);
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(find.byKey(const Key('shift_activation_warning_banner')), findsNothing);
+        expect(find.text('Shift kasir belum dibuka'), findsNothing);
+
+        // Complete with an already-open shift
+        shiftCompleter.complete({
+          'has_active_shift': true,
+          'shift': {
+            'id': 10,
+            'shift_number': 'SHF-2026-001',
+            'status': 'open',
+            'opening_cash_float': 100000.0,
+          },
+        });
+        await tester.pumpAndSettle();
+
+        // Banner still must not appear
+        expect(find.byKey(const Key('shift_activation_warning_banner')), findsNothing);
+        expect(find.text('Shift kasir belum dibuka'), findsNothing);
+        expect(find.text('QRIS'), findsOneWidget);
+        expect(find.text('Tunai'), findsOneWidget);
+        expect(find.text('Lainnya'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Remains hidden during loading and shows compact single-line banner once unopened shift is confirmed',
+      (tester) async {
+        final shiftCompleter = Completer<Map<String, dynamic>>();
+        final fakeRepo = FakeCashierRepoForShiftTest(
+          hasActiveShift: false,
+          pendingShiftCheck: shiftCompleter,
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              cashierRepositoryProvider.overrideWithValue(fakeRepo),
+              paymentMethodsProvider.overrideWith(
+                (ref) => Future.value(defaultPaymentMethods),
+              ),
+              paymentSettingsProvider(1).overrideWith(
+                (ref) => Future.value({
+                  'config': {
+                    'cash_enabled': true,
+                    'qris_statis_enabled': true,
+                    'bank_transfer_enabled': true,
+                  },
+                }),
+              ),
+            ],
+            child: MaterialApp(
+              home: PaymentPage(paymentContext: testPaymentContext),
+            ),
+          ),
+        );
+
+        // Still loading -> hidden
+        expect(find.byKey(const Key('shift_activation_warning_banner')), findsNothing);
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(find.byKey(const Key('shift_activation_warning_banner')), findsNothing);
+
+        // Complete with unopened shift
+        shiftCompleter.complete({
+          'has_active_shift': false,
+          'shift': null,
+        });
+        await tester.pumpAndSettle();
+
+        // Compact single-line banner appears right above payment buttons
+        expect(find.byKey(const Key('shift_activation_warning_banner')), findsOneWidget);
+        expect(find.text('Shift kasir belum dibuka'), findsOneWidget);
+        expect(find.text('Buka Shift ›'), findsOneWidget);
+        final bannerRect = tester.getRect(find.byKey(const Key('shift_activation_warning_banner')));
+        final tunaiRect = tester.getRect(find.text('Tunai'));
+        expect(bannerRect.bottom, lessThan(tunaiRect.top));
       },
     );
   });

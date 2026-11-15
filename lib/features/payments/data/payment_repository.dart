@@ -111,6 +111,12 @@ class PaymentRepository {
           returnPayload['late_fee'] ??= amountToPay;
           returnPayload['total_penalty'] ??= amountToPay;
           returnPayload['penalty_amount'] ??= amountToPay;
+          if (context.extraPayload?['frp_cleared'] != null) {
+            returnPayload['frp_cleared'] ??= context.extraPayload!['frp_cleared'];
+          }
+          if (context.extraPayload?['account_removed'] != null) {
+            returnPayload['account_removed'] ??= context.extraPayload!['account_removed'];
+          }
           if (notes != null && notes.isNotEmpty) {
             returnPayload['staff_notes'] = notes;
           }
@@ -162,6 +168,8 @@ class PaymentRepository {
           paymentType: context.transactionType == PaymentTransactionType.penalty ? 'penalty' : 'settlement',
           cashReceived: isCash ? cashReceived : amountToPay,
           notes: notes,
+          frpCleared: context.extraPayload?['frp_cleared'] as bool?,
+          accountRemoved: context.extraPayload?['account_removed'] as bool?,
         );
 
         final payment = data['payment'] as Map?;

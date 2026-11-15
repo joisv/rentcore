@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/bookings_screen.dart';
@@ -27,68 +28,83 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     });
   }
 
+  Future<void> _markAllAsRead() async {
+    final scaffold = ScaffoldMessenger.of(context);
+    final success = await ref.read(notificationProvider.notifier).markAllAsRead();
+    if (success && mounted) {
+      scaffold.showSnackBar(
+        const SnackBar(
+          content: Text('Semua pemberitahuan telah ditandai sebagai dibaca.'),
+          duration: Duration(seconds: 2),
+          backgroundColor: AppColors.obsidian,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(notificationProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        titleSpacing: 4,
         title: Row(
           children: [
-            const Text(
-              'Pusat Pemberitahuan',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF111111)),
+              tooltip: 'Kembali',
+              onPressed: () => Navigator.maybePop(context),
             ),
-            if (state.unreadCount > 0) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.danger,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${state.unreadCount}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+            const Expanded(
+              child: Text(
+                'Notifikasi',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.pageHeader,
               ),
-            ],
+            ),
           ],
         ),
         actions: [
           if (state.unreadCount > 0)
-            TextButton.icon(
-              onPressed: () async {
-                final scaffold = ScaffoldMessenger.of(context);
-                final success = await ref.read(notificationProvider.notifier).markAllAsRead();
-                if (success && mounted) {
-                  scaffold.showSnackBar(
-                    const SnackBar(
-                      content: Text('Semua pemberitahuan telah ditandai sebagai dibaca.'),
-                      duration: Duration(seconds: 2),
-                      backgroundColor: AppColors.obsidian,
-                    ),
-                  );
-                }
-              },
-              icon: const Icon(Icons.done_all_rounded, size: 18, color: AppColors.obsidian),
-              label: const Text(
-                'Tandai Dibaca',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.obsidian),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: TextButton(
+                onPressed: _markAllAsRead,
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF111111),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'Tandai Dibaca',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111111),
+                  ),
+                ),
               ),
             ),
         ],
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: const Color(0xFF111111),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: _buildCategoryTabs(state),
+          preferredSize: const Size.fromHeight(53),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildCategoryTabs(state),
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+            ],
+          ),
         ),
       ),
       body: RefreshIndicator(
@@ -242,33 +258,32 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     }
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.only(top: 4, bottom: 40),
       children: [
         if (todayItems.isNotEmpty) ...[
           _buildDateHeader('Hari Ini'),
-          ...todayItems.map((item) => _buildNotificationCard(item)),
+          ...todayItems.map(_buildNotificationRow),
         ],
         if (yesterdayItems.isNotEmpty) ...[
           _buildDateHeader('Kemarin'),
-          ...yesterdayItems.map((item) => _buildNotificationCard(item)),
+          ...yesterdayItems.map(_buildNotificationRow),
         ],
         if (olderItems.isNotEmpty) ...[
           _buildDateHeader('Lebih Lama'),
-          ...olderItems.map((item) => _buildNotificationCard(item)),
+          ...olderItems.map(_buildNotificationRow),
         ],
-        const SizedBox(height: 40),
       ],
     );
   }
 
   Widget _buildDateHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 8, left: 4),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       child: Text(
         title.toUpperCase(),
         style: const TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           color: AppColors.textMuted,
           letterSpacing: 0.8,
         ),
@@ -276,206 +291,141 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     );
   }
 
-  Widget _buildNotificationCard(NotificationItem item) {
+  Widget _buildNotificationRow(NotificationItem item) {
     final isUnread = !item.isRead;
-    final categoryDetails = _getCategoryDetails(item.category, item.type);
+    final categoryIcon = _getCategoryIcon(item.category, item.type);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: isUnread ? Colors.white : AppColors.surface.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isUnread ? (categoryDetails['color'] as Color).withValues(alpha: 0.4) : AppColors.border,
-          width: isUnread ? 1.5 : 1.0,
-        ),
-        boxShadow: isUnread
-            ? [
-                BoxShadow(
-                  color: (categoryDetails['color'] as Color).withValues(alpha: 0.08),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ]
-            : null,
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          if (!item.isRead) {
-            ref.read(notificationProvider.notifier).markAsRead(item.id);
-          }
-          _handleAction(item);
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.white,
+          child: InkWell(
+            onTap: () {
+              if (!item.isRead) {
+                ref.read(notificationProvider.notifier).markAsRead(item.id);
+              }
+              _handleAction(item);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Category Icon Avatar
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: (categoryDetails['color'] as Color).withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      categoryDetails['icon'] as IconData,
+                      categoryIcon,
                       size: 20,
-                      color: categoryDetails['color'] as Color,
+                      color: const Color(0xFF111111),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // Title & Timestamp
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Text(
-                                item.title,
-                                style: TextStyle(
-                                  fontWeight: isUnread ? FontWeight.w800 : FontWeight.w700,
-                                  fontSize: 13,
-                                  color: AppColors.textPrimary,
+                              child: Text.rich(
+                                TextSpan(
+                                  text: item.title,
+                                  style: TextStyle(
+                                    fontWeight: isUnread ? FontWeight.w700 : FontWeight.w600,
+                                    fontSize: 13.5,
+                                    color: const Color(0xFF111111),
+                                    height: 1.3,
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: ' • ${item.timeAgo}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w400,
+                                        fontSize: 12,
+                                        color: Color(0xFF6B7280),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                             if (isUnread) ...[
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                               Container(
+                                margin: const EdgeInsets.only(top: 5),
                                 width: 8,
                                 height: 8,
                                 decoration: const BoxDecoration(
-                                  color: AppColors.info,
+                                  color: Color(0xFF111111),
                                   shape: BoxShape.circle,
                                 ),
                               ),
                             ],
                           ],
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
-                          item.timeAgo,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppColors.textMuted,
-                            fontWeight: FontWeight.w500,
+                          item.body,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isUnread
+                                ? const Color(0xFF1F2937)
+                                : const Color(0xFF6B7280),
+                            height: 1.4,
                           ),
                         ),
+                        if (_hasAction(item)) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            '${_getActionLabel(item)} ›',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111111),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              // Body message
-              Padding(
-                padding: const EdgeInsets.only(left: 48),
-                child: Text(
-                  item.body,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isUnread ? AppColors.textPrimary : AppColors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
-              ),
-              // Action Button if applicable
-              if (_hasAction(item)) ...[
-                const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.only(left: 48),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: categoryDetails['color'] as Color,
-                        side: BorderSide(color: (categoryDetails['color'] as Color).withValues(alpha: 0.5)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: () {
-                        if (!item.isRead) {
-                          ref.read(notificationProvider.notifier).markAsRead(item.id);
-                        }
-                        _handleAction(item);
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _getActionLabel(item),
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.arrow_forward_rounded, size: 12),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
-      ),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+      ],
     );
   }
 
-  Map<String, dynamic> _getCategoryDetails(String category, [String? type]) {
+  IconData _getCategoryIcon(String category, [String? type]) {
     if (type == 'rental.overdue') {
-      return {
-        'icon': Icons.alarm_on_rounded,
-        'color': const Color(0xFFE11D48), // Rose Red
-      };
+      return Icons.alarm_on_rounded;
     }
     if (type == 'inventory.low_stock') {
-      return {
-        'icon': Icons.warning_amber_rounded,
-        'color': const Color(0xFFD97706), // Amber
-      };
+      return Icons.warning_amber_rounded;
     }
 
     switch (category) {
       case 'transfer':
-        return {
-          'icon': Icons.swap_horiz_rounded,
-          'color': const Color(0xFF0284C7), // Sky Blue
-        };
+        return Icons.swap_horiz_rounded;
       case 'membership':
-        return {
-          'icon': Icons.badge_outlined,
-          'color': const Color(0xFFD97706), // Amber
-        };
+        return Icons.badge_outlined;
       case 'rental':
-        return {
-          'icon': Icons.assignment_outlined,
-          'color': const Color(0xFF6366F1), // Indigo
-        };
+        return Icons.assignment_outlined;
       case 'cashier':
-        return {
-          'icon': Icons.point_of_sale_rounded,
-          'color': const Color(0xFF059669), // Emerald
-        };
+        return Icons.point_of_sale_rounded;
       case 'inventory':
-        return {
-          'icon': Icons.inventory_2_outlined,
-          'color': const Color(0xFF0D9488), // Teal
-        };
+        return Icons.inventory_2_outlined;
       default:
-        return {
-          'icon': Icons.notifications_outlined,
-          'color': AppColors.obsidian,
-        };
+        return Icons.notifications_outlined;
     }
   }
 

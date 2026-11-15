@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
+import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
+import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
 import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
 
@@ -130,6 +132,7 @@ void main() {
               ),
             )),
             dashboardKpiProvider.overrideWith((ref) => Future.value(emptyDashboardData)),
+            bookingRepositoryProvider.overrideWithValue(_EmptyBookingRepo()),
           ],
           child: MaterialApp(
             home: HomeScreen(
@@ -142,17 +145,23 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Check header greeting and role badge
-      expect(find.text('PEMILIK (OWNER)'), findsOneWidget);
-      expect(find.textContaining('Alex Boss'), findsOneWidget);
+      // Check minimalist two-line header displays store name & consolidated branch selector
+      expect(find.text('SkyRental Studio'), findsOneWidget);
+      expect(find.text('Semua Cabang'), findsOneWidget);
+      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
 
       // Check prominent consolidated banner
       expect(find.text('KONSOLIDASI'), findsOneWidget);
-      expect(find.text('SkyRental Studio'), findsWidgets);
       expect(find.textContaining('Mode Konsolidasi'), findsOneWidget);
+
+      // Open left two-line menu sheet to check user profile & role badge
+      await tester.tap(find.byKey(const Key('home_header_menu_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('OWNER'), findsOneWidget);
+      expect(find.text('Alex Boss'), findsOneWidget);
     });
 
-    testWidgets('Displays CABANG UTAMA badge when central branch is active', (tester) async {
+    testWidgets('Displays ADMIN role in menu sheet and central branch header when central branch is active', (tester) async {
       final adminBusiness = Map<String, dynamic>.from(sampleBusiness)..['role'] = 'admin';
 
       await tester.pumpWidget(
@@ -174,6 +183,7 @@ void main() {
               ),
             )),
             dashboardKpiProvider.overrideWith((ref) => Future.value(emptyDashboardData)),
+            bookingRepositoryProvider.overrideWithValue(_EmptyBookingRepo()),
           ],
           child: MaterialApp(
             home: HomeScreen(
@@ -186,12 +196,17 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('ADMIN USAHA'), findsOneWidget);
-      expect(find.text('CABANG UTAMA'), findsOneWidget);
+      expect(find.text('SkyRental Studio'), findsOneWidget);
       expect(find.text('Cabang Utama Jakarta'), findsOneWidget);
+      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('home_header_menu_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('ADMIN'), findsOneWidget);
+      expect(find.text('Budi Manager'), findsOneWidget);
     });
 
-    testWidgets('Displays SUB-CABANG badge when non-central branch is active', (tester) async {
+    testWidgets('Displays KASIR role in menu sheet and sub-branch header when non-central branch is active', (tester) async {
       final staffBusiness = Map<String, dynamic>.from(sampleBusiness)..['role'] = 'staff';
 
       await tester.pumpWidget(
@@ -213,6 +228,7 @@ void main() {
               ),
             )),
             dashboardKpiProvider.overrideWith((ref) => Future.value(emptyDashboardData)),
+            bookingRepositoryProvider.overrideWithValue(_EmptyBookingRepo()),
           ],
           child: MaterialApp(
             home: HomeScreen(
@@ -225,9 +241,14 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('STAFF KASIR'), findsOneWidget);
-      expect(find.text('SUB-CABANG'), findsOneWidget);
+      expect(find.text('SkyRental Studio'), findsOneWidget);
       expect(find.text('Cabang Depok'), findsOneWidget);
+      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('home_header_menu_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('KASIR'), findsOneWidget);
+      expect(find.text('Siti Staff'), findsOneWidget);
     });
 
     testWidgets('Displays diagnostic error card on business sync failure without false onboarding banner', (tester) async {
@@ -286,4 +307,15 @@ class _StaticBusinessNotifier extends BusinessNotifier {
 
   @override
   BusinessState build() => _initial;
+}
+
+class _EmptyBookingRepo extends BookingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> fetchBookings({
+    String? status,
+    String? search,
+    int? branchId,
+    bool allBranches = false,
+  }) async =>
+      const [];
 }

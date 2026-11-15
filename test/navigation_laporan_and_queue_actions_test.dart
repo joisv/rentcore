@@ -208,31 +208,27 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Initially Tab 0 (Beranda) shows active pill label; inactive tabs show icon-only
-        expect(find.text('Beranda'), findsOneWidget);
-        expect(find.text('Aset'), findsNothing);
-        expect(find.text('Pengaturan'), findsNothing);
-        expect(find.text('Sewa'), findsNothing);
-        expect(find.byIcon(Icons.dashboard_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
-        expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
-        expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
-
-        // Tap Tab 2 icon -> highlights [ Laporan ] pill and opens FinancialHubScreen
-        await tester.tap(find.byIcon(Icons.analytics_outlined));
-        await tester.pumpAndSettle();
-
-        expect(currentIndex, 1);
-        expect(find.byIcon(Icons.analytics_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.dashboard_outlined), findsOneWidget);
-        expect(find.text('Beranda'), findsNothing);
+        // Initially Tab 0 (Beranda) shows filled home icon; inactive tabs show outlined icons with zero text
         expect(
           find.descendant(
             of: find.byType(FloatingCapsuleDock),
-            matching: find.text('Laporan'),
+            matching: find.byType(Text),
           ),
-          findsOneWidget,
+          findsNothing,
         );
+        expect(find.byIcon(Icons.home_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+
+        // Tap Tab 2 icon -> activates Laporan filled icon and opens FinancialHubScreen
+        await tester.tap(find.byIcon(Icons.receipt_long_outlined));
+        await tester.pumpAndSettle();
+
+        expect(currentIndex, 1);
+        expect(find.byIcon(Icons.receipt_long_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.home_outlined), findsOneWidget);
         expect(find.byType(FinancialHubScreen), findsOneWidget);
         expect(find.text('Pendapatan'), findsOneWidget);
         expect(find.text('Kasir & Shift'), findsOneWidget);
@@ -331,13 +327,13 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // All 5 filter pills & + Sewa Baru FAB visible
+        // All 5 filter pills visible; duplicate Sewa Baru FAB removed from HomeScreen
         expect(find.text('Semua'), findsOneWidget);
         expect(find.text('Terlambat'), findsOneWidget);
         expect(find.text('Hari Ini'), findsOneWidget);
         expect(find.text('Booking'), findsOneWidget);
         expect(find.text('Selesai'), findsOneWidget);
-        expect(find.widgetWithText(FloatingActionButton, 'Sewa Baru'), findsOneWidget);
+        expect(find.widgetWithText(FloatingActionButton, 'Sewa Baru'), findsNothing);
 
         // 3 primary actions corresponding to statuses on initial 'Semua' list
         expect(find.text('Rincian'), findsNWidgets(3));

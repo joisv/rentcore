@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rentcore_mobile/features/auth/presentation/user_profile_screen.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
+import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
+import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
 import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
+import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
 import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
+import 'package:rentcore_mobile/main.dart';
 import 'package:rentcore_mobile/shared/widgets/floating_capsule_dock.dart';
 
 void main() {
@@ -26,11 +30,12 @@ void main() {
     'overdue_list': [],
   };
 
-  group('FloatingCapsuleDock 4-Tab Navigation Tests', () {
+  group('FloatingCapsuleDock 5-Slot Icon-Only Navigation Tests', () {
     testWidgets(
-      'renders exactly 4 navigation items and Pengaturan at index 3',
+      'renders 4 tab icons + centered squircle + action with zero text labels and white surface',
       (tester) async {
         int selectedIndex = 0;
+        bool addTapped = false;
 
         await tester.pumpWidget(
           MaterialApp(
@@ -38,30 +43,31 @@ void main() {
               bottomNavigationBar: FloatingCapsuleDock(
                 currentIndex: selectedIndex,
                 onTabSelected: (idx) => selectedIndex = idx,
+                onAddTap: () => addTapped = true,
               ),
             ),
           ),
         );
 
-        // Verify 4 dock items exist with active-pill-only label behavior
-        expect(find.text('Beranda'), findsOneWidget);
-        expect(find.text('Laporan'), findsNothing);
-        expect(find.text('Aset'), findsNothing);
-        expect(find.text('Pengaturan'), findsNothing);
-        expect(find.text('Sewa'), findsNothing);
-        expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
-        expect(find.byIcon(Icons.dashboard_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
+        // Verify zero text labels exist inside the bottom navigation bar
+        expect(
+          find.descendant(
+            of: find.byType(FloatingCapsuleDock),
+            matching: find.byType(Text),
+          ),
+          findsNothing,
+        );
+
+        // Verify 5-slot icons: active Home filled, others outlined, plus centered add button
+        expect(find.byIcon(Icons.home_outlined), findsNothing);
+        expect(find.byIcon(Icons.home_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.add_rounded), findsOneWidget);
         expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
         expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
 
-        // Verify Voucher, old Sewa, and old Kasir icons are removed from dock
-        expect(find.byIcon(Icons.receipt_long_outlined), findsNothing);
-        expect(find.byIcon(Icons.confirmation_number_outlined), findsNothing);
-        expect(find.byIcon(Icons.point_of_sale_outlined), findsNothing);
-
         // Tap index 1 (Laporan) by icon
-        await tester.tap(find.byIcon(Icons.analytics_outlined));
+        await tester.tap(find.byIcon(Icons.receipt_long_outlined));
         await tester.pumpAndSettle();
         expect(selectedIndex, 1);
 
@@ -69,19 +75,107 @@ void main() {
         await tester.tap(find.byIcon(Icons.settings_outlined));
         await tester.pumpAndSettle();
         expect(selectedIndex, 3);
+
+        // Tap center + action button
+        await tester.tap(find.byKey(const Key('nav_center_add_button')));
+        await tester.pumpAndSettle();
+        expect(addTapped, isTrue);
+      },
+    );
+
+    testWidgets(
+      'MainShellScreen switches across all 4 tabs and opens DirectRentalScreen in modal bottom sheet from any tab',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              dashboardKpiProvider.overrideWith(
+                (ref) => Future.value(fakeDashboardData),
+              ),
+              readyAssetsProvider.overrideWith((ref) => Future.value([])),
+              categoriesProvider.overrideWith((ref) => Future.value([])),
+            ],
+            child: const MaterialApp(
+              home: MainShellScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 250));
+
+        // Tab 0 (Beranda) active initially
+        expect(find.byIcon(Icons.home_rounded), findsOneWidget);
+        expect(find.byType(FloatingActionButton), findsNothing);
+
+        // Switch to Tab 1 (Laporan) and open center + bottom sheet
+        await tester.tap(find.byIcon(Icons.receipt_long_outlined));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(find.byIcon(Icons.receipt_long_rounded), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('nav_center_add_button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byType(DraggableScrollableSheet), findsOneWidget);
+        expect(find.byType(DirectRentalScreen), findsOneWidget);
+        expect(find.text('Sewa / Booking Baru'), findsOneWidget);
+        expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+
+        // Verify full-screen 100% height coverage above bottom navigation bar
+        final sheet = tester.widget<DraggableScrollableSheet>(
+          find.byType(DraggableScrollableSheet),
+        );
+        expect(sheet.initialChildSize, 1.0);
+        expect(sheet.maxChildSize, 1.0);
+        expect(sheet.expand, isTrue);
+        final sheetRect = tester.getRect(find.byType(DraggableScrollableSheet));
+        final screenRect = tester.getRect(find.byType(MainShellScreen));
+        expect(sheetRect.height, closeTo(screenRect.height, 1.0));
+
+        // Dismiss sheet cleanly via the close (X) button
+        await tester.tap(find.byKey(const Key('new_booking_modal_close_button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byType(DirectRentalScreen), findsNothing);
+
+        await tester.tap(find.byIcon(Icons.inventory_2_outlined));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(find.byIcon(Icons.inventory_2_rounded), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.settings_outlined));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
+
+        // Open center + bottom sheet from Tab 3 (Pengaturan) and dismiss via swipe-down gesture
+        await tester.tap(find.byKey(const Key('nav_center_add_button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byType(DirectRentalScreen), findsOneWidget);
+        await tester.fling(
+          find.text('Sewa / Booking Baru'),
+          const Offset(0, 600),
+          1200,
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byType(DirectRentalScreen), findsNothing);
       },
     );
   });
 
   group('HomeScreen Header & Quick Actions Cleanup Tests', () {
     testWidgets(
-      'renders New Rental FAB, branch switcher icon in header, and removes Return/Inventory shortcuts',
+      'removes duplicate Sewa Baru FAB, uses bottom: 24 scroll padding, and removes Return/Inventory shortcuts',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.resetPhysicalSize);
-
-        bool directRentalOpened = false;
 
         await tester.pumpWidget(
           ProviderScope(
@@ -94,9 +188,6 @@ void main() {
               home: Scaffold(
                 body: HomeScreen(
                   onNavigateTab: (_) {},
-                  onOpenDirectRental: () {
-                    directRentalOpened = true;
-                  },
                 ),
               ),
             ),
@@ -104,17 +195,15 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 1. FAB: FloatingActionButton.extended with 'Sewa Baru' exists and triggers onOpenDirectRental
-        expect(find.byType(FloatingActionButton), findsOneWidget);
-        expect(
-          find.widgetWithText(FloatingActionButton, 'Sewa Baru'),
-          findsOneWidget,
+        // 1. Duplicate '+ Sewa Baru' FAB is removed from Dashboard
+        expect(find.byType(FloatingActionButton), findsNothing);
+        expect(find.text('Sewa Baru'), findsNothing);
+
+        // Scroll padding uses bottom: 24
+        final scrollView = tester.widget<SingleChildScrollView>(
+          find.byType(SingleChildScrollView).first,
         );
-        await tester.tap(
-          find.widgetWithText(FloatingActionButton, 'Sewa Baru'),
-        );
-        await tester.pumpAndSettle();
-        expect(directRentalOpened, isTrue);
+        expect((scrollView.padding! as EdgeInsets).bottom, 24.0);
 
         // 2. Legacy Return & Inventory quick action shortcuts are removed from the dashboard body
         expect(find.byIcon(Icons.assignment_return_outlined), findsNothing);
@@ -140,6 +229,68 @@ void main() {
           find.text('Belum Terhubung ke Usaha Rental'),
           findsOneWidget,
         ); // Empty business selector sheet opens
+      },
+    );
+
+    testWidgets(
+      'Threads-style header exposes left menu sheet, notification bell navigation, and expandable inline search',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              dashboardKpiProvider.overrideWith(
+                (ref) => Future.value(fakeDashboardData),
+              ),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: HomeScreen(onNavigateTab: (_) {}),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Search input is collapsed initially
+        expect(
+          find.text('Cari kode booking, penyewa, atau no. telp...'),
+          findsNothing,
+        );
+
+        // Tap search trigger in top-right header -> reveals auto-focused input
+        await tester.tap(find.byKey(const Key('home_header_search_button')));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Cari kode booking, penyewa, atau no. telp...'),
+          findsOneWidget,
+        );
+
+        // Tap close/clear button -> collapses inline search bar
+        await tester.tap(find.byKey(const Key('home_search_close_button')));
+        await tester.pumpAndSettle();
+        expect(find.byType(TextField), findsNothing);
+
+        // Tap left two-line menu button -> opens account menu bottom sheet
+        await tester.tap(find.byKey(const Key('home_header_menu_button')));
+        await tester.pumpAndSettle();
+        expect(find.text('Kasir'), findsOneWidget);
+        expect(find.text('Ganti Usaha / Cabang'), findsOneWidget);
+        expect(find.text('Profil Pengguna'), findsOneWidget);
+        expect(find.text('Keluar Akun'), findsOneWidget);
+
+        // Close menu sheet
+        Navigator.of(tester.element(find.text('Keluar Akun'))).pop();
+        await tester.pumpAndSettle();
+
+        // Tap notification bell -> opens NotificationCenterScreen
+        await tester.tap(find.byTooltip('Pusat Pemberitahuan'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(find.text('Notifikasi'), findsOneWidget);
       },
     );
   });

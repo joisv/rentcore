@@ -95,6 +95,8 @@ class CashierRepository {
     String? paymentType,
     String? notes,
     String? idempotencyKey,
+    bool? frpCleared,
+    bool? accountRemoved,
   }) async {
     final payload = <String, dynamic>{
       'booking_id': bookingId,
@@ -105,6 +107,8 @@ class CashierRepository {
     if (paymentType != null) payload['payment_type'] = paymentType;
     if (notes != null) payload['notes'] = notes;
     if (idempotencyKey != null) payload['idempotency_key'] = idempotencyKey;
+    if (frpCleared != null) payload['frp_cleared'] = frpCleared;
+    if (accountRemoved != null) payload['account_removed'] = accountRemoved;
 
     final headers = <String, dynamic>{};
     if (idempotencyKey != null) headers['X-Idempotency-Key'] = idempotencyKey;

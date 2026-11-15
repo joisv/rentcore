@@ -5,11 +5,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:rentcore_mobile/core/constants/app_colors.dart';
+import 'package:rentcore_mobile/core/theme/app_text_styles.dart';
 import 'package:rentcore_mobile/core/theme/app_theme.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
+import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
+import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
 import 'package:rentcore_mobile/features/cashier/presentation/cashier_screen.dart';
+import 'package:rentcore_mobile/features/cashier/presentation/financial_hub_screen.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
+import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
+import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
+import 'package:rentcore_mobile/features/notifications/presentation/notification_center_screen.dart';
+import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
+import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
+import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
 import 'package:rentcore_mobile/shared/widgets/rentcore_app_bar.dart';
 
 class _MockCashierRepository extends CashierRepository {
@@ -241,4 +251,157 @@ void main() {
       expect(find.text('Test Print Struk Kasir'), findsNothing);
     });
   });
+
+  group('Unified Page Header Typography & Alignment Tests', () {
+    void expectMatchesBaselineHeaderStyle(TextStyle? style) {
+      expect(style?.fontSize, AppTextStyles.pageHeader.fontSize);
+      expect(style?.fontWeight, AppTextStyles.pageHeader.fontWeight);
+      expect(style?.letterSpacing, AppTextStyles.pageHeader.letterSpacing);
+      expect(style?.color, AppTextStyles.pageHeader.color);
+    }
+
+    test('AppTheme appBarTheme uses AppTextStyles.pageHeader baseline tokens', () {
+      expect(AppTextStyles.pageHeader.fontSize, 17.0);
+      expect(AppTextStyles.pageHeader.fontWeight, FontWeight.w800);
+      expect(AppTextStyles.pageHeader.letterSpacing, -0.3);
+      expect(AppTextStyles.pageHeader.color, AppColors.obsidian);
+      expectMatchesBaselineHeaderStyle(
+        AppTheme.lightTheme.appBarTheme.titleTextStyle,
+      );
+    });
+
+    testWidgets('Beranda (HomeScreen) center header matches baseline typography without clipping', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            businessProvider.overrideWith(_MockCashierBizNotifier.new),
+            dashboardKpiProvider.overrideWith((ref) async => const {'kpi': {}}),
+            bookingRepositoryProvider.overrideWithValue(_EmptyBookingRepo()),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: HomeScreen(onNavigateTab: (_) {}),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final homeTitleText = tester.widget<Text>(
+        find.text('RentCore Store • Cabang Pusat'),
+      );
+      expectMatchesBaselineHeaderStyle(homeTitleText.style);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Laporan (FinancialHubScreen) uses 56dp AppBar and baseline header typography', (tester) async {
+      final mockCashierRepo = _MockCashierRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            cashierRepositoryProvider.overrideWithValue(mockCashierRepo),
+            businessProvider.overrideWith(_MockCashierBizNotifier.new),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const FinancialHubScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final laporanFinder = find.text('Laporan');
+      expect(laporanFinder, findsOneWidget);
+      final laporanText = tester.widget<Text>(laporanFinder);
+      expectMatchesBaselineHeaderStyle(laporanText.style);
+      final laporanAppBarBox = tester.getSize(find.byType(AppBar));
+      expect(laporanAppBarBox.height, greaterThanOrEqualTo(kToolbarHeight));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Pengaturan (StoreSettingsScreen) preserves baseline header typography', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            businessProvider.overrideWith(_MockCashierBizNotifier.new),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const StoreSettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final settingsTitleText = tester.widget<Text>(find.text('Pengaturan'));
+      expectMatchesBaselineHeaderStyle(settingsTitleText.style);
+    });
+
+    testWidgets('Pembayaran Sewa (PaymentPage) inherits AppBarTheme without inline override', (tester) async {
+      final mockCashierRepo = _MockCashierRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            cashierRepositoryProvider.overrideWithValue(mockCashierRepo),
+            paymentMethodsProvider.overrideWith((ref) async => const []),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: PaymentPage(
+              paymentContext: PaymentContext(
+                transactionType: PaymentTransactionType.booking,
+                customerName: 'Budi',
+                customerPhone: '081234',
+                deviceName: 'Sony A7',
+                totalAmountDue: 250000,
+                remainingDue: 250000,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final paymentTitleFinder = find.text('Pembayaran  Sewa');
+      expect(paymentTitleFinder, findsOneWidget);
+      final paymentTitleWidget = tester.widget<Text>(paymentTitleFinder);
+      expect(paymentTitleWidget.style, isNull);
+      final paymentDefaultStyle = DefaultTextStyle.of(
+        tester.element(paymentTitleFinder),
+      ).style;
+      expectMatchesBaselineHeaderStyle(paymentDefaultStyle);
+    });
+
+    testWidgets('Pusat Pemberitahuan inherits AppBarTheme without inline override', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const NotificationCenterScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      final notifTitleFinder = find.text('Pusat Pemberitahuan');
+      expect(notifTitleFinder, findsOneWidget);
+      final notifTitleWidget = tester.widget<Text>(notifTitleFinder);
+      expect(notifTitleWidget.style, isNull);
+      final notifDefaultStyle = DefaultTextStyle.of(
+        tester.element(notifTitleFinder),
+      ).style;
+      expectMatchesBaselineHeaderStyle(notifDefaultStyle);
+    });
+  });
+}
+
+class _EmptyBookingRepo extends BookingRepository {
+  @override
+  Future<List<Map<String, dynamic>>> fetchBookings({
+    String? status,
+    String? search,
+    int? branchId,
+    bool allBranches = false,
+  }) async =>
+      const [];
 }

@@ -108,9 +108,10 @@ void main() {
     expect(find.textContaining('24j 43m'), findsWidgets);
     expect(find.textContaining('1483 mnt'), findsNothing);
 
-    // 3. Apple iCloud Card rendered with modern copy and without decorative alert/cross icon
-    expect(find.text('Pemeriksaan Akun iCloud'), findsOneWidget);
-    expect(find.text('iCloud & Find My telah di-logout'), findsOneWidget);
+    // 3. Smartphone Account Clearance Card rendered with unified copy and without decorative alert/cross icon
+    expect(find.text('Pemeriksaan Akun Perangkat'), findsOneWidget);
+    expect(find.text('Akun Perangkat (iCloud / Google / FRP) Sudah Dikeluarkan'), findsOneWidget);
+    expect(find.text('Wajib dipastikan sebelum unit diterima kembali'), findsOneWidget);
     expect(find.textContaining('Unit Terkunci / Lupa Sandi (Masuk Karantina)'), findsOneWidget);
     expect(find.byIcon(Icons.gpp_bad_rounded), findsNothing);
     expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
@@ -195,7 +196,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 1. iCloud card is completely hidden for outdoor gear
-    expect(find.text('Pemeriksaan Akun iCloud'), findsNothing);
+    expect(find.text('Pemeriksaan Akun Perangkat'), findsNothing);
+    expect(find.text('Akun Perangkat (iCloud / Google / FRP) Sudah Dikeluarkan'), findsNothing);
     expect(find.textContaining('Find My'), findsNothing);
     expect(find.textContaining('Perangkat non-smartphone'), findsNothing);
 
@@ -254,7 +256,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 1. iCloud card is completely hidden
-    expect(find.text('Pemeriksaan Akun iCloud'), findsNothing);
+    expect(find.text('Pemeriksaan Akun Perangkat'), findsNothing);
+    expect(find.text('Akun Perangkat (iCloud / Google / FRP) Sudah Dikeluarkan'), findsNothing);
 
     // 2. Console checklist items
     expect(find.text('Controller / Gamepad'), findsOneWidget);
@@ -313,7 +316,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 1. iCloud card is completely hidden
-    expect(find.text('Pemeriksaan Akun iCloud'), findsNothing);
+    expect(find.text('Pemeriksaan Akun Perangkat'), findsNothing);
+    expect(find.text('Akun Perangkat (iCloud / Google / FRP) Sudah Dikeluarkan'), findsNothing);
 
     // 2. General checklist items
     expect(find.text('Unit berfungsi normal'), findsOneWidget);
@@ -366,7 +370,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 1. iCloud card is completely hidden
-    expect(find.text('Pemeriksaan Akun iCloud'), findsNothing);
+    expect(find.text('Pemeriksaan Akun Perangkat'), findsNothing);
+    expect(find.text('Akun Perangkat (iCloud / Google / FRP) Sudah Dikeluarkan'), findsNothing);
 
     // 2. Submit return
     final submitBtn = find.text('Selesaikan Pengembalian');

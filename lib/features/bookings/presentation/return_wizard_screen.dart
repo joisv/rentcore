@@ -66,6 +66,23 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     super.dispose();
   }
 
+  static const List<String> _smartphoneCategoryTokens = [
+    'smartphone',
+    'handphone',
+    'hp',
+    'phone',
+    'mobile',
+  ];
+
+  static bool _isSmartphoneCategory(String raw) {
+    final normalized = raw.toLowerCase().trim();
+    if (normalized.isEmpty) return false;
+    if (_smartphoneCategoryTokens.contains(normalized)) return true;
+    return RegExp(
+      r'\b(smartphone|smartphones|handphone|handphones|hp|phone|phones|mobile|mobiles)\b',
+    ).hasMatch(normalized);
+  }
+
   static RentalDeviceCategory _resolveCategory(Map<String, dynamic> booking) {
     final items = (booking['items'] as List?) ?? [];
     final activeItem = booking['active_item'] as Map?;
@@ -78,11 +95,11 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     ];
 
     if (candidates.isEmpty) {
-      final cat = booking['category']?.toString().toLowerCase() ?? '';
+      final cat = booking['category']?.toString().toLowerCase().trim() ?? '';
       if (cat.contains('iphone') || cat.contains('apple')) return RentalDeviceCategory.apple;
-      if (cat.contains('phone') || cat.contains('hp')) return RentalDeviceCategory.mobile;
       if (cat.contains('ps') || cat.contains('game') || cat.contains('konsol')) return RentalDeviceCategory.console;
       if (cat.contains('outdoor') || cat.contains('tenda') || cat.contains('camp')) return RentalDeviceCategory.outdoor;
+      if (_isSmartphoneCategory(cat)) return RentalDeviceCategory.mobile;
       return RentalDeviceCategory.general;
     }
 
@@ -91,7 +108,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       final model = asset?['model'] as Map?;
 
       final rawCat = it['category'] ?? model?['category'] ?? asset?['category'];
-      final catName = (rawCat is Map ? (rawCat['name'] ?? rawCat['slug'] ?? rawCat['code']) : rawCat)?.toString().toLowerCase() ?? '';
+      final catName = (rawCat is Map ? (rawCat['name'] ?? rawCat['slug'] ?? rawCat['code']) : rawCat)?.toString().toLowerCase().trim() ?? '';
+      final catSlug = (rawCat is Map ? (rawCat['slug'] ?? rawCat['code'] ?? '') : '').toString().toLowerCase().trim();
       final brand = (model?['brand'] ?? it['brand'] ?? asset?['brand'] ?? '').toString().toLowerCase();
       final modelName = (model?['name'] ?? it['name'] ?? asset?['name'] ?? '').toString().toLowerCase();
       final assetCode = (asset?['asset_code'] ?? it['asset_code'] ?? '').toString().toLowerCase();
@@ -141,18 +159,24 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
         return RentalDeviceCategory.outdoor;
       }
 
-      // 4. Mobile / Phones (Android, etc.)
+      // 4. Mobile / Smartphones (Android, generic smartphone/handphone/hp/phone/mobile categories)
       if (brand == 'samsung' ||
           brand == 'xiaomi' ||
           brand == 'oppo' ||
           brand == 'vivo' ||
           brand == 'google' ||
-          catName.contains('phone') ||
-          catName.contains('hp') ||
-          catName.contains('smartphone') ||
+          brand == 'realme' ||
+          brand == 'infinix' ||
+          brand == 'poco' ||
+          brand == 'asus' ||
+          _isSmartphoneCategory(catName) ||
+          _isSmartphoneCategory(catSlug) ||
           modelName.contains('galaxy') ||
           modelName.contains('pixel') ||
-          modelName.contains('redmi')) {
+          modelName.contains('redmi') ||
+          modelName.contains('poco') ||
+          modelName.contains('realme') ||
+          model?['requires_frp_check'] == true) {
         return RentalDeviceCategory.mobile;
       }
     }
@@ -193,6 +217,10 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   }
 
   bool get _isAppleDevice => _category == RentalDeviceCategory.apple;
+  bool get _isSmartphone =>
+      _category == RentalDeviceCategory.apple ||
+      _category == RentalDeviceCategory.mobile;
+  bool get _canSubmitReturn => !_isSmartphone || _accountCleared || _isQuarantined;
   bool get _screenOk => _checklistStates['screen_ok'] ?? _checklistStates['unit_operational'] ?? true;
   bool get _cameraOk => _checklistStates['screen_ok'] ?? _checklistStates['unit_operational'] ?? true;
   bool get _cableReturned => _checklistStates['cable'] ?? _checklistStates['power_cable'] ?? _checklistStates['accessories_complete'] ?? true;
@@ -367,8 +395,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Conditional iCloud Check Card (Only rendered for Apple / iPhone hardware)
-            if (_isAppleDevice) ...[
+            // Conditional Account Clearance Check Card (Rendered ONLY for smartphones: iOS & Android)
+            if (_isSmartphone) ...[
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -391,7 +419,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       children: [
                         const Expanded(
                           child: Text(
-                            'Pemeriksaan Akun iCloud',
+                            'Pemeriksaan Akun Perangkat',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
@@ -433,8 +461,12 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       child: SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text(
-                          'iCloud & Find My telah di-logout',
+                          'Akun Perangkat (iCloud / Google / FRP) Sudah Dikeluarkan',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: const Text(
+                          'Wajib dipastikan sebelum unit diterima kembali',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                         ),
                         value: _accountCleared,
                         onChanged: (val) => setState(() {
@@ -785,7 +817,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
 
             // Submit Return
             ElevatedButton(
-              onPressed: _isSubmitting ? null : () => _processReturn(penaltyAmount),
+              onPressed: (_isSubmitting || !_canSubmitReturn)
+                  ? null
+                  : () => _processReturn(penaltyAmount),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
@@ -817,10 +851,10 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   }
 
   void _processReturn(double penaltyAmount) async {
-    if (_isAppleDevice && !_accountCleared && !_isQuarantined) {
+    if (_isSmartphone && !_accountCleared && !_isQuarantined) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Akun iCloud wajib dipastikan logout sebelum unit dapat diterima kembali, atau pilih Karantina Unit!'),
+          content: Text('Pastikan akun perangkat (iCloud / Google / FRP) telah dikeluarkan sebelum menyelesaikan pengembalian, atau pilih Karantina Unit!'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -844,6 +878,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     final categoryChecklist = <String, dynamic>{};
     if (isApple) {
       categoryChecklist['icloud_removed'] = _accountCleared;
+      categoryChecklist['frp_cleared'] = _accountCleared;
+      categoryChecklist['account_removed'] = _accountCleared;
       categoryChecklist['account_quarantined'] = _isQuarantined;
       categoryChecklist['account_status'] = _accountCleared ? 'cleared' : (_isQuarantined ? 'quarantined' : 'unverified');
       categoryChecklist['device_platform'] = 'ios';
@@ -851,6 +887,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       categoryChecklist['camera_ok'] = _cameraOk;
     } else if (isMobile) {
       categoryChecklist['frp_removed'] = _accountCleared;
+      categoryChecklist['google_account_removed'] = _accountCleared;
+      categoryChecklist['frp_cleared'] = _accountCleared;
+      categoryChecklist['account_removed'] = _accountCleared;
       categoryChecklist['account_quarantined'] = _isQuarantined;
       categoryChecklist['account_status'] = _accountCleared ? 'cleared' : (_isQuarantined ? 'quarantined' : 'unverified');
       categoryChecklist['device_platform'] = 'android';
@@ -878,7 +917,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       categoryAccessories['accessories_complete'] = _checklistStates['accessories_complete'] ?? true;
     }
 
-    final payload = {
+    final payload = <String, dynamic>{
       'returned_at': inspectionTime.toIso8601String(),
       'condition_grade': _conditionGrade,
       'late_fee': penaltyAmount,
@@ -887,6 +926,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       'staff_notes': _staffNotesController.text.trim().isEmpty ? null : _staffNotesController.text.trim(),
       'checklist_results': categoryChecklist,
       'accessories_returned': categoryAccessories,
+      if (isApple || isMobile) 'frp_cleared': _accountCleared,
+      if (isApple || isMobile) 'account_removed': _accountCleared,
     };
 
     if (penaltyAmount > 0 && _payPenaltyNow) {
@@ -904,6 +945,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 'penalty_amount': penaltyAmount,
                 'late_fee': penaltyAmount,
                 'total_penalty': penaltyAmount,
+                if (isApple || isMobile) 'frp_cleared': _accountCleared,
+                if (isApple || isMobile) 'account_removed': _accountCleared,
               },
             ),
           ),
@@ -990,7 +1033,11 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               final branchName = ref.read(businessProvider).activeBranchName ?? 'RentCore';
               final checklistSummary = _isQuarantined
                   ? 'Status: Karantina (Maintenance)'
-                  : (_isAppleDevice ? 'Status: Bersih (iCloud Logout)' : 'Status: Fisik Diperiksa');
+                  : (_isSmartphone
+                      ? (_isAppleDevice
+                          ? 'Status: Bersih (iCloud Logout)'
+                          : 'Status: Bersih (Akun Google/FRP Logout)')
+                      : 'Status: Fisik Diperiksa');
               final accessoriesSummary = _checklistDefs
                   .map((d) => '${d.label}: ${_checklistStates[d.key] == true ? "OK" : "Kurang"}')
                   .join(' • ');

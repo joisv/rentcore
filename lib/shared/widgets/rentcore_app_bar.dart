@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/app_text_styles.dart';
 
 /// Standardized tactile back button for the RentCore application.
 /// Provides a consistent 18dp iOS-style chevron with standard Obsidian coloring.
@@ -80,12 +81,8 @@ class RentCoreAppBar extends StatelessWidget implements PreferredSizeWidget {
         (title != null
             ? Text(
                 title!,
-                style: const TextStyle(
-                  color: AppColors.obsidian,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
+                style: Theme.of(context).appBarTheme.titleTextStyle ??
+                    AppTextStyles.pageHeader,
               )
             : null);
 

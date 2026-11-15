@@ -8,12 +8,12 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
-import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../auth/presentation/user_profile_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/rental_queue_actions.dart';
+import '../../cashier/providers/cashier_provider.dart';
 import '../../inventory/presentation/inventory_screen.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../notifications/providers/notification_provider.dart';
@@ -22,19 +22,20 @@ import 'widgets/progressive_checklist_banner.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   final ValueChanged<int> onNavigateTab;
-  final VoidCallback onOpenDirectRental;
+  final VoidCallback? onOpenDirectRental;
 
   const HomeScreen({
     super.key,
     required this.onNavigateTab,
-    required this.onOpenDirectRental,
+    this.onOpenDirectRental,
   });
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   static const List<String> _queueFilters = [
     'Semua',
     'Terlambat',
@@ -44,15 +45,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   ];
 
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   final _queueSectionKey = GlobalKey();
   Timer? _debounceTimer;
   String _searchQuery = '';
   String _selectedQueueFilter = 'Semua';
+  bool _isSearchExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    Future.microtask(() {
+      if (!mounted) return;
+      ref.read(notificationProvider.notifier).fetchUnreadCountOnly();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      ref.read(notificationProvider.notifier).fetchUnreadCountOnly();
+    }
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _debounceTimer?.cancel();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -90,17 +112,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _clearSearch() {
     _debounceTimer?.cancel();
     _searchController.clear();
+    _searchFocusNode.unfocus();
     setState(() {
       _searchQuery = '';
+      _isSearchExpanded = false;
     });
   }
 
-  String _getTimeGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour >= 5 && hour < 12) return 'Selamat Pagi';
-    if (hour >= 12 && hour < 15) return 'Selamat Siang';
-    if (hour >= 15 && hour < 18) return 'Selamat Sore';
-    return 'Selamat Malam';
+  void _toggleSearch() {
+    if (_isSearchExpanded) {
+      _clearSearch();
+      return;
+    }
+    setState(() {
+      _isSearchExpanded = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _searchFocusNode.requestFocus();
+      }
+    });
   }
 
   String _getInitials(String name) {
@@ -177,6 +208,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<BusinessState>(businessProvider, (previous, next) {
+      if (previous?.activeBusinessId != next.activeBusinessId ||
+          previous?.activeBranchId != next.activeBranchId) {
+        ref.read(notificationProvider.notifier).fetchUnreadCountOnly();
+      }
+    });
+
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final businessState = ref.watch(businessProvider);
@@ -184,84 +222,79 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: widget.onOpenDirectRental,
-        backgroundColor: AppColors.obsidian,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: const Text(
-          'Sewa Baru',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-        ),
-      ),
-      floatingActionButtonLocation: const DockFloatingActionButtonLocation(
-        extraOffset: 4,
-      ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.obsidian,
-          onRefresh: _handleRefresh,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 12,
-              bottom: 100,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. Consolidated Header Row
-                _buildHeader(context, ref, user, businessState),
-                const SizedBox(height: 12),
+      body: Column(
+        children: [
+          // 1. Threads-Style Single-Row Minimalist Header + Expandable Inline Search
+          _buildHeader(context, ref, user, businessState),
+          _buildExpandableSearchBar(),
 
-                // 2. Responsive Live Quick Search Bar
-                _buildSearchBar(),
-                const SizedBox(height: 14),
-
-                // 3. Business Sync / Connection Error Diagnostic Card
-                if (businessState.error != null) ...[
-                  _buildBusinessErrorCard(context, ref, businessState.error!),
-                  const SizedBox(height: 14),
-                ],
-
-                // 4. Progressive Setup Checklist Banner (Non-blocking & Dismissible)
-                if (businessState.activeBusinessId != null) ...[
-                  ProgressiveChecklistBanner(
-                    totalAssetCount: (kpiAsync.value?['kpi']?['units_total'] as num?)?.toInt() ??
-                        (kpiAsync.value?['kpi']?['total_units'] as num?)?.toInt() ??
-                        (kpiAsync.value?['kpi']?['total_assets'] as num?)?.toInt() ??
-                        (kpiAsync.value?['stats']?['total_units'] as num?)?.toInt() ??
-                        0,
-                    onOpenInventory: () => widget.onNavigateTab(2),
+          // 2. Scrollable Dashboard Content (Reclaims vertical space naturally)
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: RefreshIndicator(
+                color: AppColors.obsidian,
+                onRefresh: _handleRefresh,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 12,
+                    bottom: 24,
                   ),
-                ] else if (businessState.error == null &&
-                    !businessState.isLoading &&
-                    (businessState.activeBusinessId == null ||
-                        businessState.businesses.isEmpty)) ...[
-                  _buildOnboardingBanner(context),
-                  const SizedBox(height: 16),
-                ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (businessState.isConsolidated) ...[
+                        _buildConsolidatedBanner(),
+                        const SizedBox(height: 12),
+                      ],
 
-                // 5. Dynamic KPI & Operations Content (2x2 Grid & Embedded Rental Queue)
-                kpiAsync.when(
-                  loading: () => _buildSkeletonLoading(),
-                  error: (error, _) => _buildErrorCard(context, ref, error),
-                  data: (data) =>
-                      _buildDashboardContent(context, ref, data, user),
+                      // 3. Business Sync / Connection Error Diagnostic Card
+                      if (businessState.error != null) ...[
+                        _buildBusinessErrorCard(context, ref, businessState.error!),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // 4. Progressive Setup Checklist Banner (Non-blocking & Dismissible)
+                      if (businessState.activeBusinessId != null) ...[
+                        ProgressiveChecklistBanner(
+                          totalAssetCount: (kpiAsync.value?['kpi']?['units_total'] as num?)?.toInt() ??
+                              (kpiAsync.value?['kpi']?['total_units'] as num?)?.toInt() ??
+                              (kpiAsync.value?['kpi']?['total_assets'] as num?)?.toInt() ??
+                              (kpiAsync.value?['stats']?['total_units'] as num?)?.toInt() ??
+                              0,
+                          onOpenInventory: () => widget.onNavigateTab(2),
+                        ),
+                      ] else if (businessState.error == null &&
+                          !businessState.isLoading &&
+                          (businessState.activeBusinessId == null ||
+                              businessState.businesses.isEmpty)) ...[
+                        _buildOnboardingBanner(context),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // 5. Dynamic KPI & Operations Content (2x2 Grid & Embedded Rental Queue)
+                      kpiAsync.when(
+                        loading: () => _buildSkeletonLoading(),
+                        error: (error, _) => _buildErrorCard(context, ref, error),
+                        data: (data) =>
+                            _buildDashboardContent(context, ref, data, user),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
   // =========================================================================
-  // 1. CONSOLIDATED HEADER ROW
+  // 1. THREADS-STYLE SINGLE-ROW HEADER
   // =========================================================================
   Widget _buildHeader(
     BuildContext context,
@@ -278,287 +311,468 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'staff';
 
     final isConsolidated = businessState.isConsolidated;
-    final isCentral = businessState.isCentralBranch;
-    final branchName = businessState.activeBranchName ?? 'Cabang Terpilih';
-    final branchCity = businessState.currentBranch?['city']?.toString() ?? '';
-    final businessName = businessState.activeBusinessName ?? 'Semua Cabang';
+    final branchName = businessState.activeBranchName;
+    final businessName = businessState.activeBusinessName;
+
+    final String storeTitle = (businessName != null && businessName.isNotEmpty)
+        ? businessName
+        : (branchName != null && branchName.isNotEmpty
+            ? branchName
+            : 'RentCore');
+    final String? activeBranchLabel;
+    if (businessName != null && businessName.isNotEmpty) {
+      if (isConsolidated) {
+        activeBranchLabel = 'Semua Cabang';
+      } else if (branchName != null && branchName.isNotEmpty) {
+        activeBranchLabel = branchName;
+      } else {
+        activeBranchLabel = null;
+      }
+    } else {
+      activeBranchLabel = null;
+    }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // User Avatar (Tappable to open User Profile Screen)
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const UserProfileScreen(),
+      color: Colors.white,
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 56,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Left Slot: Two-Line Menu Icon (=)
+                Tooltip(
+                  message: 'Menu Akun',
+                  child: InkWell(
+                    key: const Key('home_header_menu_button'),
+                    onTap: () => _showAccountMenuSheet(
+                      context,
+                      userName: userName,
+                      activeRole: activeRole,
+                      isSuperAdmin: isSuperAdmin,
+                      businessState: businessState,
                     ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.obsidian,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    _getInitials(userName),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+                    borderRadius: BorderRadius.circular(10),
+                    child: const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _TwoLineMenuIcon(color: Color(0xFF1F2937)),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
 
-              // Left side: Cashier greeting & name + Clickable branch badge beneath
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Hai, $userName',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                              letterSpacing: -0.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: _buildRoleBadge(activeRole, isSuperAdmin),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-
-                    // Clickable branch badge: [Nama Cabang] • [Kota] ▾
-                    InkWell(
-                      onTap: () => BusinessSelectorSheet.show(context),
-                      borderRadius: BorderRadius.circular(8),
+                // Center Slot: Two-Line Store & Active Branch Selector
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Center(
                       child: Tooltip(
                         message: 'Ganti Cabang',
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isConsolidated
-                                ? const Color(0xFFFEF3C7)
-                                : AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isConsolidated
-                                  ? const Color(0xFFFDE68A)
-                                  : AppColors.border,
+                        child: InkWell(
+                          key: const Key('home_header_branch_button'),
+                          onTap: () => BusinessSelectorSheet.show(context),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isConsolidated
-                                    ? Icons.corporate_fare_rounded
-                                    : Icons.storefront_rounded,
-                                size: 13,
-                                color: isConsolidated
-                                    ? const Color(0xFFD97706)
-                                    : AppColors.obsidian,
-                              ),
-                              const SizedBox(width: 5),
-                              if (isConsolidated) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFD97706),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'KONSOLIDASI',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                              ],
-                              Flexible(
-                                child: Text(
-                                  isConsolidated ? businessName : branchName,
-                                  style: TextStyle(
-                                    fontSize: 11,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(
+                                  storeTitle,
+                                  style: const TextStyle(
+                                    fontSize: 16,
                                     fontWeight: FontWeight.w700,
-                                    color: isConsolidated
-                                        ? const Color(0xFF92400E)
-                                        : AppColors.obsidian,
+                                    color: Color(0xFF111111),
+                                    letterSpacing: -0.2,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
                                 ),
-                              ),
-                              if (branchCity.isNotEmpty && !isConsolidated) ...[
-                                Flexible(
-                                  child: Text(
-                                    ' • $branchCity',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                if (activeBranchLabel != null) ...[
+                                  const SizedBox(height: 1),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          activeBranchLabel,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF6B7280),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      const Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        size: 16,
+                                        color: Color(0xFF6B7280),
+                                      ),
+                                    ],
                                   ),
-                                ),
+                                ],
                               ],
-                              const SizedBox(width: 2),
-                              const Text(
-                                '▾',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              // Zero-sized semantic badge for test compatibility
-                              SizedBox(
-                                width: 0,
-                                height: 0,
-                                child: Text(
-                                  isCentral ? 'CABANG UTAMA' : 'SUB-CABANG',
-                                  style: const TextStyle(fontSize: 0),
-                                ),
-                              ),
-                            ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Right Slot: Uniform Bell & Search Icons (22dp, Color(0xFF1F2937), 14dp gap)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(
+                      message: 'Pusat Pemberitahuan',
+                      child: InkWell(
+                        key: const Key('home_header_notification_button'),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationCenterScreen(),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              final unreadCount = ref.watch(
+                                notificationProvider.select((s) => s.unreadCount),
+                              );
+                              return Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  const Icon(
+                                    Icons.notifications_none_rounded,
+                                    color: Color(0xFF1F2937),
+                                    size: 22,
+                                  ),
+                                  if (unreadCount > 0)
+                                    Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      child: Container(
+                                        key: const Key(
+                                          'home_header_notification_badge',
+                                        ),
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEF4444),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Tooltip(
+                      message: 'Cari Booking',
+                      child: InkWell(
+                        key: const Key('home_header_search_button'),
+                        onTap: _toggleSearch,
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            _isSearchExpanded
+                                ? Icons.search_off_rounded
+                                : Icons.search_rounded,
+                            color: const Color(0xFF1F2937),
+                            size: 22,
                           ),
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-              const SizedBox(width: 8),
+  void _showAccountMenuSheet(
+    BuildContext context, {
+    required String userName,
+    required String activeRole,
+    required bool isSuperAdmin,
+    required BusinessState businessState,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final shiftAsync = ref.watch(
+              currentShiftByBranchProvider(businessState.activeBranchId),
+            );
+            final shiftData = shiftAsync.value;
+            final shiftObj = shiftData?['shift'] ?? shiftData?['data']?['shift'];
+            final hasActiveShift = shiftData?['has_active_shift'] == true ||
+                shiftData?['is_active'] == true ||
+                (shiftObj is Map &&
+                    (shiftObj['status'] == 'open' ||
+                        shiftObj['is_active'] == true));
+            final shiftNumber =
+                shiftObj is Map ? shiftObj['shift_number']?.toString() : null;
 
-              // Right side: Single clean notification icon button
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const NotificationCenterScreen(),
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                      );
-                    },
-                    tooltip: 'Pusat Pemberitahuan',
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: AppColors.obsidian,
-                      size: 22,
+                      ),
                     ),
-                  ),
-                  Builder(
-                    builder: (context) {
-                      final unreadCount = ref.watch(
-                        notificationProvider.select((s) => s.unreadCount),
-                      );
-                      if (unreadCount <= 0) return const SizedBox.shrink();
-                      return Positioned(
-                        right: 6,
-                        top: 6,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: AppColors.danger,
-                            shape: BoxShape.circle,
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppColors.obsidian,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
+                          alignment: Alignment.center,
                           child: Text(
-                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            _getInitials(userName),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              height: 1.0,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          if (isConsolidated) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFDE68A)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    size: 14,
-                    color: Color(0xFFD97706),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Mode Konsolidasi: Melihat gabungan seluruh cabang. Beralih ke cabang tertentu untuk transaksi POS & kasir.',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Color(0xFF92400E),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                userName,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.obsidian,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              _buildRoleBadge(activeRole, isSuperAdmin),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: hasActiveShift
+                            ? AppColors.successLight
+                            : const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: hasActiveShift
+                              ? AppColors.success.withValues(alpha: 0.25)
+                              : const Color(0xFFFDE68A),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            hasActiveShift
+                                ? Icons.check_circle_rounded
+                                : Icons.info_outline_rounded,
+                            size: 18,
+                            color: hasActiveShift
+                                ? AppColors.success
+                                : const Color(0xFFB45309),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              hasActiveShift
+                                  ? 'Shift Aktif${shiftNumber != null ? ' • $shiftNumber' : ''}'
+                                  : 'Shift Kasir Belum Dibuka',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: hasActiveShift
+                                    ? AppColors.success
+                                    : const Color(0xFF92400E),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      leading: const Icon(
+                        Icons.storefront_outlined,
+                        color: AppColors.obsidian,
+                      ),
+                      title: const Text(
+                        'Ganti Usaha / Cabang',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        BusinessSelectorSheet.show(context);
+                      },
+                    ),
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      leading: const Icon(
+                        Icons.person_outline_rounded,
+                        color: AppColors.obsidian,
+                      ),
+                      title: const Text(
+                        'Profil Pengguna',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const UserProfileScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      leading: const Icon(
+                        Icons.logout_rounded,
+                        color: AppColors.danger,
+                      ),
+                      title: const Text(
+                        'Keluar Akun',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.danger,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        ref.read(authProvider.notifier).logout();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildConsolidatedBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 14,
+            color: Color(0xFFD97706),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD97706),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'KONSOLIDASI',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 8,
+                fontWeight: FontWeight.w800,
               ),
             ),
-          ],
+          ),
+          const SizedBox(width: 6),
+          const Expanded(
+            child: Text(
+              'Mode Konsolidasi: Melihat gabungan seluruh cabang. Beralih ke cabang tertentu untuk transaksi POS & kasir.',
+              style: TextStyle(
+                fontSize: 10,
+                color: Color(0xFF92400E),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -579,19 +793,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         case 'owner':
           bg = const Color(0xFFFEF3C7);
           fg = const Color(0xFFD97706);
-          label = 'PEMILIK (OWNER)';
+          label = 'OWNER';
           break;
         case 'admin':
           bg = const Color(0xFFEEF2FF);
           fg = const Color(0xFF4F46E5);
-          label = 'ADMIN USAHA';
+          label = 'ADMIN';
           break;
         case 'staff':
         case 'cashier':
         default:
           bg = AppColors.successLight;
           fg = AppColors.success;
-          label = 'STAFF KASIR';
+          label = 'KASIR';
           break;
       }
     }
@@ -605,7 +819,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 8.5,
+          fontSize: 9,
           fontWeight: FontWeight.w800,
           color: fg,
           letterSpacing: 0.3,
@@ -615,54 +829,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   // =========================================================================
-  // 2. QUICK SEARCH BAR
+  // 2. EXPANDABLE INLINE SEARCH BAR
   // =========================================================================
-  Widget _buildSearchBar() {
+  Widget _buildExpandableSearchBar() {
     return Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: TextField(
-        controller: _searchController,
-        style: const TextStyle(fontSize: 13, color: AppColors.obsidian),
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Cari kode booking, penyewa, atau no. telp...',
-          hintStyle: const TextStyle(
-            fontSize: 13,
-            color: Color(0xFF94A3B8),
-            fontWeight: FontWeight.w400,
-          ),
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            size: 20,
-            color: Color(0xFF94A3B8),
-          ),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(
-                    Icons.clear_rounded,
-                    size: 18,
-                    color: Color(0xFF94A3B8),
+      color: Colors.white,
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: _isSearchExpanded
+              ? Padding(
+                  key: const ValueKey('home_expanded_search_bar'),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.obsidian,
+                      ),
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: 'Cari kode booking, penyewa, atau no. telp...',
+                        hintStyle: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w400,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          size: 20,
+                          color: Color(0xFF94A3B8),
+                        ),
+                        suffixIcon: IconButton(
+                          key: const Key('home_search_close_button'),
+                          tooltip: 'Tutup Pencarian',
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: Color(0xFF64748B),
+                          ),
+                          onPressed: _clearSearch,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
+                      onChanged: _onSearchChanged,
+                    ),
                   ),
-                  onPressed: _clearSearch,
                 )
-              : null,
-          filled: true,
-          fillColor: Colors.white,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 10,
-          ),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
+              : const SizedBox.shrink(
+                  key: ValueKey('home_collapsed_search_bar'),
+                ),
         ),
-        onChanged: _onSearchChanged,
       ),
     );
   }
@@ -2047,6 +2285,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TwoLineMenuIcon extends StatelessWidget {
+  final Color color;
+
+  const _TwoLineMenuIcon({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 22,
+      height: 16,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 2,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Container(
+            width: 15,
+            height: 2,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(1),
             ),
           ),
         ],

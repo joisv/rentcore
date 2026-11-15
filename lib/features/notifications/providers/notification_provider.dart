@@ -36,8 +36,11 @@ class NotificationState {
 }
 
 class NotificationNotifier extends Notifier<NotificationState> {
+  bool _isFetchingUnreadCount = false;
+
   @override
   NotificationState build() {
+    _isFetchingUnreadCount = false;
     return const NotificationState();
   }
 
@@ -62,10 +65,15 @@ class NotificationNotifier extends Notifier<NotificationState> {
         queryParameters: queryParams,
       );
 
+      if (!ref.mounted) return;
+
       if (response.statusCode == 200 && response.data['success'] == true) {
         final List<dynamic> dataList = response.data['data']?['data'] ?? [];
-        final items = dataList.map((item) => NotificationItem.fromJson(item as Map<String, dynamic>)).toList();
-        final unreadCount = (response.data['unread_count'] as num?)?.toInt() ?? 0;
+        final items = dataList
+            .map((item) => NotificationItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+        final unreadCount =
+            (response.data['unread_count'] as num?)?.toInt() ?? 0;
 
         state = state.copyWith(
           notifications: items,
@@ -75,10 +83,13 @@ class NotificationNotifier extends Notifier<NotificationState> {
       } else {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: response.data['message']?.toString() ?? 'Gagal memuat pemberitahuan.',
+          errorMessage:
+              response.data['message']?.toString() ??
+              'Gagal memuat pemberitahuan.',
         );
       }
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Gagal memuat pemberitahuan: $e',
@@ -87,34 +98,63 @@ class NotificationNotifier extends Notifier<NotificationState> {
   }
 
   Future<void> fetchUnreadCountOnly() async {
+    if (_isFetchingUnreadCount) return;
+    _isFetchingUnreadCount = true;
     try {
       final response = await ApiClient().dio.get(
         ApiConstants.notifications,
-        queryParameters: {'per_page': 1},
+        queryParameters: {'per_page': 5},
       );
 
+      if (!ref.mounted) return;
+
       if (response.statusCode == 200 && response.data['success'] == true) {
-        final unreadCount = (response.data['unread_count'] as num?)?.toInt() ?? 0;
-        state = state.copyWith(unreadCount: unreadCount);
+        final unreadCount =
+            (response.data['unread_count'] as num?)?.toInt() ?? 0;
+        if (state.unreadCount != unreadCount) {
+          state = state.copyWith(unreadCount: unreadCount);
+        }
       }
     } catch (_) {
-      // Quiet fail for badge polling
+      // Quiet fail for background badge sync
+    } finally {
+      _isFetchingUnreadCount = false;
     }
   }
 
   Future<void> markAsRead(int notificationId) async {
+    final previousState = state;
+    final wasUnread = state.notifications.any(
+      (n) => n.id == notificationId && !n.isRead,
+    );
+    if (wasUnread) {
+      final optimisticList = state.notifications.map((n) {
+        if (n.id == notificationId) {
+          return n.copyWith(readAt: DateTime.now());
+        }
+        return n;
+      }).toList();
+      state = state.copyWith(
+        notifications: optimisticList,
+        unreadCount: state.unreadCount > 0 ? state.unreadCount - 1 : 0,
+      );
+    }
+
     try {
       final response = await ApiClient().dio.patch(
         ApiConstants.markNotificationRead(notificationId),
       );
 
+      if (!ref.mounted) return;
+
       if (response.statusCode == 200 && response.data['success'] == true) {
-        final newUnreadCount = (response.data['unread_count'] as num?)?.toInt() ??
-            (state.unreadCount > 0 ? state.unreadCount - 1 : 0);
+        final newUnreadCount =
+            (response.data['unread_count'] as num?)?.toInt() ??
+            state.unreadCount;
 
         final updatedList = state.notifications.map((n) {
           if (n.id == notificationId) {
-            return n.copyWith(readAt: DateTime.now());
+            return n.copyWith(readAt: n.readAt ?? DateTime.now());
           }
           return n;
         }).toList();
@@ -123,9 +163,13 @@ class NotificationNotifier extends Notifier<NotificationState> {
           notifications: updatedList,
           unreadCount: newUnreadCount,
         );
+      } else if (wasUnread && ref.mounted) {
+        state = previousState;
       }
     } catch (_) {
-      // Silent error or fallback
+      if (wasUnread && ref.mounted) {
+        state = previousState;
+      }
     }
   }
 
@@ -134,6 +178,8 @@ class NotificationNotifier extends Notifier<NotificationState> {
       final response = await ApiClient().dio.post(
         ApiConstants.markAllNotificationsRead,
       );
+
+      if (!ref.mounted) return false;
 
       if (response.statusCode == 200 && response.data['success'] == true) {
         final updatedList = state.notifications.map((n) {

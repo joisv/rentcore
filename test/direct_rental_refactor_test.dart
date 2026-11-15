@@ -121,7 +121,9 @@ void main() {
       expect(find.text('SN: ...1234'), findsOneWidget); // last 4 digits of SN99881234
 
       // Select unit
-      await tester.tap(find.text('iPhone 15 Pro Max 256GB Natural Titanium'));
+      final unitFinder = find.text('iPhone 15 Pro Max 256GB Natural Titanium');
+      await tester.ensureVisible(unitFinder);
+      await tester.tap(unitFinder);
       await tester.pumpAndSettle();
 
       // Duration preview and quick chips are immediately activated

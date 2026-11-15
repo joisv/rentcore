@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/qris_service.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/animated_success_checkmark.dart';
@@ -154,65 +155,81 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   }
 
   Widget _buildShiftWarningBanner(BuildContext context, int? branchId) {
-    return Container(
+    return Material(
       key: const Key('shift_activation_warning_banner'),
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.shade300, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      color: Colors.transparent,
+      child: InkWell(
+        key: const Key('open_shift_now_button'),
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => _showQuickOpenShiftModal(context, branchId),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: const Row(
             children: [
               Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.amber.shade800,
-                size: 20,
+                Icons.info_outline_rounded,
+                size: 18,
+                color: Color(0xFFB45309),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Shift kasir belum dibuka. Buka shift agar pembayaran ini tercatat rapi di laporan laci kasir.',
+                  'Shift kasir belum dibuka',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.amber.shade900,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF92400E),
                   ),
+                ),
+              ),
+              Text(
+                'Buka Shift ›',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF92400E),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 38,
-            child: ElevatedButton.icon(
-              key: const Key('open_shift_now_button'),
-              onPressed: () => _showQuickOpenShiftModal(context, branchId),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF18181B),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.add_rounded, size: 16),
-              label: const Text(
-                '+ Buka Shift Sekarang',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShiftWarningSlot(
+    BuildContext context,
+    int? branchId,
+    AsyncValue<Map<String, dynamic>> currentShiftByBranchAsync,
+    AsyncValue<Map<String, dynamic>> currentShiftGeneralAsync,
+  ) {
+    Widget renderIfUnopened(Map<String, dynamic> shiftData) {
+      if (_checkShiftActive(shiftData)) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _buildShiftWarningBanner(context, branchId),
+      );
+    }
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      child: currentShiftByBranchAsync.maybeWhen(
+        data: renderIfUnopened,
+        orElse: () {
+          if (currentShiftByBranchAsync.isLoading) {
+            return const SizedBox.shrink();
+          }
+          return currentShiftGeneralAsync.maybeWhen(
+            data: renderIfUnopened,
+            orElse: () => const SizedBox.shrink(),
+          );
+        },
       ),
     );
   }
@@ -228,8 +245,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
 
     final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
     final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
-    final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
-    final hasActiveShift = _checkShiftActive(currentShiftData);
 
     final settingsData = paymentSettingsAsync.value;
     final config = (settingsData?['config'] as Map<String, dynamic>?) ??
@@ -300,13 +315,15 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       return Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
           leading: IconButton(
-            icon: const Icon(Icons.close_rounded, color: Colors.black),
+            icon: const Icon(Icons.close_rounded, color: AppColors.obsidian),
             onPressed: () => Navigator.pop(context, _completedResult),
           ),
-          title: const Text('Pembayaran Sukses', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+          title: const Text('Pembayaran Sukses'),
         ),
         body: _buildSuccessView(context, _completedResult!),
       );
@@ -325,10 +342,12 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            icon: const Icon(Icons.arrow_back, color: AppColors.obsidian),
             tooltip: 'Batalkan Pembayaran',
             onPressed: () {
               Navigator.pop(
@@ -337,14 +356,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
               );
             },
           ),
-          title: Text(
-            ctx.pageHeaderTitle,
-            style: const TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
+          title: Text(ctx.pageHeaderTitle),
           centerTitle: false,
         ),
         body: SafeArea(
@@ -401,10 +413,12 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!hasActiveShift) ...[
-                      _buildShiftWarningBanner(context, effectiveBranchId),
-                      const SizedBox(height: 8),
-                    ],
+                    _buildShiftWarningSlot(
+                      context,
+                      effectiveBranchId,
+                      currentShiftByBranchAsync,
+                      currentShiftGeneralAsync,
+                    ),
                     Builder(
                       builder: (context) {
                         final activeCards = <Widget>[];
@@ -648,7 +662,9 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   Center(
                     child: Text(
                       '${ctx.detailLinkText} ${ctx.bookingCode ?? "RC-2610-20-0002"}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black),
+                      style: AppTextStyles.pageHeader,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(height: 12),

@@ -13,6 +13,12 @@ import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart
 
 class _FakeCashierRepoForLatePenalty extends CashierRepository {
   @override
+  Future<Map<String, dynamic>> fetchCurrentShift({int? branchId}) async => {
+        'has_active_shift': true,
+        'shift': {'id': 1, 'status': 'open'},
+      };
+
+  @override
   Future<List<Map<String, dynamic>>> fetchPaymentMethods({int? branchId}) async {
     return [
       {'id': 1, 'name': 'Tunai', 'code': 'CASH'},

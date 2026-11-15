@@ -253,18 +253,32 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Cashier greeting and name
-      expect(find.textContaining('Hai, Rian Kasir'), findsOneWidget);
-
-      // Clickable Branch Badge with branch name, city, and arrow
+      // Threads-style single-row minimalist header
+      expect(
+        find.byKey(const Key('home_header_menu_button')),
+        findsOneWidget,
+      );
+      expect(find.text('RentCore Express'), findsOneWidget);
       expect(find.text('Cabang Mataram Utama'), findsOneWidget);
-      expect(find.text(' • Mataram'), findsOneWidget);
+      expect(
+        find.byKey(const Key('home_header_branch_button')),
+        findsOneWidget,
+      );
       expect(find.byTooltip('Ganti Cabang'), findsOneWidget);
-      expect(find.byIcon(Icons.storefront_rounded), findsWidgets);
 
-      // Notification icon
+      // Notification icon & search icon
       expect(find.byTooltip('Pusat Pemberitahuan'), findsOneWidget);
-      expect(find.byIcon(Icons.notifications_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
+      expect(
+        find.byKey(const Key('home_header_search_button')),
+        findsOneWidget,
+      );
+
+      // Opening the menu button displays profile name & role badge
+      await tester.tap(find.byKey(const Key('home_header_menu_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('Rian Kasir'), findsOneWidget);
+      expect(find.text('OWNER'), findsOneWidget);
     });
 
     testWidgets('2. 2x2 Daily Operations Summary Grid', (tester) async {
@@ -450,10 +464,15 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // Initially all 3 bookings visible
+        // Initially all 3 bookings visible, search input collapsed
         expect(find.text('RC-OVERDUE-01'), findsOneWidget);
         expect(find.text('RC-DUETODAY-02'), findsOneWidget);
         expect(find.text('RC-PENDING-03'), findsOneWidget);
+        expect(find.byType(TextField), findsNothing);
+
+        // Tap search icon to expand inline search input
+        await tester.tap(find.byKey(const Key('home_header_search_button')));
+        await tester.pumpAndSettle();
 
         // Enter search query
         final searchInput = find.byType(TextField);
@@ -471,12 +490,16 @@ void main() {
         expect(find.text('RC-OVERDUE-01'), findsNothing);
         expect(find.text('RC-PENDING-03'), findsNothing);
 
-        // Clear button (x) is visible when text is present
-        expect(find.byIcon(Icons.clear_rounded), findsOneWidget);
-        await tester.tap(find.byIcon(Icons.clear_rounded));
+        // Close/clear button is visible; tapping it clears and collapses
+        expect(
+          find.byKey(const Key('home_search_close_button')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const Key('home_search_close_button')));
         await tester.pumpAndSettle();
 
-        // All 3 restored
+        // All 3 restored and search field collapsed
+        expect(find.byType(TextField), findsNothing);
         expect(find.text('RC-OVERDUE-01'), findsOneWidget);
         expect(find.text('RC-DUETODAY-02'), findsOneWidget);
         expect(find.text('RC-PENDING-03'), findsOneWidget);
@@ -517,14 +540,14 @@ void main() {
         // Verify zero RenderFlex overflow warnings
         expect(tester.takeException(), isNull);
 
-        // Verify safe area bottom padding is 100
+        // Verify safe area bottom padding is 24
         final scrollView = tester.widget<SingleChildScrollView>(
           find.byType(SingleChildScrollView),
         );
         expect(
           scrollView.padding,
           equals(
-            const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 100),
+            const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 24),
           ),
         );
       },

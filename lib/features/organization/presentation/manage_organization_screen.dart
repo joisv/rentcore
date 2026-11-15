@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/organization_provider.dart';
@@ -75,12 +76,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           children: [
             Text(
               widget.businessName,
-              style: const TextStyle(
-                color: AppColors.obsidian,
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-                letterSpacing: -0.3,
-              ),
+              style: AppTextStyles.pageHeader,
             ),
             const Text(
               'Kelola Cabang & Tim',

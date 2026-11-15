@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
+import 'app_text_styles.dart';
 
 class AppTheme {
   static ThemeData get lightTheme {
@@ -22,13 +23,10 @@ class AppTheme {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
+        titleSpacing: AppTextStyles.pageHeaderHorizontalPadding,
+        toolbarHeight: AppTextStyles.pageHeaderToolbarHeight,
         iconTheme: IconThemeData(color: AppColors.obsidian, size: 20),
-        titleTextStyle: TextStyle(
-          color: AppColors.obsidian,
-          fontSize: 17,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.3,
-        ),
+        titleTextStyle: AppTextStyles.pageHeader,
       ),
       cardTheme: CardThemeData(
         color: AppColors.surface,

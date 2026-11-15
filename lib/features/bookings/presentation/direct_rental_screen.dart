@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
@@ -9,13 +8,13 @@ import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../inventory/providers/asset_provider.dart';
-import '../../payments/data/payment_repository.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
 import '../../vouchers/data/voucher_repository.dart';
 import '../providers/booking_provider.dart';
 
 class RentalTierOption {
+  final int? id;
   final String unit; // 'hour', 'day', 'week', 'month'
   final int value;
   final int hours;
@@ -23,6 +22,7 @@ class RentalTierOption {
   final String label;
 
   const RentalTierOption({
+    this.id,
     required this.unit,
     required this.value,
     required this.hours,
@@ -51,6 +51,8 @@ class DirectRentalScreen extends ConsumerStatefulWidget {
   final String? customerName;
   final String? customerPhone;
   final String? customerAddress;
+  final ScrollController? scrollController;
+  final bool showAppBar;
 
   const DirectRentalScreen({
     super.key,
@@ -59,6 +61,8 @@ class DirectRentalScreen extends ConsumerStatefulWidget {
     this.customerName,
     this.customerPhone,
     this.customerAddress,
+    this.scrollController,
+    this.showAppBar = true,
   });
 
   @override
@@ -89,18 +93,31 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     'Brankas C, Slot Khusus (VIP)',
   ];
   String _selectedSafeSlot = 'Brankas A, Slot 05';
+  static const int _initialUnitCap = 5;
+  static const int _maxDurationMultiplier = 30;
+
   final _slotController = TextEditingController(text: 'Brankas A, Slot 05');
   final _voucherController = TextEditingController();
+  final _unitSearchController = TextEditingController();
+  String _unitSearchQuery = '';
+  bool _showAllUnits = false;
 
   // Unit Selection initially null
   Map<String, dynamic>? _selectedAsset;
   int? _selectedAssetId;
   int? _selectedAssetCategoryId;
-  int? _selectedDuration;
+  int? _selectedTierId;
+  int? _selectedRateHours;
   String _selectedDurationUnit = 'hour';
   int _selectedDurationValue = 24;
+  double _selectedRatePrice = 0.0;
+  int _durationMultiplier = 1;
 
-  double _basePrice = 0.0;
+  int? get _selectedDuration =>
+      _selectedRateHours != null ? _selectedRateHours! * _durationMultiplier : null;
+  int get _totalDurationValue => _selectedDurationValue * _durationMultiplier;
+  double get _basePrice => _selectedRatePrice * _durationMultiplier;
+
   double _addonSubtotal = 0.0;
   final List<Map<String, dynamic>> _selectedAddons = [];
   int? _selectedAddonCategoryId;
@@ -115,10 +132,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   int? _selectedCustomerId;
   bool _initializedFromRoute = false;
   String? _customerLookupMessage;
-
-  // Encrypted ID Document Photo Vault
-  String? _identityPhotoBase64;
-  String? _identityPhotoName;
 
   @override
   void initState() {
@@ -194,6 +207,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     _addressController.dispose();
     _slotController.dispose();
     _voucherController.dispose();
+    _unitSearchController.dispose();
     super.dispose();
   }
 
@@ -262,12 +276,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final tiers = (model['pricing_tiers'] as List?) ?? (model['pricingTiers'] as List?) ?? [];
     final list = <RentalTierOption>[];
     for (final t in tiers) {
+      final tierId = t['id'] != null ? int.tryParse(t['id'].toString()) : null;
       final unit = (t['duration_unit']?.toString() ?? 'hour').toLowerCase();
       final hours = int.tryParse(t['duration_hours']?.toString() ?? '0') ?? 0;
       final val = int.tryParse(t['duration_value']?.toString() ?? '') ?? hours;
       final price = CurrencyFormatter.parse(t['price']);
       if (hours > 0) {
         list.add(RentalTierOption(
+          id: tierId,
           unit: unit,
           value: val,
           hours: hours,
@@ -287,6 +303,39 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return list;
   }
 
+  bool _matchesUnitSearch(Map<String, dynamic> asset, String rawQuery) {
+    final query = rawQuery.trim().toLowerCase();
+    if (query.isEmpty) return true;
+    final model = asset['model'] as Map? ?? const {};
+    final fields = [
+      model['name'],
+      model['brand'],
+      asset['name'],
+      asset['asset_code'],
+      asset['serial_number'],
+    ];
+    return fields.any(
+      (field) => field != null && field.toString().toLowerCase().contains(query),
+    );
+  }
+
+  String _formatPrimaryUnitRateLabel(List<RentalTierOption> tiers) {
+    if (tiers.isEmpty) return CurrencyFormatter.format(0);
+    RentalTierOption primaryTier = tiers.first;
+    for (final tier in tiers) {
+      if (tier.hours == 24) {
+        primaryTier = tier;
+        break;
+      }
+    }
+    final durationLabel = switch (primaryTier.unit) {
+      'week' => '${primaryTier.value} Minggu',
+      'month' => '${primaryTier.value} Bulan',
+      _ => '${primaryTier.hours} Jam',
+    };
+    return '${CurrencyFormatter.format(primaryTier.price)} / $durationLabel';
+  }
+
   void _onAssetSelected(Map<String, dynamic> asset) {
     setState(() {
       _selectedAsset = asset;
@@ -303,10 +352,12 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         }
       }
 
-      _selectedDuration = selectedTier.hours;
+      _selectedTierId = selectedTier.id;
+      _selectedRateHours = selectedTier.hours;
       _selectedDurationUnit = selectedTier.unit;
       _selectedDurationValue = selectedTier.value;
-      _basePrice = selectedTier.price;
+      _selectedRatePrice = selectedTier.price;
+      _durationMultiplier = 1;
 
       _recalculateAddons();
     });
@@ -318,10 +369,12 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
   void _onTierSelected(RentalTierOption tier) {
     setState(() {
-      _selectedDuration = tier.hours;
+      _selectedTierId = tier.id;
+      _selectedRateHours = tier.hours;
       _selectedDurationUnit = tier.unit;
       _selectedDurationValue = tier.value;
-      _basePrice = tier.price;
+      _selectedRatePrice = tier.price;
+      _durationMultiplier = 1;
       _durationValidationError = null;
       _recalculateAddons();
     });
@@ -331,15 +384,28 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     }
   }
 
+  void _onMultiplierChanged(int nextMultiplier) {
+    final clamped = nextMultiplier.clamp(1, _maxDurationMultiplier);
+    if (clamped == _durationMultiplier) return;
+    setState(() {
+      _durationMultiplier = clamped;
+      _recalculateAddons();
+    });
+    if (_voucherController.text.trim().isNotEmpty) {
+      _validateVoucher();
+    }
+  }
+
   double _computeAddonPrice(Map<String, dynamic> addonAsset) {
     final tiers = _getAvailableTiers(addonAsset);
-    if (tiers.isEmpty) return 20000.0;
+    if (tiers.isEmpty) return 20000.0 * _durationMultiplier;
+    final targetHours = _selectedRateHours ?? 24;
     for (final t in tiers) {
-      if (t.hours == (_selectedDuration ?? 24)) {
-        return t.price;
+      if (t.hours == targetHours) {
+        return t.price * _durationMultiplier;
       }
     }
-    return tiers.first.price;
+    return tiers.first.price * _durationMultiplier;
   }
 
   void _recalculateAddons() {
@@ -442,35 +508,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     }
   }
 
-  void _attachIdentityDocument() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final docNumber = _phoneController.text.isNotEmpty ? _phoneController.text : '$timestamp';
-    final fakePhotoData = 'data:image/jpeg;base64,${base64Encode(utf8.encode('RENTCORE_SECURE_VAULT_AES256_${docNumber}_$timestamp'))}';
-    setState(() {
-      _identityPhotoBase64 = fakePhotoData;
-      _identityPhotoName = 'ID_$docNumber.jpg';
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.shield_rounded, color: AppColors.success, size: 18),
-            SizedBox(width: 8),
-            Text('Foto dokumen identitas tersimpan & terenkripsi ke brankas.'),
-          ],
-        ),
-        backgroundColor: AppColors.obsidian,
-      ),
-    );
-  }
-
-  void _removeIdentityDocument() {
-    setState(() {
-      _identityPhotoBase64 = null;
-      _identityPhotoName = null;
-    });
-  }
-
   void _onNextToCustomerStep() {
     setState(() {
       _assetValidationError = _selectedAssetId == null ? 'Pilih salah satu unit rental terlebih dahulu.' : null;
@@ -545,19 +582,23 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
 
     final customerId = _selectedCustomerId ?? _foundCustomer?['id'];
+    final totalHours = _selectedDuration;
+    final totalDurationValue = _totalDurationValue;
     final payload = <String, dynamic>{
       if (customerId != null)
         'customer_id': customerId is int ? customerId : int.tryParse(customerId.toString()),
       'customer_name': _nameController.text.trim(),
       'customer_phone': _phoneController.text.trim(),
       'customer_address': address,
-      'identity_photo_base64': _identityPhotoBase64,
       'asset_ids': [_selectedAssetId],
       if (_selectedAddons.isNotEmpty)
         'addon_asset_ids': _selectedAddons.map((a) => a['id']).toList(),
-      'duration_hours': _selectedDuration,
+      'duration_hours': totalHours,
       'duration_unit': _selectedDurationUnit,
-      'duration_value': _selectedDurationValue,
+      'duration_value': totalDurationValue,
+      'duration_multiplier': _durationMultiplier,
+      'quantity': _durationMultiplier,
+      if (_selectedTierId != null) 'rate_id': _selectedTierId,
       'collateral_type': 'KTP Asli',
       'collateral_storage_slot': _slotController.text.trim(),
       'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
@@ -610,26 +651,33 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   }
 
   Future<void> _navigateToUnifiedPaymentPage() async {
-    final paymentContext = _buildBookingPaymentContext();
+    setState(() => _isNavigatingToPayment = true);
+    try {
+      final paymentContext = _buildBookingPaymentContext();
 
-    final result = await Navigator.push<PaymentResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PaymentPage(
-          paymentContext: paymentContext,
-          onPaymentSuccess: () {
-            ref.invalidate(bookingsListProvider);
-            ref.invalidate(closingSummaryProvider);
-            ref.invalidate(readyAssetsProvider);
-            ref.invalidate(inventoryListProvider);
-          },
+      final result = await Navigator.push<PaymentResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentPage(
+            paymentContext: paymentContext,
+            onPaymentSuccess: () {
+              ref.invalidate(bookingsListProvider);
+              ref.invalidate(closingSummaryProvider);
+              ref.invalidate(readyAssetsProvider);
+              ref.invalidate(inventoryListProvider);
+            },
+          ),
         ),
-      ),
-    );
+      );
 
-    if (result != null && result.isSuccess) {
+      if (result != null && result.isSuccess) {
+        if (mounted) {
+          Navigator.pop(context, result);
+        }
+      }
+    } finally {
       if (mounted) {
-        Navigator.pop(context, result);
+        setState(() => _isNavigatingToPayment = false);
       }
     }
   }
@@ -643,10 +691,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const RentCoreAppBar(
-        title: 'Transaksi Sewa Baru di Meja Kasir',
-      ),
+      appBar: widget.showAppBar
+          ? const RentCoreAppBar(
+              title: 'Transaksi Sewa Baru di Meja Kasir',
+            )
+          : null,
       body: SingleChildScrollView(
+        controller: widget.scrollController,
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -835,6 +886,47 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               ),
               const SizedBox(height: 14),
 
+              // Real-Time Unit Search Field
+              TextField(
+                key: const Key('booking_unit_search_field'),
+                controller: _unitSearchController,
+                onChanged: (value) => setState(() {
+                  _unitSearchQuery = value.trim();
+                  _showAllUnits = false;
+                }),
+                decoration: InputDecoration(
+                  hintText: 'Cari nama unit, merek, atau kode...',
+                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textSecondary),
+                  suffixIcon: _unitSearchQuery.isNotEmpty
+                      ? IconButton(
+                          key: const Key('booking_unit_search_clear'),
+                          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                          onPressed: () {
+                            _unitSearchController.clear();
+                            setState(() {
+                              _unitSearchQuery = '';
+                              _showAllUnits = false;
+                            });
+                          },
+                        )
+                      : null,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  filled: true,
+                  fillColor: AppColors.surfaceMuted,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.borderSubtle),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.borderSubtle),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
               // Category Filter Chips (Horizontally Scrollable)
               categoriesAsync.when(
                 loading: () => const SizedBox.shrink(),
@@ -854,7 +946,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                             return ChoiceChip(
                               label: const Text('Semua'),
                               selected: isSelected,
-                              onSelected: (_) => setState(() => _selectedAssetCategoryId = null),
+                              onSelected: (_) => setState(() {
+                                _selectedAssetCategoryId = null;
+                                _showAllUnits = false;
+                              }),
                               selectedColor: AppColors.obsidian,
                               labelStyle: TextStyle(
                                 color: isSelected ? Colors.white : AppColors.textPrimary,
@@ -868,7 +963,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                           return ChoiceChip(
                             label: Text(cat['name'] ?? ''),
                             selected: isSelected,
-                            onSelected: (_) => setState(() => _selectedAssetCategoryId = cat['id']),
+                            onSelected: (_) => setState(() {
+                              _selectedAssetCategoryId = cat['id'];
+                              _showAllUnits = false;
+                            }),
                             selectedColor: AppColors.obsidian,
                             labelStyle: TextStyle(
                               color: isSelected ? Colors.white : AppColors.textPrimary,
@@ -911,9 +1009,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 loading: () => const LinearProgressIndicator(),
                 error: (e, _) => Text('Gagal memuat unit: $e'),
                 data: (assets) {
-                  final filteredAssets = _selectedAssetCategoryId == null
-                      ? assets
-                      : assets.where((a) => a['model']?['category_id'] == _selectedAssetCategoryId).toList();
+                  final filteredAssets = assets
+                      .where((a) {
+                        final matchesCategory = _selectedAssetCategoryId == null ||
+                            a['model']?['category_id'] == _selectedAssetCategoryId;
+                        if (!matchesCategory) return false;
+                        return a is Map<String, dynamic> && _matchesUnitSearch(a, _unitSearchQuery);
+                      })
+                      .toList();
 
                   if (filteredAssets.isEmpty) {
                     return Container(
@@ -922,14 +1025,16 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         color: AppColors.surfaceMuted,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.warning_amber_rounded, color: AppColors.warning),
-                          SizedBox(width: 10),
+                          const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Tidak ada unit rental ready sewa saat ini di kategori ini.',
-                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              _unitSearchQuery.isNotEmpty
+                                  ? 'Tidak ada unit yang cocok dengan pencarian "$_unitSearchQuery".'
+                                  : 'Tidak ada unit rental ready sewa saat ini di kategori ini.',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ),
                         ],
@@ -937,153 +1042,174 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     );
                   }
 
+                  final displayedAssets = _showAllUnits
+                      ? filteredAssets
+                      : filteredAssets.take(_initialUnitCap).toList();
+                  final hasMoreUnits = filteredAssets.length > _initialUnitCap && !_showAllUnits;
+
                   return Column(
-                    children: filteredAssets.map((asset) {
-                      final isSelected = _selectedAssetId == asset['id'];
-                      final model = asset['model'] ?? {};
-                      final category = model['category'] ?? {};
-                      final tiers = _getAvailableTiers(asset);
-                      double dynamicRate = tiers.isNotEmpty ? tiers.first.price : 0.0;
-                      for (final t in tiers) {
-                        if (t.hours == (_selectedDuration ?? 24)) {
-                          dynamicRate = t.price;
-                          break;
-                        }
-                      }
+                    children: [
+                      ...displayedAssets.map((asset) {
+                        final isSelected = _selectedAssetId == asset['id'];
+                        final model = asset['model'] ?? {};
+                        final category = model['category'] ?? {};
+                        final tiers = _getAvailableTiers(asset);
+                        final primaryRateLabel = _formatPrimaryUnitRateLabel(tiers);
+                        final snFormatted = _formatLast4Sn(asset['serial_number']?.toString());
 
-                      final snFormatted = _formatLast4Sn(asset['serial_number']?.toString());
-
-                      return GestureDetector(
-                        onTap: () => _onAssetSelected(asset),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppColors.surfaceMuted : Colors.transparent,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: isSelected ? AppColors.obsidian : AppColors.borderSubtle,
-                              width: isSelected ? 2 : 1,
+                        return GestureDetector(
+                          onTap: () => _onAssetSelected(asset),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.surfaceMuted : Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected ? AppColors.obsidian : AppColors.borderSubtle,
+                                width: isSelected ? 2 : 1,
+                              ),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                size: 18,
-                                color: isSelected ? AppColors.obsidian : AppColors.textMuted,
-                              ),
-                              const SizedBox(width: 10),
-                              Icon(
-                                _getCategoryIcon(category['name']),
-                                size: 20,
-                                color: isSelected ? AppColors.obsidian : AppColors.textSecondary,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      model['name'] ?? '',
-                                      style: TextStyle(
-                                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 4,
-                                      children: [
-                                        // Asset Code Chip
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.surfaceMuted,
-                                            borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(color: AppColors.border),
-                                          ),
-                                          child: Text(
-                                            asset['asset_code']?.toString() ?? '',
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                                  size: 18,
+                                  color: isSelected ? AppColors.obsidian : AppColors.textMuted,
+                                ),
+                                const SizedBox(width: 10),
+                                Icon(
+                                  _getCategoryIcon(category['name']),
+                                  size: 20,
+                                  color: isSelected ? AppColors.obsidian : AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        model['name'] ?? '',
+                                        style: TextStyle(
+                                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                                          fontSize: 13,
                                         ),
-                                        // Condition Grade Badge
-                                        if (asset['condition_grade'] != null)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: _getGradeBgColor(asset['condition_grade']),
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              'Grade ${asset['condition_grade']}',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w700,
-                                                color: _getGradeTextColor(asset['condition_grade']),
-                                              ),
-                                            ),
-                                          ),
-                                        // Battery Health Badge
-                                        if (asset['battery_health'] != null)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.successLight,
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              'BH ${asset['battery_health']}%',
-                                              style: const TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.success,
-                                              ),
-                                            ),
-                                          ),
-                                        // Serial Number Badge (last 4 digits)
-                                        if (snFormatted.isNotEmpty)
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        primaryRateLabel,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                          color: AppColors.obsidian,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: [
+                                          // Asset Code Chip
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: AppColors.surfaceMuted,
                                               borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: AppColors.border),
                                             ),
                                             child: Text(
-                                              'SN: $snFormatted',
+                                              asset['asset_code']?.toString() ?? '',
                                               style: const TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.w600,
-                                                color: AppColors.textMuted,
+                                                color: AppColors.textSecondary,
                                               ),
                                             ),
                                           ),
-                                      ],
-                                    ),
-                                  ],
+                                          // Condition Grade Badge
+                                          if (asset['condition_grade'] != null)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: _getGradeBgColor(asset['condition_grade']),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'Grade ${asset['condition_grade']}',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: _getGradeTextColor(asset['condition_grade']),
+                                                ),
+                                              ),
+                                            ),
+                                          // Battery Health Badge
+                                          if (asset['battery_health'] != null)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.successLight,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'BH ${asset['battery_health']}%',
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: AppColors.success,
+                                                ),
+                                              ),
+                                            ),
+                                          // Serial Number Badge (last 4 digits)
+                                          if (snFormatted.isNotEmpty)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.surfaceMuted,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'SN: $snFormatted',
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.textMuted,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                CurrencyFormatter.format(dynamicRate),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                      if (hasMoreUnits)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: InkWell(
+                            key: const Key('booking_show_all_units'),
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => setState(() => _showAllUnits = true),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              child: Text(
+                                'Lihat semua (${filteredAssets.length} unit)',
                                 style: const TextStyle(
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: AppColors.obsidian,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      );
-                    }).toList(),
+                    ],
                   );
                 },
               ),
@@ -1184,7 +1310,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                           spacing: 10,
                           runSpacing: 10,
                           children: availableTiers.map((tier) {
-                            final isSelected = _selectedDuration == tier.hours;
+                            final isSelected = _selectedRateHours == tier.hours &&
+                                _selectedDurationUnit == tier.unit &&
+                                _selectedDurationValue == tier.value;
                             return ChoiceChip(
                               label: Text(tier.label),
                               selected: isSelected,
@@ -1198,7 +1326,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                           }).toList(),
                         ),
                         if (isUnitSelected && _selectedDuration != null) ...[
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 14),
+                          _buildDurationMultiplierRow(
+                            totalHours: _selectedDuration!,
+                            canDecrement: _durationMultiplier > 1,
+                            canIncrement: _durationMultiplier < _maxDurationMultiplier,
+                          ),
+                          const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
@@ -1218,6 +1352,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.info,
                                     ),
+                                  ),
+                                ),
+                                Text(
+                                  CurrencyFormatter.format(_basePrice),
+                                  key: const Key('booking_duration_live_subtotal'),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.info,
                                   ),
                                 ),
                               ],
@@ -1280,6 +1423,121 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         ),
         _buildAddonsSelectionSection(readyAssetsAsync, categoriesAsync),
       ],
+    );
+  }
+
+  Widget _buildDurationMultiplierRow({
+    required int totalHours,
+    required bool canDecrement,
+    required bool canIncrement,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Jumlah Kelipatan',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$totalHours Jam',
+                  key: const Key('booking_multiplier_total_hours'),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    key: const Key('booking_multiplier_decrement'),
+                    onTap: canDecrement
+                        ? () => _onMultiplierChanged(_durationMultiplier - 1)
+                        : null,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(9),
+                    ),
+                    child: SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: Icon(
+                        Icons.remove_rounded,
+                        size: 16,
+                        color: canDecrement ? AppColors.textPrimary : AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${_durationMultiplier}x',
+                    key: const Key('booking_multiplier_value'),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    key: const Key('booking_multiplier_increment'),
+                    onTap: canIncrement
+                        ? () => _onMultiplierChanged(_durationMultiplier + 1)
+                        : null,
+                    borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(9),
+                    ),
+                    child: SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: Icon(
+                        Icons.add_rounded,
+                        size: 16,
+                        color: canIncrement ? AppColors.textPrimary : AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1706,134 +1964,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       ),
                     ),
                   ),
-
-                // Encrypted ID Document Photo Vault
-                const SizedBox(height: 16),
-                const Divider(height: 1),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'FOTO DOKUMEN JAMINAN (KTP/SIM)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: AppColors.textMuted,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (_identityPhotoBase64 != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.obsidian,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.lock_rounded, size: 10, color: Colors.white),
-                            SizedBox(width: 4),
-                            Text(
-                              'AES-256 VAULT',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                if (_identityPhotoBase64 == null)
-                  InkWell(
-                    onTap: _attachIdentityDocument,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.camera_alt_outlined, color: AppColors.textSecondary, size: 18),
-                          SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              'Lampirkan Foto Dokumen Identitas',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.obsidian,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.badge_rounded, color: Colors.white, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _identityPhotoName ?? 'Foto_Identitas.jpg',
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const Text(
-                                'Dokumen terenkripsi & tersimpan',
-                                style: TextStyle(
-                                  color: AppColors.success,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.danger),
-                          onPressed: _removeIdentityDocument,
-                          tooltip: 'Hapus Foto',
-                        ),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ),
@@ -1903,7 +2033,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                '${_selectedAsset?['asset_code'] ?? '-'} • Durasi: $_selectedDuration Jam',
+                                '${_selectedAsset?['asset_code'] ?? '-'} • Durasi: $_selectedDuration Jam${_durationMultiplier > 1 ? ' (${_durationMultiplier}x)' : ''}',
                                 style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -2034,13 +2164,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         ],
                       ),
                     ),
-                    if (_identityPhotoBase64 != null)
-                      const StatusBadge(
-                        label: 'KTP Valid',
-                        textColor: AppColors.success,
-                        backgroundColor: AppColors.successLight,
-                        icon: Icons.shield_rounded,
-                      ),
                   ],
                 ),
               ),
