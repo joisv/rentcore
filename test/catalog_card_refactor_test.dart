@@ -245,7 +245,7 @@ void main() {
       },
     );
 
-    testWidgets('bottom safe area padding is at least 96.0 on ListView', (
+    testWidgets('bottom safe area padding is at least 88.0 on ListView', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(1080, 2400);
@@ -257,10 +257,10 @@ void main() {
 
       final listViews = tester.widgetList<ListView>(find.byType(ListView));
       final catalogList = listViews.firstWhere(
-        (lv) => lv.padding != null && (lv.padding as EdgeInsets).bottom >= 96.0,
+        (lv) => lv.padding != null && (lv.padding as EdgeInsets).bottom >= 88.0,
       );
       final padding = catalogList.padding as EdgeInsets;
-      expect(padding.bottom, 96.0);
+      expect(padding.bottom, 88.0);
     });
 
     testWidgets(

@@ -157,7 +157,7 @@ void main() {
           findsOneWidget,
         );
 
-        // 3. Unit & Customer Info Block: 48x48 category icon box + 4 detail lines
+        // 3. Unit & Customer Info Block: 44x44 UnitThumbnail category icon box + 4 detail lines
         final iconFinder = find.byIcon(Icons.phone_iphone_rounded);
         expect(iconFinder, findsOneWidget);
         final iconContainerFinder = find.ancestor(
@@ -165,8 +165,8 @@ void main() {
           matching: find.byWidgetPredicate(
             (w) =>
                 w is Container &&
-                w.constraints?.minWidth == 48 &&
-                w.constraints?.minHeight == 48,
+                w.constraints?.minWidth == 44 &&
+                w.constraints?.minHeight == 44,
           ),
         );
         expect(iconContainerFinder, findsOneWidget);

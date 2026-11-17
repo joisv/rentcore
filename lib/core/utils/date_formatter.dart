@@ -27,6 +27,15 @@ class DateFormatter {
     }
   }
 
+  static String formatDayMonth(DateTime? dateTime) {
+    if (dateTime == null) return '-';
+    try {
+      return DateFormat('dd MMM', 'id_ID').format(dateTime);
+    } catch (_) {
+      return DateFormat('dd MMM').format(dateTime);
+    }
+  }
+
   static String formatTime(DateTime? dateTime) {
     if (dateTime == null) return '-';
     try {

@@ -173,18 +173,21 @@ void main() {
       // 3. Two-line store & active branch display clearly without truncation
       expect(find.text('Gwenn Rental Malang'), findsOneWidget);
       expect(find.text('Semua Cabang'), findsOneWidget);
-      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_header_branch_button')),
+          matching: find.byIcon(Icons.keyboard_arrow_down_rounded),
+        ),
+        findsOneWidget,
+      );
 
-      // 4. Right icons have uniform 22dp size & #1F2937 color
+      // 4. Right slot has 22dp bell icon & #1F2937 color (no search button in header)
       final bellIcon = tester.widget<Icon>(
         find.byIcon(Icons.notifications_none_rounded),
       );
       expect(bellIcon.size, 22);
       expect(bellIcon.color, const Color(0xFF1F2937));
-
-      final searchIcon = tester.widget<Icon>(find.byIcon(Icons.search_rounded));
-      expect(searchIcon.size, 22);
-      expect(searchIcon.color, const Color(0xFF1F2937));
+      expect(find.byKey(const Key('home_header_search_button')), findsNothing);
 
       // No collision between center branch selector and bell icon at 360dp
       final branchRect = tester.getRect(

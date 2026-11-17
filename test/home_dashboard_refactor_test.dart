@@ -266,12 +266,12 @@ void main() {
       );
       expect(find.byTooltip('Ganti Cabang'), findsOneWidget);
 
-      // Notification icon & search icon
+      // Notification icon only in right slot (search moved into Antrean Sewa Cabang)
       expect(find.byTooltip('Pusat Pemberitahuan'), findsOneWidget);
       expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
       expect(
         find.byKey(const Key('home_header_search_button')),
-        findsOneWidget,
+        findsNothing,
       );
 
       // Opening the menu button displays profile name & role badge
@@ -430,7 +430,7 @@ void main() {
     );
 
     testWidgets(
-      '4. Responsive Live Quick Search Bar filters queue with 300ms debouncing',
+      '4. Embedded Antrean Sewa Cabang search filters queue in real time and clears via X button',
       (tester) async {
         tester.view.physicalSize = const Size(1200, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -464,25 +464,15 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // Initially all 3 bookings visible, search input collapsed
+        // Initially all 3 bookings visible and embedded search field is present
         expect(find.text('RC-OVERDUE-01'), findsOneWidget);
         expect(find.text('RC-DUETODAY-02'), findsOneWidget);
         expect(find.text('RC-PENDING-03'), findsOneWidget);
-        expect(find.byType(TextField), findsNothing);
-
-        // Tap search icon to expand inline search input
-        await tester.tap(find.byKey(const Key('home_header_search_button')));
-        await tester.pumpAndSettle();
-
-        // Enter search query
-        final searchInput = find.byType(TextField);
+        final searchInput = find.byKey(const Key('home_queue_search_field'));
         expect(searchInput, findsOneWidget);
-        await tester.enterText(searchInput, 'Canon');
 
-        // Wait 100ms: not yet debounced
-        await tester.pump(const Duration(milliseconds: 100));
-        // Wait remaining 250ms (total > 300ms)
-        await tester.pump(const Duration(milliseconds: 250));
+        // Enter search query -> real-time filtering
+        await tester.enterText(searchInput, 'Canon');
         await tester.pumpAndSettle();
 
         // Only Canon (RC-DUETODAY-02) should match
@@ -490,16 +480,14 @@ void main() {
         expect(find.text('RC-OVERDUE-01'), findsNothing);
         expect(find.text('RC-PENDING-03'), findsNothing);
 
-        // Close/clear button is visible; tapping it clears and collapses
+        // Clear button is visible; tapping it clears query and restores all 3
         expect(
-          find.byKey(const Key('home_search_close_button')),
+          find.byKey(const Key('home_queue_search_clear_button')),
           findsOneWidget,
         );
-        await tester.tap(find.byKey(const Key('home_search_close_button')));
+        await tester.tap(find.byKey(const Key('home_queue_search_clear_button')));
         await tester.pumpAndSettle();
 
-        // All 3 restored and search field collapsed
-        expect(find.byType(TextField), findsNothing);
         expect(find.text('RC-OVERDUE-01'), findsOneWidget);
         expect(find.text('RC-DUETODAY-02'), findsOneWidget);
         expect(find.text('RC-PENDING-03'), findsOneWidget);

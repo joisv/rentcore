@@ -22,9 +22,12 @@ class ProgressiveChecklistBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final businessState = ref.watch(businessProvider);
     final onboardingState = ref.watch(onboardingProvider);
+    final printerState = ref.watch(printerProvider);
     final currentBiz = businessState.currentBusiness;
 
-    if (currentBiz == null || onboardingState.isChecklistDismissed) {
+    if (currentBiz == null ||
+        onboardingState.isChecklistDismissed ||
+        printerState.hasEverConnectedPrinter) {
       return const SizedBox.shrink();
     }
 
@@ -81,8 +84,8 @@ class ProgressiveChecklistBanner extends ConsumerWidget {
         checkQrisReady(bizConfig, currentBiz);
 
     // Reactively evaluate paired / connected thermal printer
-    final printerState = ref.watch(printerProvider);
-    final hasPrinter = printerState.isPairedOrConnected;
+    final hasPrinter =
+        printerState.isPairedOrConnected || printerState.hasEverConnectedPrinter;
 
     final completedCount = [
       hasProfile,

@@ -87,6 +87,9 @@ class AuthNotifier extends Notifier<AuthState> {
         isAuthenticated: true,
         user: user,
       );
+      if (ref.exists(printerProvider)) {
+        ref.read(printerProvider.notifier).syncHasEverConnectedFlag();
+      }
     } else {
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -124,6 +127,9 @@ class AuthNotifier extends Notifier<AuthState> {
         isAuthenticated: true,
         user: data['user'],
       );
+      if (ref.exists(printerProvider)) {
+        ref.read(printerProvider.notifier).syncHasEverConnectedFlag();
+      }
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -171,6 +177,9 @@ class AuthNotifier extends Notifier<AuthState> {
         isAuthenticated: true,
         user: data['user'],
       );
+      if (ref.exists(printerProvider)) {
+        ref.read(printerProvider.notifier).syncHasEverConnectedFlag();
+      }
       return true;
     } catch (e) {
       state = state.copyWith(

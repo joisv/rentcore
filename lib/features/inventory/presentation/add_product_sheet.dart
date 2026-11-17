@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../auth/providers/business_provider.dart';
@@ -58,6 +61,11 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
   bool _isAddon = false;
   bool _isLoading = false;
 
+  XFile? _pickedImageFile;
+  Uint8List? _pickedImageBytes;
+  String? _existingImageUrl;
+  bool _removeImage = false;
+
   final List<_RateItem> _rates = [];
 
   @override
@@ -74,6 +82,11 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       _hasSerialNumber = p['has_serial_number'] != false;
       _requiresFrpCheck = p['requires_frp_check'] == true;
       _isAddon = p['is_addon'] == true || p['is_addon'] == 1;
+      _existingImageUrl = (p['image_url'] ??
+              p['image'] ??
+              p['photo_url'] ??
+              p['thumbnail'])
+          ?.toString();
 
       final acc = p['standard_accessories'];
       if (acc is List) {
@@ -456,29 +469,72 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
 
     try {
       final repo = ref.read(assetRepositoryProvider);
-      final payload = <String, dynamic>{
-        'category_id': _selectedCategoryId,
-        'brand': _brandController.text.trim(),
-        'name': _nameController.text.trim(),
-        if (_descriptionController.text.trim().isNotEmpty)
-          'description': _descriptionController.text.trim(),
-        if (_colorController.text.trim().isNotEmpty)
-          'color': _colorController.text.trim(),
-        if (_storageController.text.trim().isNotEmpty)
-          'storage_capacity': _storageController.text.trim(),
-        if (accessories.isNotEmpty)
-          'standard_accessories': accessories,
-        'has_serial_number': _hasSerialNumber,
-        'requires_frp_check': _requiresFrpCheck,
-        'is_addon': _isAddon,
-        'rates': formattedRates,
-      };
+      Map<String, dynamic> resultModel;
 
-      Map<String, dynamic>? createdProduct;
-      if (_isEditing) {
-        await repo.updateProduct(widget.initialProduct!['id'] as int, payload);
+      if (_pickedImageBytes != null || _removeImage) {
+        final formMap = <String, dynamic>{
+          'category_id': _selectedCategoryId,
+          'brand': _brandController.text.trim(),
+          'name': _nameController.text.trim(),
+          if (_descriptionController.text.trim().isNotEmpty)
+            'description': _descriptionController.text.trim(),
+          if (_colorController.text.trim().isNotEmpty)
+            'color': _colorController.text.trim(),
+          if (_storageController.text.trim().isNotEmpty)
+            'storage_capacity': _storageController.text.trim(),
+          'has_serial_number': _hasSerialNumber ? 1 : 0,
+          'requires_frp_check': _requiresFrpCheck ? 1 : 0,
+          'is_addon': _isAddon ? 1 : 0,
+          if (_isEditing) '_method': 'PUT',
+          if (_removeImage) 'remove_image': 1,
+        };
+        for (int i = 0; i < accessories.length; i++) {
+          formMap['standard_accessories[$i]'] = accessories[i];
+        }
+        for (int i = 0; i < formattedRates.length; i++) {
+          final r = formattedRates[i];
+          formMap['rates[$i][duration_unit]'] = r['duration_unit'];
+          formMap['rates[$i][duration_value]'] = r['duration_value'];
+          formMap['rates[$i][price]'] = r['price'];
+          formMap['rates[$i][extension_hourly_rate]'] = r['extension_hourly_rate'];
+        }
+        if (_pickedImageBytes != null && _pickedImageFile != null) {
+          formMap['image'] = MultipartFile.fromBytes(
+            _pickedImageBytes!,
+            filename: _pickedImageFile!.name,
+          );
+        }
+        final formData = FormData.fromMap(formMap);
+        resultModel = _isEditing
+            ? await repo.updateProductMultipart(
+                widget.initialProduct!['id'] as int,
+                formData,
+              )
+            : await repo.createProductMultipart(formData);
       } else {
-        createdProduct = await repo.createProduct(payload);
+        final payload = <String, dynamic>{
+          'category_id': _selectedCategoryId,
+          'brand': _brandController.text.trim(),
+          'name': _nameController.text.trim(),
+          if (_descriptionController.text.trim().isNotEmpty)
+            'description': _descriptionController.text.trim(),
+          if (_colorController.text.trim().isNotEmpty)
+            'color': _colorController.text.trim(),
+          if (_storageController.text.trim().isNotEmpty)
+            'storage_capacity': _storageController.text.trim(),
+          if (accessories.isNotEmpty)
+            'standard_accessories': accessories,
+          'has_serial_number': _hasSerialNumber,
+          'requires_frp_check': _requiresFrpCheck,
+          'is_addon': _isAddon,
+          'rates': formattedRates,
+        };
+        resultModel = _isEditing
+            ? await repo.updateProduct(
+                widget.initialProduct!['id'] as int,
+                payload,
+              )
+            : await repo.createProduct(payload);
       }
 
       // Refresh catalog providers
@@ -490,9 +546,6 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
 
       widget.onSuccess();
       if (mounted) {
-        final resultModel = createdProduct ?? {
-          'name': _nameController.text.trim(),
-        };
         Navigator.pop(context, resultModel);
         messenger.showSnackBar(
           SnackBar(content: Text(_isEditing ? 'Katalog berhasil diperbarui!' : 'Produk baru berhasil didaftarkan!')),
@@ -506,6 +559,247 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
         );
       }
     }
+  }
+
+  Future<void> _pickModelImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+      );
+      if (picked == null) return;
+
+      final bytes = await picked.readAsBytes();
+      const maxBytes = 5 * 1024 * 1024; // 5MB (matches Laravel max:5120)
+      if (bytes.length > maxBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ukuran foto melebihi batas 5MB. Pilih foto yang lebih kecil.'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+        return;
+      }
+
+      final ext = picked.name.split('.').last.toLowerCase();
+      if (!['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(ext)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Format file tidak didukung. Pilih gambar JPG, PNG, atau WEBP.'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _pickedImageFile = picked;
+          _pickedImageBytes = bytes;
+          _removeImage = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memilih foto: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showImageSourceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF0F172A)),
+                title: const Text('Pilih dari Galeri', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickModelImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined, color: Color(0xFF0F172A)),
+                title: const Text('Ambil Foto dengan Kamera', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickModelImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelPhotoPicker() {
+    final hasPicked = _pickedImageBytes != null;
+    final hasExisting = !hasPicked &&
+        !_removeImage &&
+        _existingImageUrl != null &&
+        _existingImageUrl!.trim().isNotEmpty;
+    final hasPreview = hasPicked || hasExisting;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Foto Model Perangkat (Opsional)',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+        ),
+        const SizedBox(height: 6),
+        if (hasPreview)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: hasPicked
+                      ? Image.memory(
+                          _pickedImageBytes!,
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.network(
+                          _existingImageUrl!,
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            width: 72,
+                            height: 72,
+                            color: const Color(0xFFF1F5F9),
+                            child: const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8)),
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hasPicked ? (_pickedImageFile?.name ?? 'Foto terpilih') : 'Foto model tersimpan',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            key: const Key('model_photo_change_button'),
+                            onPressed: _showImageSourceSheet,
+                            style: OutlinedButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                              foregroundColor: const Color(0xFF0F172A),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.edit_outlined, size: 14),
+                            label: const Text('Ganti', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          ),
+                          OutlinedButton.icon(
+                            key: const Key('model_photo_remove_button'),
+                            onPressed: () {
+                              setState(() {
+                                _pickedImageFile = null;
+                                _pickedImageBytes = null;
+                                _removeImage = true;
+                              });
+                            },
+                            style: OutlinedButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              side: const BorderSide(color: Color(0xFFFECDD3)),
+                              foregroundColor: const Color(0xFFE11D48),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.delete_outline_rounded, size: 14),
+                            label: const Text('Hapus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          InkWell(
+            key: const Key('model_photo_picker_box'),
+            onTap: _showImageSourceSheet,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFCBD5E1)),
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_a_photo_outlined, size: 28, color: Color(0xFF475569)),
+                  SizedBox(height: 8),
+                  Text(
+                    'Pilih atau Ambil Foto Model',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'JPG, PNG, WEBP • Maks. 5 MB',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   InputDecoration _inputDecoration({
@@ -548,44 +842,27 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
     final isFrpApplicable = _isFrpRelevant(cats);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.92,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Top Drag Handle & Sticky Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 10, 12, 14),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // iOS Drag handle bar
-                  Center(
-                    child: Container(
-                      width: 48,
-                      height: 5,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE2E8F0),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportHeight = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : MediaQuery.sizeOf(context).height;
+        return Container(
+          height: viewportHeight,
+          color: Colors.white,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Full-Screen Clean Header with X Close Button
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
                   ),
-                  Row(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
@@ -612,18 +889,17 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                         ),
                       ),
                       IconButton(
+                        key: const Key('add_product_sheet_close_button'),
                         style: IconButton.styleFrom(
                           visualDensity: VisualDensity.compact,
-                          foregroundColor: const Color(0xFF94A3B8),
+                          foregroundColor: const Color(0xFF475569),
                         ),
                         icon: const Icon(Icons.close_rounded, size: 22),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
+                ),
 
             // Scrollable Form Body
             Expanded(
@@ -670,9 +946,11 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Kategori Perangkat *',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                          const Expanded(
+                            child: Text(
+                              'Kategori Perangkat *',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                            ),
                           ),
                           InkWell(
                             onTap: _showQuickAddCategoryDialog,
@@ -777,6 +1055,10 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+
+                      // Foto Model Perangkat (Opsional)
+                      _buildModelPhotoPicker(),
                       const SizedBox(height: 12),
 
                       // Warna & Kapasitas / RAM (Category-Adaptive)
@@ -963,9 +1245,11 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                                   children: [
                                     Row(
                                       children: [
-                                        const Text(
-                                          'Wajib Cek Akun (iCloud / FRP)',
-                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                        const Flexible(
+                                          child: Text(
+                                            'Wajib Cek Akun (iCloud / FRP)',
+                                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                          ),
                                         ),
                                         const SizedBox(width: 6),
                                         Container(
@@ -1412,9 +1696,11 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                       ),
               ),
             ),
-          ],
-        ),
-      ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

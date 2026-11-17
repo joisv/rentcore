@@ -11,7 +11,9 @@ class BookingRepository {
     int? branchId,
     bool allBranches = false,
   }) async {
-    final queryParams = <String, dynamic>{};
+    final queryParams = <String, dynamic>{
+      'per_page': '200',
+    };
     if (status != null) queryParams['status'] = status;
     if (search != null) queryParams['search'] = search;
     if (allBranches) {

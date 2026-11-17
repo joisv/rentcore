@@ -3,9 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../auth/providers/business_provider.dart';
 
 const String _kPrinterSettingsKey = 'rentcore_printer_settings_v1';
 const String _kPrinterSavedDeviceKey = 'rentcore_printer_saved_device_v1';
+const String _kHasEverConnectedPrinterPrefix = 'has_ever_connected_printer';
 
 class PrinterState {
   final ThermalPrinterDevice? connectedDevice;
@@ -15,6 +18,7 @@ class PrinterState {
   final bool isScanning;
   final bool isConnecting;
   final bool isPrinting;
+  final bool hasEverConnectedPrinter;
   final String? lastEchoLog;
   final String? errorMessage;
 
@@ -32,6 +36,7 @@ class PrinterState {
     this.isScanning = false,
     this.isConnecting = false,
     this.isPrinting = false,
+    this.hasEverConnectedPrinter = false,
     this.lastEchoLog,
     this.errorMessage,
   });
@@ -45,6 +50,7 @@ class PrinterState {
     bool? isScanning,
     bool? isConnecting,
     bool? isPrinting,
+    bool? hasEverConnectedPrinter,
     String? lastEchoLog,
     String? errorMessage,
     bool clearError = false,
@@ -57,6 +63,7 @@ class PrinterState {
       isScanning: isScanning ?? this.isScanning,
       isConnecting: isConnecting ?? this.isConnecting,
       isPrinting: isPrinting ?? this.isPrinting,
+      hasEverConnectedPrinter: hasEverConnectedPrinter ?? this.hasEverConnectedPrinter,
       lastEchoLog: lastEchoLog ?? this.lastEchoLog,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
@@ -74,8 +81,80 @@ final printerProvider = NotifierProvider<PrinterNotifier, PrinterState>(() {
 class PrinterNotifier extends Notifier<PrinterState> {
   ThermalPrinterService get _service => ref.read(thermalPrinterServiceProvider);
 
+  static String hasEverConnectedStorageKey({String? userId, int? storeId}) {
+    final u = (userId != null && userId.trim().isNotEmpty) ? userId.trim() : 'default';
+    final s = storeId?.toString() ?? 'default';
+    return '${_kHasEverConnectedPrinterPrefix}_${u}_$s';
+  }
+
+  String _resolveCurrentScopeKey(SharedPreferences prefs) {
+    String? userId;
+    if (ref.exists(authProvider)) {
+      userId = ref.read(authProvider).user?['id']?.toString();
+    } else {
+      final cachedEmail = prefs.getString('user_email')?.trim();
+      if (cachedEmail != null && cachedEmail.isNotEmpty) {
+        userId = cachedEmail;
+      }
+    }
+    final storeId = ref.exists(businessProvider)
+        ? ref.read(businessProvider).activeBusinessId
+        : prefs.getInt('active_business_id');
+    return hasEverConnectedStorageKey(userId: userId, storeId: storeId);
+  }
+
+  bool _hasSavedPrinterConfig(SharedPreferences prefs) {
+    final deviceJson = prefs.getString(_kPrinterSavedDeviceKey);
+    if (deviceJson != null && deviceJson.trim().isNotEmpty) return true;
+    final legacyMac = prefs.getString('last_connected_printer_mac') ??
+        prefs.getString('selected_printer_device');
+    return legacyMac != null && legacyMac.trim().isNotEmpty;
+  }
+
+  Future<bool> _readAndSyncEverConnectedFlag(
+    SharedPreferences prefs, {
+    bool hasSavedConfig = false,
+  }) async {
+    final scopedKey = _resolveCurrentScopeKey(prefs);
+    bool flag = prefs.getBool(scopedKey) == true;
+    if (!flag && hasSavedConfig) {
+      flag = true;
+      await prefs.setBool(scopedKey, true);
+    }
+    return flag;
+  }
+
+  Future<void> syncHasEverConnectedFlag() async {
+    try {
+      if (!ref.mounted) return;
+      final prefs = await SharedPreferences.getInstance();
+      if (!ref.mounted) return;
+      final hasSaved = _hasSavedPrinterConfig(prefs) || state.connectedDevice != null;
+      final everConnected = await _readAndSyncEverConnectedFlag(
+        prefs,
+        hasSavedConfig: hasSaved,
+      );
+      if (!ref.mounted) return;
+      if (state.hasEverConnectedPrinter != everConnected) {
+        state = state.copyWith(hasEverConnectedPrinter: everConnected);
+      }
+    } catch (e) {
+      debugPrint('[PrinterNotifier] syncHasEverConnectedFlag error: $e');
+    }
+  }
+
   @override
   PrinterState build() {
+    ref.listen<int?>(
+      businessProvider.select((s) => s.activeBusinessId),
+      (_, _) => syncHasEverConnectedFlag(),
+    );
+    if (ref.exists(authProvider)) {
+      ref.listen<dynamic>(
+        authProvider.select((s) => s.user?['id']),
+        (_, _) => syncHasEverConnectedFlag(),
+      );
+    }
     Future.microtask(() => _init());
     return const PrinterState();
   }
@@ -141,9 +220,15 @@ class PrinterNotifier extends Notifier<PrinterState> {
       _service.setConnectedDevice(device);
 
       if (!ref.mounted) return;
+      final hasEverConnected = await _readAndSyncEverConnectedFlag(
+        prefs,
+        hasSavedConfig: device != null || _hasSavedPrinterConfig(prefs),
+      );
+      if (!ref.mounted) return;
       state = state.copyWith(
         settings: settings,
         connectedDevice: device,
+        hasEverConnectedPrinter: hasEverConnected,
         status: isActuallyConnected
             ? PrinterConnectionStatus.connected
             : PrinterConnectionStatus.disconnected,
@@ -234,13 +319,15 @@ class PrinterNotifier extends Notifier<PrinterState> {
         final connected = device.copyWith(isConnected: true);
         _service.setConnectedDevice(connected);
 
-        // Persist saved device
+        // Persist saved device & scoped ever-connected flag
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_kPrinterSavedDeviceKey, json.encode(connected.toJson()));
+        await prefs.setBool(_resolveCurrentScopeKey(prefs), true);
 
         state = state.copyWith(
           isConnecting: false,
           connectedDevice: connected,
+          hasEverConnectedPrinter: true,
           status: PrinterConnectionStatus.connected,
         );
         return true;

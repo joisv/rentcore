@@ -109,7 +109,6 @@ void main() {
         navigatorKey: rootNavigatorKey,
         theme: AppTheme.lightTheme,
         home: Scaffold(
-          extendBody: true,
           body: child,
           bottomNavigationBar: FloatingCapsuleDock(currentIndex: 2, onTabSelected: (_) {}),
         ),

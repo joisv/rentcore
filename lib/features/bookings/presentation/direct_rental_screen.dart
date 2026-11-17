@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/unit_thumbnail.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/data/customer_repository.dart';
@@ -121,6 +122,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   double _addonSubtotal = 0.0;
   final List<Map<String, dynamic>> _selectedAddons = [];
   int? _selectedAddonCategoryId;
+  final _addonSearchController = TextEditingController();
+  String _addonSearchQuery = '';
   double _discountAmount = 0.0;
   bool _isValidatingVoucher = false;
   String? _voucherMessage;
@@ -208,6 +211,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     _slotController.dispose();
     _voucherController.dispose();
     _unitSearchController.dispose();
+    _addonSearchController.dispose();
     super.dispose();
   }
 
@@ -1078,12 +1082,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                                   color: isSelected ? AppColors.obsidian : AppColors.textMuted,
                                 ),
                                 const SizedBox(width: 10),
-                                Icon(
-                                  _getCategoryIcon(category['name']),
-                                  size: 20,
-                                  color: isSelected ? AppColors.obsidian : AppColors.textSecondary,
+                                UnitThumbnail(
+                                  imageUrl: extractUnitImageUrl(
+                                    model: model is Map ? model : null,
+                                    asset: asset is Map ? asset : null,
+                                  ),
+                                  fallbackIcon: _getCategoryIcon(category['name']),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1567,9 +1573,27 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           return const SizedBox.shrink();
         }
 
-        final filteredAddons = _selectedAddonCategoryId == null
+        final categoryFilteredAddons = _selectedAddonCategoryId == null
             ? addonAssets
             : addonAssets.where((a) => a['model']?['category_id'] == _selectedAddonCategoryId).toList();
+
+        final addonQuery = _addonSearchQuery.trim().toLowerCase();
+        final filteredAddons = addonQuery.isEmpty
+            ? categoryFilteredAddons
+            : categoryFilteredAddons.where((a) {
+                final model = a['model'] as Map? ?? {};
+                final category = model['category'] as Map? ?? {};
+                final name = (model['name']?.toString() ?? '').toLowerCase();
+                final brand = (model['brand']?.toString() ?? '').toLowerCase();
+                final desc = (model['description']?.toString() ?? '').toLowerCase();
+                final code = (a['asset_code']?.toString() ?? '').toLowerCase();
+                final cat = (category['name']?.toString() ?? '').toLowerCase();
+                return name.contains(addonQuery) ||
+                    brand.contains(addonQuery) ||
+                    desc.contains(addonQuery) ||
+                    code.contains(addonQuery) ||
+                    cat.contains(addonQuery);
+              }).toList();
 
         return Container(
           margin: const EdgeInsets.only(top: 16),
@@ -1632,8 +1656,61 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               ),
               const SizedBox(height: 12),
 
+              // Real-Time Add-on Search Field
+              TextField(
+                key: const Key('booking_addon_search_field'),
+                controller: _addonSearchController,
+                onChanged: (value) => setState(() {
+                  _addonSearchQuery = value.trim();
+                }),
+                decoration: InputDecoration(
+                  hintText: 'Cari add-on...',
+                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textSecondary),
+                  suffixIcon: _addonSearchQuery.isNotEmpty
+                      ? IconButton(
+                          key: const Key('booking_addon_search_clear'),
+                          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                          onPressed: () {
+                            _addonSearchController.clear();
+                            setState(() => _addonSearchQuery = '');
+                          },
+                        )
+                      : null,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  filled: true,
+                  fillColor: AppColors.surfaceMuted,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.borderSubtle),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.borderSubtle),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
               // Addon items list
-              Column(
+              if (filteredAddons.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _addonSearchQuery.isNotEmpty
+                        ? 'Tidak ada add-on yang cocok dengan "$_addonSearchQuery".'
+                        : 'Tidak ada add-on tersedia.',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                )
+              else
+                Column(
                 children: filteredAddons.map((addon) {
                   final isSelected = _selectedAddons.any((a) => a['id'] == addon['id']);
                   final model = addon['model'] as Map? ?? {};
@@ -1709,10 +1786,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Subtotal Add-on (${_selectedAddons.length} item):',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                    Expanded(
+                      child: Text(
+                        'Subtotal Add-on (${_selectedAddons.length} item):',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       CurrencyFormatter.format(_addonSubtotal),
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.obsidian),

@@ -7,7 +7,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
-import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../home/providers/dashboard_provider.dart';
 import '../providers/asset_provider.dart';
@@ -432,7 +431,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 onAddModel: () => _openAddProductSheet(context),
               )
             : null,
-        floatingActionButtonLocation: const DockFloatingActionButtonLocation(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         body: !hasBusiness
             ? _buildNoBusinessView(context)
             : Stack(
@@ -903,6 +902,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   combinedAssets.add(asset);
                 }
               }
+              final sortedAssets = sortAssetsNewestFirst(combinedAssets);
 
               return RefreshIndicator(
                 onRefresh: () async {
@@ -911,12 +911,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 },
                 child: ListView.separated(
                   controller: _unitsScrollController,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
                   itemCount:
-                      combinedAssets.length + (_isLoadingMoreAssets ? 1 : 0),
+                      sortedAssets.length + (_isLoadingMoreAssets ? 1 : 0),
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    if (index >= combinedAssets.length) {
+                    if (index >= sortedAssets.length) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 16),
@@ -928,7 +928,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                         ),
                       );
                     }
-                    final asset = combinedAssets[index];
+                    final asset = sortedAssets[index];
                     return _buildAssetCard(context, asset);
                   },
                 ),
@@ -956,6 +956,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         ? rawSn.trim()
         : '-';
     final modelName = model?['name']?.toString() ?? 'Item Rental';
+    final modelImageUrl = _extractModelImageUrl(model);
     final status = asset['status']?.toString() ?? 'ready';
     final grade = asset['condition_grade']?.toString() ?? 'A';
     final battery = asset['battery_health'] != null
@@ -996,10 +997,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Row: Model Title & Specs (flush left) + Status Pill (right)
+            // Header Row: Optional Model Thumbnail + Title & Specs + Status Pill
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (modelImageUrl != null && modelImageUrl.trim().isNotEmpty) ...[
+                  _buildProductThumbnail(modelName, catName, modelImageUrl),
+                  const SizedBox(width: 12),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1516,7 +1521,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               return RefreshIndicator(
                 onRefresh: () async => ref.invalidate(productsProvider),
                 child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
                   itemCount: products.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
@@ -1601,92 +1606,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   String? _extractDailyRate(
     Map<String, dynamic> product,
     List<Map<String, dynamic>> tiers,
-  ) {
-    if (tiers.isNotEmpty) {
-      final day1Tier = tiers.firstWhere(
-        (t) {
-          final unit = t['duration_unit']?.toString().toLowerCase();
-          final val = t['duration_value']?.toString();
-          return unit == 'day' && (val == '1' || val == null);
-        },
-        orElse: () => tiers.firstWhere(
-          (t) => t['duration_unit']?.toString().toLowerCase() == 'day',
-          orElse: () => tiers.first,
-        ),
-      );
-
-      final priceVal = day1Tier['price'];
-      if (priceVal != null) {
-        final priceNum = num.tryParse(priceVal.toString()) ?? 0;
-        final unitStr = day1Tier['duration_unit']?.toString().toLowerCase();
-        final valStr = day1Tier['duration_value']?.toString() ?? '1';
-        String suffix;
-        if (unitStr == 'day') {
-          suffix = valStr == '1' ? '/ hari' : '/ $valStr hari';
-        } else if (unitStr == 'hour') {
-          suffix = valStr == '1' ? '/ jam' : '/ $valStr jam';
-        } else {
-          suffix = '/ hari';
-        }
-        return '${CurrencyFormatter.format(priceNum)} $suffix';
-      }
-    }
-
-    final dailyRate =
-        product['daily_rate'] ?? product['price'] ?? product['rental_price'];
-    if (dailyRate != null) {
-      final priceNum = num.tryParse(dailyRate.toString()) ?? 0;
-      if (priceNum > 0) {
-        return '${CurrencyFormatter.format(priceNum)} / hari';
-      }
-    }
-
-    return null;
-  }
+  ) => _extractModelPrimaryRate(product, tiersOverride: tiers);
 
   Widget _buildProductThumbnail(
     String name,
     String? catName,
     String? imageUrl,
-  ) {
-    if (imageUrl != null && imageUrl.trim().isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.network(
-          imageUrl,
-          width: 44,
-          height: 44,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildAvatarFallback(name, catName),
-        ),
-      );
-    }
-    return _buildAvatarFallback(name, catName);
-  }
-
-  Widget _buildAvatarFallback(String name, String? catName) {
-    final initial = name.trim().isNotEmpty
-        ? name.trim().substring(0, 1).toUpperCase()
-        : 'P';
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          color: AppColors.obsidian,
-          fontWeight: FontWeight.w800,
-          fontSize: 18,
-        ),
-      ),
-    );
-  }
+  ) => _buildModelThumbnailWidget(name, imageUrl);
 
   Widget _buildStockPill(int readyCount, int totalCount) {
     final isNone = totalCount == 0;
@@ -2364,9 +2290,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final createdProduct = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      useRootNavigator: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (ctx) => AddProductSheet(onSuccess: _refreshAll),
     );
@@ -2654,9 +2582,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      useRootNavigator: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (ctx) =>
           AddProductSheet(initialProduct: product, onSuccess: _refreshAll),
@@ -2761,6 +2691,112 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       ),
     );
   }
+}
+
+// ==========================================
+// SHARED MODEL DISPLAY HELPERS
+// ==========================================
+String? _extractModelImageUrl(Map<String, dynamic>? model) {
+  if (model == null) return null;
+  return (model['image_url'] ??
+          model['image'] ??
+          model['photo_url'] ??
+          model['thumbnail'])
+      ?.toString();
+}
+
+String? _extractModelPrimaryRate(
+  Map<String, dynamic> model, {
+  List<Map<String, dynamic>>? tiersOverride,
+}) {
+  final rawTiers = tiersOverride ?? model['pricing_tiers'] ?? model['pricingTiers'];
+  final tiers = rawTiers is List
+      ? rawTiers.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+      : <Map<String, dynamic>>[];
+
+  if (tiers.isNotEmpty) {
+    final day1Tier = tiers.firstWhere(
+      (t) {
+        final unit = t['duration_unit']?.toString().toLowerCase();
+        final val = t['duration_value']?.toString();
+        return unit == 'day' && (val == '1' || val == null);
+      },
+      orElse: () => tiers.firstWhere(
+        (t) => t['duration_unit']?.toString().toLowerCase() == 'day',
+        orElse: () => tiers.first,
+      ),
+    );
+
+    final priceVal = day1Tier['price'];
+    if (priceVal != null) {
+      final priceNum = num.tryParse(priceVal.toString()) ?? 0;
+      final unitStr = day1Tier['duration_unit']?.toString().toLowerCase();
+      final valStr = day1Tier['duration_value']?.toString() ?? '1';
+      final suffix = switch (unitStr) {
+        'day' => valStr == '1' ? '/ hari' : '/ $valStr hari',
+        'hour' => valStr == '1' ? '/ jam' : '/ $valStr jam',
+        'week' => valStr == '1' ? '/ minggu' : '/ $valStr minggu',
+        'month' => valStr == '1' ? '/ bulan' : '/ $valStr bulan',
+        _ => '/ hari',
+      };
+      return '${CurrencyFormatter.format(priceNum)} $suffix';
+    }
+  }
+
+  final dailyRate =
+      model['daily_rate'] ?? model['price'] ?? model['rental_price'];
+  if (dailyRate != null) {
+    final priceNum = num.tryParse(dailyRate.toString()) ?? 0;
+    if (priceNum > 0) {
+      return '${CurrencyFormatter.format(priceNum)} / hari';
+    }
+  }
+
+  return null;
+}
+
+Widget _buildModelThumbnailWidget(
+  String name,
+  String? imageUrl, {
+  double size = 44,
+}) {
+  Widget fallback() {
+    final initial = name.trim().isNotEmpty
+        ? name.trim().substring(0, 1).toUpperCase()
+        : 'P';
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: AppColors.obsidian,
+          fontWeight: FontWeight.w800,
+          fontSize: size * 0.4,
+        ),
+      ),
+    );
+  }
+
+  if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.network(
+        imageUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback(),
+      ),
+    );
+  }
+  return fallback();
 }
 
 // ==========================================
@@ -2932,9 +2968,11 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Registrasi Unit Baru',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                  const Expanded(
+                    child: Text(
+                      'Registrasi Unit Baru',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded),
@@ -2943,7 +2981,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                 ],
               ),
               const SizedBox(height: 16),
-              // Model Dropdown
+              // Searchable Model Selector
               const Text(
                 'Model / Tipe Perangkat',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
@@ -2951,33 +2989,148 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
               const SizedBox(height: 6),
               modelsAsync.when(
                 data: (models) {
-                  return DropdownButtonFormField<int>(
+                  return FormField<int>(
+                    key: ValueKey(_selectedModelId),
                     initialValue: _selectedModelId,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: AppColors.surfaceMuted,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                    ),
-                    hint: const Text('Pilih Model Katalog'),
-                    items: models.map((m) {
-                      final id = m['id'] as int;
-                      final name = m['name']?.toString() ?? '-';
-                      final brand = m['brand']?.toString() ?? '';
-                      return DropdownMenuItem<int>(
-                        value: id,
-                        child: Text('$name ($brand)'),
-                      );
-                    }).toList(),
-                    onChanged: (val) => setState(() => _selectedModelId = val),
                     validator: (val) =>
                         val == null ? 'Pilih tipe model terlebih dahulu' : null,
+                    builder: (field) {
+                      final hasSelection = selectedModel != null;
+                      final modelTitle =
+                          selectedModel?['name']?.toString() ?? '-';
+                      final modelBrand =
+                          selectedModel?['brand']?.toString() ?? '';
+                      final modelRate = hasSelection
+                          ? _extractModelPrimaryRate(selectedModel)
+                          : null;
+                      final modelImage = _extractModelImageUrl(selectedModel);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          InkWell(
+                            key: const Key('register_unit_model_selector'),
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () async {
+                              final pickedId =
+                                  await showModalBottomSheet<int>(
+                                context: context,
+                                isScrollControlled: true,
+                                useSafeArea: true,
+                                backgroundColor: Colors.white,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(24),
+                                  ),
+                                ),
+                                builder: (ctx) => _ModelPickerBottomSheet(
+                                  models: models,
+                                  selectedModelId: _selectedModelId,
+                                  onModelCreated: () {
+                                    ref.invalidate(allCatalogModelsProvider);
+                                    widget.onSuccess();
+                                  },
+                                ),
+                              );
+                              if (pickedId != null && mounted) {
+                                setState(() => _selectedModelId = pickedId);
+                                field.didChange(pickedId);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceMuted,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: field.hasError
+                                      ? AppColors.danger
+                                      : AppColors.border,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  if (hasSelection) ...[
+                                    _buildModelThumbnailWidget(
+                                      modelTitle,
+                                      modelImage,
+                                      size: 38,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            modelTitle,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13.5,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          Text(
+                                            [
+                                              if (modelBrand.isNotEmpty)
+                                                modelBrand,
+                                              ?modelRate,
+                                            ].join(' • '),
+                                            style: const TextStyle(
+                                              fontSize: 11.5,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ] else
+                                    const Expanded(
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 4,
+                                        ),
+                                        child: Text(
+                                          'Pilih Model Katalog',
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (field.hasError) ...[
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12),
+                              child: Text(
+                                field.errorText!,
+                                style: const TextStyle(
+                                  color: AppColors.danger,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
                   );
                 },
                 loading: () => const LinearProgressIndicator(),
@@ -3299,6 +3452,302 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// SEARCHABLE MODEL PICKER BOTTOM SHEET
+// ==========================================
+class _ModelPickerBottomSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> models;
+  final int? selectedModelId;
+  final VoidCallback onModelCreated;
+
+  const _ModelPickerBottomSheet({
+    required this.models,
+    this.selectedModelId,
+    required this.onModelCreated,
+  });
+
+  @override
+  State<_ModelPickerBottomSheet> createState() =>
+      _ModelPickerBottomSheetState();
+}
+
+class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openCreateModelSheet() async {
+    final created = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      useRootNavigator: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      builder: (ctx) => AddProductSheet(onSuccess: widget.onModelCreated),
+    );
+    if (!mounted) return;
+    final newId = (created?['id'] as num?)?.toInt();
+    if (newId != null) {
+      Navigator.pop(context, newId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _query.trim().toLowerCase();
+    final filteredModels = q.isEmpty
+        ? widget.models
+        : widget.models.where((m) {
+            final name = (m['name']?.toString() ?? '').toLowerCase();
+            final brand = (m['brand']?.toString() ?? '').toLowerCase();
+            return name.contains(q) || brand.contains(q);
+          }).toList();
+
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 12, 10),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Pilih Model / Tipe Perangkat',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16.5,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              key: const Key('model_picker_search_field'),
+              controller: _searchController,
+              autofocus: true,
+              onChanged: (val) => setState(() => _query = val),
+              decoration: InputDecoration(
+                hintText: 'Cari nama model atau merek...',
+                hintStyle: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  size: 20,
+                  color: AppColors.textSecondary,
+                ),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        key: const Key('model_picker_search_clear'),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: AppColors.textSecondary,
+                        ),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      )
+                    : null,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 11,
+                ),
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.borderSubtle),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.borderSubtle),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: AppColors.obsidian,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Flexible(
+            child: filteredModels.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 28,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.search_off_rounded,
+                          size: 36,
+                          color: AppColors.textMuted,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _query.trim().isNotEmpty
+                              ? 'Model "${_query.trim()}" tidak ditemukan.'
+                              : 'Belum ada model katalog tersedia.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    itemCount: filteredModels.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final m = filteredModels[index];
+                      final id = (m['id'] as num?)?.toInt();
+                      final name = m['name']?.toString() ?? '-';
+                      final brand = m['brand']?.toString() ?? '';
+                      final imageUrl = _extractModelImageUrl(m);
+                      final primaryRate = _extractModelPrimaryRate(m);
+                      final isSelected =
+                          id != null && id == widget.selectedModelId;
+
+                      return InkWell(
+                        onTap: id == null
+                            ? null
+                            : () => Navigator.pop(context, id),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.surfaceMuted
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.obsidian
+                                  : AppColors.border,
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              _buildModelThumbnailWidget(name, imageUrl),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      brand.isNotEmpty ? brand : '-',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (primaryRate != null) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  primaryRate,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                    color: AppColors.obsidian,
+                                  ),
+                                ),
+                              ],
+                              if (isSelected) ...[
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 18,
+                                  color: AppColors.obsidian,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          SafeArea(
+            top: false,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: AppColors.border)),
+              ),
+              child: OutlinedButton(
+                key: const Key('model_picker_add_new_button'),
+                onPressed: _openCreateModelSheet,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.obsidian,
+                  side: const BorderSide(color: AppColors.obsidian, width: 1.2),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  '+ Tambah Model Baru',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -233,7 +233,7 @@ void main() {
     );
 
     testWidgets(
-      'Threads-style header exposes left menu sheet, notification bell navigation, and expandable inline search',
+      'Threads-style header exposes left menu sheet, notification bell navigation, and no header search icon',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -255,24 +255,19 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Search input is collapsed initially
+        // Header search icon & legacy expandable header search are removed
+        expect(find.byKey(const Key('home_header_search_button')), findsNothing);
         expect(
           find.text('Cari kode booking, penyewa, atau no. telp...'),
           findsNothing,
         );
 
-        // Tap search trigger in top-right header -> reveals auto-focused input
-        await tester.tap(find.byKey(const Key('home_header_search_button')));
-        await tester.pumpAndSettle();
+        // Search input is embedded directly in Antrean Sewa Cabang
+        expect(find.byKey(const Key('home_queue_search_field')), findsOneWidget);
         expect(
-          find.text('Cari kode booking, penyewa, atau no. telp...'),
+          find.text('Cari kode booking, penyewa, atau unit...'),
           findsOneWidget,
         );
-
-        // Tap close/clear button -> collapses inline search bar
-        await tester.tap(find.byKey(const Key('home_search_close_button')));
-        await tester.pumpAndSettle();
-        expect(find.byType(TextField), findsNothing);
 
         // Tap left two-line menu button -> opens account menu bottom sheet
         await tester.tap(find.byKey(const Key('home_header_menu_button')));

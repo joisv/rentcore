@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +7,7 @@ import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/unit_thumbnail.dart';
 import '../../auth/presentation/user_profile_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -44,13 +43,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     'Selesai',
   ];
 
+  static const List<int> _queueLimitOptions = [5, 10, 25, 50, -1];
+
   final _searchController = TextEditingController();
-  final _searchFocusNode = FocusNode();
   final _queueSectionKey = GlobalKey();
-  Timer? _debounceTimer;
   String _searchQuery = '';
   String _selectedQueueFilter = 'Semua';
-  bool _isSearchExpanded = false;
+  int _queueLimit = 10;
+  DateTimeRange? _selectedDateRange;
 
   @override
   void initState() {
@@ -72,9 +72,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _debounceTimer?.cancel();
     _searchController.dispose();
-    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -98,40 +96,121 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _onSearchChanged(String val) {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          _searchQuery = val.trim();
-        });
-      }
+    setState(() {
+      _searchQuery = val.trim();
     });
-    setState(() {}); // Updates clear button visibility
   }
 
   void _clearSearch() {
-    _debounceTimer?.cancel();
     _searchController.clear();
-    _searchFocusNode.unfocus();
     setState(() {
       _searchQuery = '';
-      _isSearchExpanded = false;
     });
   }
 
-  void _toggleSearch() {
-    if (_isSearchExpanded) {
-      _clearSearch();
-      return;
+  Future<void> _pickDateRange(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2023),
+      lastDate: DateTime(now.year + 2, 12, 31),
+      initialDateRange: _selectedDateRange,
+      helpText: 'Pilih Tanggal',
+      cancelText: 'Batal',
+      confirmText: 'Pilih',
+      saveText: 'Pilih',
+      builder: (context, child) {
+        final baseTheme = Theme.of(context);
+        return Theme(
+          data: baseTheme.copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF111111),
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Color(0xFF111111),
+              secondaryContainer: Color(0xFFE5E7EB),
+              onSecondaryContainer: Color(0xFF111111),
+            ),
+            textTheme: baseTheme.textTheme.copyWith(
+              headlineSmall: baseTheme.textTheme.headlineSmall?.copyWith(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedDateRange = picked;
+      });
     }
-    setState(() {
-      _isSearchExpanded = true;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _searchFocusNode.requestFocus();
-      }
-    });
+  }
+
+  void _showQueueLimitSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                child: Text(
+                  'Jumlah Antrean Ditampilkan',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.obsidian,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              ..._queueLimitOptions.map((option) {
+                final isSelected = _queueLimit == option;
+                final label = option == -1 ? 'Semua' : '$option antrean';
+                return ListTile(
+                  key: Key('home_queue_limit_option_$option'),
+                  dense: true,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  tileColor: isSelected ? AppColors.surfaceMuted : null,
+                  title: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: AppColors.obsidian,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 18,
+                          color: AppColors.obsidian,
+                        )
+                      : null,
+                  onTap: () {
+                    setState(() => _queueLimit = option);
+                    Navigator.pop(ctx);
+                  },
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String _getInitials(String name) {
@@ -224,9 +303,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          // 1. Threads-Style Single-Row Minimalist Header + Expandable Inline Search
+          // 1. Threads-Style Single-Row Minimalist Header
           _buildHeader(context, ref, user, businessState),
-          _buildExpandableSearchBar(),
 
           // 2. Scrollable Dashboard Content (Reclaims vertical space naturally)
           Expanded(
@@ -435,85 +513,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                 ),
 
-                // Right Slot: Uniform Bell & Search Icons (22dp, Color(0xFF1F2937), 14dp gap)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Tooltip(
-                      message: 'Pusat Pemberitahuan',
-                      child: InkWell(
-                        key: const Key('home_header_notification_button'),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationCenterScreen(),
-                            ),
+                // Right Slot: Notification Bell with unread dot
+                Tooltip(
+                  message: 'Pusat Pemberitahuan',
+                  child: InkWell(
+                    key: const Key('home_header_notification_button'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationCenterScreen(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(18),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Consumer(
+                        builder: (context, ref, _) {
+                          final unreadCount = ref.watch(
+                            notificationProvider.select((s) => s.unreadCount),
                           );
-                        },
-                        borderRadius: BorderRadius.circular(18),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Consumer(
-                            builder: (context, ref, _) {
-                              final unreadCount = ref.watch(
-                                notificationProvider.select((s) => s.unreadCount),
-                              );
-                              return Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  const Icon(
-                                    Icons.notifications_none_rounded,
-                                    color: Color(0xFF1F2937),
-                                    size: 22,
-                                  ),
-                                  if (unreadCount > 0)
-                                    Positioned(
-                                      top: 0,
-                                      right: 0,
-                                      child: Container(
-                                        key: const Key(
-                                          'home_header_notification_badge',
-                                        ),
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFEF4444),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 1.5,
-                                          ),
-                                        ),
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(
+                                Icons.notifications_none_rounded,
+                                color: Color(0xFF1F2937),
+                                size: 22,
+                              ),
+                              if (unreadCount > 0)
+                                Positioned(
+                                  top: 0,
+                                  right: 0,
+                                  child: Container(
+                                    key: const Key(
+                                      'home_header_notification_badge',
+                                    ),
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 1.5,
                                       ),
                                     ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                     ),
-                    const SizedBox(width: 14),
-                    Tooltip(
-                      message: 'Cari Booking',
-                      child: InkWell(
-                        key: const Key('home_header_search_button'),
-                        onTap: _toggleSearch,
-                        borderRadius: BorderRadius.circular(18),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            _isSearchExpanded
-                                ? Icons.search_off_rounded
-                                : Icons.search_rounded,
-                            color: const Color(0xFF1F2937),
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),
@@ -829,84 +883,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   // =========================================================================
-  // 2. EXPANDABLE INLINE SEARCH BAR
-  // =========================================================================
-  Widget _buildExpandableSearchBar() {
-    return Container(
-      color: Colors.white,
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          child: _isSearchExpanded
-              ? Padding(
-                  key: const ValueKey('home_expanded_search_bar'),
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.obsidian,
-                      ),
-                      textInputAction: TextInputAction.search,
-                      decoration: InputDecoration(
-                        hintText: 'Cari kode booking, penyewa, atau no. telp...',
-                        hintStyle: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF94A3B8),
-                          fontWeight: FontWeight.w400,
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                          size: 20,
-                          color: Color(0xFF94A3B8),
-                        ),
-                        suffixIcon: IconButton(
-                          key: const Key('home_search_close_button'),
-                          tooltip: 'Tutup Pencarian',
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 18,
-                            color: Color(0xFF64748B),
-                          ),
-                          onPressed: _clearSearch,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                      ),
-                      onChanged: _onSearchChanged,
-                    ),
-                  ),
-                )
-              : const SizedBox.shrink(
-                  key: ValueKey('home_collapsed_search_bar'),
-                ),
-        ),
-      ),
-    );
-  }
-
-  // =========================================================================
-  // 3. MAIN DASHBOARD CONTENT (2x2 GRID & EMBEDDED RENTAL QUEUE)
+  // 2. MAIN DASHBOARD CONTENT (2x2 GRID & EMBEDDED RENTAL QUEUE)
   // =========================================================================
   Widget _buildDashboardContent(
     BuildContext context,
@@ -1161,15 +1138,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // =========================================================================
   // 5. EMBEDDED BRANCH RENTAL QUEUE WITH ACTION-PRIORITY SORTING
   // =========================================================================
+  Widget _buildQueueSearchField() {
+    return TextField(
+      key: const Key('home_queue_search_field'),
+      controller: _searchController,
+      style: const TextStyle(
+        fontSize: 13,
+        color: AppColors.obsidian,
+      ),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Cari kode booking, penyewa, atau unit...',
+        hintStyle: const TextStyle(
+          fontSize: 12.5,
+          color: Color(0xFF94A3B8),
+          fontWeight: FontWeight.w400,
+        ),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          size: 18,
+          color: Color(0xFF6B7280),
+        ),
+        suffixIcon: _searchController.text.isNotEmpty
+            ? IconButton(
+                key: const Key('home_queue_search_clear_button'),
+                tooltip: 'Hapus Pencarian',
+                icon: const Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: Color(0xFF64748B),
+                ),
+                onPressed: _clearSearch,
+              )
+            : null,
+        filled: true,
+        fillColor: AppColors.surface,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.obsidian, width: 1.2),
+        ),
+      ),
+      onChanged: _onSearchChanged,
+    );
+  }
+
   Widget _buildQueueFilterBar() {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _queueFilters.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final filter = _queueFilters[index];
+    final hasDateRange = _selectedDateRange != null;
+    final dateLabel = hasDateRange
+        ? '${DateFormatter.formatDayMonth(_selectedDateRange!.start)} - ${DateFormatter.formatDayMonth(_selectedDateRange!.end)}'
+        : 'Semua Tanggal';
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ..._queueFilters.map((filter) {
           final isSelected = _selectedQueueFilter == filter;
           return GestureDetector(
             onTap: () {
@@ -1187,7 +1224,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   color: isSelected ? AppColors.obsidian : AppColors.border,
                 ),
               ),
-              alignment: Alignment.center,
               child: Text(
                 filter,
                 style: TextStyle(
@@ -1198,21 +1234,110 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           );
-        },
-      ),
+        }),
+        GestureDetector(
+          key: const Key('home_queue_date_filter_chip'),
+          onTap: () => _pickDateRange(context),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: hasDateRange ? AppColors.obsidian : AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: hasDateRange ? AppColors.obsidian : AppColors.border,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 14,
+                  color: hasDateRange ? Colors.white : AppColors.textSecondary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  dateLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: hasDateRange ? FontWeight.w700 : FontWeight.w600,
+                    color: hasDateRange ? Colors.white : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (hasDateRange)
+          GestureDetector(
+            key: const Key('home_queue_date_reset_button'),
+            onTap: () => setState(() => _selectedDateRange = null),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.close_rounded,
+                    size: 13,
+                    color: AppColors.obsidian,
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    'Reset Tanggal',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.obsidian,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
+  }
+
+  bool _matchesDateRange(Map<String, dynamic> b, DateTimeRange range) {
+    final startDay = DateTime(range.start.year, range.start.month, range.start.day);
+    final endDay = DateTime(
+      range.end.year,
+      range.end.month,
+      range.end.day,
+      23,
+      59,
+      59,
+      999,
+    );
+    final startAt = DateTime.tryParse(b['start_at']?.toString() ?? '')?.toLocal();
+    final endAt = DateTime.tryParse(b['end_at']?.toString() ?? '')?.toLocal();
+    final createdAt = DateTime.tryParse(b['created_at']?.toString() ?? '')?.toLocal();
+
+    if (startAt != null && endAt != null) {
+      return !startAt.isAfter(endDay) && !endAt.isBefore(startDay);
+    }
+    final anchor = startAt ?? endAt ?? createdAt;
+    if (anchor == null) return false;
+    return !anchor.isBefore(startDay) && !anchor.isAfter(endDay);
   }
 
   Widget _buildEmbeddedRentalQueue(BuildContext context, WidgetRef ref) {
     final queueAsync = ref.watch(dashboardQueueBookingsProvider);
+    final limitLabel = _queueLimit == -1 ? 'Semua' : '$_queueLimit';
 
     return Column(
       key: _queueSectionKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Section Header: Antrean Sewa Cabang
+        // Section Header: Antrean Sewa Cabang + Limit Selector
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Expanded(
               child: Text(
@@ -1226,12 +1351,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (_selectedQueueFilter != 'Semua') ...[
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: () => setState(() => _selectedQueueFilter = 'Semua'),
-                borderRadius: BorderRadius.circular(6),
-                child: const Text(
+            const SizedBox(width: 8),
+            InkWell(
+              key: const Key('home_queue_limit_selector'),
+              onTap: () => _showQueueLimitSheet(context),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Tampil: $limitLabel',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.obsidian,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_selectedQueueFilter != 'Semua') ...[
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: InkWell(
+              onTap: () => setState(() => _selectedQueueFilter = 'Semua'),
+              borderRadius: BorderRadius.circular(6),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                child: Text(
                   'Tampilkan Semua',
                   style: TextStyle(
                     fontSize: 12,
@@ -1240,9 +1404,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                 ),
               ),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        _buildQueueSearchField(),
         const SizedBox(height: 10),
         _buildQueueFilterBar(),
         const SizedBox(height: 12),
@@ -1316,6 +1482,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               }).toList();
             }
 
+            // Date Range filtering
+            if (_selectedDateRange != null) {
+              filteredBookings = filteredBookings
+                  .where((b) => _matchesDateRange(b, _selectedDateRange!))
+                  .toList();
+            }
+
             // Responsive Live Search filtering
             if (_searchQuery.isNotEmpty) {
               final q = _searchQuery.toLowerCase();
@@ -1335,9 +1508,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       if (it is Map) {
                         final asset = it['asset'] as Map?;
                         final model = asset?['model'] as Map?;
-                        return (model?['name'] ?? it['asset_name'] ?? '')
-                            .toString()
-                            .toLowerCase();
+                        return [
+                          model?['name'] ?? it['asset_name'] ?? '',
+                          asset?['asset_code'] ?? '',
+                          asset?['serial_number'] ?? '',
+                        ].join(' ').toLowerCase();
                       }
                       return '';
                     })
@@ -1356,6 +1531,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             if (filteredBookings.isEmpty) {
               final hasSearch = _searchQuery.isNotEmpty;
               final hasStatusFilter = _selectedQueueFilter != 'Semua';
+              final hasDateFilter = _selectedDateRange != null;
               return Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -1379,6 +1555,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     Text(
                       hasSearch
                           ? 'Tidak ditemukan transaksi sewa dengan kata kunci "$_searchQuery".'
+                          : hasDateFilter
+                          ? 'Tidak ada transaksi sewa pada rentang tanggal yang dipilih.'
                           : hasStatusFilter
                           ? 'Tidak ada transaksi sewa pada kategori "$_selectedQueueFilter".'
                           : 'Belum ada antrean sewa aktif di cabang ini.',
@@ -1389,13 +1567,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (hasSearch || hasStatusFilter) ...[
+                    if (hasSearch || hasStatusFilter || hasDateFilter) ...[
                       const SizedBox(height: 10),
                       TextButton.icon(
                         onPressed: () {
                           if (hasSearch) _clearSearch();
-                          if (hasStatusFilter) {
-                            setState(() => _selectedQueueFilter = 'Semua');
+                          if (hasStatusFilter || hasDateFilter) {
+                            setState(() {
+                              _selectedQueueFilter = 'Semua';
+                              _selectedDateRange = null;
+                            });
                           }
                         },
                         icon: const Icon(Icons.refresh_rounded, size: 14),
@@ -1431,11 +1612,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               return idB.compareTo(idA);
             });
 
+            final totalFilteredCount = filteredBookings.length;
+            final visibleBookings =
+                (_queueLimit > 0 && totalFilteredCount > _queueLimit)
+                    ? filteredBookings.take(_queueLimit).toList()
+                    : filteredBookings;
+
             return Column(
-              children: filteredBookings.map((b) {
-                final priority = _getBookingPriority(b, now);
-                return _buildQueueCard(context, ref, b, priority);
-              }).toList(),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...visibleBookings.map((b) {
+                  final priority = _getBookingPriority(b, now);
+                  return _buildQueueCard(context, ref, b, priority);
+                }),
+                const SizedBox(height: 4),
+                Text(
+                  'Menampilkan ${visibleBookings.length} dari $totalFilteredCount antrean',
+                  key: const Key('home_queue_summary_text'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -1680,23 +1881,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.borderSubtle),
+              UnitThumbnail(
+                imageUrl: extractUnitImageUrl(
+                  model: model,
+                  asset: activeAsset,
+                  primaryItem: primaryItem,
+                  booking: booking,
                 ),
-                child: Icon(
-                  RentalQueueActions.getItemCategoryIcon(
-                    model: model,
-                    asset: activeAsset,
-                    primaryItem: primaryItem,
-                  ),
-                  size: 24,
-                  color: AppColors.obsidian,
+                fallbackIcon: RentalQueueActions.getItemCategoryIcon(
+                  model: model,
+                  asset: activeAsset,
+                  primaryItem: primaryItem,
                 ),
               ),
               const SizedBox(width: 14),

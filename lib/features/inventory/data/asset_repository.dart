@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/models/paginated_result.dart';
 import '../../../core/network/api_client.dart';
@@ -281,8 +282,24 @@ class AssetRepository {
     return response.data['data'];
   }
 
+  Future<Map<String, dynamic>> createProductMultipart(FormData payload) async {
+    final response = await _client.dio.post(
+      ApiConstants.products,
+      data: payload,
+    );
+    return response.data['data'];
+  }
+
   Future<Map<String, dynamic>> updateProduct(int id, Map<String, dynamic> payload) async {
     final response = await _client.dio.put(
+      ApiConstants.updateProduct(id),
+      data: payload,
+    );
+    return response.data['data'];
+  }
+
+  Future<Map<String, dynamic>> updateProductMultipart(int id, FormData payload) async {
+    final response = await _client.dio.post(
       ApiConstants.updateProduct(id),
       data: payload,
     );

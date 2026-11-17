@@ -6,6 +6,27 @@ final assetRepositoryProvider = Provider<AssetRepository>((ref) {
   return AssetRepository();
 });
 
+/// Sorts physical assets by newest created first (`created_at DESC`, fallback `id DESC`).
+List<Map<String, dynamic>> sortAssetsNewestFirst(List<Map<String, dynamic>> items) {
+  final sorted = List<Map<String, dynamic>>.from(items);
+  sorted.sort((a, b) {
+    final aCreated = DateTime.tryParse(a['created_at']?.toString() ?? '');
+    final bCreated = DateTime.tryParse(b['created_at']?.toString() ?? '');
+    if (aCreated != null && bCreated != null) {
+      final cmp = bCreated.compareTo(aCreated);
+      if (cmp != 0) return cmp;
+    } else if (bCreated != null) {
+      return 1;
+    } else if (aCreated != null) {
+      return -1;
+    }
+    final aId = int.tryParse(a['id']?.toString() ?? '') ?? 0;
+    final bId = int.tryParse(b['id']?.toString() ?? '') ?? 0;
+    return bId.compareTo(aId);
+  });
+  return sorted;
+}
+
 class AssetStatusFilterNotifier extends Notifier<String?> {
   @override
   String? build() {
@@ -113,10 +134,11 @@ final inventoryListProvider = FutureProvider.autoDispose<List<Map<String, dynami
       allBranches: bizState.isConsolidated,
     );
     final seenIds = <dynamic>{};
-    return list.where((item) {
+    final deduped = list.where((item) {
       final id = item['id'];
       return id == null || seenIds.add(id);
     }).toList();
+    return sortAssetsNewestFirst(deduped);
   } catch (e) {
     rethrow;
   }
@@ -178,7 +200,7 @@ class PhysicalUnitsNotifier extends Notifier<PhysicalUnitsState> {
 
       // State is replaced rather than appending ([...state.units, ...fetchedUnits])
       state = state.copyWith(
-        units: uniqueUnits,
+        units: sortAssetsNewestFirst(uniqueUnits),
         isLoading: false,
       );
     } catch (e) {
