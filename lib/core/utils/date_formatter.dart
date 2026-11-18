@@ -1,6 +1,15 @@
 import 'package:intl/intl.dart';
 
 class DateFormatter {
+  /// Parses a timestamp once into local time without double-shifting local DateTime/naive strings.
+  static DateTime? parseLocal(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value.toLocal();
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return null;
+    return DateTime.tryParse(raw)?.toLocal();
+  }
+
   static String formatFull(dynamic dateTime) {
     if (dateTime == null) return '-';
     final dt = dateTime is DateTime

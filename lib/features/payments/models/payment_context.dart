@@ -53,6 +53,14 @@ class PaymentContext {
   final double? discountAmount;
   final String? voucherCode;
   final double? depositFee;
+  final bool isDownPayment;
+  final double? contractTotalAmount;
+  final bool isHandoverSettlement;
+
+  double get effectiveContractTotal => contractTotalAmount ?? totalAmountDue;
+  double get remainingAfterCurrentPayment => isDownPayment
+      ? (effectiveContractTotal - remainingDue).clamp(0.0, double.infinity)
+      : 0.0;
 
   const PaymentContext({
     required this.transactionType,
@@ -77,6 +85,9 @@ class PaymentContext {
     this.discountAmount,
     this.voucherCode,
     this.depositFee,
+    this.isDownPayment = false,
+    this.contractTotalAmount,
+    this.isHandoverSettlement = false,
   });
 
   String get transactionTypeTitle {
@@ -147,12 +158,15 @@ class PaymentContext {
     int? branchId,
     String? branchName,
     bool isCentral = false,
+    int? additionalHours,
     List<PaymentItem> items = const [],
     double? primarySubtotal,
     double? addonSubtotal,
     double? discountAmount,
     String? voucherCode,
     double? depositFee,
+    bool isDownPayment = false,
+    double? contractTotalAmount,
   }) {
     return PaymentContext(
       transactionType: PaymentTransactionType.booking,
@@ -167,6 +181,7 @@ class PaymentContext {
       branchId: branchId,
       branchName: branchName,
       isCentral: isCentral,
+      additionalHours: additionalHours,
       extraPayload: extraPayload ?? bookingPayload,
       items: items,
       primarySubtotal: primarySubtotal,
@@ -174,12 +189,21 @@ class PaymentContext {
       discountAmount: discountAmount,
       voucherCode: voucherCode,
       depositFee: depositFee,
+      isDownPayment: isDownPayment,
+      contractTotalAmount: contractTotalAmount,
     );
   }
 
   factory PaymentContext.settlement({
     required Map<String, dynamic> booking,
     required double remainingDue,
+    bool isHandoverSettlement = false,
+    int? assetUnitId,
+    String? collateralType,
+    String? collateralStorageSlot,
+    bool startNow = false,
+    bool keepOriginalEndAt = false,
+    double? contractTotalOverride,
   }) {
     final customer = booking['customer'] as Map? ?? {};
     final rawItems = (booking['items'] as List?) ?? [];
@@ -263,19 +287,28 @@ class PaymentContext {
       customerAddress: customer['address']?.toString(),
       deviceName: modelName,
       assetCode: assetCode,
-      totalAmountDue: totalBill,
+      totalAmountDue: contractTotalOverride ?? totalBill,
       previouslyPaidAmount: totalPaid,
       remainingDue: remainingDue,
       branchId: affiliate['id'] ?? booking['affiliate_id'],
       branchName: affiliate['name']?.toString(),
       isCentral: affiliate['is_central'] == true,
-      extraPayload: booking,
+      extraPayload: {
+        ...booking,
+        if (isHandoverSettlement) 'is_handover_settlement': true,
+        if (startNow) 'start_now': true,
+        if (startNow) 'keep_original_end_at': keepOriginalEndAt,
+        'asset_unit_id': ?assetUnitId,
+        'collateral_type': ?collateralType,
+        'collateral_storage_slot': ?collateralStorageSlot,
+      },
       items: parsedItems,
       primarySubtotal: primarySubtotal,
       addonSubtotal: addonSubtotal,
       discountAmount: discountAmount,
       voucherCode: voucherCode,
       depositFee: depositFee,
+      isHandoverSettlement: isHandoverSettlement,
     );
   }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/navigation_keys.dart';
-import 'core/theme/app_text_styles.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -102,92 +101,19 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
+      showDragHandle: false,
+      isDismissible: false,
       useSafeArea: true,
       useRootNavigator: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) {
-        return DraggableScrollableSheet(
-          initialChildSize: 1.0,
-          minChildSize: 0.95,
-          maxChildSize: 1.0,
-          expand: true,
-          builder: (context, scrollController) {
-            return SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(height: 8),
-                          Center(
-                            child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 6, 8, 8),
-                            child: Row(
-                              children: [
-                                const Expanded(
-                                  child: Text(
-                                    'Sewa / Booking Baru',
-                                    style: AppTextStyles.pageHeader,
-                                  ),
-                                ),
-                                IconButton(
-                                  key: const Key('new_booking_modal_close_button'),
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    color: AppColors.obsidian,
-                                  ),
-                                  tooltip: 'Tutup',
-                                  onPressed: () => Navigator.of(sheetContext).pop(),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: MediaQuery.removeViewInsets(
-                        removeBottom: true,
-                        context: context,
-                        child: DirectRentalScreen(
-                          scrollController: scrollController,
-                          showAppBar: false,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (_) => const SizedBox.expand(
+        child: DirectRentalScreen(showAppBar: false),
+      ),
     );
   }
 

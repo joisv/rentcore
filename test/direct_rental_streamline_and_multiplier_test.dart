@@ -294,7 +294,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Default selected package is 24h @ Rp 280.000, multiplier 1x
-      expect(find.text('Jumlah Kelipatan'), findsOneWidget);
+      expect(find.text('1 Hari (24 Jam)'), findsOneWidget);
       expect(find.byKey(const Key('booking_multiplier_value')), findsOneWidget);
       expect(find.text('1x'), findsOneWidget);
       expect(find.text('24 Jam'), findsOneWidget);
@@ -370,7 +370,7 @@ void main() {
       expect(find.text('KTP Valid'), findsNothing);
 
       // Proceed to PaymentPage and pay via Tunai
-      final step3Cta = find.text('Lanjut ke Pembayaran');
+      final step3Cta = find.text('Buat Sewa');
       await tester.ensureVisible(step3Cta);
       await tester.tap(step3Cta);
       await tester.pumpAndSettle();

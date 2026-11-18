@@ -43,14 +43,20 @@ class PaymentRepository {
         final payload = Map<String, dynamic>.from(context.extraPayload ?? {});
         payload['payment_method_id'] = paymentMethodId;
         payload['cash_received'] = isCash ? cashReceived : amountToPay;
+        if (context.isDownPayment) {
+          payload['paid_amount'] ??= amountToPay;
+          payload['dp_amount'] ??= amountToPay;
+        }
 
         final data = await _bookingRepo.createRental(payload);
         final change = isCash ? (cashReceived - amountToPay).clamp(0.0, double.infinity) : 0.0;
         final payments = (data['payments'] as List?) ?? [];
         final latestPayment = payments.isNotEmpty ? payments.last as Map? : null;
+        final isPartial = context.isDownPayment ||
+            data['payment_status']?.toString().toLowerCase() == 'partial';
 
         return PaymentResult(
-          status: PaymentStatus.completed,
+          status: isPartial ? PaymentStatus.partial : PaymentStatus.completed,
           transactionCode: latestPayment?['transaction_code'] ?? data['booking_code'],
           receiptNumber: latestPayment?['receipt_number'] ?? data['booking_code'],
           amountPaid: amountToPay,
@@ -170,6 +176,16 @@ class PaymentRepository {
           notes: notes,
           frpCleared: context.extraPayload?['frp_cleared'] as bool?,
           accountRemoved: context.extraPayload?['account_removed'] as bool?,
+          isHandoverSettlement: context.isHandoverSettlement
+              ? true
+              : context.extraPayload?['is_handover_settlement'] as bool?,
+          assetUnitId: (context.extraPayload?['asset_unit_id'] as num?)?.toInt(),
+          collateralType: context.extraPayload?['collateral_type']?.toString(),
+          collateralStorageSlot:
+              context.extraPayload?['collateral_storage_slot']?.toString(),
+          startNow: context.extraPayload?['start_now'] as bool?,
+          keepOriginalEndAt:
+              context.extraPayload?['keep_original_end_at'] as bool?,
         );
 
         final payment = data['payment'] as Map?;

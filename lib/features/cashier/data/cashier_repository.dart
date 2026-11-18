@@ -97,6 +97,12 @@ class CashierRepository {
     String? idempotencyKey,
     bool? frpCleared,
     bool? accountRemoved,
+    bool? isHandoverSettlement,
+    int? assetUnitId,
+    String? collateralType,
+    String? collateralStorageSlot,
+    bool? startNow,
+    bool? keepOriginalEndAt,
   }) async {
     final payload = <String, dynamic>{
       'booking_id': bookingId,
@@ -109,6 +115,18 @@ class CashierRepository {
     if (idempotencyKey != null) payload['idempotency_key'] = idempotencyKey;
     if (frpCleared != null) payload['frp_cleared'] = frpCleared;
     if (accountRemoved != null) payload['account_removed'] = accountRemoved;
+    if (isHandoverSettlement != null) {
+      payload['is_handover_settlement'] = isHandoverSettlement;
+    }
+    if (assetUnitId != null) payload['asset_unit_id'] = assetUnitId;
+    if (collateralType != null) payload['collateral_type'] = collateralType;
+    if (collateralStorageSlot != null) {
+      payload['collateral_storage_slot'] = collateralStorageSlot;
+    }
+    if (startNow != null) payload['start_now'] = startNow;
+    if (keepOriginalEndAt != null) {
+      payload['keep_original_end_at'] = keepOriginalEndAt;
+    }
 
     final headers = <String, dynamic>{};
     if (idempotencyKey != null) headers['X-Idempotency-Key'] = idempotencyKey;

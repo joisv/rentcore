@@ -197,7 +197,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify Stepper Header
-      expect(find.text('1. Unit & Durasi'), findsOneWidget);
+      expect(find.text('1. Unit'), findsOneWidget);
       expect(find.text('2. Penyewa'), findsOneWidget);
       expect(find.text('3. Ringkasan'), findsOneWidget);
 
@@ -239,7 +239,7 @@ void main() {
       expect(find.text('TOTAL TAGIHAN POS:'), findsOneWidget);
       expect(find.textContaining('Kembali:'), findsWidgets);
       expect(find.text('Ubah Data'), findsOneWidget);
-      expect(find.text('Lanjut ke Pembayaran'), findsOneWidget);
+      expect(find.text('Buat Sewa'), findsOneWidget);
 
       // Test "Ubah Data" backward navigation to Step 2
       await tester.tap(find.text('Ubah Data'));

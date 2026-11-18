@@ -1286,9 +1286,10 @@ class PosTransactionDetailSheet extends ConsumerWidget {
   }
 
   Widget _buildTimelineRow(String label, dynamic value) {
-    final strVal = value != null
-        ? value.toString().replaceAll('T', ' ').substring(0, 16)
-        : '-';
+    final parsed = DateFormatter.parseLocal(value);
+    final strVal = parsed != null
+        ? DateFormatter.formatFull(parsed)
+        : (value?.toString() ?? '-');
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [

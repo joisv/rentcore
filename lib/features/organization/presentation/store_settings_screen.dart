@@ -11,6 +11,7 @@ import '../../printer/presentation/printer_settings_screen.dart';
 import '../../transfers/presentation/transfers_screen.dart';
 import '../../vouchers/presentation/voucher_screen.dart';
 import 'manage_organization_screen.dart';
+import 'booking_rules_settings_screen.dart';
 import 'payment_method_settings_screen.dart';
 import 'shift_schedule_screen.dart';
 import 'store_profile_screen.dart';
@@ -284,6 +285,21 @@ class StoreSettingsScreen extends ConsumerWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => const ShiftScheduleScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildDivider(),
+            _buildListTile(
+              icon: Icons.event_busy_outlined,
+              title: 'Aturan Booking & No-Show',
+              subtitle: 'Grace period, auto no-show & floating unit',
+              badge: isOwnerOrAdmin ? null : 'Lihat Saja',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const BookingRulesSettingsScreen(),
                   ),
                 );
               },

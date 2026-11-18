@@ -28,6 +28,20 @@ class ChecklistItemDef {
   const ChecklistItemDef({required this.key, required this.label});
 }
 
+class _ReturnAddonItem {
+  final String key;
+  final List<int> itemIds;
+  final String name;
+  final int quantity;
+
+  const _ReturnAddonItem({
+    required this.key,
+    required this.itemIds,
+    required this.name,
+    required this.quantity,
+  });
+}
+
 class ReturnWizardScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> booking;
 
@@ -49,6 +63,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   late final RentalDeviceCategory _category;
   late final List<ChecklistItemDef> _checklistDefs;
   final Map<String, bool> _checklistStates = {};
+  late final List<_ReturnAddonItem> _addonItems;
+  final Set<String> _checkedAddonKeys = {};
 
   @override
   void initState() {
@@ -58,6 +74,105 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     for (final def in _checklistDefs) {
       _checklistStates[def.key] = true;
     }
+    _addonItems = _extractAddonItems(widget.booking);
+  }
+
+  static List<_ReturnAddonItem> _extractAddonItems(Map<String, dynamic> booking) {
+    final explicitAddons = booking['addons'];
+    if (explicitAddons is List && explicitAddons.isNotEmpty) {
+      final result = <_ReturnAddonItem>[];
+      for (var i = 0; i < explicitAddons.length; i++) {
+        final raw = explicitAddons[i];
+        if (raw is! Map) continue;
+        final name = (raw['name'] ?? raw['model_name'] ?? raw['title'] ?? 'Add-on')
+            .toString()
+            .trim();
+        if (name.isEmpty) continue;
+        final qty = (raw['quantity'] as num?)?.toInt() ?? 1;
+        final itemIds = <int>[];
+        final rawIds = raw['item_ids'];
+        if (rawIds is List) {
+          for (final idVal in rawIds) {
+            final parsed = (idVal as num?)?.toInt() ?? int.tryParse(idVal.toString());
+            if (parsed != null) itemIds.add(parsed);
+          }
+        }
+        final singleId = (raw['id'] as num?)?.toInt() ?? int.tryParse(raw['id']?.toString() ?? '');
+        if (itemIds.isEmpty && singleId != null) {
+          itemIds.add(singleId);
+        }
+        final key = (raw['model_id'] ?? raw['id'] ?? '${i}_$name').toString();
+        result.add(
+          _ReturnAddonItem(
+            key: key,
+            itemIds: itemIds,
+            name: name,
+            quantity: qty < 1 ? 1 : qty,
+          ),
+        );
+      }
+      if (result.isNotEmpty) return result;
+    }
+
+    final rawList = (booking['addon_items'] is List && (booking['addon_items'] as List).isNotEmpty)
+        ? (booking['addon_items'] as List)
+        : ((booking['items'] as List?) ?? const []);
+
+    final grouped = <String, ({List<int> ids, String name, int quantity})>{};
+    for (final raw in rawList) {
+      if (raw is! Map) continue;
+      final itemType = raw['item_type']?.toString().toLowerCase();
+      final asset = raw['asset'] as Map?;
+      final model = (asset?['model'] as Map?) ?? (raw['asset_model'] as Map?);
+      final isAddon =
+          booking['addon_items'] is List && (booking['addon_items'] as List).isNotEmpty
+              ? true
+              : (itemType == 'addon' ||
+                    model?['is_addon'] == true ||
+                    model?['is_addon'] == 1);
+      if (!isAddon) continue;
+
+      final name = (raw['name'] ??
+              model?['name'] ??
+              raw['asset_name'] ??
+              asset?['asset_code'] ??
+              'Add-on')
+          .toString()
+          .trim();
+      if (name.isEmpty) continue;
+
+      final modelKey = (model?['id'] ?? raw['asset_model_id'] ?? name.toLowerCase()).toString();
+      final itemId = (raw['id'] as num?)?.toInt() ?? int.tryParse(raw['id']?.toString() ?? '');
+      final qty = (raw['quantity'] as num?)?.toInt() ?? 1;
+      final existing = grouped[modelKey];
+      if (existing == null) {
+        grouped[modelKey] = (
+          ids: itemId != null ? <int>[itemId] : <int>[],
+          name: name,
+          quantity: qty < 1 ? 1 : qty,
+        );
+      } else {
+        if (itemId != null && !existing.ids.contains(itemId)) {
+          existing.ids.add(itemId);
+        }
+        grouped[modelKey] = (
+          ids: existing.ids,
+          name: existing.name,
+          quantity: existing.quantity + (qty < 1 ? 1 : qty),
+        );
+      }
+    }
+
+    return grouped.entries
+        .map(
+          (e) => _ReturnAddonItem(
+            key: e.key,
+            itemIds: e.value.ids,
+            name: e.value.name,
+            quantity: e.value.quantity,
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -220,7 +335,11 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   bool get _isSmartphone =>
       _category == RentalDeviceCategory.apple ||
       _category == RentalDeviceCategory.mobile;
-  bool get _canSubmitReturn => !_isSmartphone || _accountCleared || _isQuarantined;
+  bool get _hasAddons => _addonItems.isNotEmpty;
+  bool get _allAddonsChecked =>
+      !_hasAddons || _checkedAddonKeys.length == _addonItems.length;
+  bool get _canSubmitReturn =>
+      (!_isSmartphone || _accountCleared || _isQuarantined) && _allAddonsChecked;
   bool get _screenOk => _checklistStates['screen_ok'] ?? _checklistStates['unit_operational'] ?? true;
   bool get _cameraOk => _checklistStates['screen_ok'] ?? _checklistStates['unit_operational'] ?? true;
   bool get _cableReturned => _checklistStates['cable'] ?? _checklistStates['power_cable'] ?? _checklistStates['accessories_complete'] ?? true;
@@ -605,6 +724,116 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
             ),
             const SizedBox(height: 16),
 
+            if (_hasAddons) ...[
+              Container(
+                key: const Key('addon_checklist_card'),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _allAddonsChecked ? AppColors.border : const Color(0xFF111111),
+                    width: _allAddonsChecked ? 1 : 1.5,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Kelengkapan Add-on (${_checkedAddonKeys.length}/${_addonItems.length})',
+                            key: const Key('addon_checklist_header'),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF111111),
+                            ),
+                          ),
+                        ),
+                        if (!_allAddonsChecked)
+                          TextButton(
+                            key: const Key('addon_check_all_button'),
+                            onPressed: () {
+                              setState(() {
+                                _checkedAddonKeys.addAll(_addonItems.map((a) => a.key));
+                              });
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF111111),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Centang Semua',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF111111),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        checkboxTheme: CheckboxThemeData(
+                          fillColor: WidgetStateProperty.resolveWith((states) {
+                            if (states.contains(WidgetState.selected)) {
+                              return const Color(0xFF111111);
+                            }
+                            return Colors.transparent;
+                          }),
+                          checkColor: WidgetStateProperty.all(Colors.white),
+                          side: const BorderSide(color: Color(0xFF111111), width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: Column(
+                          children: _addonItems.map((addon) {
+                            final isChecked = _checkedAddonKeys.contains(addon.key);
+                            return CheckboxListTile(
+                              key: Key('addon_checkbox_${addon.key}'),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: Text(
+                                '${addon.name} • ${addon.quantity}x',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF111111),
+                                ),
+                              ),
+                              value: isChecked,
+                              onChanged: (val) {
+                                setState(() {
+                                  if (val == true) {
+                                    _checkedAddonKeys.add(addon.key);
+                                  } else {
+                                    _checkedAddonKeys.remove(addon.key);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Staff Notes / Quarantine Follow-Up
             Container(
               padding: const EdgeInsets.all(20),
@@ -834,6 +1063,19 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                     ),
             ),
+            if (!_allAddonsChecked) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'Pastikan semua add-on dikembalikan lengkap',
+                key: Key('addon_incomplete_helper'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               'Kembalikan jaminan fisik ($collateralSlot) ke pelanggan',
@@ -851,6 +1093,16 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   }
 
   void _processReturn(double penaltyAmount) async {
+    if (!_allAddonsChecked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pastikan semua add-on dikembalikan lengkap.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
     if (_isSmartphone && !_accountCleared && !_isQuarantined) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -917,6 +1169,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       categoryAccessories['accessories_complete'] = _checklistStates['accessories_complete'] ?? true;
     }
 
+    final returnedAddonIds = _addonItems.expand((a) => a.itemIds).toList();
     final payload = <String, dynamic>{
       'returned_at': inspectionTime.toIso8601String(),
       'condition_grade': _conditionGrade,
@@ -926,6 +1179,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       'staff_notes': _staffNotesController.text.trim().isEmpty ? null : _staffNotesController.text.trim(),
       'checklist_results': categoryChecklist,
       'accessories_returned': categoryAccessories,
+      if (_hasAddons) 'addons_returned': true,
+      if (_hasAddons && returnedAddonIds.isNotEmpty)
+        'returned_addon_ids': returnedAddonIds,
       if (isApple || isMobile) 'frp_cleared': _accountCleared,
       if (isApple || isMobile) 'account_removed': _accountCleared,
     };

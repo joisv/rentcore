@@ -120,19 +120,13 @@ void main() {
         await tester.tap(find.byKey(const Key('nav_center_add_button')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
-        expect(find.byType(DraggableScrollableSheet), findsOneWidget);
+        expect(find.byType(DraggableScrollableSheet), findsNothing);
         expect(find.byType(DirectRentalScreen), findsOneWidget);
         expect(find.text('Sewa / Booking Baru'), findsOneWidget);
         expect(find.byIcon(Icons.close_rounded), findsOneWidget);
 
         // Verify full-screen 100% height coverage above bottom navigation bar
-        final sheet = tester.widget<DraggableScrollableSheet>(
-          find.byType(DraggableScrollableSheet),
-        );
-        expect(sheet.initialChildSize, 1.0);
-        expect(sheet.maxChildSize, 1.0);
-        expect(sheet.expand, isTrue);
-        final sheetRect = tester.getRect(find.byType(DraggableScrollableSheet));
+        final sheetRect = tester.getRect(find.byType(DirectRentalScreen));
         final screenRect = tester.getRect(find.byType(MainShellScreen));
         expect(sheetRect.height, closeTo(screenRect.height, 1.0));
 
@@ -152,7 +146,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 250));
         expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
 
-        // Open center + bottom sheet from Tab 3 (Pengaturan) and dismiss via swipe-down gesture
+        // Open center + bottom sheet from Tab 3 (Pengaturan) and verify downward swipe does NOT dismiss
         await tester.tap(find.byKey(const Key('nav_center_add_button')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
@@ -162,6 +156,11 @@ void main() {
           const Offset(0, 600),
           1200,
         );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byType(DirectRentalScreen), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('new_booking_modal_close_button')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
         expect(find.byType(DirectRentalScreen), findsNothing);

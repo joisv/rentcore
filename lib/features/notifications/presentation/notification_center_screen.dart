@@ -409,6 +409,12 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     if (type == 'rental.overdue') {
       return Icons.alarm_on_rounded;
     }
+    if (type == 'booking.grace_warning') {
+      return Icons.schedule_rounded;
+    }
+    if (type == 'booking.auto_noshow') {
+      return Icons.person_off_outlined;
+    }
     if (type == 'inventory.low_stock') {
       return Icons.warning_amber_rounded;
     }
@@ -432,6 +438,8 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   bool _hasAction(NotificationItem item) {
     return item.actionRoute != null ||
         item.type == 'rental.overdue' ||
+        item.type == 'booking.grace_warning' ||
+        item.type == 'booking.auto_noshow' ||
         item.type == 'inventory.low_stock' ||
         item.category == 'transfer' ||
         item.category == 'membership' ||
@@ -442,6 +450,10 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   String _getActionLabel(NotificationItem item) {
     if (item.type == 'rental.overdue') {
       return 'Proses Pengembalian / Antrean';
+    } else if (item.type == 'booking.grace_warning') {
+      return 'Serahkan Unit / Cek Booking';
+    } else if (item.type == 'booking.auto_noshow') {
+      return 'Lihat Antrean No-Show';
     } else if (item.type == 'inventory.low_stock') {
       return 'Cek Stok Unit Siap';
     } else if (item.category == 'transfer') {
@@ -457,7 +469,11 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   }
 
   void _handleAction(NotificationItem item) {
-    if (item.type == 'rental.overdue' || item.category == 'rental' || item.actionRoute == '/bookings') {
+    if (item.type == 'rental.overdue' ||
+        item.type == 'booking.grace_warning' ||
+        item.type == 'booking.auto_noshow' ||
+        item.category == 'rental' ||
+        item.actionRoute == '/bookings') {
       final bookingCode = item.actionPayload?['booking_code']?.toString();
       if (bookingCode != null && bookingCode.isNotEmpty) {
         ref.read(bookingFilterStatusProvider.notifier).setFilter('all');

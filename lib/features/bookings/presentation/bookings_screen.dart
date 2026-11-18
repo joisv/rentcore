@@ -26,13 +26,23 @@ import 'return_wizard_screen.dart';
 int _getBookingPriority(Map<String, dynamic> b, DateTime now) {
   final status = (b['status'] ?? '').toString().toLowerCase();
   final endAt = b['end_at'] != null
-      ? DateTime.tryParse(b['end_at'].toString())
+      ? DateTime.tryParse(b['end_at'].toString())?.toLocal()
       : null;
 
-  if (status == 'returned') return 5; // Completed
-  if (status == 'cancelled') return 6;
+  if (status == 'returned' || status == 'completed') return 5; // Completed
+  if (status == 'no_show') return 6;
+  if (status == 'cancelled') return 7;
 
-  // 1. Overdue first
+  // 3. Awaiting Handover (Booked / Reserved)
+  if (status == 'pending' ||
+      status == 'confirmed' ||
+      status == 'waiting_handover' ||
+      status == 'booked' ||
+      status == 'reserved') {
+    return 3;
+  }
+
+  // 1. Overdue active rental first
   if (endAt != null && endAt.isBefore(now)) {
     return 1;
   }
@@ -43,18 +53,11 @@ int _getBookingPriority(Map<String, dynamic> b, DateTime now) {
       endAt.day == now.day) {
     return 2;
   }
-  // 3. Awaiting Handover
-  if (status == 'pending' ||
-      status == 'confirmed' ||
-      status == 'waiting_handover' ||
-      status == 'booked') {
-    return 3;
-  }
   // 4. Active
   if (status == 'rented' || status == 'active') {
     return 4;
   }
-  return 7;
+  return 8;
 }
 
 IconData _getItemCategoryIcon({
@@ -298,7 +301,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
               children: [
                 _buildFilterChip(ref, 'Sedang Sewa', 'rented', currentFilter),
                 const SizedBox(width: 8),
+                _buildFilterChip(ref, 'Booking', 'booked', currentFilter),
+                const SizedBox(width: 8),
                 _buildFilterChip(ref, 'Terlambat', 'overdue', currentFilter),
+                const SizedBox(width: 8),
+                _buildFilterChip(ref, 'No-Show', 'no_show', currentFilter),
                 const SizedBox(width: 8),
                 _buildFilterChip(ref, 'Semua', 'all', currentFilter),
                 const SizedBox(width: 8),
@@ -485,14 +492,37 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               ?.cast<String, dynamic>() ??
                           (item['active_asset'] as Map?)
                               ?.cast<String, dynamic>() ??
+                          (item['asset_unit'] as Map?)
+                              ?.cast<String, dynamic>() ??
                           (primaryItem?['asset'] as Map?)
                               ?.cast<String, dynamic>();
-                      final model = activeAsset?['model'];
+                      final model = activeAsset?['model'] ??
+                          item['asset_model'] ??
+                          primaryItem?['asset_model'];
 
-                      final endAt = item['end_at'] != null
-                          ? DateTime.tryParse(item['end_at'])
-                          : null;
-                      final isReturned = item['status'] == 'returned';
+                      final statusLower =
+                          (item['status'] ?? '').toString().toLowerCase();
+                      final startAt = DateFormatter.parseLocal(item['start_at']);
+                      final endAt = DateFormatter.parseLocal(item['end_at']);
+                      final graceAt = DateFormatter.parseLocal(item['grace_expires_at']);
+                      final isReturned = statusLower == 'returned';
+                      final isNoShow = statusLower == 'no_show';
+                      final isBookedStatus = statusLower == 'booked' ||
+                          statusLower == 'reserved' ||
+                          statusLower == 'confirmed' ||
+                          statusLower == 'waiting_handover';
+                      final isFloatingUnit = item['is_floating_unit'] == true ||
+                          (isBookedStatus &&
+                              item['asset_unit_id'] == null &&
+                              activeAsset == null);
+                      final isOverduePickup = isBookedStatus &&
+                          (item['is_overdue_pickup'] == true ||
+                              (graceAt != null &&
+                                  graceAt.isBefore(DateTime.now())));
+                      final isGraceWarningWindow = isBookedStatus &&
+                          !isOverduePickup &&
+                          graceAt != null &&
+                          graceAt.difference(DateTime.now()).inMinutes <= 15;
                       final paymentStatus = (item['payment_status'] ?? 'paid')
                           .toString()
                           .toLowerCase();
@@ -605,11 +635,25 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       ? (hasUnpaidPenalty
                                             ? 'SELESAI (DENDA BELUM LUNAS)'
                                             : 'SELESAI')
+                                      : isNoShow
+                                      ? 'NO-SHOW'
+                                      : isOverduePickup
+                                      ? 'Lewat Jadwal Ambil'
+                                      : isBookedStatus
+                                      ? (graceAt != null
+                                            ? 'Batas ambil: ${DateFormatter.formatTime(graceAt)}'
+                                            : 'Siap Diambil')
                                       : DateFormatter.formatRelative(endAt),
                                   textColor: hasUnpaidPenalty
                                       ? AppColors.warning
                                       : isReturned
                                       ? AppColors.textSecondary
+                                      : isNoShow || isOverduePickup
+                                      ? AppColors.danger
+                                      : isBookedStatus
+                                      ? (isGraceWarningWindow
+                                            ? AppColors.warning
+                                            : AppColors.info)
                                       : (endAt != null &&
                                             endAt.isBefore(DateTime.now()))
                                       ? AppColors.danger
@@ -618,6 +662,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       ? AppColors.warningLight
                                       : isReturned
                                       ? AppColors.surfaceMuted
+                                      : isNoShow || isOverduePickup
+                                      ? AppColors.dangerLight
+                                      : isBookedStatus
+                                      ? (isGraceWarningWindow
+                                            ? AppColors.warningLight
+                                            : AppColors.infoLight)
                                       : (endAt != null &&
                                             endAt.isBefore(DateTime.now()))
                                       ? AppColors.dangerLight
@@ -630,7 +680,33 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                 ),
                               ],
                             ),
-                            if (endAt != null) ...[
+                            if (isBookedStatus && startAt != null) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  const Icon(
+                                    Icons.event_available_rounded,
+                                    size: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Flexible(
+                                    child: Text(
+                                      'Jadwal ambil: ${DateFormatter.formatFull(startAt)}',
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else if (endAt != null) ...[
                               const SizedBox(height: 4),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
@@ -699,7 +775,19 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      if (activeAsset?['asset_code'] != null ||
+                                      if (isFloatingUnit) ...[
+                                        const SizedBox(height: 2),
+                                        const Text(
+                                          'Floating Unit • Belum Pilih SN',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ] else if (activeAsset?['asset_code'] != null ||
                                           activeAsset?['serial_number'] !=
                                               null) ...[
                                         const SizedBox(height: 2),
@@ -912,6 +1000,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                             item['total_amount'] ??
                                             0,
                                       );
+                                      final paidAmt = CurrencyFormatter.parse(
+                                        item['paid_amount'] ?? 0,
+                                      );
+                                      final remBalance = item['remaining_balance'] != null
+                                          ? CurrencyFormatter.parse(item['remaining_balance'])
+                                          : (totalBill - paidAmt).clamp(0.0, double.infinity);
                                       final returnInspection =
                                           item['return_inspection'] as Map? ??
                                           item['returnInspection'] as Map? ??
@@ -922,6 +1016,55 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                           );
                                       final effectiveTotal =
                                           totalBill + penaltyDue;
+                                      if (isBookedStatus && paymentStatus == 'partial') {
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.warningLight,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: const Text(
+                                                    'DP',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: AppColors.warning,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  CurrencyFormatter.format(totalBill),
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: AppColors.obsidian,
+                                                    letterSpacing: -0.2,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Sisa: ${CurrencyFormatter.format(remBalance)}',
+                                              style: const TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }
                                       return Text(
                                         penaltyDue > 0
                                             ? 'Total: ${CurrencyFormatter.format(effectiveTotal)} (+ Denda)'
@@ -946,7 +1089,136 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             ),
                             const SizedBox(height: 12),
 
-                            if (isReturned) ...[
+                            if (isNoShow) ...[
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(38),
+                                        padding: EdgeInsets.zero,
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          _openTransactionDetailSheet(
+                                            context,
+                                            item,
+                                          ),
+                                      child: const Text(
+                                        'Rincian No-Show',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else if (isBookedStatus) ...[
+                              Row(
+                                children: [
+                                  Expanded(
+                                    flex: 4,
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(38),
+                                        padding: EdgeInsets.zero,
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          _openTransactionDetailSheet(
+                                            context,
+                                            item,
+                                          ),
+                                      child: const Text(
+                                        'Rincian',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    flex: 6,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.obsidian,
+                                        foregroundColor: Colors.white,
+                                        minimumSize: const Size.fromHeight(38),
+                                        padding: EdgeInsets.zero,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                      onPressed: () =>
+                                          RentalQueueActions.handleHandoverUnit(
+                                            context,
+                                            ref,
+                                            item,
+                                          ),
+                                      child: const Text(
+                                        'Serahkan Unit',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  SizedBox(
+                                    width: 38,
+                                    height: 38,
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.obsidian,
+                                        side: const BorderSide(
+                                          color: AppColors.border,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () => RentalQueueActions
+                                          .showOverflowActionsSheet(
+                                            context,
+                                            ref,
+                                            item,
+                                          ),
+                                      child: const Icon(
+                                        Icons.more_vert_rounded,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else if (isReturned) ...[
                               // Actions for completed / returned rentals
                               Row(
                                 children: [

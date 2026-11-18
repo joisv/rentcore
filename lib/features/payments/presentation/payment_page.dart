@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -369,7 +370,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        ctx.tagihanLabel,
+                        ctx.isDownPayment ? 'Nominal DP Dibayar Sekarang' : ctx.tagihanLabel,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -386,6 +387,93 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                           letterSpacing: -0.5,
                         ),
                       ),
+                      if (ctx.isDownPayment) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          key: const Key('payment_dp_breakdown_card'),
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                          constraints: const BoxConstraints(maxWidth: 360),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceMuted,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'Total Sewa',
+                                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    CurrencyFormatter.format(ctx.effectiveContractTotal),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'Nominal DP Dibayar Sekarang',
+                                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    CurrencyFormatter.format(amountDue),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.obsidian,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 12, color: AppColors.border),
+                              Row(
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'Sisa Tagihan (Saat Ambil Unit)',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    CurrencyFormatter.format(ctx.remainingAfterCurrentPayment),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.obsidian,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       InkWell(
                         onTap: () => _showDetailSewaSheet(context, ctx, amountDue),
@@ -825,6 +913,29 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     ),
                   ),
 
+                  if (ctx.isDownPayment) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Total Sewa', style: TextStyle(fontSize: 12, color: Colors.black)),
+                          Text('Rp ${_formatNumber(ctx.effectiveContractTotal)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black)),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Sisa Tagihan (Saat Ambil Unit)', style: TextStyle(fontSize: 12, color: Color(0xFF71717A))),
+                          Text('Rp ${_formatNumber(ctx.remainingAfterCurrentPayment)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF71717A))),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 10),
                   const Divider(height: 1, thickness: 1, color: Color(0xFF71717A)),
                   const SizedBox(height: 12),
@@ -833,7 +944,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black)),
+                      Text(
+                        ctx.isDownPayment ? 'Nominal DP Dibayar Sekarang' : 'Total',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
+                      ),
                       Text(
                         'Rp ${_formatNumber(amountDue)}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF22C55E)),
@@ -953,7 +1067,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Tagihan Sewa', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF676767))),
+                            Text(
+                              ctx.isDownPayment ? 'Nominal DP Dibayar Sekarang' : 'Tagihan Sewa',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF676767)),
+                            ),
                             Text(
                               'Rp  ${_formatNumber(amountDue)}',
                               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF676767)),
@@ -1278,6 +1395,19 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: Colors.black, letterSpacing: -0.5),
                     ),
                   ),
+                  if (ctx.isDownPayment) ...[
+                    const SizedBox(height: 4),
+                    Center(
+                      child: Text(
+                        'DP dari Total Sewa ${CurrencyFormatter.format(ctx.effectiveContractTotal)} • Sisa ${CurrencyFormatter.format(ctx.remainingAfterCurrentPayment)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
 
                   if (!hasActiveShift) ...[
@@ -1813,10 +1943,11 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      final errorStr = e.toString().toLowerCase();
+      final readableError = _extractReadablePaymentError(e);
+      final errorStr = readableError.toLowerCase();
       if (errorStr.contains('shift kasir belum dibuka') ||
-          errorStr.contains('cash_shift') ||
           errorStr.contains('shift belum dibuka') ||
+          errorStr.contains('cash_shift') ||
           errorStr.contains('shift_not_active')) {
         final bizState = ref.read(businessProvider);
         final effectiveBranchId = widget.paymentContext.branchId ?? bizState.activeBranchId;
@@ -1825,7 +1956,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal memproses pembayaran: $e'),
+          content: Text('Gagal memproses pembayaran: $readableError'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -1834,6 +1965,25 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         setState(() => _isProcessing = false);
       }
     }
+  }
+
+  String _extractReadablePaymentError(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final errors = data['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          final firstVal = errors.values.first;
+          if (firstVal is List && firstVal.isNotEmpty) {
+            return firstVal.first.toString();
+          }
+          return firstVal.toString();
+        }
+        final msg = data['message']?.toString();
+        if (msg != null && msg.trim().isNotEmpty) return msg;
+      }
+    }
+    return error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
   }
 
   String _normalizePaymentMethodDisplayName(String? name, String? code) {
@@ -1850,11 +2000,17 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     final rawMethodName = result.paymentMethodName ?? _selectedMethodName;
     final displayMethodName = _normalizePaymentMethodDisplayName(rawMethodName, methodCode);
     final isCash = methodCode == 'CASH' || rawMethodName.toLowerCase().contains('tunai');
+    final ctx = widget.paymentContext;
+    final isDp = ctx.isDownPayment || result.status == PaymentStatus.partial;
 
     return _PaymentSuccessView(
       result: result,
       displayMethodName: displayMethodName,
       isCash: isCash,
+      isDownPayment: isDp,
+      isHandoverSettlement: ctx.isHandoverSettlement,
+      contractTotalAmount: ctx.effectiveContractTotal,
+      remainingBalance: ctx.remainingAfterCurrentPayment,
       onPrintReceipt: () => _printPaymentReceipt(result),
       onDone: () => Navigator.pop(context, result),
     );
@@ -1935,6 +2091,10 @@ class _PaymentSuccessView extends StatefulWidget {
   final PaymentResult result;
   final String displayMethodName;
   final bool isCash;
+  final bool isDownPayment;
+  final bool isHandoverSettlement;
+  final double contractTotalAmount;
+  final double remainingBalance;
   final VoidCallback onPrintReceipt;
   final VoidCallback onDone;
 
@@ -1942,6 +2102,10 @@ class _PaymentSuccessView extends StatefulWidget {
     required this.result,
     required this.displayMethodName,
     required this.isCash,
+    this.isDownPayment = false,
+    this.isHandoverSettlement = false,
+    this.contractTotalAmount = 0.0,
+    this.remainingBalance = 0.0,
     required this.onPrintReceipt,
     required this.onDone,
   });
@@ -2027,23 +2191,29 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
           const SizedBox(height: 16),
           _buildStaggeredItem(
             track: _headerTrack,
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Pembayaran Berhasil Dicatat!',
+                  widget.isHandoverSettlement
+                      ? 'Pembayaran Lunas & Unit Diserahkan'
+                      : 'Pembayaran Berhasil Dicatat!',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 18,
                     color: AppColors.obsidian,
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
-                  'Pembayaran sewa unit berhasil diselesaikan.',
+                  widget.isHandoverSettlement
+                      ? 'Unit telah diserahkan dan kini aktif di daftar Sewa Aktif.'
+                      : (widget.isDownPayment
+                          ? 'DP booking terjadwal berhasil dicatat.'
+                          : 'Pembayaran sewa unit berhasil diselesaikan.'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
@@ -2126,6 +2296,49 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                       ),
                     ],
                   ),
+                  if (widget.isDownPayment) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Total Sewa',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(widget.contractTotalAmount),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Sisa Tagihan (Saat Ambil Unit)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(widget.remainingBalance),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.obsidian,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (widget.isCash) ...[
                     const SizedBox(height: 8),
                     Row(
@@ -2166,14 +2379,15 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                         ),
                       ],
                     ),
-                  ] else ...[
+                  ],
+                  if (!widget.isCash || widget.isDownPayment || widget.isHandoverSettlement) ...[
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Status',
-                          style: TextStyle(
+                        Text(
+                          widget.isHandoverSettlement ? 'Status Sewa' : 'Status',
+                          style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
@@ -2184,15 +2398,24 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.1),
+                            color: (widget.isDownPayment
+                                    ? AppColors.warning
+                                    : AppColors.success)
+                                .withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
-                            'LUNAS OTOMATIS',
+                          child: Text(
+                            widget.isDownPayment
+                                ? 'DP DIBAYAR'
+                                : (widget.isHandoverSettlement
+                                    ? 'AKTIF DISEWA'
+                                    : 'LUNAS OTOMATIS'),
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.success,
+                              color: widget.isDownPayment
+                                  ? AppColors.warning
+                                  : AppColors.success,
                               letterSpacing: 0.3,
                             ),
                           ),

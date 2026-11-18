@@ -428,6 +428,24 @@ class AuthRepository {
     return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
+  Future<Map<String, dynamic>> fetchBranchBookingRules(int branchId) async {
+    final response = await _client.dio.get(ApiConstants.branchBookingRules(branchId));
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> updateBranchBookingRules(
+    int branchId,
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _client.dio.put(
+      ApiConstants.branchBookingRules(branchId),
+      data: payload,
+    );
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
   Future<Map<String, dynamic>> updateProfile({
     required String name,
     String? phone,

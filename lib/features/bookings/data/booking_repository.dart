@@ -212,4 +212,128 @@ class BookingRepository {
     );
     return response.data as Map<String, dynamic>;
   }
+
+  Future<List<Map<String, dynamic>>> fetchModelAvailability({
+    required DateTime startAt,
+    required DateTime endAt,
+    int? branchId,
+    int? categoryId,
+    String? search,
+  }) async {
+    final queryParams = <String, dynamic>{
+      'start_at': startAt.toUtc().toIso8601String(),
+      'end_at': endAt.toUtc().toIso8601String(),
+    };
+    if (branchId != null) queryParams['branch_id'] = branchId.toString();
+    if (categoryId != null) queryParams['category_id'] = categoryId.toString();
+    if (search != null && search.trim().isNotEmpty) {
+      queryParams['search'] = search.trim();
+    }
+
+    final response = await _client.dio.get(
+      ApiConstants.bookingAvailability,
+      queryParameters: queryParams,
+    );
+    final rawData = response.data['data'];
+    if (rawData is List) {
+      return rawData
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAvailableUnitsForBooking(
+    dynamic bookingId, {
+    bool startNow = false,
+    bool keepOriginalEndAt = false,
+  }) async {
+    final response = await _client.dio.get(
+      ApiConstants.bookingAvailableUnits(bookingId),
+      queryParameters: {
+        if (startNow) 'start_now': true,
+        if (keepOriginalEndAt) 'keep_original_end_at': true,
+      },
+    );
+    final rawData = response.data['data'];
+    if (rawData is List) {
+      return rawData
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> checkInBooking(
+    dynamic bookingId, {
+    int? assetUnitId,
+    String? collateralType,
+    String? collateralStorageSlot,
+    bool startNow = false,
+    bool keepOriginalEndAt = false,
+  }) async {
+    final payload = <String, dynamic>{};
+    if (assetUnitId != null) payload['asset_unit_id'] = assetUnitId;
+    if (collateralType != null && collateralType.isNotEmpty) {
+      payload['collateral_type'] = collateralType;
+    }
+    if (collateralStorageSlot != null && collateralStorageSlot.isNotEmpty) {
+      payload['collateral_storage_slot'] = collateralStorageSlot;
+    }
+    if (startNow) {
+      payload['start_now'] = true;
+      payload['keep_original_end_at'] = keepOriginalEndAt;
+    }
+
+    final response = await _client.dio.post(
+      ApiConstants.checkInBooking(bookingId),
+      data: payload,
+    );
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> rescheduleBooking(
+    dynamic bookingId, {
+    required DateTime newStartAt,
+    bool keepOriginalEndAt = false,
+  }) async {
+    final response = await _client.dio.patch(
+      ApiConstants.rescheduleBooking(bookingId),
+      data: {
+        'new_start_at': newStartAt.toUtc().toIso8601String(),
+        'keep_original_end_at': keepOriginalEndAt,
+      },
+    );
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> markNoShow(
+    dynamic bookingId, {
+    String? reason,
+  }) async {
+    final response = await _client.dio.post(
+      ApiConstants.markBookingNoShow(bookingId),
+      data: {
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+    );
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> extendGracePeriod(
+    dynamic bookingId, {
+    int additionalMinutes = 30,
+  }) async {
+    final response = await _client.dio.post(
+      ApiConstants.extendBookingGrace(bookingId),
+      data: {'additional_minutes': additionalMinutes},
+    );
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
 }

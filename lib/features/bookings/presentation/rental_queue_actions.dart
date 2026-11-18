@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -223,6 +224,27 @@ class RentalQueueActions {
     ref.invalidate(bookingsListProvider);
     ref.invalidate(dashboardQueueBookingsProvider);
     ref.invalidate(dashboardKpiProvider);
+  }
+
+  static String _extractReadableError(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final errors = data['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          final firstVal = errors.values.first;
+          if (firstVal is List && firstVal.isNotEmpty) {
+            return firstVal.first.toString();
+          }
+          return firstVal.toString();
+        }
+        final msg = data['message']?.toString();
+        if (msg != null && msg.trim().isNotEmpty) {
+          return msg;
+        }
+      }
+    }
+    return error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
   }
 
   /// Opens the full transaction detail bottom sheet with payment callback.
@@ -504,134 +526,60 @@ class RentalQueueActions {
     }
   }
 
-  /// Opens the unit handover sheet for awaiting-handover bookings.
+  /// Opens the unit handover / check-in sheet for awaiting-handover bookings.
   static void handleHandoverUnit(
     BuildContext context,
     WidgetRef ref,
     Map<String, dynamic> booking, {
     VoidCallback? onRefresh,
   }) {
-    final bookingCode =
-        booking['booking_code']?.toString() ?? '#${booking['id'] ?? ''}';
-    final customerName =
-        booking['customer']?['name']?.toString() ??
-        booking['customer_name']?.toString() ??
-        'Pelanggan';
-    final paymentStatus = (booking['payment_status'] ?? 'paid')
-        .toString()
-        .toLowerCase();
-    final isPaid = paymentStatus == 'paid';
-
+    final navigator = Navigator.of(context);
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Text(
-                'Penyerahan Unit • $bookingCode',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.obsidian,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Penyewa: $customerName • Status bayar: ${isPaid ? 'Lunas' : 'Belum Lunas'}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (!isPaid) ...[
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.obsidian,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  icon: const Icon(Icons.payments_rounded, size: 18),
-                  label: const Text(
-                    'Bayar & Serahkan Unit',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    openPosPaymentModal(
-                      context,
-                      ref,
-                      booking,
-                      onRefresh: onRefresh,
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.obsidian,
-                  side: const BorderSide(color: AppColors.border),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Icon(Icons.print_rounded, size: 18),
-                label: const Text(
-                  'Cetak Slip Serah Terima',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  printBookingReceipt(context, ref, booking);
+      builder: (_) => _CheckInHandoverSheet(
+        booking: booking,
+        onCompleted: () {
+          _invalidateQueueProviders(ref);
+          ref.invalidate(readyAssetsProvider);
+          onRefresh?.call();
+        },
+        onProceedToHandoverPayment: ({
+          required double remainingAmount,
+          int? assetUnitId,
+          required String collateralStorageSlot,
+          bool startNow = false,
+          bool keepOriginalEndAt = false,
+          double? adjustedContractTotal,
+        }) {
+          final paymentContext = PaymentContext.settlement(
+            booking: booking,
+            remainingDue: remainingAmount,
+            isHandoverSettlement: true,
+            assetUnitId: assetUnitId,
+            collateralType: booking['collateral_type']?.toString() ?? 'KTP Asli',
+            collateralStorageSlot: collateralStorageSlot,
+            startNow: startNow,
+            keepOriginalEndAt: keepOriginalEndAt,
+            contractTotalOverride: adjustedContractTotal,
+          );
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => PaymentPage(
+                paymentContext: paymentContext,
+                onPaymentSuccess: () {
+                  _invalidateQueueProviders(ref);
+                  ref.invalidate(readyAssetsProvider);
+                  onRefresh?.call();
                 },
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  openTransactionDetail(
-                    context,
-                    ref,
-                    booking,
-                    onRefresh: onRefresh,
-                  );
-                },
-                child: const Text(
-                  'Lihat Rincian Booking',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.obsidian,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -645,6 +593,11 @@ class RentalQueueActions {
   }) {
     final status = (booking['status'] ?? '').toString().toLowerCase();
     final isReturned = status == 'returned' || status == 'completed';
+    final isNoShow = status == 'no_show' || status == 'cancelled';
+    final isAwaitingHandover = status == 'booked' ||
+        status == 'reserved' ||
+        status == 'confirmed' ||
+        status == 'waiting_handover';
     final bookingCode = booking['booking_code']?.toString() ?? 'Sewa';
 
     showModalBottomSheet(
@@ -690,7 +643,7 @@ class RentalQueueActions {
               ),
               const Divider(height: 1, color: AppColors.border),
               ListTile(
-                enabled: !isReturned,
+                enabled: !isReturned && !isNoShow,
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -700,7 +653,7 @@ class RentalQueueActions {
                   child: Icon(
                     Icons.more_time_rounded,
                     size: 20,
-                    color: isReturned
+                    color: (isReturned || isNoShow)
                         ? AppColors.textMuted
                         : AppColors.obsidian,
                   ),
@@ -710,15 +663,15 @@ class RentalQueueActions {
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                 ),
                 subtitle: Text(
-                  isReturned
-                      ? 'Tidak tersedia untuk sewa yang sudah selesai'
+                  (isReturned || isNoShow)
+                      ? 'Tidak tersedia untuk status sewa saat ini'
                       : 'Perpanjang atau sesuaikan durasi sewa unit',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                onTap: isReturned
+                onTap: (isReturned || isNoShow)
                     ? null
                     : () {
                         Navigator.pop(ctx);
@@ -737,7 +690,7 @@ class RentalQueueActions {
                 color: AppColors.border,
               ),
               ListTile(
-                enabled: !isReturned,
+                enabled: !isReturned && !isNoShow,
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -747,7 +700,7 @@ class RentalQueueActions {
                   child: Icon(
                     Icons.swap_horiz_rounded,
                     size: 20,
-                    color: isReturned
+                    color: (isReturned || isNoShow)
                         ? AppColors.textMuted
                         : AppColors.obsidian,
                   ),
@@ -757,15 +710,15 @@ class RentalQueueActions {
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                 ),
                 subtitle: Text(
-                  isReturned
-                      ? 'Tidak tersedia untuk sewa yang sudah selesai'
+                  (isReturned || isNoShow)
+                      ? 'Tidak tersedia untuk status sewa saat ini'
                       : 'Tukar unit fisik jika ada kendala perangkat',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                onTap: isReturned
+                onTap: (isReturned || isNoShow)
                     ? null
                     : () {
                         Navigator.pop(ctx);
@@ -777,6 +730,134 @@ class RentalQueueActions {
                         );
                       },
               ),
+              if (isAwaitingHandover) ...[
+                const Divider(
+                  height: 1,
+                  indent: 56,
+                  endIndent: 20,
+                  color: AppColors.border,
+                ),
+                ListTile(
+                  key: const Key('overflow_reschedule_tile'),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.obsidian.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.edit_calendar_rounded,
+                      size: 20,
+                      color: AppColors.obsidian,
+                    ),
+                  ),
+                  title: const Text(
+                    'Ubah Jadwal',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Majukan atau geser tanggal & jam mulai booking',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    openRescheduleFlow(
+                      context,
+                      ref,
+                      booking,
+                      onRefresh: onRefresh,
+                    );
+                  },
+                ),
+                const Divider(
+                  height: 1,
+                  indent: 56,
+                  endIndent: 20,
+                  color: AppColors.border,
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.obsidian.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.schedule_rounded,
+                      size: 20,
+                      color: AppColors.obsidian,
+                    ),
+                  ),
+                  title: const Text(
+                    'Perpanjang Batas Ambil (+30 mnt)',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Tambah masa tenggang sebelum booking dianggap No-Show',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _handleExtendGracePeriod(
+                      context,
+                      ref,
+                      booking,
+                      onRefresh: onRefresh,
+                    );
+                  },
+                ),
+                const Divider(
+                  height: 1,
+                  indent: 56,
+                  endIndent: 20,
+                  color: AppColors.border,
+                ),
+                ListTile(
+                  key: const Key('overflow_mark_noshow_tile'),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.person_off_outlined,
+                      size: 20,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                  title: const Text(
+                    'Tandai No-Show',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'Batalkan jadwal ambil & lepas slot unit ke stok tersedia',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _confirmMarkNoShow(
+                      context,
+                      ref,
+                      booking,
+                      onRefresh: onRefresh,
+                    );
+                  },
+                ),
+              ],
               const Divider(
                 height: 1,
                 indent: 56,
@@ -815,6 +896,368 @@ class RentalQueueActions {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Opens date & time pickers in `#111111` monochrome theme and confirms a booking reschedule.
+  static Future<void> openRescheduleFlow(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> booking, {
+    VoidCallback? onRefresh,
+  }) async {
+    final bookingId = (booking['id'] as num?)?.toInt();
+    if (bookingId == null) return;
+
+    final now = DateTime.now();
+    final currentStart =
+        DateTime.tryParse(booking['start_at']?.toString() ?? '')?.toLocal() ??
+        now;
+    final currentEnd =
+        DateTime.tryParse(booking['end_at']?.toString() ?? '')?.toLocal();
+    final durationHours =
+        ((booking['duration_hours'] as num?)?.toInt() ??
+                (currentEnd != null
+                    ? currentEnd.difference(currentStart).inHours
+                    : 24))
+            .clamp(1, 24 * 365);
+
+    final firstDate = DateTime(now.year - 1);
+    final lastDate = DateTime(now.year + 2);
+    final initialDate = currentStart.isBefore(firstDate)
+        ? firstDate
+        : (currentStart.isAfter(lastDate) ? lastDate : currentStart);
+
+    ThemeData buildMonochromeTheme(BuildContext pickerCtx) {
+      return Theme.of(pickerCtx).copyWith(
+        colorScheme: const ColorScheme.light(
+          primary: Color(0xFF111111),
+          onPrimary: Colors.white,
+          surface: Colors.white,
+          onSurface: Color(0xFF111111),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF111111),
+          ),
+        ),
+      );
+    }
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: 'Pilih Tanggal Mulai Baru',
+      builder: (ctx, child) =>
+          Theme(data: buildMonochromeTheme(ctx), child: child!),
+    );
+    if (pickedDate == null || !context.mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(currentStart),
+      helpText: 'Pilih Jam Mulai Baru',
+      builder: (ctx, child) =>
+          Theme(data: buildMonochromeTheme(ctx), child: child!),
+    );
+    if (pickedTime == null || !context.mounted) return;
+
+    final newStartAt = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+    final newEndAt = newStartAt.add(Duration(hours: durationHours));
+    final previewLine =
+        'Jadwal Baru: ${DateFormatter.formatFull(newStartAt)} • Selesai: ${DateFormatter.formatFull(newEndAt)}';
+
+    final messenger = ScaffoldMessenger.of(context);
+    var isSaving = false;
+    String? errorMessage;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx, setDialogState) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(
+                Icons.edit_calendar_rounded,
+                color: Color(0xFF111111),
+                size: 20,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Konfirmasi Ubah Jadwal',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: Color(0xFF111111),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                key: const Key('reschedule_preview_box'),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Text(
+                  previewLine,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111111),
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Jadwal sebelumnya: ${DateFormatter.formatFull(currentStart)} ($durationHours jam)',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  key: const Key('reschedule_error_banner'),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerLight,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.danger.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Text(
+                    errorMessage!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dCtx),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              key: const Key('confirm_reschedule_button'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF111111),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      setDialogState(() {
+                        isSaving = true;
+                        errorMessage = null;
+                      });
+                      try {
+                        await ref
+                            .read(bookingRepositoryProvider)
+                            .rescheduleBooking(
+                              bookingId,
+                              newStartAt: newStartAt,
+                              keepOriginalEndAt: false,
+                            );
+                        if (!dCtx.mounted) return;
+                        Navigator.pop(dCtx);
+                        _invalidateQueueProviders(ref);
+                        ref.invalidate(readyAssetsProvider);
+                        onRefresh?.call();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Jadwal booking berhasil diperbarui.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      } catch (e) {
+                        if (!dCtx.mounted) return;
+                        setDialogState(() {
+                          isSaving = false;
+                          errorMessage = _extractReadableError(e);
+                        });
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Simpan Jadwal'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Future<void> _handleExtendGracePeriod(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> booking, {
+    VoidCallback? onRefresh,
+  }) async {
+    final bookingId = (booking['id'] as num?)?.toInt();
+    if (bookingId == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(bookingRepositoryProvider)
+          .extendGracePeriod(bookingId, additionalMinutes: 30);
+      _invalidateQueueProviders(ref);
+      onRefresh?.call();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Batas ambil diperpanjang +30 menit.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Gagal memperpanjang batas ambil: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  static void _confirmMarkNoShow(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> booking, {
+    VoidCallback? onRefresh,
+  }) {
+    final bookingId = (booking['id'] as num?)?.toInt();
+    if (bookingId == null) return;
+    final bookingCode = booking['booking_code']?.toString() ?? '#$bookingId';
+    final paidAmount = CurrencyFormatter.parse(booking['paid_amount']);
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.person_off_outlined, color: AppColors.danger, size: 22),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Tandai No-Show',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Booking $bookingCode akan ditandai No-Show dan slot unit akan dilepas kembali ke inventaris.'
+              '${paidAmount > 0 ? '\n\nDP / pembayaran sebesar ${CurrencyFormatter.format(paidAmount)} akan dicatat sebagai hangus.' : ''}',
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                hintText: 'Catatan alasan (opsional)',
+                isDense: true,
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx),
+            child: const Text(
+              'Batal',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            onPressed: () async {
+              final reason = reasonController.text.trim();
+              Navigator.pop(dCtx);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await ref
+                    .read(bookingRepositoryProvider)
+                    .markNoShow(bookingId, reason: reason);
+                _invalidateQueueProviders(ref);
+                onRefresh?.call();
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Booking $bookingCode ditandai No-Show.'),
+                    backgroundColor: AppColors.obsidian,
+                  ),
+                );
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Gagal menandai No-Show: $e'),
+                    backgroundColor: AppColors.danger,
+                  ),
+                );
+              }
+            },
+            child: const Text('Konfirmasi No-Show'),
+          ),
+        ],
       ),
     );
   }
@@ -2026,6 +2469,896 @@ class RentalQueueActions {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CheckInHandoverSheet extends ConsumerStatefulWidget {
+  final Map<String, dynamic> booking;
+  final VoidCallback onCompleted;
+  final void Function({
+    required double remainingAmount,
+    int? assetUnitId,
+    required String collateralStorageSlot,
+    bool startNow,
+    bool keepOriginalEndAt,
+    double? adjustedContractTotal,
+  }) onProceedToHandoverPayment;
+
+  const _CheckInHandoverSheet({
+    required this.booking,
+    required this.onCompleted,
+    required this.onProceedToHandoverPayment,
+  });
+
+  @override
+  ConsumerState<_CheckInHandoverSheet> createState() =>
+      _CheckInHandoverSheetState();
+}
+
+class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
+  late final TextEditingController _slotController;
+  List<Map<String, dynamic>> _readyUnits = [];
+  bool _isLoadingUnits = false;
+  String? _unitsError;
+  String? _submitError;
+  int? _selectedUnitId;
+  bool _isSubmitting = false;
+  bool _keepOriginalEndAt = false;
+
+  bool get _isFloating => widget.booking['asset_unit_id'] == null;
+
+  DateTime? get _scheduledStartAt =>
+      DateTime.tryParse(widget.booking['start_at']?.toString() ?? '')?.toLocal();
+
+  DateTime? get _scheduledEndAt =>
+      DateTime.tryParse(widget.booking['end_at']?.toString() ?? '')?.toLocal();
+
+  bool get _isEarlyPickup {
+    final start = _scheduledStartAt;
+    return start != null && DateTime.now().isBefore(start);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _slotController = TextEditingController(
+      text:
+          widget.booking['collateral_storage_slot']?.toString() ??
+          'Brankas A, Slot 01',
+    );
+    _selectedUnitId = (widget.booking['asset_unit_id'] as num?)?.toInt();
+    if (_isFloating) {
+      _loadReadyUnits();
+    }
+  }
+
+  @override
+  void dispose() {
+    _slotController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadReadyUnits() async {
+    final bookingId = (widget.booking['id'] as num?)?.toInt();
+    if (bookingId == null) return;
+    setState(() {
+      _isLoadingUnits = true;
+      _unitsError = null;
+    });
+    try {
+      final units = await ref
+          .read(bookingRepositoryProvider)
+          .fetchAvailableUnitsForBooking(
+            bookingId,
+            startNow: _isEarlyPickup,
+            keepOriginalEndAt: _isEarlyPickup && _keepOriginalEndAt,
+          );
+      if (!mounted) return;
+      setState(() {
+        _readyUnits = units;
+        final hasCurrent =
+            _selectedUnitId != null &&
+            units.any((u) => (u['id'] as num?)?.toInt() == _selectedUnitId);
+        if (!hasCurrent) {
+          _selectedUnitId =
+              units.isNotEmpty ? (units.first['id'] as num?)?.toInt() : null;
+        }
+        _isLoadingUnits = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingUnits = false;
+        _unitsError = RentalQueueActions._extractReadableError(e);
+      });
+    }
+  }
+
+  ({
+    double remainingAmount,
+    double totalBill,
+    double extraFee,
+    int estimatedHours,
+  })
+  _computeAdjustedTotals() {
+    final booking = widget.booking;
+    final baseTotalBill = CurrencyFormatter.parse(
+      booking['total_bill'] ?? booking['total_amount'] ?? 0,
+    );
+    double baseRemaining;
+    if (booking['remaining_balance'] != null) {
+      baseRemaining = CurrencyFormatter.parse(
+        booking['remaining_balance'],
+      ).clamp(0.0, double.infinity);
+    } else {
+      final payments = (booking['payments'] as List?) ?? [];
+      double paid = 0.0;
+      for (final p in payments) {
+        if (p is Map) {
+          if (p['status']?.toString().toLowerCase() == 'void') continue;
+          final pt = p['type']?.toString().toLowerCase();
+          if (pt == 'settlement' ||
+              pt == 'dp' ||
+              pt == 'extension' ||
+              pt == 'rental' ||
+              pt == 'exchange') {
+            paid += CurrencyFormatter.parse(p['amount']);
+          }
+        }
+      }
+      if (paid <= 0 && booking['paid_amount'] != null) {
+        paid = CurrencyFormatter.parse(booking['paid_amount']);
+      }
+      final paymentStatus =
+          (booking['payment_status'] ?? '').toString().toLowerCase();
+      baseRemaining = (paid <= 0 && paymentStatus == 'paid')
+          ? 0.0
+          : (baseTotalBill - paid).clamp(0.0, double.infinity);
+    }
+
+    final endAt = _scheduledEndAt;
+    final startAt = _scheduledStartAt;
+    final baseHours = ((booking['duration_hours'] as num?)?.toInt() ??
+            ((startAt != null && endAt != null)
+                ? endAt.difference(startAt).inHours
+                : 24))
+        .clamp(1, 24 * 365);
+
+    if (!(_isEarlyPickup && _keepOriginalEndAt && endAt != null)) {
+      return (
+        remainingAmount: baseRemaining,
+        totalBill: baseTotalBill,
+        extraFee: 0.0,
+        estimatedHours: baseHours,
+      );
+    }
+
+    final now = DateTime.now();
+    final newHours =
+        ((endAt.difference(now).inMinutes) / 60.0).ceil().clamp(baseHours, 24 * 365);
+    final extraHours = newHours - baseHours;
+    if (extraHours <= 0) {
+      return (
+        remainingAmount: baseRemaining,
+        totalBill: baseTotalBill,
+        extraFee: 0.0,
+        estimatedHours: baseHours,
+      );
+    }
+
+    final primarySub = CurrencyFormatter.parse(
+      booking['primary_subtotal'] ?? booking['subtotal_amount'] ?? baseTotalBill,
+    );
+    final modelMap =
+        (booking['asset_model'] as Map?) ??
+        (booking['active_asset']?['model'] as Map?) ??
+        {};
+    final tiers = (modelMap['pricing_tiers'] as List?) ?? [];
+    double? newPrimarySub;
+    double hourlyRate = baseHours > 0 ? (primarySub / baseHours) : 15000.0;
+
+    for (final t in tiers) {
+      if (t is Map) {
+        final tHours = (t['duration_hours'] as num?)?.toInt();
+        final extRate = CurrencyFormatter.parse(t['extension_hourly_rate'] ?? 0);
+        if (extRate > 0) hourlyRate = extRate;
+        if (tHours == newHours) {
+          newPrimarySub = CurrencyFormatter.parse(t['price']);
+          break;
+        }
+      }
+    }
+    newPrimarySub ??= primarySub + (extraHours * hourlyRate);
+    final extraFee = (newPrimarySub - primarySub).clamp(0.0, double.infinity);
+
+    return (
+      remainingAmount: baseRemaining + extraFee,
+      totalBill: baseTotalBill + extraFee,
+      extraFee: extraFee,
+      estimatedHours: newHours,
+    );
+  }
+
+  bool _validateHandoverInputs() {
+    if (_isFloating && _selectedUnitId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih unit fisik yang akan diserahkan terlebih dahulu.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return false;
+    }
+    if (_slotController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Isi data jaminan / slot brankas terlebih dahulu.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  void _proceedToPaymentForHandover(
+    double remainingAmount,
+    double adjustedContractTotal,
+  ) {
+    if (!_validateHandoverInputs()) return;
+    final slot = _slotController.text.trim();
+    final unitId = _selectedUnitId;
+    final startNow = _isEarlyPickup;
+    final keepOriginalEndAt = startNow && _keepOriginalEndAt;
+    Navigator.pop(context);
+    widget.onProceedToHandoverPayment(
+      remainingAmount: remainingAmount,
+      assetUnitId: unitId,
+      collateralStorageSlot: slot,
+      startNow: startNow,
+      keepOriginalEndAt: keepOriginalEndAt,
+      adjustedContractTotal: adjustedContractTotal,
+    );
+  }
+
+  Future<void> _submitCheckIn() async {
+    final bookingId = (widget.booking['id'] as num?)?.toInt();
+    if (bookingId == null) return;
+    if (!_validateHandoverInputs()) return;
+
+    setState(() {
+      _isSubmitting = true;
+      _submitError = null;
+    });
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await ref.read(bookingRepositoryProvider).checkInBooking(
+            bookingId,
+            assetUnitId: _selectedUnitId,
+            collateralStorageSlot: _slotController.text.trim(),
+            startNow: _isEarlyPickup,
+            keepOriginalEndAt: _isEarlyPickup && _keepOriginalEndAt,
+          );
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onCompleted();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Unit berhasil diserahkan dan sewa kini aktif.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final readable = RentalQueueActions._extractReadableError(e);
+      setState(() {
+        _isSubmitting = false;
+        _submitError = readable;
+      });
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyerahkan unit: $readable'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  Widget _buildEarlyPickupRadioOption({
+    required Key key,
+    required bool value,
+    required String title,
+    required String subtitle,
+  }) {
+    final isSelected = _keepOriginalEndAt == value;
+    return InkWell(
+      key: key,
+      onTap: () {
+        if (_keepOriginalEndAt == value) return;
+        setState(() {
+          _keepOriginalEndAt = value;
+          _submitError = null;
+        });
+        if (_isFloating) {
+          _loadReadyUnits();
+        }
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.obsidian : AppColors.border,
+            width: isSelected ? 1.3 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 16,
+              height: 16,
+              margin: const EdgeInsets.only(top: 2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? AppColors.obsidian : AppColors.textMuted,
+                  width: 1.5,
+                ),
+              ),
+              child: isSelected
+                  ? Center(
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.obsidian,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.obsidian,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final booking = widget.booking;
+    final bookingCode =
+        booking['booking_code']?.toString() ?? '#${booking['id'] ?? ''}';
+    final customerName =
+        booking['customer']?['name']?.toString() ??
+        booking['customer_name']?.toString() ??
+        'Pelanggan';
+    final paymentStatus =
+        (booking['payment_status'] ?? 'paid').toString().toLowerCase();
+    final isPaid = paymentStatus == 'paid';
+
+    final modelName =
+        booking['asset_model']?['name']?.toString() ??
+        booking['active_asset']?['model']?['name']?.toString() ??
+        'Unit Sewa';
+    final pinnedAsset =
+        (booking['asset_unit'] as Map?) ??
+        (booking['active_asset'] as Map?);
+
+    final graceStr = booking['grace_expires_at']?.toString();
+    final graceAt =
+        graceStr != null ? DateTime.tryParse(graceStr)?.toLocal() : null;
+    final isOverduePickup =
+        booking['is_overdue_pickup'] == true ||
+        (graceAt != null && graceAt.isBefore(DateTime.now()));
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          14,
+          20,
+          MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Serahkan Unit • $bookingCode',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.obsidian,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Penyewa: $customerName • $modelName • ${isPaid ? 'Lunas' : 'Belum Lunas'}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (_isEarlyPickup && _scheduledStartAt != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  key: const Key('early_pickup_banner'),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.event_available_rounded,
+                            size: 16,
+                            color: AppColors.obsidian,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Pengambilan Lebih Awal dari Jadwal',
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.obsidian,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Jadwal awal: ${DateFormatter.formatFull(_scheduledStartAt!)}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildEarlyPickupRadioOption(
+                        key: const Key('early_pickup_shift_option'),
+                        value: false,
+                        title: 'Geser jadwal mulai sekarang',
+                        subtitle:
+                            'Durasi tetap, waktu selesai ikut maju otomatis',
+                      ),
+                      const SizedBox(height: 8),
+                      _buildEarlyPickupRadioOption(
+                        key: const Key('early_pickup_keep_end_option'),
+                        value: true,
+                        title: 'Mulai sekarang, batas kembali tetap',
+                        subtitle:
+                            'Menambah durasi & selisih tagihan hingga tanggal selesai semula',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (graceAt != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isOverduePickup
+                        ? AppColors.dangerLight
+                        : AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isOverduePickup
+                          ? AppColors.danger.withValues(alpha: 0.3)
+                          : AppColors.border,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isOverduePickup
+                            ? Icons.warning_amber_rounded
+                            : Icons.schedule_rounded,
+                        size: 15,
+                        color: isOverduePickup
+                            ? AppColors.danger
+                            : AppColors.obsidian,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          isOverduePickup
+                              ? 'Lewat Jadwal Ambil (Batas: ${DateFormatter.formatTime(graceAt)})'
+                              : 'Batas ambil: ${DateFormatter.formatTime(graceAt)} WIB',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: isOverduePickup
+                                ? AppColors.danger
+                                : AppColors.obsidian,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+
+              // Unit Selection for Floating Unit vs Pinned Display
+              if (_isFloating) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'PILIH UNIT FISIK SIAP SERAH',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    if (_isLoadingUnits)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_unitsError != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      _unitsError!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  )
+                else if (!_isLoadingUnits && _readyUnits.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.warningLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'Belum ada unit fisik berstatus Ready untuk model ini.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 200),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _readyUnits.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
+                      itemBuilder: (_, idx) {
+                        final unit = _readyUnits[idx];
+                        final unitId = (unit['id'] as num?)?.toInt();
+                        final isSelected = _selectedUnitId == unitId;
+                        final code = unit['asset_code']?.toString() ?? '-';
+                        final sn = unit['serial_number']?.toString();
+                        final grade = unit['condition_grade']?.toString();
+                        final bh = unit['battery_health'];
+
+                        return InkWell(
+                          key: Key('checkin_unit_option_$unitId'),
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => setState(() => _selectedUnitId = unitId),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.surfaceMuted
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.obsidian
+                                    : AppColors.border,
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isSelected
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_off,
+                                  size: 18,
+                                  color: isSelected
+                                      ? AppColors.obsidian
+                                      : AppColors.textMuted,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        code,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.obsidian,
+                                        ),
+                                      ),
+                                      Text(
+                                        [
+                                          if (sn != null && sn.isNotEmpty)
+                                            'SN: $sn',
+                                          if (grade != null) 'Grade $grade',
+                                          if (bh != null) 'BH $bh%',
+                                        ].join(' • '),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ] else if (pinnedAsset != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.lock_outline_rounded,
+                        size: 18,
+                        color: AppColors.obsidian,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Unit Terkunci: ${pinnedAsset['asset_code'] ?? '-'}${pinnedAsset['serial_number'] != null ? ' • SN: ${pinnedAsset['serial_number']}' : ''}',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.obsidian,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('handover_collateral_field'),
+                controller: _slotController,
+                decoration: InputDecoration(
+                  labelText: 'Slot Brankas Jaminan (KTP/SIM)',
+                  isDense: true,
+                  filled: true,
+                  fillColor: AppColors.surfaceMuted,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                ),
+              ),
+              Builder(
+                builder: (context) {
+                  final totals = _computeAdjustedTotals();
+                  final remainingAmount = totals.remainingAmount;
+                  final needsSettlement = remainingAmount > 0;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (needsSettlement) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          key: const Key('handover_remaining_balance_row'),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceMuted,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Sisa Tagihan',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    CurrencyFormatter.format(remainingAmount),
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.obsidian,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (totals.extraFee > 0) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Termasuk estimasi selisih jadwal (${totals.estimatedHours} jam): +${CurrencyFormatter.format(totals.extraFee)}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (_submitError != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          key: const Key('handover_submit_error_banner'),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.dangerLight,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: AppColors.danger.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            _submitError!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.danger,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          key: const Key('confirm_checkin_button'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.obsidian,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          icon: _isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Icon(
+                                  needsSettlement
+                                      ? Icons.payments_rounded
+                                      : Icons.check_circle_outline_rounded,
+                                  size: 18,
+                                ),
+                          label: Text(
+                            _isSubmitting
+                                ? 'Memproses...'
+                                : (needsSettlement
+                                    ? 'Lanjut ke Pembayaran'
+                                    : 'Serahkan Unit Sekarang'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          onPressed: _isSubmitting
+                              ? null
+                              : (needsSettlement
+                                  ? () => _proceedToPaymentForHandover(
+                                      remainingAmount,
+                                      totals.totalBill,
+                                    )
+                                  : _submitCheckIn),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

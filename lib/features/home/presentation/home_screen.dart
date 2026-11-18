@@ -239,30 +239,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   int _getBookingPriority(Map<String, dynamic> b, DateTime now) {
     final status = (b['status'] ?? '').toString().toLowerCase();
     if (status == 'cancelled') return 99;
+    if (status == 'no_show') return 6;
+    if (status == 'returned' || status == 'completed') return 5;
 
-    final endAtStr = b['end_at']?.toString();
-    final endAt = endAtStr != null ? DateTime.tryParse(endAtStr) : null;
+    // 3. Priority 3: Awaiting Handover (Siap Diambil / Booking)
+    if (status == 'pending' ||
+        status == 'confirmed' ||
+        status == 'waiting_handover' ||
+        status == 'booked' ||
+        status == 'reserved') {
+      return 3;
+    }
 
-    // 1. Priority 1 (Top): Overdue Units (Terlambat)
-    if (status != 'returned' && endAt != null && endAt.isBefore(now)) {
+    final endAt = DateFormatter.parseLocal(b['end_at']);
+
+    // 1. Priority 1 (Top): Overdue Active Units (Terlambat)
+    if (endAt != null && endAt.isBefore(now)) {
       return 1;
     }
 
     // 2. Priority 2: Due Today (Jatuh Tempo Hari Ini)
-    if (status != 'returned' &&
-        endAt != null &&
+    if (endAt != null &&
         endAt.year == now.year &&
         endAt.month == now.month &&
         endAt.day == now.day) {
       return 2;
-    }
-
-    // 3. Priority 3: Awaiting Handover (Siap Diambil)
-    if (status == 'pending' ||
-        status == 'confirmed' ||
-        status == 'waiting_handover' ||
-        status == 'booked') {
-      return 3;
     }
 
     // 4. Priority 4: Regular Active (Sedang Berjalan Normal)
@@ -270,12 +271,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       return 4;
     }
 
-    // 5. Priority 5: Completed Today (Selesai Hari Ini)
-    if (status == 'returned') {
-      return 5;
-    }
-
-    return 6;
+    return 7;
   }
 
   Future<void> _handleRefresh() async {
@@ -1316,9 +1312,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       59,
       999,
     );
-    final startAt = DateTime.tryParse(b['start_at']?.toString() ?? '')?.toLocal();
-    final endAt = DateTime.tryParse(b['end_at']?.toString() ?? '')?.toLocal();
-    final createdAt = DateTime.tryParse(b['created_at']?.toString() ?? '')?.toLocal();
+    final startAt = DateFormatter.parseLocal(b['start_at']);
+    final endAt = DateFormatter.parseLocal(b['end_at']);
+    final createdAt = DateFormatter.parseLocal(b['created_at']);
 
     if (startAt != null && endAt != null) {
       return !startAt.isAfter(endDay) && !endAt.isBefore(startDay);
@@ -1644,6 +1640,63 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  List<({String name, int quantity})> _extractAddonSummaries(
+    Map<String, dynamic> booking,
+  ) {
+    final explicitAddons = booking['addons'];
+    if (explicitAddons is List && explicitAddons.isNotEmpty) {
+      final result = <({String name, int quantity})>[];
+      for (final raw in explicitAddons) {
+        if (raw is Map) {
+          final name =
+              (raw['name'] ?? raw['model_name'] ?? raw['title'] ?? 'Add-on')
+                  .toString()
+                  .trim();
+          final qty = (raw['quantity'] as num?)?.toInt() ?? 1;
+          if (name.isNotEmpty) {
+            result.add((name: name, quantity: qty < 1 ? 1 : qty));
+          }
+        }
+      }
+      if (result.isNotEmpty) return result;
+    }
+
+    final rawList = (booking['addon_items'] is List && (booking['addon_items'] as List).isNotEmpty)
+        ? (booking['addon_items'] as List)
+        : ((booking['items'] as List?) ?? const []);
+
+    final counts = <String, int>{};
+    for (final raw in rawList) {
+      if (raw is! Map) continue;
+      final itemType = raw['item_type']?.toString().toLowerCase();
+      final asset = raw['asset'] as Map?;
+      final model = (asset?['model'] as Map?) ?? (raw['asset_model'] as Map?);
+      final isAddon =
+          booking['addon_items'] is List && (booking['addon_items'] as List).isNotEmpty
+              ? true
+              : (itemType == 'addon' ||
+                    model?['is_addon'] == true ||
+                    model?['is_addon'] == 1);
+      if (!isAddon) continue;
+
+      final name =
+          (raw['name'] ??
+                  model?['name'] ??
+                  raw['asset_name'] ??
+                  asset?['asset_code'] ??
+                  'Add-on')
+              .toString()
+              .trim();
+      if (name.isEmpty) continue;
+      final qty = (raw['quantity'] as num?)?.toInt() ?? 1;
+      counts[name] = (counts[name] ?? 0) + (qty < 1 ? 1 : qty);
+    }
+
+    return counts.entries
+        .map((e) => (name: e.key, quantity: e.value))
+        .toList();
+  }
+
   // --- Compact Queue Card Format ---
   Widget _buildQueueCard(
     BuildContext context,
@@ -1695,14 +1748,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final activeAsset =
         (booking['primary_asset'] as Map?)?.cast<String, dynamic>() ??
         (booking['active_asset'] as Map?)?.cast<String, dynamic>() ??
+        (booking['asset_unit'] as Map?)?.cast<String, dynamic>() ??
         (primaryItem?['asset'] as Map?)?.cast<String, dynamic>();
-    final rawModel = activeAsset?['model'];
+    final rawModel = activeAsset?['model'] ?? booking['asset_model'] ?? primaryItem?['asset_model'];
     final model = rawModel is Map ? Map<String, dynamic>.from(rawModel) : null;
     final unitName =
         model?['name']?.toString() ??
         primaryItem?['asset_name']?.toString() ??
         booking['unit_name']?.toString() ??
         'Perangkat Sewa';
+
+    final isFloatingUnit = booking['is_floating_unit'] == true ||
+        ((booking['status'] == 'booked' || booking['status'] == 'reserved') &&
+            booking['asset_unit_id'] == null &&
+            activeAsset == null);
 
     final assetCode =
         (activeAsset?['asset_code'] ??
@@ -1717,8 +1776,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ?.toString()
             .trim();
     final assetIdentifierParts = <String>[
-      if (assetCode != null && assetCode.isNotEmpty) assetCode,
-      if (serialNumber != null && serialNumber.isNotEmpty) 'SN: $serialNumber',
+      if (isFloatingUnit) 'Floating Unit • Belum Pilih SN',
+      if (!isFloatingUnit && assetCode != null && assetCode.isNotEmpty) assetCode,
+      if (!isFloatingUnit && serialNumber != null && serialNumber.isNotEmpty) 'SN: $serialNumber',
     ];
     final assetIdentifierText = assetIdentifierParts.join(' • ');
 
@@ -1727,8 +1787,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ? rawCollateral
         : 'Brankas Cabang';
 
-    final endAtStr = booking['end_at']?.toString();
-    final endAt = endAtStr != null ? DateTime.tryParse(endAtStr) : null;
+    final endAt = DateFormatter.parseLocal(booking['end_at']);
+    final startAt = DateFormatter.parseLocal(booking['start_at']);
+    final graceAt = DateFormatter.parseLocal(booking['grace_expires_at']);
+    final addonSummaries = _extractAddonSummaries(booking);
+    final nowLocal = DateTime.now();
+
+    final statusLower = (booking['status'] ?? '').toString().toLowerCase();
+    final isBookedStatus = statusLower == 'booked' ||
+        statusLower == 'reserved' ||
+        statusLower == 'confirmed' ||
+        statusLower == 'waiting_handover';
+    final isNoShow = statusLower == 'no_show';
+    final isOverduePickup = isBookedStatus &&
+        (booking['is_overdue_pickup'] == true ||
+            (graceAt != null && graceAt.isBefore(nowLocal)));
+    final isGraceWarningWindow = isBookedStatus &&
+        !isOverduePickup &&
+        graceAt != null &&
+        graceAt.difference(nowLocal).inMinutes <= 15;
 
     final totalBill = CurrencyFormatter.parse(
       booking['total_bill'] ??
@@ -1765,6 +1842,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       pillText = hasUnpaidPenalty ? 'SELESAI (DENDA BELUM LUNAS)' : 'SELESAI';
       pillBg = hasUnpaidPenalty ? AppColors.warningLight : AppColors.surfaceMuted;
       pillFg = hasUnpaidPenalty ? AppColors.warning : AppColors.textSecondary;
+    } else if (isNoShow) {
+      pillText = 'NO-SHOW';
+      pillBg = AppColors.dangerLight;
+      pillFg = AppColors.danger;
+    } else if (isOverduePickup) {
+      pillText = 'Lewat Jadwal Ambil';
+      pillBg = AppColors.dangerLight;
+      pillFg = AppColors.danger;
+    } else if (isBookedStatus) {
+      pillText = graceAt != null
+          ? 'Batas ambil: ${DateFormatter.formatTime(graceAt)}'
+          : 'Siap Diambil';
+      pillBg = isGraceWarningWindow ? AppColors.warningLight : AppColors.infoLight;
+      pillFg = isGraceWarningWindow ? AppColors.warning : AppColors.info;
     } else if (isOverdue) {
       pillText = endAt != null
           ? DateFormatter.formatRelative(endAt)
@@ -1775,10 +1866,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       pillText = 'Jatuh Tempo';
       pillBg = AppColors.warningLight;
       pillFg = AppColors.warning;
-    } else if (priority == 3) {
-      pillText = 'Siap Diambil';
-      pillBg = AppColors.infoLight;
-      pillFg = AppColors.info;
     } else {
       pillText = endAt != null
           ? DateFormatter.formatRelative(endAt)
@@ -1847,8 +1934,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
 
-          // 2. Deadline Sub-row (right-aligned clock icon + Batas sewa)
-          if (endAt != null) ...[
+          // 2. Deadline Sub-row (right-aligned clock icon + Jadwal Ambil / Batas Sewa)
+          if (isBookedStatus && startAt != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Icon(
+                  Icons.event_available_rounded,
+                  size: 11,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    'Jadwal ambil: ${DateFormatter.formatFull(startAt)}',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+              ],
+            ),
+          ] else if (endAt != null) ...[
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -1989,17 +2102,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 const SizedBox(width: 8),
                 Flexible(
                   flex: 2,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
+                  child: Align(
                     alignment: Alignment.centerRight,
-                    child: Text(
-                      totalBillText,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.obsidian,
-                        letterSpacing: -0.2,
-                        fontFeatures: [FontFeature.tabularFigures()],
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isBookedStatus &&
+                              (booking['payment_status'] ?? '').toString().toLowerCase() == 'partial') ...[
+                            Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.warningLight,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'DP',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.warning,
+                                ),
+                              ),
+                            ),
+                          ],
+                          Text(
+                            totalBillText,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.obsidian,
+                              letterSpacing: -0.2,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2007,6 +2150,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ],
             ),
           ),
+
+          if (addonSummaries.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              '+ Add-on: ${addonSummaries.map((a) => '${a.name}${a.quantity > 1 ? ' (${a.quantity}x)' : ''}').join(', ')}',
+              key: const Key('queue_card_addons_summary'),
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF4B5563),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ] else
+            const SizedBox.shrink(),
 
           const Divider(height: 16),
 
@@ -2016,18 +2174,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               final statusStr = (booking['status'] ?? '')
                   .toString()
                   .toLowerCase();
-              final isCompleted = isReturned || statusStr == 'completed';
+              final isCompleted = isReturned || statusStr == 'completed' || statusStr == 'no_show';
               final isAwaitingHandover =
                   statusStr == 'pending' ||
                   statusStr == 'confirmed' ||
                   statusStr == 'waiting_handover' ||
-                  statusStr == 'booked';
+                  statusStr == 'booked' ||
+                  statusStr == 'reserved';
 
               final String primaryLabel;
               final VoidCallback onPrimaryTap;
               final Color primaryColor;
 
-              if (isCompleted) {
+              if (statusStr == 'no_show') {
+                primaryLabel = 'Rincian No-Show';
+                primaryColor = AppColors.obsidian;
+                onPrimaryTap = () =>
+                    RentalQueueActions.openTransactionDetail(context, ref, booking);
+              } else if (isCompleted) {
                 primaryLabel = 'Cetak Struk';
                 primaryColor = AppColors.obsidian;
                 onPrimaryTap = () =>

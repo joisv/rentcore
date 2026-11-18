@@ -38,6 +38,8 @@ class ApiConstants {
   static String businessBranches(dynamic id) => '/businesses/$id/branches';
   static String businessRentalRules(dynamic id) =>
       '/businesses/$id/rental-rules';
+  static String branchBookingRules(dynamic branchId) =>
+      '/branches/$branchId/booking-rules';
   static String resignationRequests(dynamic id) =>
       '/businesses/$id/resignation-requests';
   static String cancelResignation(dynamic bizId, dynamic reqId) =>
@@ -68,7 +70,14 @@ class ApiConstants {
 
   // Bookings
   static const String bookings = '/bookings';
+  static const String bookingAvailability = '/bookings/availability';
   static String bookingDetail(dynamic id) => '/bookings/$id';
+  static String bookingAvailableUnits(dynamic id) =>
+      '/bookings/$id/available-units';
+  static String checkInBooking(dynamic id) => '/bookings/$id/check-in';
+  static String markBookingNoShow(dynamic id) => '/bookings/$id/no-show';
+  static String extendBookingGrace(dynamic id) => '/bookings/$id/extend-grace';
+  static String rescheduleBooking(dynamic id) => '/bookings/$id/reschedule';
   static String extendBooking(dynamic id) => '/bookings/$id/extend';
   static String adjustBookingDuration(dynamic id) =>
       '/bookings/$id/adjust-duration';

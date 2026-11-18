@@ -243,7 +243,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Step 3: Advance to unified PaymentPage
-      final step3Cta = find.text('Lanjut ke Pembayaran');
+      final step3Cta = find.text('Buat Sewa');
       await tester.ensureVisible(step3Cta);
       await tester.tap(step3Cta);
       await tester.pumpAndSettle();
