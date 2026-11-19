@@ -291,7 +291,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -373,7 +373,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
               selectedColor: AppColors.obsidian,
               backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 side: BorderSide(color: isSelected ? AppColors.obsidian : AppColors.border),
               ),
               labelStyle: TextStyle(
@@ -400,7 +400,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             fillColor: AppColors.surface,
             filled: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
           ),
         ),
         const SizedBox(height: 16),
@@ -419,7 +419,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             fillColor: AppColors.surface,
             filled: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
           ),
         ),
         const SizedBox(height: 16),
@@ -429,7 +429,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
@@ -512,7 +512,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: _icloudSignedOut ? AppColors.surface : AppColors.dangerLight.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _icloudSignedOut ? AppColors.border : AppColors.danger),
             ),
             child: Row(
@@ -583,7 +583,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.dangerLight,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
           children: [
@@ -647,7 +647,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
             child: Column(
@@ -685,7 +685,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: isSelected ? AppColors.surfaceMuted : AppColors.surface,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: isSelected ? AppColors.obsidian : AppColors.border,
                       width: isSelected ? 2 : 1,
@@ -759,7 +759,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
       selectedColor: AppColors.obsidian,
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: isSel ? AppColors.obsidian : AppColors.border),
       ),
       labelStyle: TextStyle(
@@ -835,7 +835,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
@@ -870,7 +870,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
             child: Material(
@@ -899,7 +899,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.warningLight.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.warning),
             ),
             child: Column(
@@ -923,7 +923,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
                     hintText: 'Contoh: Kompensasi stok unit sama habis...',
                     fillColor: AppColors.surface,
                     filled: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -936,7 +936,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
                     hintText: 'Masukkan 6 digit PIN Manager',
                     fillColor: AppColors.surface,
                     filled: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ],
@@ -969,7 +969,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.border),
                 ),
                 child: DropdownButtonHideUnderline(
@@ -999,7 +999,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
               hintText: '0',
               fillColor: AppColors.surface,
               filled: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onChanged: (val) {
               setState(() {
@@ -1095,7 +1095,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.successLight,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
             children: [
@@ -1121,7 +1121,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
@@ -1147,7 +1147,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.obsidian,
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           icon: const Icon(Icons.print_rounded, color: Colors.white),
           label: const Text(
@@ -1162,7 +1162,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
         OutlinedButton(
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           onPressed: () {
             ref.invalidate(bookingsListProvider);
@@ -1218,7 +1218,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () => setState(() => _currentStep--),
                 child: const Text('Kembali'),
@@ -1232,7 +1232,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
                 minimumSize: const Size.fromHeight(48),
                 backgroundColor: AppColors.obsidian,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: _isSubmitting ? null : _handleNextStep,
               child: _isSubmitting

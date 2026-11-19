@@ -42,6 +42,8 @@ class _FakePaymentRepoForSelection extends PaymentRepository {
     required double amountToPay,
     required double cashReceived,
     String? notes,
+    String? idempotencyKey,
+    String? externalReference,
   }) async {
     lastPaymentMethodId = paymentMethodId;
     lastPaymentMethodCode = paymentMethodCode;

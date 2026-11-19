@@ -109,8 +109,9 @@ class _FakeBookingRepository extends BookingRepository {
 
   @override
   Future<Map<String, dynamic>> createRental(
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    String? idempotencyKey,
+  }) async {
     createRentalCalls++;
     lastCreatedPayload = Map<String, dynamic>.from(payload);
     return {
@@ -172,24 +173,24 @@ void main() {
   }
 
   Future<void> fillCustomerAndGoToStep3(WidgetTester tester) async {
-    await tester.tap(find.text('Lanjut ke Data Penyewa'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nama Lengkap Penyewa *'),
+      find.widgetWithText(TextFormField, 'Nama Penyewa *'),
       'Siti Aminah',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nomor WhatsApp Aktif *'),
+      find.widgetWithText(TextFormField, 'Nomor WhatsApp *'),
       '081234567899',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Alamat Sesuai Kartu Identitas *'),
+      find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'),
       'Jl. Sudirman No. 20',
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Lanjut: Ringkasan Biaya'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
     await tester.pumpAndSettle();
   }
 
@@ -212,7 +213,7 @@ void main() {
         expect(find.byKey(const Key('mode_scheduled_booking_tab')), findsNothing);
 
         // Form starts directly on Unit Selection & shows inline Waktu Mulai row
-        expect(find.text('PILIH UNIT RENTAL TERSEDIA'), findsOneWidget);
+        expect(find.text('MODEL PERANGKAT'), findsOneWidget);
         expect(find.text('WAKTU MULAI'), findsOneWidget);
         expect(find.text('Mulai Sekarang'), findsOneWidget);
         expect(find.text('Jadwalkan ›'), findsOneWidget);
@@ -233,8 +234,8 @@ void main() {
         expect(find.byIcon(Icons.event_rounded), findsOneWidget);
         expect(find.text('Booking Terjadwal'), findsOneWidget);
         expect(find.text('Sekarang'), findsOneWidget);
-        expect(find.text('PILIH MODEL PERANGKAT'), findsOneWidget);
-        expect(find.text('Tersedia 2 slot'), findsOneWidget);
+        expect(find.text('MODEL PERANGKAT'), findsOneWidget);
+        expect(find.text('Tersedia 2 dari 3 unit'), findsOneWidget);
 
         // Reset via "Sekarang" returns seamlessly to immediate rental
         final resetBtn = find.byKey(const Key('inline_reset_now_action'));
@@ -244,7 +245,7 @@ void main() {
 
         expect(find.text('Mulai Sekarang'), findsOneWidget);
         expect(find.text('Jadwalkan ›'), findsOneWidget);
-        expect(find.text('PILIH UNIT RENTAL TERSEDIA'), findsOneWidget);
+        expect(find.text('MODEL PERANGKAT'), findsOneWidget);
 
         // Immediate rental submits with "Buat Sewa" CTA and no scheduled payment selector
         await tester.tap(find.text('iPhone 15 Pro').first);

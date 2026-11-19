@@ -459,7 +459,7 @@ class _BusinessSetupWizardScreenState
         Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.border),
           ),
           padding: EdgeInsets.zero,
@@ -590,13 +590,13 @@ class _BusinessSetupWizardScreenState
         setState(() => _branchStructure = id);
         _saveDraft();
       },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected ? AppColors.obsidian : AppColors.border,
             width: isSelected ? 2 : 1,
@@ -736,14 +736,14 @@ class _BusinessSetupWizardScreenState
                 });
                 _saveDraft();
               },
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
                   color: isSelected ? AppColors.obsidian : AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isSelected ? AppColors.obsidian : AppColors.border,
                     width: isSelected ? 1.5 : 1,
@@ -794,7 +794,7 @@ class _BusinessSetupWizardScreenState
             animationDuration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
             elevation: 0,
           ),

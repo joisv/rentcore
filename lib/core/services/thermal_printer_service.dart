@@ -61,34 +61,34 @@ class ThermalPrinterService {
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
     builder.add(cmdDoubleSize);
-    builder.add(utf8.encode('$shopName\n'));
+    builder.add(_encodeEscPos('$shopName\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
-    builder.add(utf8.encode('$branchName\n'));
-    builder.add(utf8.encode('--------------------------------\n'));
+    builder.add(_encodeEscPos('$branchName\n'));
+    builder.add(_encodeEscPos('--------------------------------\n'));
 
     builder.add(cmdBoldOn);
-    builder.add(utf8.encode('VOUCHER DISKON SPESIAL\n'));
+    builder.add(_encodeEscPos('VOUCHER DISKON SPESIAL\n'));
     builder.add(cmdDoubleSize);
-    builder.add(utf8.encode('${discountPercentage.toInt()}% OFF\n'));
+    builder.add(_encodeEscPos('${discountPercentage.toInt()}% OFF\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
-    builder.add(utf8.encode('--------------------------------\n'));
+    builder.add(_encodeEscPos('--------------------------------\n'));
 
     builder.add(cmdAlignLeft);
-    builder.add(utf8.encode('Kode Voucher  : $voucherCode\n'));
-    builder.add(utf8.encode('Min. Transaksi: Rp ${_formatNumber(minTransaction)}\n'));
-    builder.add(utf8.encode('Berlaku s/d   : $validUntil\n'));
-    builder.add(utf8.encode('--------------------------------\n'));
+    builder.add(_encodeEscPos('Kode Voucher  : $voucherCode\n'));
+    builder.add(_encodeEscPos('Min. Transaksi: Rp ${_formatNumber(minTransaction)}\n'));
+    builder.add(_encodeEscPos('Berlaku s/d   : $validUntil\n'));
+    builder.add(_encodeEscPos('--------------------------------\n'));
 
     builder.add(cmdAlignCenter);
     builder.add(_buildQrCodeEscPos(voucherCode));
-    builder.add(utf8.encode('\n$voucherCode\n\n'));
+    builder.add(_encodeEscPos('\n$voucherCode\n\n'));
 
-    builder.add(utf8.encode('* Tunjukkan slip fisik ini atau\n'));
-    builder.add(utf8.encode('  scan QR Code saat sewa gadget.\n'));
-    builder.add(utf8.encode('Terima kasih atas kunjungan Anda!\n'));
-    builder.add(utf8.encode('================================\n'));
+    builder.add(_encodeEscPos('* Tunjukkan slip fisik ini atau\n'));
+    builder.add(_encodeEscPos('  scan QR Code saat sewa gadget.\n'));
+    builder.add(_encodeEscPos('Terima kasih atas kunjungan Anda!\n'));
+    builder.add(_encodeEscPos('================================\n'));
 
     builder.add(cmdFeed3Lines);
     builder.add(cmdCutPaper);
@@ -97,7 +97,7 @@ class ThermalPrinterService {
   }
 
   // ==========================================
-  // 2. Closing Shift Slip (Backward Compatible)
+  // 2. Closing Shift Slip (58mm/80mm Aware)
   // ==========================================
   Uint8List buildClosingShiftSlipBytes({
     required String branchName,
@@ -106,68 +106,95 @@ class ThermalPrinterService {
     required int totalTransactions,
     required double totalRevenue,
     required Map<String, double> paymentBreakdown,
+    ReceiptPaperWidth paperWidth = ReceiptPaperWidth.mm58,
+    String? openedAt,
+    String? closedAt,
     double? openingCashFloat,
     double? netCashRevenue,
+    double? nonCashInflow,
     double? cashDrawerExpenses,
     double? expectedCashInDrawer,
+    double? actualCashCounted,
+    double? cashDifference,
     String? shiftNumber,
   }) {
     final builder = BytesBuilder();
+    final width = paperWidth.columns;
+    final doubleDivider = '=' * width;
+    final singleDivider = '-' * width;
+
     builder.add(cmdInit);
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
     builder.add(cmdDoubleSize);
-    builder.add(utf8.encode('RENTCORE CLOSING SHIFT\n'));
+    builder.add(_encodeEscPos('RENTCORE CLOSING SHIFT\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
-    builder.add(utf8.encode('$branchName\n'));
+    builder.add(_encodeEscPos('$branchName\n'));
     if (shiftNumber != null && shiftNumber.isNotEmpty) {
-      builder.add(utf8.encode('Shift: $shiftNumber\n'));
+      builder.add(_encodeEscPos('Shift: $shiftNumber\n'));
     }
-    builder.add(utf8.encode('================================\n'));
+    builder.add(_encodeEscPos('$doubleDivider\n'));
 
     builder.add(cmdAlignLeft);
-    builder.add(utf8.encode('Tanggal : $date\n'));
-    builder.add(utf8.encode('Kasir   : $cashierName\n'));
-    builder.add(utf8.encode('--------------------------------\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('Tanggal', date, width)}\n'));
+    if (openedAt != null && openedAt.isNotEmpty) {
+      builder.add(_encodeEscPos('${_formatTwoColumn('Buka Shift', openedAt, width)}\n'));
+    }
+    if (closedAt != null && closedAt.isNotEmpty) {
+      builder.add(_encodeEscPos('${_formatTwoColumn('Tutup Shift', closedAt, width)}\n'));
+    }
+    builder.add(_encodeEscPos('${_formatTwoColumn('Kasir', cashierName, width)}\n'));
+    builder.add(_encodeEscPos('$singleDivider\n'));
 
     builder.add(cmdBoldOn);
-    builder.add(utf8.encode('Total Transaksi : $totalTransactions\n'));
-    builder.add(utf8.encode('Total Omset     : Rp ${_formatNumber(totalRevenue)}\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('Total Transaksi', '$totalTransactions', width)}\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('Total Omset', 'Rp ${_formatNumber(totalRevenue)}', width)}\n'));
     builder.add(cmdBoldOff);
-    builder.add(utf8.encode('--------------------------------\n'));
+    if (nonCashInflow != null && nonCashInflow > 0) {
+      builder.add(_encodeEscPos('${_formatTwoColumn('Kas Non-Tunai', 'Rp ${_formatNumber(nonCashInflow)}', width)}\n'));
+    }
+    builder.add(_encodeEscPos('$singleDivider\n'));
 
-    builder.add(utf8.encode('RINCIAN METODE PEMBAYARAN:\n'));
+    builder.add(_encodeEscPos('RINCIAN METODE PEMBAYARAN:\n'));
     paymentBreakdown.forEach((method, amount) {
-      final line = _formatTwoColumn(method, 'Rp ${_formatNumber(amount)}', 32);
-      builder.add(utf8.encode('$line\n'));
+      final prefix = amount < 0 ? '-Rp ' : 'Rp ';
+      final line = _formatTwoColumn(method, '$prefix${_formatNumber(amount.abs())}', width);
+      builder.add(_encodeEscPos('$line\n'));
     });
 
     if (expectedCashInDrawer != null) {
-      builder.add(utf8.encode('--------------------------------\n'));
+      builder.add(_encodeEscPos('$singleDivider\n'));
       builder.add(cmdBoldOn);
-      builder.add(utf8.encode('REKONSILIASI KAS LACI:\n'));
+      builder.add(_encodeEscPos('REKONSILIASI KAS LACI:\n'));
       builder.add(cmdBoldOff);
       if (openingCashFloat != null && openingCashFloat > 0) {
-        builder.add(utf8.encode('${_formatTwoColumn("Modal Awal Laci", "Rp ${_formatNumber(openingCashFloat)}", 32)}\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Modal Awal Laci', 'Rp ${_formatNumber(openingCashFloat)}', width)}\n'));
       }
       if (netCashRevenue != null) {
-        builder.add(utf8.encode('${_formatTwoColumn("Kas Masuk Bersih", "Rp ${_formatNumber(netCashRevenue)}", 32)}\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Kas Masuk Bersih', 'Rp ${_formatNumber(netCashRevenue)}', width)}\n'));
       }
       if (cashDrawerExpenses != null && cashDrawerExpenses > 0) {
-        builder.add(utf8.encode('${_formatTwoColumn("Beban Kas Laci", "-Rp ${_formatNumber(cashDrawerExpenses)}", 32)}\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Beban Kas Laci', '-Rp ${_formatNumber(cashDrawerExpenses)}', width)}\n'));
       }
-      builder.add(utf8.encode('--------------------------------\n'));
+      builder.add(_encodeEscPos('$singleDivider\n'));
       builder.add(cmdBoldOn);
-      builder.add(utf8.encode('${_formatTwoColumn("FISIK KAS LACI", "Rp ${_formatNumber(expectedCashInDrawer)}", 32)}\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('FISIK KAS SISTEM', 'Rp ${_formatNumber(expectedCashInDrawer)}', width)}\n'));
+      if (actualCashCounted != null) {
+        builder.add(_encodeEscPos('${_formatTwoColumn('FISIK KAS DIHITUNG', 'Rp ${_formatNumber(actualCashCounted)}', width)}\n'));
+      }
+      if (cashDifference != null) {
+        final diffPrefix = cashDifference < 0 ? '-Rp ' : (cashDifference > 0 ? '+Rp ' : 'Rp ');
+        builder.add(_encodeEscPos('${_formatTwoColumn('SELISIH KAS', '$diffPrefix${_formatNumber(cashDifference.abs())}', width)}\n'));
+      }
       builder.add(cmdBoldOff);
     }
 
-    builder.add(utf8.encode('================================\n'));
+    builder.add(_encodeEscPos('$doubleDivider\n'));
 
     builder.add(cmdAlignCenter);
-    builder.add(utf8.encode('Tanda Tangan Kasir / Supervisor\n\n\n'));
-    builder.add(utf8.encode('( ____________________ )\n'));
+    builder.add(_encodeEscPos('Tanda Tangan Kasir / Supervisor\n\n\n'));
+    builder.add(_encodeEscPos('( ____________________ )\n'));
 
     builder.add(cmdFeed3Lines);
     builder.add(cmdCutPaper);
@@ -639,19 +666,19 @@ class ThermalPrinterService {
           }
           if (line.isDoubleSize) builder.add(cmdDoubleSize);
           if (line.isBold) builder.add(cmdBoldOn);
-          builder.add(utf8.encode('${line.text}\n'));
+          builder.add(_encodeEscPos('${line.text}\n'));
           if (line.isBold) builder.add(cmdBoldOff);
           if (line.isDoubleSize) builder.add(cmdNormalSize);
           break;
         case ReceiptLineType.qrCode:
           builder.add(cmdAlignCenter);
-          if (settings.paperWidth == ReceiptPaperWidth.mm80 && line.qrData != null) {
-            builder.add(_buildQrCodeEscPos(line.qrData!));
+          if (line.qrData != null && line.qrData!.trim().isNotEmpty) {
+            builder.add(_buildQrCodeEscPos(line.qrData!, paperWidth: settings.paperWidth));
           }
-          builder.add(utf8.encode('${line.text}\n\n'));
+          builder.add(_encodeEscPos('${line.text}\n\n'));
           break;
         case ReceiptLineType.emptyFeed:
-          builder.add(utf8.encode('\n'));
+          builder.add(_encodeEscPos('\n'));
           break;
       }
     }
@@ -686,86 +713,84 @@ class ThermalPrinterService {
 
     // Header
     _appendHeader(builder, data, settings);
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     // Title
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
-    builder.add(utf8.encode('${data.title}\n'));
+    builder.add(_encodeEscPos('${data.title}\n'));
     builder.add(cmdBoldOff);
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     // Transaction Details
     builder.add(cmdAlignLeft);
     if (data.bookingCode != null) {
-      builder.add(utf8.encode(_formatTwoColumn('No. Booking', data.bookingCode!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('No. Booking', data.bookingCode!, width)}\n'));
     }
     if (data.transactedAt != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Waktu', data.transactedAt!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Waktu', data.transactedAt!, width)}\n'));
     }
     if (settings.showCashierName && data.cashierName != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Kasir', data.cashierName!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Kasir', data.cashierName!, width)}\n'));
     }
     if (data.customerName != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Pelanggan', data.customerName!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Pelanggan', data.customerName!, width)}\n'));
     }
     if (settings.showCustomerPhone && data.customerPhone != null && data.customerPhone!.isNotEmpty) {
       final phone = settings.maskCustomerPhone ? _maskPhone(data.customerPhone!) : data.customerPhone!;
-      builder.add(utf8.encode(_formatTwoColumn('No. Telp', phone, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('No. Telp', phone, width)}\n'));
     }
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     // Unit Details
     if (data.unitName != null) {
       builder.add(cmdBoldOn);
-      builder.add(utf8.encode('DETAIL PERANGKAT:\n'));
+      builder.add(_encodeEscPos('DETAIL PERANGKAT:\n'));
       builder.add(cmdBoldOff);
-      builder.add(utf8.encode('${data.unitName}\n'));
+      builder.add(_encodeEscPos('${data.unitName}\n'));
       if (data.unitSerial != null && data.unitSerial!.isNotEmpty) {
-        builder.add(utf8.encode('SN/IMEI: ${data.unitSerial}\n'));
+        builder.add(_encodeEscPos('SN/IMEI: ${data.unitSerial}\n'));
       }
       if (data.rentalDurationText != null) {
-        builder.add(utf8.encode(_formatTwoColumn('Durasi', data.rentalDurationText!, width) + '\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Durasi', data.rentalDurationText!, width)}\n'));
       }
       if (data.rentalEndDate != null) {
-        builder.add(utf8.encode(_formatTwoColumn('Batas Sewa', data.rentalEndDate!, width) + '\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Batas Sewa', data.rentalEndDate!, width)}\n'));
       }
       if (settings.showCollateralInfo && data.collateralInfo != null) {
-        builder.add(utf8.encode(_formatTwoColumn('Jaminan', data.collateralInfo!, width) + '\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Jaminan', data.collateralInfo!, width)}\n'));
       }
-      builder.add(utf8.encode('$divider\n'));
+      builder.add(_encodeEscPos('$divider\n'));
     }
 
     // Financial breakdown
     if (data.subtotal != null && data.subtotal! > 0) {
-      builder.add(utf8.encode(_formatTwoColumn('Biaya Sewa', 'Rp ${_formatNumber(data.subtotal!)}', width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Biaya Sewa', 'Rp ${_formatNumber(data.subtotal!)}', width)}\n'));
     }
     if (data.discount != null && data.discount! > 0) {
-      builder.add(utf8.encode(_formatTwoColumn('Diskon Promo', '-Rp ${_formatNumber(data.discount!)}', width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Diskon Promo', '-Rp ${_formatNumber(data.discount!)}', width)}\n'));
     }
     builder.add(cmdBoldOn);
-    builder.add(utf8.encode(_formatTwoColumn('TOTAL AKHIR', 'Rp ${_formatNumber(data.totalAmount)}', width) + '\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('TOTAL AKHIR', 'Rp ${_formatNumber(data.totalAmount)}', width)}\n'));
     builder.add(cmdBoldOff);
 
     if (data.paymentMethod != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Pembayaran', data.paymentMethod!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Pembayaran', data.paymentMethod!, width)}\n'));
     }
     if (settings.showChangeDue && data.cashReceived != null && data.cashReceived! > 0) {
-      builder.add(utf8.encode(_formatTwoColumn('Uang Diterima', 'Rp ${_formatNumber(data.cashReceived!)}', width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Uang Diterima', 'Rp ${_formatNumber(data.cashReceived!)}', width)}\n'));
       if (data.cashChange != null) {
-        builder.add(utf8.encode(_formatTwoColumn('Kembalian', 'Rp ${_formatNumber(data.cashChange!)}', width) + '\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Kembalian', 'Rp ${_formatNumber(data.cashChange!)}', width)}\n'));
       }
     }
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
-    // QR Code for Fast Return (Only send GS ( k on 80mm printers, 58mm mobile prints clean text code)
+    // QR Code for Fast Return (both 58mm size4 and 80mm size6)
     if (settings.showQrBarcode && (data.qrData != null || data.bookingCode != null)) {
       final qrString = data.qrData ?? data.bookingCode!;
       builder.add(cmdAlignCenter);
-      if (settings.paperWidth == ReceiptPaperWidth.mm80) {
-        builder.add(_buildQrCodeEscPos(qrString));
-      }
-      builder.add(utf8.encode('$qrString\n\n'));
+      builder.add(_buildQrCodeEscPos(qrString, paperWidth: settings.paperWidth));
+      builder.add(_encodeEscPos('$qrString\n\n'));
     }
 
     // Footer & Terms
@@ -791,61 +816,79 @@ class ThermalPrinterService {
     builder.add(cmdInit);
 
     _appendHeader(builder, data, settings);
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
-    builder.add(utf8.encode('${data.title}\n'));
+    builder.add(_encodeEscPos('${data.title}\n'));
     builder.add(cmdBoldOff);
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     builder.add(cmdAlignLeft);
     if (data.receiptNumber != null) {
-      builder.add(utf8.encode(_formatTwoColumn('No. Struk', data.receiptNumber!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('No. Struk', data.receiptNumber!, width)}\n'));
     }
     if (data.bookingCode != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Ref Booking', data.bookingCode!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Ref Booking', data.bookingCode!, width)}\n'));
     }
     if (data.transactedAt != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Waktu', data.transactedAt!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Waktu', data.transactedAt!, width)}\n'));
     }
     if (settings.showCashierName && data.cashierName != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Kasir', data.cashierName!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Kasir', data.cashierName!, width)}\n'));
     }
     if (data.customerName != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Pelanggan', data.customerName!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Pelanggan', data.customerName!, width)}\n'));
     }
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     // Line items or summary
     if (data.items != null && data.items!.isNotEmpty) {
       for (final item in data.items!) {
         final name = item['name']?.toString() ?? 'Item';
         final price = (item['price'] is num) ? (item['price'] as num).toDouble() : 0.0;
-        builder.add(utf8.encode(_formatTwoColumn(name, 'Rp ${_formatNumber(price)}', width) + '\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn(name, 'Rp ${_formatNumber(price)}', width)}\n'));
       }
-      builder.add(utf8.encode('$divider\n'));
+      builder.add(_encodeEscPos('$divider\n'));
+    }
+
+    if (data.subtotal != null && data.subtotal! > 0 && (data.discount ?? 0) > 0) {
+      builder.add(_encodeEscPos('${_formatTwoColumn('Subtotal', 'Rp ${_formatNumber(data.subtotal!)}', width)}\n'));
+    }
+    if (data.discount != null && data.discount! > 0) {
+      builder.add(_encodeEscPos('${_formatTwoColumn('Diskon', '-Rp ${_formatNumber(data.discount!)}', width)}\n'));
     }
 
     if (data.penaltyAmount != null && data.penaltyAmount! > 0 && settings.showPenaltyDetails) {
-      builder.add(utf8.encode(_formatTwoColumn('Denda Telat', 'Rp ${_formatNumber(data.penaltyAmount!)}', width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Denda Telat', 'Rp ${_formatNumber(data.penaltyAmount!)}', width)}\n'));
     }
 
     builder.add(cmdBoldOn);
-    builder.add(utf8.encode(_formatTwoColumn('TOTAL BAYAR', 'Rp ${_formatNumber(data.totalAmount)}', width) + '\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('TOTAL BAYAR', 'Rp ${_formatNumber(data.totalAmount)}', width)}\n'));
     builder.add(cmdBoldOff);
 
     if (data.paymentMethod != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Metode', data.paymentMethod!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Metode', data.paymentMethod!, width)}\n'));
     }
     if (settings.showChangeDue && data.cashReceived != null && data.cashReceived! > 0) {
-      builder.add(utf8.encode(_formatTwoColumn('Tunai Diterima', 'Rp ${_formatNumber(data.cashReceived!)}', width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Tunai Diterima', 'Rp ${_formatNumber(data.cashReceived!)}', width)}\n'));
       if (data.cashChange != null) {
-        builder.add(utf8.encode(_formatTwoColumn('Kembalian', 'Rp ${_formatNumber(data.cashChange!)}', width) + '\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Kembalian', 'Rp ${_formatNumber(data.cashChange!)}', width)}\n'));
       }
     }
-    builder.add(utf8.encode(_formatTwoColumn('Status', 'LUNAS', width) + '\n'));
-    builder.add(utf8.encode('$divider\n'));
+
+    final remaining = data.remainingBalance ?? 0.0;
+    final isDpOrPartial = data.isDownPayment || remaining > 0;
+    builder.add(cmdBoldOn);
+    if (isDpOrPartial) {
+      builder.add(_encodeEscPos('STATUS: DP (BELUM LUNAS)\n'));
+      builder.add(cmdBoldOff);
+      builder.add(_encodeEscPos('${_formatTwoColumn('Sisa Tagihan', 'Rp ${_formatNumber(remaining)}', width)}\n'));
+    } else {
+      builder.add(_encodeEscPos('STATUS: LUNAS\n'));
+      builder.add(cmdBoldOff);
+    }
+    builder.add(_encodeEscPos('$divider\n'));
 
     _appendFooter(builder, settings, width);
 
@@ -869,53 +912,53 @@ class ThermalPrinterService {
     builder.add(cmdInit);
 
     _appendHeader(builder, data, settings);
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
-    builder.add(utf8.encode('${data.title}\n'));
+    builder.add(_encodeEscPos('${data.title}\n'));
     builder.add(cmdBoldOff);
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     builder.add(cmdAlignLeft);
     if (data.bookingCode != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Kode Sewa', data.bookingCode!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Kode Sewa', data.bookingCode!, width)}\n'));
     }
     if (data.transactedAt != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Waktu Kembali', data.transactedAt!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Waktu Kembali', data.transactedAt!, width)}\n'));
     }
     if (settings.showCashierName && data.cashierName != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Petugas', data.cashierName!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Petugas', data.cashierName!, width)}\n'));
     }
     if (data.customerName != null) {
-      builder.add(utf8.encode(_formatTwoColumn('Pelanggan', data.customerName!, width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Pelanggan', data.customerName!, width)}\n'));
     }
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     if (data.unitName != null) {
       builder.add(cmdBoldOn);
-      builder.add(utf8.encode('HASIL PEMERIKSAAN UNIT:\n'));
+      builder.add(_encodeEscPos('HASIL PEMERIKSAAN UNIT:\n'));
       builder.add(cmdBoldOff);
-      builder.add(utf8.encode('${data.unitName}\n'));
+      builder.add(_encodeEscPos('${data.unitName}\n'));
       if (data.conditionGrade != null) {
-        builder.add(utf8.encode(_formatTwoColumn('Kondisi Fisik', data.conditionGrade!, width) + '\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Kondisi Fisik', data.conditionGrade!, width)}\n'));
       }
       if (data.checklistNotes != null) {
-        builder.add(utf8.encode('Checklist: ${data.checklistNotes}\n'));
+        builder.add(_encodeEscPos('Checklist: ${data.checklistNotes}\n'));
       }
       if (data.accessoriesNotes != null) {
-        builder.add(utf8.encode('Aksesoris: ${data.accessoriesNotes}\n'));
+        builder.add(_encodeEscPos('Aksesoris: ${data.accessoriesNotes}\n'));
       }
-      builder.add(utf8.encode(_formatTwoColumn('Status Jaminan', 'KTP DIKEMBALIKAN', width) + '\n'));
-      builder.add(utf8.encode('$divider\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Status Jaminan', 'KTP DIKEMBALIKAN', width)}\n'));
+      builder.add(_encodeEscPos('$divider\n'));
     }
 
     if (data.penaltyAmount != null && data.penaltyAmount! > 0) {
-      builder.add(utf8.encode(_formatTwoColumn('Denda Keterlambatan', 'Rp ${_formatNumber(data.penaltyAmount!)}', width) + '\n'));
+      builder.add(_encodeEscPos('${_formatTwoColumn('Denda Keterlambatan', 'Rp ${_formatNumber(data.penaltyAmount!)}', width)}\n'));
       if (data.paymentMethod != null) {
-        builder.add(utf8.encode(_formatTwoColumn('Status Denda', 'LUNAS (${data.paymentMethod})', width) + '\n'));
+        builder.add(_encodeEscPos('${_formatTwoColumn('Status Denda', 'LUNAS (${data.paymentMethod})', width)}\n'));
       }
-      builder.add(utf8.encode('$divider\n'));
+      builder.add(_encodeEscPos('$divider\n'));
     }
 
     _appendFooter(builder, settings, width);
@@ -940,55 +983,53 @@ class ThermalPrinterService {
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
     builder.add(cmdDoubleSize);
-    builder.add(utf8.encode('RENTCORE TEST PRINT\n'));
+    builder.add(_encodeEscPos('RENTCORE TEST PRINT\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
-    builder.add(utf8.encode('Thermal Printer Diagnostic\n'));
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('Thermal Printer Diagnostic\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     // Config info
     builder.add(cmdAlignLeft);
-    builder.add(utf8.encode(_formatTwoColumn('Lebar Kertas', settings.paperWidth.label, width) + '\n'));
-    builder.add(utf8.encode(_formatTwoColumn('Mode Cetak', settings.printMode.name.toUpperCase(), width) + '\n'));
-    builder.add(utf8.encode(_formatTwoColumn('Total Kolom', '$width Karakter', width) + '\n'));
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('Lebar Kertas', settings.paperWidth.label, width)}\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('Mode Cetak', settings.printMode.name.toUpperCase(), width)}\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('Total Kolom', '$width Karakter', width)}\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     // Typography sample
-    builder.add(utf8.encode('1. Teks Biasa: ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'));
+    builder.add(_encodeEscPos('1. Teks Biasa: ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'));
     builder.add(cmdBoldOn);
-    builder.add(utf8.encode('2. Teks Bold: 0123456789 (Angka Tebal)\n'));
+    builder.add(_encodeEscPos('2. Teks Bold: 0123456789 (Angka Tebal)\n'));
     builder.add(cmdBoldOff);
 
     // Alignment samples (each on its own line per ESC/POS specification)
     builder.add(cmdAlignLeft);
-    builder.add(utf8.encode('Format: Teks Rata Kiri\n'));
+    builder.add(_encodeEscPos('Format: Teks Rata Kiri\n'));
     builder.add(cmdAlignCenter);
-    builder.add(utf8.encode('Format: Teks Rata Tengah\n'));
+    builder.add(_encodeEscPos('Format: Teks Rata Tengah\n'));
     builder.add(cmdAlignRight);
-    builder.add(utf8.encode('Format: Teks Rata Kanan\n'));
+    builder.add(_encodeEscPos('Format: Teks Rata Kanan\n'));
     builder.add(cmdAlignLeft);
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     // Column Ruler test
     String ruler = '';
     for (int i = 1; i <= width; i++) {
       ruler += (i % 10).toString();
     }
-    builder.add(utf8.encode('Ruler: $ruler\n'));
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('Ruler: $ruler\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
-    // QR Code test (Only send GS ( k on 80mm printers; 58mm mobile displays safe text tag)
+    // QR Code test (supports both 58mm size4 and 80mm size6)
     if (settings.showQrBarcode) {
       builder.add(cmdAlignCenter);
-      if (settings.paperWidth == ReceiptPaperWidth.mm80) {
-        builder.add(_buildQrCodeEscPos('RENTCORE-TEST-OK'));
-      }
-      builder.add(utf8.encode('RENTCORE-TEST-OK\n\n'));
+      builder.add(_buildQrCodeEscPos('RENTCORE-TEST-OK', paperWidth: settings.paperWidth));
+      builder.add(_encodeEscPos('RENTCORE-TEST-OK\n\n'));
     }
 
     builder.add(cmdAlignCenter);
-    builder.add(utf8.encode('Hardware siap & berfungsi baik!\n'));
-    builder.add(utf8.encode('$divider\n'));
+    builder.add(_encodeEscPos('Hardware siap & berfungsi baik!\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     builder.add(cmdFeed3Lines);
     builder.add(cmdCutPaper);
@@ -1012,33 +1053,49 @@ class ThermalPrinterService {
 
     builder.add(cmdBoldOn);
     builder.add(cmdDoubleSize);
-    builder.add(utf8.encode('$shopName\n'));
+    builder.add(_encodeEscPos('$shopName\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
 
-    builder.add(utf8.encode('$branchName\n'));
+    builder.add(_encodeEscPos('$branchName\n'));
 
     if (settings.storeAddress.isNotEmpty) {
-      builder.add(utf8.encode('${settings.storeAddress}\n'));
+      builder.add(_encodeEscPos('${settings.storeAddress}\n'));
     }
     if (settings.storePhone.isNotEmpty) {
-      builder.add(utf8.encode('Telp: ${settings.storePhone}\n'));
+      builder.add(_encodeEscPos('Telp: ${settings.storePhone}\n'));
     }
   }
 
   void _appendFooter(BytesBuilder builder, ReceiptCustomizationSettings settings, int width) {
     builder.add(cmdAlignCenter);
     if (settings.showReturnTerms && settings.returnTermsText.isNotEmpty) {
-      builder.add(utf8.encode('${settings.returnTermsText}\n\n'));
+      builder.add(_encodeEscPos('${settings.returnTermsText}\n\n'));
     }
     if (settings.customFooterMessage.isNotEmpty) {
-      builder.add(utf8.encode('${settings.customFooterMessage}\n'));
+      builder.add(_encodeEscPos('${settings.customFooterMessage}\n'));
     }
     final dividerChar = settings.separatorStyle == 'double' ? '=' : '-';
-    builder.add(utf8.encode('${dividerChar * width}\n'));
+    builder.add(_encodeEscPos('${dividerChar * width}\n'));
   }
 
-  // --- Text & Number Helpers ---
+  // --- Text, Sanitizer & Number Helpers ---
+  String _sanitizeEscPosText(String input) {
+    return input
+        .replaceAll('•', '-')
+        .replaceAll('—', '-')
+        .replaceAll('–', '-')
+        .replaceAll('‘', "'")
+        .replaceAll('’', "'")
+        .replaceAll('“', '"')
+        .replaceAll('”', '"')
+        .replaceAll('\u00A0', ' ');
+  }
+
+  List<int> _encodeEscPos(String text) {
+    return const Latin1Codec(allowInvalid: true).encode(_sanitizeEscPosText(text));
+  }
+
   String _formatNumber(num number) {
     final s = number.toInt().toString();
     final buffer = StringBuffer();
@@ -1054,9 +1111,63 @@ class ThermalPrinterService {
   }
 
   String _formatTwoColumn(String left, String right, int totalWidth) {
-    final available = totalWidth - left.length - right.length;
-    if (available <= 0) return '$left $right';
-    return left + (' ' * available) + right;
+    final cleanLeft = _sanitizeEscPosText(left).trim();
+    final cleanRight = _sanitizeEscPosText(right).trim();
+    final safeWidth = totalWidth > 8 ? totalWidth : 32;
+
+    if (cleanLeft.length + 1 + cleanRight.length <= safeWidth) {
+      final spaces = safeWidth - cleanLeft.length - cleanRight.length;
+      return '$cleanLeft${' ' * spaces}$cleanRight';
+    }
+
+    final words = cleanLeft.split(RegExp(r'\s+'));
+    final wrapped = <String>[];
+    var current = '';
+    for (final word in words) {
+      if (word.isEmpty) continue;
+      if (current.isEmpty) {
+        if (word.length <= safeWidth) {
+          current = word;
+        } else {
+          for (int i = 0; i < word.length; i += safeWidth) {
+            final end = (i + safeWidth < word.length) ? i + safeWidth : word.length;
+            final chunk = word.substring(i, end);
+            if (end < word.length) {
+              wrapped.add(chunk);
+            } else {
+              current = chunk;
+            }
+          }
+        }
+      } else if (current.length + 1 + word.length <= safeWidth) {
+        current = '$current $word';
+      } else {
+        wrapped.add(current);
+        current = word;
+      }
+    }
+    if (current.isNotEmpty) {
+      wrapped.add(current);
+    }
+    if (wrapped.isEmpty) {
+      wrapped.add('');
+    }
+
+    final last = wrapped.removeLast();
+    final buffer = StringBuffer();
+    for (final line in wrapped) {
+      buffer.writeln(line);
+    }
+
+    if (last.length + 1 + cleanRight.length <= safeWidth) {
+      final spaces = safeWidth - last.length - cleanRight.length;
+      buffer.write('$last${' ' * spaces}$cleanRight');
+    } else {
+      buffer.writeln(last);
+      final rightPad = (safeWidth - cleanRight.length).clamp(0, safeWidth);
+      buffer.write('${' ' * rightPad}$cleanRight');
+    }
+    return buffer.toString();
   }
 
   String _maskPhone(String phone) {
@@ -1067,17 +1178,21 @@ class ThermalPrinterService {
   }
 
   // --- QR Code ESC/POS Builder ---
-  List<int> _buildQrCodeEscPos(String data) {
+  List<int> _buildQrCodeEscPos(
+    String data, {
+    ReceiptPaperWidth paperWidth = ReceiptPaperWidth.mm80,
+  }) {
     final bytes = <int>[];
     final dataBytes = utf8.encode(data);
     final dataLen = dataBytes.length + 3;
     final pL = dataLen % 256;
     final pH = dataLen ~/ 256;
+    final moduleSize = paperWidth == ReceiptPaperWidth.mm58 ? 0x04 : 0x06;
 
     // 1. Model 2: GS ( k 4 0 49 65 50 0
     bytes.addAll([0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]);
-    // 2. Module Size 6: GS ( k 3 0 49 67 6
-    bytes.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x06]);
+    // 2. Module Size (size4 for 58mm, size6 for 80mm): GS ( k 3 0 49 67 <moduleSize>
+    bytes.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, moduleSize]);
     // 3. Error Correction Level M: GS ( k 3 0 49 69 49
     bytes.addAll([0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31]);
     // 4. Store Data: GS ( k pL pH 49 80 48 <data>

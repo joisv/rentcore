@@ -9,8 +9,10 @@ import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/idempotency_helper.dart';
 import '../../../core/widgets/animated_success_checkmark.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/presentation/widgets/quick_open_shift_modal.dart';
 import '../../cashier/providers/cashier_provider.dart';
@@ -87,6 +89,11 @@ class PaymentPage extends ConsumerStatefulWidget {
 class _PaymentPageState extends ConsumerState<PaymentPage> {
   final _cashReceivedController = TextEditingController();
   final _notesController = TextEditingController();
+  final _externalRefController = TextEditingController();
+
+  String _formatEditableAmount(double amount) {
+    return amount % 1 == 0 ? amount.toInt().toString() : amount.toStringAsFixed(2);
+  }
 
   int? _selectedMethodId;
   String _selectedMethodCode = 'CASH';
@@ -99,23 +106,29 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   bool _isProcessing = false;
   bool _methodInitialized = false;
   PaymentResult? _completedResult;
+  late final String _attemptIdempotencyKey;
 
   @override
   void initState() {
     super.initState();
+    final ctxKey = widget.paymentContext.idempotencyKey?.trim();
+    _attemptIdempotencyKey = (ctxKey != null && ctxKey.isNotEmpty)
+        ? ctxKey
+        : IdempotencyHelper.generateUuidV4();
     if (widget.initialResult != null) {
       _completedResult = widget.initialResult;
     }
     _cashReceivedController.addListener(() {
       if (mounted) setState(() {});
     });
-    _cashReceivedController.text = widget.paymentContext.remainingDue.toInt().toString();
+    _cashReceivedController.text = _formatEditableAmount(widget.paymentContext.remainingDue);
   }
 
   @override
   void dispose() {
     _cashReceivedController.dispose();
     _notesController.dispose();
+    _externalRefController.dispose();
     super.dispose();
   }
 
@@ -140,6 +153,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       return true;
     }
     return false;
+  }
+
+  bool _requiresOpenShift(Map<String, dynamic>? data) {
+    return isShiftEnforcementEnabledFromPayload(data) && !_checkShiftActive(data);
   }
 
   void _showQuickOpenShiftModal(BuildContext context, int? branchId) {
@@ -210,7 +227,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     AsyncValue<Map<String, dynamic>> currentShiftGeneralAsync,
   ) {
     Widget renderIfUnopened(Map<String, dynamic> shiftData) {
-      if (_checkShiftActive(shiftData)) return const SizedBox.shrink();
+      if (!_requiresOpenShift(shiftData)) return const SizedBox.shrink();
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: _buildShiftWarningBanner(context, branchId),
@@ -370,120 +387,34 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        ctx.isDownPayment ? 'Nominal DP Dibayar Sekarang' : ctx.tagihanLabel,
+                        ctx.tagihanLabel,
                         style: const TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF747474),
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF6B7280),
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         'Rp${_formatNumber(amountDue)}',
                         style: const TextStyle(
-                          fontSize: 39,
+                          fontSize: 40,
                           fontWeight: FontWeight.w800,
-                          color: Colors.black,
+                          color: Color(0xFF111111),
                           letterSpacing: -0.5,
                         ),
                       ),
-                      if (ctx.isDownPayment) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          key: const Key('payment_dp_breakdown_card'),
-                          margin: const EdgeInsets.symmetric(horizontal: 24),
-                          constraints: const BoxConstraints(maxWidth: 360),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Total Sewa',
-                                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    CurrencyFormatter.format(ctx.effectiveContractTotal),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Nominal DP Dibayar Sekarang',
-                                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    CurrencyFormatter.format(amountDue),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.obsidian,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(height: 12, color: AppColors.border),
-                              Row(
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Sisa Tagihan (Saat Ambil Unit)',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    CurrencyFormatter.format(ctx.remainingAfterCurrentPayment),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.obsidian,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       InkWell(
                         onTap: () => _showDetailSewaSheet(context, ctx, amountDue),
+                        borderRadius: BorderRadius.circular(6),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           child: Text(
                             ctx.detailLinkText,
                             style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                               color: Color(0xFF0A93B9),
                             ),
                           ),
@@ -543,7 +474,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                   _selectedMethodId = cashMethod?['id'] as int? ?? 1;
                                   _selectedMethodCode = 'CASH';
                                   _selectedMethodName = cashMethod?['name'] ?? 'Tunai';
-                                  _cashReceivedController.text = amountDue.toInt().toString();
+                                  _cashReceivedController.text = _formatEditableAmount(amountDue);
                                   _showCashSheet(context, ctx, amountDue);
                                 },
                               ),
@@ -697,6 +628,47 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     );
   }
 
+  Widget _buildDetailBreakdownRow(
+    String label,
+    String value, {
+    Color labelColor = const Color(0xFF6B7280),
+    Color valueColor = const Color(0xFF111111),
+    FontWeight labelWeight = FontWeight.w500,
+    FontWeight valueWeight = FontWeight.w600,
+    double labelSize = 12,
+    double valueSize = 12,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: labelSize,
+                fontWeight: labelWeight,
+                color: labelColor,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: valueSize,
+              fontWeight: valueWeight,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // =========================================================================
   // BOTTOM SHEET 1: DETAIL SEWA (MATCHING IMAGE 2)
   // =========================================================================
@@ -713,7 +685,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (sheetContext) {
         return Consumer(
@@ -723,7 +695,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
             final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
             final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
             final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
-            final hasActiveShift = _checkShiftActive(currentShiftData);
+            final requiresOpenShift = _requiresOpenShift(currentShiftData);
 
             return SafeArea(
               child: Padding(
@@ -902,61 +874,94 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   ),
 
                   // Subtotal
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Subtotal', style: TextStyle(fontSize: 12, color: Colors.black)),
-                        Text('Rp ${_formatNumber(subtotal)}', style: const TextStyle(fontSize: 12, color: Colors.black)),
-                      ],
-                    ),
+                  _buildDetailBreakdownRow(
+                    'Subtotal',
+                    'Rp ${_formatNumber(subtotal)}',
+                    labelColor: Colors.black,
+                    valueColor: Colors.black,
+                    labelWeight: FontWeight.w400,
+                    valueWeight: FontWeight.w400,
                   ),
 
-                  if (ctx.isDownPayment) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Total Sewa', style: TextStyle(fontSize: 12, color: Colors.black)),
-                          Text('Rp ${_formatNumber(ctx.effectiveContractTotal)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black)),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Sisa Tagihan (Saat Ambil Unit)', style: TextStyle(fontSize: 12, color: Color(0xFF71717A))),
-                          Text('Rp ${_formatNumber(ctx.remainingAfterCurrentPayment)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF71717A))),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 10),
-                  const Divider(height: 1, thickness: 1, color: Color(0xFF71717A)),
+                  const SizedBox(height: 6),
+                  const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
                   const SizedBox(height: 12),
 
-                  // Total Row (Bold Green)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // Payment & DP Breakdown
+                  Column(
+                    key: const Key('detail_sheet_payment_breakdown'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        ctx.isDownPayment ? 'Nominal DP Dibayar Sekarang' : 'Total',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
-                      ),
-                      Text(
-                        'Rp ${_formatNumber(amountDue)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF22C55E)),
-                      ),
+                      if (ctx.isDownPayment) ...[
+                        _buildDetailBreakdownRow(
+                          'Total Sewa',
+                          'Rp ${_formatNumber(ctx.effectiveContractTotal)}',
+                        ),
+                        _buildDetailBreakdownRow(
+                          'Nominal DP Dibayar Sekarang',
+                          'Rp ${_formatNumber(amountDue)}',
+                          labelColor: const Color(0xFF111111),
+                          valueColor: const Color(0xFF22C55E),
+                          labelWeight: FontWeight.w700,
+                          valueWeight: FontWeight.w700,
+                          labelSize: 13,
+                          valueSize: 14,
+                        ),
+                        if (ctx.remainingAfterCurrentPayment > 0)
+                          _buildDetailBreakdownRow(
+                            'Sisa Tagihan (Saat Ambil Unit)',
+                            'Rp ${_formatNumber(ctx.remainingAfterCurrentPayment)}',
+                            labelColor: const Color(0xFF111111),
+                            valueColor: const Color(0xFF111111),
+                            labelWeight: FontWeight.w700,
+                            valueWeight: FontWeight.w700,
+                          ),
+                      ] else if (ctx.transactionType ==
+                              PaymentTransactionType.settlement &&
+                          ctx.previouslyPaidAmount > 0) ...[
+                        _buildDetailBreakdownRow(
+                          'Total Sewa',
+                          'Rp ${_formatNumber(ctx.effectiveContractTotal)}',
+                        ),
+                        _buildDetailBreakdownRow(
+                          'Sudah Dibayar',
+                          '- Rp ${_formatNumber(ctx.previouslyPaidAmount)}',
+                          valueColor: const Color(0xFF6B7280),
+                          valueWeight: FontWeight.w500,
+                        ),
+                        _buildDetailBreakdownRow(
+                          'Sisa Tagihan (Saat Ambil Unit)',
+                          'Rp ${_formatNumber(amountDue)}',
+                          labelColor: const Color(0xFF111111),
+                          valueColor: const Color(0xFF111111),
+                          labelWeight: FontWeight.w700,
+                          valueWeight: FontWeight.w700,
+                          labelSize: 13,
+                          valueSize: 14,
+                        ),
+                      ] else ...[
+                        if (ctx.transactionType !=
+                            PaymentTransactionType.penalty)
+                          _buildDetailBreakdownRow(
+                            'Total Sewa',
+                            'Rp ${_formatNumber(ctx.effectiveContractTotal)}',
+                          ),
+                        _buildDetailBreakdownRow(
+                          'Total',
+                          'Rp ${_formatNumber(amountDue)}',
+                          labelColor: const Color(0xFF111111),
+                          valueColor: const Color(0xFF22C55E),
+                          labelWeight: FontWeight.w700,
+                          valueWeight: FontWeight.w700,
+                          labelSize: 13,
+                          valueSize: 14,
+                        ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
 
-                  if (!hasActiveShift) ...[
+                  if (requiresOpenShift) ...[
                     _buildShiftWarningBanner(sheetContext, effectiveBranchId),
                     const SizedBox(height: 12),
                   ],
@@ -964,7 +969,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   // Button: KONFIRMASI PEMBAYARAN
                   ElevatedButton(
                     key: const Key('detail_sheet_confirm_button'),
-                    onPressed: !hasActiveShift
+                    onPressed: requiresOpenShift
                         ? null
                         : () {
                             Navigator.pop(sheetContext);
@@ -1003,7 +1008,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (sheetContext) {
         return Consumer(
@@ -1013,7 +1018,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
             final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
             final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
             final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
-            final hasActiveShift = _checkShiftActive(currentShiftData);
+            final requiresOpenShift = _requiresOpenShift(currentShiftData);
 
             return StatefulBuilder(
               builder: (context, setSheetState) {
@@ -1120,7 +1125,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.black),
                             tooltip: 'Uang Pas',
                             onPressed: () {
-                              _cashReceivedController.text = amountDue.toInt().toString();
+                              _cashReceivedController.text = _formatEditableAmount(amountDue);
                               setSheetState(() {});
                               setState(() {});
                             },
@@ -1204,7 +1209,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       ),
                       const SizedBox(height: 24),
 
-                      if (!hasActiveShift) ...[
+                      if (requiresOpenShift) ...[
                         _buildShiftWarningBanner(sheetContext, effectiveBranchId),
                         const SizedBox(height: 12),
                       ],
@@ -1212,7 +1217,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       // Button: PROSES PEMBAYARAN
                       ElevatedButton(
                         key: const Key('cash_sheet_process_button'),
-                        onPressed: _isProcessing || cashShortage > 0 || !hasActiveShift
+                        onPressed: _isProcessing || cashShortage > 0 || requiresOpenShift
                             ? null
                             : () async {
                                 Navigator.pop(sheetContext);
@@ -1262,7 +1267,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (sheetContext) {
         return Consumer(
@@ -1272,7 +1277,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
             final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
             final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
             final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
-            final hasActiveShift = _checkShiftActive(currentShiftData);
+            final requiresOpenShift = _requiresOpenShift(currentShiftData);
 
             return SafeArea(
               child: Padding(
@@ -1408,9 +1413,12 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
-                  if (!hasActiveShift) ...[
+                  _buildNonCashReferenceSection(),
+                  const SizedBox(height: 16),
+
+                  if (requiresOpenShift) ...[
                     _buildShiftWarningBanner(sheetContext, effectiveBranchId),
                     const SizedBox(height: 12),
                   ],
@@ -1418,7 +1426,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                   // Button: PROSES PEMBAYARAN
                   ElevatedButton(
                     key: const Key('qris_sheet_process_button'),
-                    onPressed: _isProcessing || !hasActiveShift
+                    onPressed: _isProcessing || requiresOpenShift
                         ? null
                         : () async {
                             Navigator.pop(sheetContext);
@@ -1486,7 +1494,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (sheetContext) {
         return Consumer(
@@ -1496,7 +1504,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
             final currentShiftByBranchAsync = ref.watch(currentShiftByBranchProvider(effectiveBranchId));
             final currentShiftGeneralAsync = ref.watch(currentShiftProvider);
             final currentShiftData = currentShiftByBranchAsync.value ?? currentShiftGeneralAsync.value;
-            final hasActiveShift = _checkShiftActive(currentShiftData);
+            final requiresOpenShift = _requiresOpenShift(currentShiftData);
 
             return StatefulBuilder(
               builder: (context, setSheetState) {
@@ -1624,10 +1632,15 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
                       ],
 
-                      if (!hasActiveShift) ...[
+                      if (availableOptionIds.isNotEmpty) ...[
+                        _buildNonCashReferenceSection(),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (requiresOpenShift) ...[
                         _buildShiftWarningBanner(sheetContext, effectiveBranchId),
                         const SizedBox(height: 12),
                       ],
@@ -1635,7 +1648,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                       // Button: PROSES PEMBAYARAN
                       ElevatedButton(
                         key: const Key('ewallet_sheet_process_button'),
-                        onPressed: (_isProcessing || availableOptionIds.isEmpty || !hasActiveShift)
+                        onPressed: (_isProcessing || availableOptionIds.isEmpty || requiresOpenShift)
                             ? null
                             : () async {
                                 Navigator.pop(sheetContext);
@@ -1922,6 +1935,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
           ? CurrencyFormatter.parse(_cashReceivedController.text)
           : amountDue;
 
+      final trimmedExternalRef = _externalRefController.text.trim();
       final repo = ref.read(paymentRepositoryProvider);
       final result = await repo.executePayment(
         context: widget.paymentContext,
@@ -1931,6 +1945,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         amountToPay: amountDue,
         cashReceived: cashReceived,
         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+        idempotencyKey: _attemptIdempotencyKey,
+        externalReference: !isCash && trimmedExternalRef.isNotEmpty ? trimmedExternalRef : null,
       );
 
       widget.onPaymentSuccess?.call();
@@ -2016,21 +2032,81 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     );
   }
 
+  Widget _buildNonCashReferenceSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFB45309)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Pastikan dana telah masuk ke mutasi/notifikasi merchant sebelum konfirmasi.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: Color(0xFF92400E),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          key: const Key('external_reference_input'),
+          controller: _externalRefController,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            labelText: 'No. Referensi / Approval (Opsional)',
+            hintText: 'Contoh: APR-99812 / Kode mutasi bank',
+            isDense: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _printPaymentReceipt(PaymentResult result) {
     try {
       final printerService = ThermalPrinterService();
       final printerSettings = ref.read(printerProvider).settings;
+      final authState = ref.read(authProvider);
+      final bizState = ref.read(businessProvider);
       final ctx = widget.paymentContext;
+
+      final resolvedBranchName = (ctx.branchName != null && ctx.branchName!.trim().isNotEmpty)
+          ? ctx.branchName!.trim()
+          : ((bizState.activeBranchName != null && bizState.activeBranchName!.trim().isNotEmpty)
+              ? bizState.activeBranchName!.trim()
+              : 'Cabang');
+      final rawCashierName = authState.user?['name']?.toString().trim();
+      final resolvedCashierName =
+          (rawCashierName != null && rawCashierName.isNotEmpty) ? rawCashierName : 'Kasir';
 
       final model = ReceiptDataModel(
         type: ReceiptType.posPayment,
         title: 'STRUK TRANSAKSI POS',
-        branchName: ctx.branchName ?? 'RentCore Central Hub',
+        branchName: resolvedBranchName,
         receiptNumber: result.receiptNumber,
         bookingCode: ctx.bookingCode,
         customerName: ctx.customerName,
         customerPhone: ctx.customerPhone,
-        cashierName: 'Kasir RentCore',
+        cashierName: resolvedCashierName,
         unitName: ctx.deviceName,
         items: ctx.items.isNotEmpty
             ? ctx.items
@@ -2050,6 +2126,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         paymentMethod: result.paymentMethodName ?? _selectedMethodName,
         cashReceived: result.cashReceived,
         cashChange: result.cashChange,
+        isDownPayment: ctx.isDownPayment,
+        remainingBalance: ctx.remainingAfterCurrentPayment,
         transactedAt: DateTime.now().toString().substring(0, 16),
       );
 
@@ -2228,7 +2306,7 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
               child: Column(
@@ -2245,11 +2323,16 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        Text(
-                          result.receiptNumber!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            result.receiptNumber!,
+                            textAlign: TextAlign.end,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -2266,11 +2349,16 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      Text(
-                        widget.displayMethodName,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          widget.displayMethodName,
+                          textAlign: TextAlign.end,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
@@ -2440,7 +2528,7 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     elevation: 0,
                   ),
@@ -2463,7 +2551,7 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     elevation: 0,
                   ),

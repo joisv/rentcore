@@ -21,6 +21,8 @@ class MockPaymentRepository extends PaymentRepository {
     required double amountToPay,
     required double cashReceived,
     String? notes,
+    String? idempotencyKey,
+    String? externalReference,
   }) async {
     lastContext = context;
     final isCash = paymentMethodCode.toUpperCase() == 'CASH';
@@ -98,13 +100,14 @@ void main() {
       // Step 1: Select unit and proceed to Step 2
       await tester.tap(find.text('iPhone 15 Pro Max 256GB Natural Titanium'));
       await tester.pumpAndSettle();
-      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step1Cta);
       await tester.tap(step1Cta);
       await tester.pumpAndSettle();
 
       // Verify Step 2 is active
-      expect(find.text('DATA PENYEWA & ALAMAT IDENTITAS'), findsOneWidget);
+      expect(find.text('DATA PENYEWA'), findsOneWidget);
+      expect(find.text('Cari Pelanggan'), findsOneWidget);
 
       // Verify that hardcoded "Dedi Kurniawan" is COMPLETELY ABSENT
       expect(find.text('Dedi Kurniawan'), findsNothing);
@@ -112,9 +115,9 @@ void main() {
       expect(find.textContaining('Jl. Raya Genteng'), findsNothing);
 
       // Verify text form fields exist and have empty strings
-      final nameFieldFinder = find.widgetWithText(TextFormField, 'Nama Lengkap Penyewa *');
-      final phoneFieldFinder = find.widgetWithText(TextFormField, 'Nomor WhatsApp Aktif *');
-      final addressFieldFinder = find.widgetWithText(TextFormField, 'Alamat Sesuai Kartu Identitas *');
+      final nameFieldFinder = find.widgetWithText(TextFormField, 'Nama Penyewa *');
+      final phoneFieldFinder = find.widgetWithText(TextFormField, 'Nomor WhatsApp *');
+      final addressFieldFinder = find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *');
 
       expect(nameFieldFinder, findsOneWidget);
       expect(phoneFieldFinder, findsOneWidget);
@@ -128,15 +131,15 @@ void main() {
       expect(phoneField.controller?.text, isEmpty);
       expect(addressField.controller?.text, isEmpty);
 
-      // Tapping "Lanjut: Ringkasan Biaya" without entering text should trigger validation errors
-      final step2Cta = find.text('Lanjut: Ringkasan Biaya');
+      // Tapping "Lanjut" without entering text should trigger validation errors
+      final step2Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step2Cta);
       await tester.tap(step2Cta);
       await tester.pumpAndSettle();
 
-      expect(find.text('Nama lengkap penyewa minimal 3 karakter'), findsOneWidget);
-      expect(find.text('Nomor WhatsApp aktif wajib diisi minimal 8 digit'), findsOneWidget);
-      expect(find.text('Alamat sesuai kartu identitas wajib diisi lengkap'), findsOneWidget);
+      expect(find.text('Nama penyewa minimal 3 karakter'), findsOneWidget);
+      expect(find.text('Nomor WhatsApp wajib diisi minimal 8 digit'), findsOneWidget);
+      expect(find.text('Alamat (KTP/SIM) wajib diisi lengkap'), findsOneWidget);
 
       // Cashier can enter custom walk-in customer details
       await tester.enterText(nameFieldFinder, 'Budi Santoso');
@@ -148,9 +151,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Successfully advances to Step 3 with entered data
-      expect(find.text('RINGKASAN SEWA & IDENTITAS PENYEWA'), findsOneWidget);
-      expect(find.text('Budi Santoso'), findsOneWidget);
-      expect(find.textContaining('WA: 081234567890'), findsOneWidget);
+      expect(find.text('RINGKASAN'), findsOneWidget);
+      expect(find.text('Budi Santoso • 081234567890'), findsOneWidget);
     });
 
     testWidgets('Passing Customer: Prefills fields dynamically and registers customer_id in booking payload', (tester) async {
@@ -191,7 +193,7 @@ void main() {
       // Step 1: Select unit and proceed to Step 2
       await tester.tap(find.text('iPhone 15 Pro Max 256GB Natural Titanium'));
       await tester.pumpAndSettle();
-      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step1Cta);
       await tester.tap(step1Cta);
       await tester.pumpAndSettle();
@@ -200,15 +202,15 @@ void main() {
       expect(find.text('Rina Sasmita'), findsOneWidget);
       expect(find.text('081288889999'), findsOneWidget);
       expect(find.text('Jl. Ahmad Yani No. 12, Banyuwangi'), findsOneWidget);
-      expect(find.textContaining('Pelanggan Terdaftar • 5x Sewa Selesai'), findsOneWidget);
+      expect(find.textContaining('Pelanggan Terdaftar • 5x Sewa'), findsOneWidget);
 
       // Cashier can edit customer fields if needed
-      final addressFieldFinder = find.widgetWithText(TextFormField, 'Alamat Sesuai Kartu Identitas *');
+      final addressFieldFinder = find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *');
       await tester.enterText(addressFieldFinder, 'Jl. Ahmad Yani No. 88 (Pindah Rumah), Banyuwangi');
       await tester.pumpAndSettle();
 
       // Advance to Step 3
-      final step2Cta = find.text('Lanjut: Ringkasan Biaya');
+      final step2Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step2Cta);
       await tester.tap(step2Cta);
       await tester.pumpAndSettle();
@@ -294,7 +296,7 @@ void main() {
       // Step 1: Select unit and proceed to Step 2
       await tester.tap(find.text('iPhone 15 Pro Max 256GB Natural Titanium'));
       await tester.pumpAndSettle();
-      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step1Cta);
       await tester.tap(step1Cta);
       await tester.pumpAndSettle();
@@ -303,7 +305,7 @@ void main() {
       expect(find.text('Dewi Sartika'), findsOneWidget);
       expect(find.text('081377778888'), findsOneWidget);
       expect(find.text('Jl. Diponegoro No. 10, Banyuwangi'), findsOneWidget);
-      expect(find.textContaining('Pelanggan Terdaftar • 3x Sewa Selesai'), findsOneWidget);
+      expect(find.textContaining('Pelanggan Terdaftar • 3x Sewa'), findsOneWidget);
     });
 
     testWidgets('CustomerDetailSheet "Sewa Unit" button passes active customer object to DirectRentalScreen', (tester) async {
@@ -353,7 +355,7 @@ void main() {
       // Select unit and go to Step 2
       await tester.tap(find.text('iPhone 15 Pro Max 256GB Natural Titanium'));
       await tester.pumpAndSettle();
-      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step1Cta);
       await tester.tap(step1Cta);
       await tester.pumpAndSettle();
@@ -362,7 +364,7 @@ void main() {
       expect(find.text('Gatot Subroto'), findsOneWidget);
       expect(find.text('081122334455'), findsOneWidget);
       expect(find.text('Jl. Pahlawan No. 99, Banyuwangi'), findsOneWidget);
-      expect(find.textContaining('Pelanggan Terdaftar • 12x Sewa Selesai'), findsOneWidget);
+      expect(find.textContaining('Pelanggan Terdaftar • 12x Sewa'), findsOneWidget);
     });
 
     testWidgets('CustomerDetailSheet "Sewa Unit" button is disabled for blacklisted customer', (tester) async {

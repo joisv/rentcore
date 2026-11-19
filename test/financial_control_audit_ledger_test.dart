@@ -135,7 +135,7 @@ void main() {
     expect(find.text('Tutup Shift & Rekapitulasi Kasir'), findsOneWidget);
   });
 
-  testWidgets('CashDrawerShiftModal accurately displays expected_cash_now and shift inflow movements', (tester) async {
+  testWidgets('CashDrawerShiftModal enforces blind close without exposing expected_cash_now or shift inflow while open', (tester) async {
     tester.view.physicalSize = const Size(1000, 2000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -164,9 +164,11 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(find.text('Tutup Shift & Rekonsiliasi Kas'), findsOneWidget);
-    expect(find.text('Kas Masuk Shift (Penjualan/Denda)'), findsOneWidget);
-    expect(find.text('+Rp 15.000'), findsOneWidget);
-    expect(find.text('Rp 515.000'), findsOneWidget);
+    expect(find.text('Mode Blind Close Aktif'), findsOneWidget);
+    expect(find.text('Fisik Kas Wajib Ada'), findsNothing);
+    expect(find.text('Kas Masuk Shift (Penjualan/Denda)'), findsNothing);
+    expect(find.text('+Rp 15.000'), findsNothing);
+    expect(find.text('Rp 515.000'), findsNothing);
   });
 
   testWidgets('PosTransactionDetailSheet renders void action button and dialog', (tester) async {

@@ -27,8 +27,9 @@ class _FakeReturnBookingRepository extends BookingRepository {
   @override
   Future<Map<String, dynamic>> processReturn(
     int bookingId,
-    Map<String, dynamic> returnData,
-  ) async {
+    Map<String, dynamic> returnData, {
+    String? idempotencyKey,
+  }) async {
     processReturnCalls++;
     lastReturnBookingId = bookingId;
     lastReturnPayload = Map<String, dynamic>.from(returnData);

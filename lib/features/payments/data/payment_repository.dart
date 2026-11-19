@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/idempotency_helper.dart';
 import '../../bookings/data/booking_repository.dart';
 import '../../bookings/providers/booking_provider.dart';
 import '../../cashier/data/cashier_repository.dart';
@@ -35,20 +36,39 @@ class PaymentRepository {
     required double amountToPay,
     required double cashReceived,
     String? notes,
+    String? externalReference,
+    String? idempotencyKey,
   }) async {
     final isCash = paymentMethodCode.toUpperCase() == 'CASH';
+    final effectiveIdempotencyKey =
+        (idempotencyKey != null && idempotencyKey.trim().isNotEmpty)
+        ? idempotencyKey.trim()
+        : ((context.idempotencyKey != null &&
+                  context.idempotencyKey!.trim().isNotEmpty)
+              ? context.idempotencyKey!.trim()
+              : IdempotencyHelper.generateUuidV4());
 
     switch (context.transactionType) {
       case PaymentTransactionType.booking:
         final payload = Map<String, dynamic>.from(context.extraPayload ?? {});
+        if (context.branchId != null) {
+          payload['branch_id'] ??= context.branchId;
+          payload['affiliate_id'] ??= context.branchId;
+        }
         payload['payment_method_id'] = paymentMethodId;
         payload['cash_received'] = isCash ? cashReceived : amountToPay;
+        if (!isCash && externalReference != null && externalReference.trim().isNotEmpty) {
+          payload['external_reference'] = externalReference.trim();
+        }
         if (context.isDownPayment) {
           payload['paid_amount'] ??= amountToPay;
           payload['dp_amount'] ??= amountToPay;
         }
 
-        final data = await _bookingRepo.createRental(payload);
+        final data = await _bookingRepo.createRental(
+          payload,
+          idempotencyKey: effectiveIdempotencyKey,
+        );
         final change = isCash ? (cashReceived - amountToPay).clamp(0.0, double.infinity) : 0.0;
         final payments = (data['payments'] as List?) ?? [];
         final latestPayment = payments.isNotEmpty ? payments.last as Map? : null;
@@ -80,6 +100,7 @@ class PaymentRepository {
                 paymentMethodId: paymentMethodId,
                 cashReceived: isCash ? cashReceived : amountToPay,
                 notes: notes,
+                idempotencyKey: effectiveIdempotencyKey,
               )
             : await _bookingRepo.extendRental(
                 context.bookingId ?? 0,
@@ -88,6 +109,7 @@ class PaymentRepository {
                 paymentMethodId: paymentMethodId,
                 cashReceived: isCash ? cashReceived : amountToPay,
                 notes: notes,
+                idempotencyKey: effectiveIdempotencyKey,
               );
 
         final payment = data['payment'] as Map?;
@@ -130,6 +152,7 @@ class PaymentRepository {
           final data = await _bookingRepo.processReturn(
             context.bookingId ?? 0,
             returnPayload,
+            idempotencyKey: effectiveIdempotencyKey,
           );
 
           final booking = data['booking'] as Map?;
@@ -174,6 +197,9 @@ class PaymentRepository {
           paymentType: context.transactionType == PaymentTransactionType.penalty ? 'penalty' : 'settlement',
           cashReceived: isCash ? cashReceived : amountToPay,
           notes: notes,
+          externalReference: (!isCash && externalReference != null && externalReference.trim().isNotEmpty)
+              ? externalReference.trim()
+              : null,
           frpCleared: context.extraPayload?['frp_cleared'] as bool?,
           accountRemoved: context.extraPayload?['account_removed'] as bool?,
           isHandoverSettlement: context.isHandoverSettlement
@@ -186,6 +212,7 @@ class PaymentRepository {
           startNow: context.extraPayload?['start_now'] as bool?,
           keepOriginalEndAt:
               context.extraPayload?['keep_original_end_at'] as bool?,
+          idempotencyKey: effectiveIdempotencyKey,
         );
 
         final payment = data['payment'] as Map?;

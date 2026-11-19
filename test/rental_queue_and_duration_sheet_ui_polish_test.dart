@@ -32,6 +32,7 @@ class _FakeBookingRepositoryForPolish extends BookingRepository {
     String? managerPin,
     String? reason,
     String? notes,
+    String? idempotencyKey,
   }) async {
     return {
       'success': true,
@@ -225,13 +226,13 @@ void main() {
       expect(find.text('+ Tambah Jam'), findsOneWidget);
       expect(find.text('- Kurangi Jam'), findsOneWidget);
 
-      // Verify Duration ChoiceChip has rounded corners (radius 12)
+      // Verify Duration ChoiceChip has subtle rounded corners (radius 8)
       final durationChipFinder = find.ancestor(of: find.textContaining('Jam'), matching: find.byType(ChoiceChip));
       expect(durationChipFinder, findsAtLeastNWidgets(1));
       final chipWidget = tester.widget<ChoiceChip>(durationChipFinder.first);
       expect(chipWidget.shape, isA<RoundedRectangleBorder>());
       final shape = chipWidget.shape as RoundedRectangleBorder;
-      expect(shape.borderRadius, BorderRadius.circular(12));
+      expect(shape.borderRadius, BorderRadius.circular(8));
 
       // Verify Cost Breakdown elements
       expect(find.textContaining('Biaya Tambahan ('), findsOneWidget);

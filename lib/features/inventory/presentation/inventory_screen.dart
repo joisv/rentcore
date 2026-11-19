@@ -37,7 +37,7 @@ class InventoryScreen extends ConsumerStatefulWidget {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (ctx) => SafeArea(
         child: SingleChildScrollView(
@@ -122,7 +122,7 @@ class InventoryScreen extends ConsumerStatefulWidget {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 0,
                 ),
@@ -647,21 +647,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                         vertical: 10,
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
                           color: Color(0xFFE2E8F0),
                           width: 1,
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
                           color: Color(0xFF0F172A),
                           width: 1.2,
                         ),
                       ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
                           color: Color(0xFFE2E8F0),
                           width: 1,
@@ -786,7 +786,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               backgroundColor: AppColors.obsidian,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                             ),
                             icon: const Icon(Icons.clear_rounded, size: 16),
@@ -856,7 +856,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               backgroundColor: AppColors.obsidian,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                             ),
                             icon: const Icon(Icons.clear_rounded, size: 16),
@@ -979,11 +979,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
     return InkWell(
       onTap: () => _openEditAssetSheet(context, asset),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: const [
             BoxShadow(
@@ -1292,21 +1292,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                         vertical: 10,
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
                           color: Color(0xFFE2E8F0),
                           width: 1,
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
                           color: Color(0xFF0F172A),
                           width: 1.2,
                         ),
                       ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
                           color: Color(0xFFE2E8F0),
                           width: 1,
@@ -1424,7 +1424,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               backgroundColor: AppColors.obsidian,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                             ),
                             icon: const Icon(Icons.clear_rounded, size: 16),
@@ -1491,7 +1491,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               backgroundColor: AppColors.obsidian,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                             ),
                             icon: const Icon(Icons.clear_rounded, size: 16),
@@ -1704,7 +1704,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
@@ -1863,13 +1863,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _scaffoldKey.currentState?.openDrawer(),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
           width: 44,
           height: 44,
           decoration: BoxDecoration(
             color: hasActiveFilter ? const Color(0xFF0F172A) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: hasActiveFilter
                   ? const Color(0xFF0F172A)
@@ -2108,7 +2108,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                           foregroundColor: const Color(0xFF64748B),
                           side: const BorderSide(color: Color(0xFFCBD5E1)),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
@@ -2140,7 +2140,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                         backgroundColor: const Color(0xFF0F172A),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         elevation: 0,
@@ -2203,7 +2203,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(100),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: border, width: 1),
       ),
       child: Text(
@@ -2226,12 +2226,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(100),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
           decoration: BoxDecoration(
             color: selected ? const Color(0xFF0F172A) : Colors.white,
-            borderRadius: BorderRadius.circular(100),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: selected
                   ? const Color(0xFF0F172A)
@@ -2376,7 +2376,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
               boxShadow: [
                 BoxShadow(
@@ -2508,7 +2508,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                         vertical: 13,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       elevation: 0,
                     ),
@@ -2532,7 +2532,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                           vertical: 13,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         elevation: 0,
                       ),
@@ -2554,7 +2554,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                         vertical: 13,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     onPressed: onCreateModel,
@@ -2599,7 +2599,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (ctx) => _AddAssetSheet(
         initialModelId: initialModelId,
@@ -2614,7 +2614,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (ctx) => _EditAssetSheet(asset: asset, onSuccess: _refreshAll),
     );
@@ -3010,7 +3010,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                         children: [
                           InkWell(
                             key: const Key('register_unit_model_selector'),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                             onTap: () async {
                               final pickedId =
                                   await showModalBottomSheet<int>(
@@ -3020,7 +3020,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                 backgroundColor: Colors.white,
                                 shape: const RoundedRectangleBorder(
                                   borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(24),
+                                    top: Radius.circular(14),
                                   ),
                                 ),
                                 builder: (ctx) => _ModelPickerBottomSheet(
@@ -3044,7 +3044,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceMuted,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: field.hasError
                                       ? AppColors.danger
@@ -3152,7 +3152,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -3183,7 +3183,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -3212,7 +3212,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                     filled: true,
                     fillColor: AppColors.surfaceMuted,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.symmetric(
@@ -3245,7 +3245,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                               filled: true,
                               fillColor: AppColors.surfaceMuted,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide.none,
                               ),
                               contentPadding: const EdgeInsets.symmetric(
@@ -3288,7 +3288,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                               filled: true,
                               fillColor: AppColors.surfaceMuted,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide.none,
                               ),
                               contentPadding: const EdgeInsets.symmetric(
@@ -3320,7 +3320,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                         filled: true,
                         fillColor: AppColors.surfaceMuted,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide.none,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
@@ -3356,7 +3356,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -3375,7 +3375,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   onPressed: _isLoading
@@ -3582,15 +3582,15 @@ class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
                 filled: true,
                 fillColor: AppColors.surfaceMuted,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: AppColors.borderSubtle),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: AppColors.borderSubtle),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(
                     color: AppColors.obsidian,
                     width: 1.5,
@@ -3648,14 +3648,14 @@ class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
                         onTap: id == null
                             ? null
                             : () => Navigator.pop(context, id),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? AppColors.surfaceMuted
                                 : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isSelected
                                   ? AppColors.obsidian
@@ -3737,7 +3737,7 @@ class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
                   side: const BorderSide(color: AppColors.obsidian, width: 1.2),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 child: const Text(
@@ -3882,7 +3882,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                       ? AppColors.surfaceMuted
                       : AppColors.surfaceMuted,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -4026,7 +4026,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -4057,7 +4057,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -4085,7 +4085,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                     filled: true,
                     fillColor: AppColors.surfaceMuted,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.symmetric(
@@ -4118,7 +4118,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                               filled: true,
                               fillColor: AppColors.surfaceMuted,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide.none,
                               ),
                               contentPadding: const EdgeInsets.symmetric(
@@ -4161,7 +4161,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                               filled: true,
                               fillColor: AppColors.surfaceMuted,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide.none,
                               ),
                               contentPadding: const EdgeInsets.symmetric(
@@ -4193,7 +4193,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                         filled: true,
                         fillColor: AppColors.surfaceMuted,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide.none,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
@@ -4228,7 +4228,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -4247,7 +4247,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   onPressed: _isLoading
@@ -4326,7 +4326,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                     side: const BorderSide(color: AppColors.danger),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   icon: const Icon(Icons.delete_outline_rounded, size: 18),

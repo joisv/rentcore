@@ -79,7 +79,7 @@ class PosNumpad extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       padding: const EdgeInsets.all(12),
@@ -98,7 +98,7 @@ class PosNumpad extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         backgroundColor: AppColors.obsidianLight.withValues(alpha: 0.05),
                         side: const BorderSide(color: AppColors.obsidian, width: 1.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       onPressed: _handleExactAmount,
                       child: Text(
@@ -119,7 +119,7 @@ class PosNumpad extends StatelessWidget {
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             side: const BorderSide(color: AppColors.border),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           onPressed: () => _handleQuickAdd(amt),
                           child: Text(
@@ -191,12 +191,12 @@ class PosNumpad extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 3),
         child: InkWell(
           onTap: () => _handleDigit(digit),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           child: Container(
             height: 48,
             decoration: BoxDecoration(
               color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: AppColors.borderSubtle),
             ),
             child: Center(
@@ -227,12 +227,12 @@ class PosNumpad extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 3),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           child: Container(
             height: 48,
             decoration: BoxDecoration(
               color: bgColor,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
               child: icon != null

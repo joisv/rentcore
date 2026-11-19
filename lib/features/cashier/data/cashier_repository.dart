@@ -94,6 +94,7 @@ class CashierRepository {
     double? amount,
     String? paymentType,
     String? notes,
+    String? externalReference,
     String? idempotencyKey,
     bool? frpCleared,
     bool? accountRemoved,
@@ -112,6 +113,9 @@ class CashierRepository {
     if (amount != null) payload['amount'] = amount;
     if (paymentType != null) payload['payment_type'] = paymentType;
     if (notes != null) payload['notes'] = notes;
+    if (externalReference != null && externalReference.isNotEmpty) {
+      payload['external_reference'] = externalReference;
+    }
     if (idempotencyKey != null) payload['idempotency_key'] = idempotencyKey;
     if (frpCleared != null) payload['frp_cleared'] = frpCleared;
     if (accountRemoved != null) payload['account_removed'] = accountRemoved;

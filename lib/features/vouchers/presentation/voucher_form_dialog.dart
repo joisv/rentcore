@@ -209,7 +209,7 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: EdgeInsets.only(
         top: 20,
@@ -424,12 +424,12 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
               // 7. Validity Date Range
               InkWell(
                 onTap: _pickDateRange,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     color: AppColors.surface,
                   ),
                   child: Row(
@@ -539,7 +539,7 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Batal'),
@@ -550,7 +550,7 @@ class _VoucherFormDialogState extends ConsumerState<VoucherFormDialog> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       onPressed: _submit,
                       child: Text(isEditMode ? 'Simpan Perubahan' : 'Terbitkan Voucher'),

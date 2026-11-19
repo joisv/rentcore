@@ -385,7 +385,7 @@ void main() {
     final bookingThumbs = tester.widgetList<UnitThumbnail>(find.byType(UnitThumbnail)).toList();
     expect(bookingThumbs.length, 2);
     expect(bookingThumbs[0].imageUrl, 'http://127.0.0.1:9999/camera.jpg');
-    expect(bookingThumbs[0].size, 44);
+    expect(bookingThumbs[0].size, 34);
     expect(bookingThumbs[1].imageUrl, isNull);
     expect(find.byType(Image), findsOneWidget);
   });

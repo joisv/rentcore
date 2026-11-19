@@ -418,7 +418,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
               child: Column(
@@ -443,7 +443,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: lateMinutes > 60 ? AppColors.dangerLight : AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: lateMinutes > 60 ? AppColors.danger.withValues(alpha: 0.3) : AppColors.border,
                 ),
@@ -522,7 +522,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   color: _accountCleared
                       ? AppColors.successLight
                       : (_isQuarantined ? Colors.amber.withValues(alpha: 0.15) : AppColors.dangerLight),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: _accountCleared
                         ? AppColors.success
@@ -655,7 +655,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
               child: Column(
@@ -730,7 +730,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: _allAddonsChecked ? AppColors.border : const Color(0xFF111111),
                     width: _allAddonsChecked ? 1 : 1.5,
@@ -839,7 +839,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _isQuarantined ? Colors.amber.shade700 : AppColors.border),
               ),
               child: Column(
@@ -864,7 +864,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                           : 'Catatan kondisi tambahan atau pesan pengembalian...',
                       filled: true,
                       fillColor: AppColors.surface,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
@@ -879,7 +879,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.danger.withValues(alpha: 0.5), width: 1.5),
                 ),
                 child: Column(

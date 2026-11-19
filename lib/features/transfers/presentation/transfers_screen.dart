@@ -239,7 +239,7 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
@@ -671,7 +671,7 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (ctx) => _InitiateTransferForm(
         bookingRepo: _bookingRepo,
@@ -799,7 +799,7 @@ class _InitiateTransferFormState extends ConsumerState<_InitiateTransferForm> {
           else if (_readyAssets.isEmpty)
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(10)),
               child: const Text('Tidak ada unit siap sewa di cabang Anda saat ini.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
             )
           else
@@ -809,7 +809,7 @@ class _InitiateTransferFormState extends ConsumerState<_InitiateTransferForm> {
               decoration: InputDecoration(
                 filled: true,
                 fillColor: AppColors.surfaceMuted,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
               hint: const Text('Pilih Perangkat...'),
@@ -844,7 +844,7 @@ class _InitiateTransferFormState extends ConsumerState<_InitiateTransferForm> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
                 hint: const Text('Pilih Cabang Tujuan...'),
@@ -877,7 +877,7 @@ class _InitiateTransferFormState extends ConsumerState<_InitiateTransferForm> {
             else if (_recipients.isEmpty)
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(10)),
                 child: const Text('Belum ada staf yang terdaftar di cabang tujuan ini.', style: TextStyle(color: AppColors.danger, fontSize: 12)),
               )
             else
@@ -887,7 +887,7 @@ class _InitiateTransferFormState extends ConsumerState<_InitiateTransferForm> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
                 hint: const Text('Pilih Staf Penerima...'),
@@ -915,7 +915,7 @@ class _InitiateTransferFormState extends ConsumerState<_InitiateTransferForm> {
               hintText: 'Misal: Kebutuhan lonjakan sewa akhir pekan...',
               filled: true,
               fillColor: AppColors.surfaceMuted,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             ),
           ),
@@ -927,7 +927,7 @@ class _InitiateTransferFormState extends ConsumerState<_InitiateTransferForm> {
               backgroundColor: AppColors.obsidian,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: (_isLoading ||
                     _selectedAssetId == null ||

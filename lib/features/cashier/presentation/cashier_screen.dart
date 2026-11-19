@@ -10,6 +10,7 @@ import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
+import '../../printer/providers/printer_provider.dart';
 import '../providers/cashier_provider.dart';
 import 'financial_activity_ledger_screen.dart';
 import 'pos_transaction_detail_sheet.dart';
@@ -141,7 +142,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isConsolidated
               ? AppColors.warning.withValues(alpha: 0.6)
@@ -235,7 +236,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -432,7 +433,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: AppColors.dangerLight,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Column(
                     children: [
@@ -482,9 +483,6 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                       effectiveShift != null &&
                       effectiveShift['status'] == 'open';
 
-                  final totalExp = CurrencyFormatter.parse(
-                    data['total_expenses'],
-                  );
                   final cashExp = CurrencyFormatter.parse(
                     data['cash_drawer_expenses'],
                   );
@@ -494,8 +492,17 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                         recon['opening_cash_float'],
                   );
 
+                  final isBlindClose =
+                      hasActiveShift &&
+                      (effectiveShift['is_blind_close'] == true ||
+                          recon['is_blind_close'] == true ||
+                          (effectiveShift['expected_cash_now'] == null &&
+                              !recon.containsKey('expected_cash_in_drawer')));
+
                   final double expectedCash;
-                  if (effectiveShift != null &&
+                  if (isBlindClose) {
+                    expectedCash = 0.0;
+                  } else if (effectiveShift != null &&
                       effectiveShift['expected_cash_now'] != null) {
                     expectedCash = CurrencyFormatter.parse(
                       effectiveShift['expected_cash_now'],
@@ -532,7 +539,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
@@ -787,7 +794,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
@@ -912,14 +919,14 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                               const SizedBox(height: 6),
                             ],
 
-                            // Pengeluaran Kasir
+                            // Pengeluaran Kasir Laci Tunai (hanya payment_source == 'cash_drawer')
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
                                   child: Text(
-                                    totalExp > 0
-                                        ? 'Beban Pengeluaran Cabang ${cashExp > 0 ? '(Kas Laci)' : ''}'
+                                    cashExp > 0
+                                        ? 'Beban Pengeluaran Cabang (Kas Laci)'
                                         : 'Beban Kas Keluar (Laci)',
                                     style: const TextStyle(
                                       fontSize: 12,
@@ -931,13 +938,13 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  totalExp > 0
-                                      ? '-${CurrencyFormatter.format(cashExp > 0 ? cashExp : totalExp)}'
+                                  cashExp > 0
+                                      ? '-${CurrencyFormatter.format(cashExp)}'
                                       : 'Rp 0',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 12,
-                                    color: (cashExp > 0 || totalExp > 0)
+                                    color: cashExp > 0
                                         ? AppColors.danger
                                         : AppColors.textMuted,
                                   ),
@@ -946,7 +953,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                             ),
                             const Divider(height: 18),
 
-                            // Ekspektasi Uang Fisik di Laci
+                            // Ekspektasi Uang Fisik di Laci (disembunyikan saat mode Blind Close aktif)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -956,51 +963,91 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                                 color: AppColors.surfaceMuted,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                              child: isBlindClose
+                                  ? const Row(
                                       children: [
-                                        Text(
-                                          'Total Kas Wajib di Laci',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.obsidian,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                        Icon(
+                                          Icons.visibility_off_rounded,
+                                          size: 16,
+                                          color: AppColors.textSecondary,
                                         ),
-                                        Text(
-                                          'Total Fisik Kas Wajib di Laci',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: AppColors.textMuted,
+                                        SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Total Kas Laci (Blind Close)',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: AppColors.obsidian,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              Text(
+                                                'Hitung fisik kas dan tutup shift untuk melihat perbandingan sistem.',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: AppColors.textMuted,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Total Kas Wajib di Laci',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: AppColors.obsidian,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              Text(
+                                                'Total Fisik Kas Wajib di Laci',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: AppColors.textMuted,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            CurrencyFormatter.format(
+                                              expectedCash,
+                                            ),
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w900,
+                                              color: AppColors.obsidian,
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      CurrencyFormatter.format(expectedCash),
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        color: AppColors.obsidian,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ],
                         ),
@@ -1016,7 +1063,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                               vertical: 12,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             side: const BorderSide(color: AppColors.border),
                             foregroundColor: AppColors.obsidian,
@@ -1052,7 +1099,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                       Container(
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.border),
                         ),
                         child: breakdown.isEmpty
@@ -1260,7 +1307,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                                   : null);
 
                           return InkWell(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(10),
                             onTap: () => _openTransactionDetailSheet(
                               context,
                               Map<String, dynamic>.from(tx),
@@ -1270,7 +1317,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: AppColors.border),
                               ),
                               child: Row(
@@ -1433,7 +1480,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                 minimumSize: const Size(0, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 side: BorderSide(color: Colors.grey.shade300),
                 foregroundColor: AppColors.obsidian,
@@ -1465,7 +1512,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                 minimumSize: const Size(0, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 elevation: 0,
               ),
@@ -1529,7 +1576,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.dangerLight,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
                   children: [
@@ -1556,7 +1603,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: AppColors.border),
                     ),
                     child: const Center(
@@ -1657,7 +1704,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -1935,7 +1982,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       builder: (ctx) => Container(
         decoration: const BoxDecoration(
           color: AppColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         child: SingleChildScrollView(
@@ -1991,7 +2038,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Column(
@@ -2132,7 +2179,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 icon: const Icon(Icons.print_rounded, size: 18),
@@ -2475,7 +2522,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       selectedColor: AppColors.obsidian,
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(
           color: isSelected ? AppColors.obsidian : AppColors.border,
           width: 1,
@@ -2510,7 +2557,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       ),
       backgroundColor: isCustom ? AppColors.obsidian : AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(
           color: isCustom ? AppColors.obsidian : AppColors.border,
           width: 1,
@@ -2581,6 +2628,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
         : null;
 
     final printerService = ThermalPrinterService();
+    final paperWidth = ref.read(printerProvider).settings.paperWidth;
     final escposBytes = printerService.buildClosingShiftSlipBytes(
       branchName: branchName,
       cashierName: cashierName,
@@ -2588,6 +2636,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       totalTransactions: totalTx,
       totalRevenue: totalRev,
       paymentBreakdown: breakdownMap,
+      paperWidth: paperWidth,
       openingCashFloat: openingFloat > 0 ? openingFloat : null,
       netCashRevenue: netCash,
       cashDrawerExpenses: cashExpenses > 0 ? cashExpenses : null,

@@ -198,8 +198,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // Both cards display 18 Nov 2026, 23:00 (booked) and 19 Nov 2026, 23:00 (active) — zero +7h shift
-      expect(find.text('Jadwal ambil: 18 Nov 2026, 23:00'), findsOneWidget);
-      expect(find.text('Batas sewa: 19 Nov 2026, 23:00'), findsOneWidget);
+      expect(
+        find.text('Ambil: 18 Nov 2026, 23:00 (Batas 00:00)'),
+        findsOneWidget,
+      );
+      expect(find.text('Kembali: 19 Nov 2026, 23:00'), findsOneWidget);
 
       // Single-line add-on summary renders ONLY once (second card with no addons renders SizedBox.shrink)
       expect(find.byKey(const Key('queue_card_addons_summary')), findsOneWidget);

@@ -131,8 +131,9 @@ class _FakeBookingRepository extends BookingRepository {
 
   @override
   Future<Map<String, dynamic>> createRental(
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    String? idempotencyKey,
+  }) async {
     lastCreatedPayload = Map<String, dynamic>.from(payload);
     return {
       'id': 999,
@@ -312,7 +313,7 @@ void main() {
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Tersedia 2 slot'), findsOneWidget);
+      expect(find.text('Tersedia 2 dari 3 unit'), findsOneWidget);
       expect(
         find.byKey(const Key('toggle_pin_specific_unit')),
         findsOneWidget,
@@ -323,24 +324,24 @@ void main() {
       await tester.pumpAndSettle();
 
       // Step 2: Customer
-      await tester.tap(find.text('Lanjut ke Data Penyewa'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
       await tester.pumpAndSettle();
 
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nama Lengkap Penyewa *'),
+        find.widgetWithText(TextFormField, 'Nama Penyewa *'),
         'Budi Scheduled',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nomor WhatsApp Aktif *'),
+        find.widgetWithText(TextFormField, 'Nomor WhatsApp *'),
         '081234567800',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Alamat Sesuai Kartu Identitas *'),
+        find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'),
         'Jl. Merdeka No. 10 Jakarta',
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Lanjut: Ringkasan Biaya'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
       await tester.pumpAndSettle();
 
       // Verify flexible scheduled payment options & enable pay later

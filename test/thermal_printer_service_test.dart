@@ -340,12 +340,13 @@ void main() {
       expect(rawString, contains('Cabang Utama Mataram'));
       expect(rawString, contains('Shift: SHIFT-001'));
       expect(rawString, contains('Budi Kasir'));
-      expect(rawString, contains('Total Transaksi : 15'));
+      expect(rawString, contains('Total Transaksi'));
+      expect(rawString, contains('15'));
       expect(rawString, contains('REKONSILIASI KAS LACI'));
       expect(rawString, contains('Modal Awal Laci'));
       expect(rawString, contains('Kas Masuk Bersih'));
       expect(rawString, contains('Beban Kas Laci'));
-      expect(rawString, contains('FISIK KAS LACI'));
+      expect(rawString, contains('FISIK KAS SISTEM'));
     });
   });
 }

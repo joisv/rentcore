@@ -81,7 +81,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomInset),
       child: SingleChildScrollView(
@@ -130,7 +130,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
                   labelText: 'Nama Lengkap *',
                   hintText: 'Masukkan nama sesuai identitas',
                   prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
                 validator: (val) {
@@ -150,7 +150,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
                   labelText: 'Nomor WhatsApp / HP *',
                   hintText: 'Contoh: 081234567890',
                   prefixIcon: const Icon(Icons.phone_outlined, size: 20),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
                 validator: (val) {
@@ -173,7 +173,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
                   labelText: 'Email (Opsional)',
                   hintText: 'nama@domain.com',
                   prefixIcon: const Icon(Icons.email_outlined, size: 20),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
               ),
@@ -190,7 +190,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
                       isExpanded: true,
                       decoration: InputDecoration(
                         labelText: 'Tipe ID',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                       ),
                       items: const [
@@ -213,7 +213,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
                       decoration: InputDecoration(
                         labelText: 'Nomor Identitas (NIK)',
                         hintText: '16 digit NIK / No. SIM',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
@@ -230,7 +230,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
                   labelText: 'Alamat Domisili (Opsional)',
                   hintText: 'Jl. Pemuda No. 10, Mataram',
                   prefixIcon: const Icon(Icons.home_outlined, size: 20),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
               ),
@@ -243,7 +243,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
                   backgroundColor: AppColors.obsidian,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
                 child: state.isSubmitting

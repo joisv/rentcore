@@ -15,7 +15,7 @@ class _FakeStreamlineBookingRepository extends BookingRepository {
   int createRentalCalls = 0;
 
   @override
-  Future<Map<String, dynamic>> createRental(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> createRental(Map<String, dynamic> payload, {String? idempotencyKey}) async {
     createRentalCalls++;
     lastCreatedPayload = Map<String, dynamic>.from(payload);
     return {
@@ -334,7 +334,7 @@ void main() {
       expect(find.text('Rp 560.000'), findsOneWidget);
 
       // Advance to Step 2
-      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step1Cta);
       await tester.tap(step1Cta);
       await tester.pumpAndSettle();
@@ -346,26 +346,26 @@ void main() {
 
       // Enter customer details without uploading any photo
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nama Lengkap Penyewa *'),
+        find.widgetWithText(TextFormField, 'Nama Penyewa *'),
         'Raka Wijaya',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nomor WhatsApp Aktif *'),
+        find.widgetWithText(TextFormField, 'Nomor WhatsApp *'),
         '081234567899',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Alamat Sesuai Kartu Identitas *'),
+        find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'),
         'Jl. Soekarno Hatta No. 10, Malang',
       );
       await tester.pumpAndSettle();
 
       // Advance to Step 3 Summary
-      final step2Cta = find.text('Lanjut: Ringkasan Biaya');
+      final step2Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step2Cta);
       await tester.tap(step2Cta);
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Durasi: 48 Jam (2x)'), findsOneWidget);
+      expect(find.textContaining('48 Jam (2x)'), findsOneWidget);
       expect(find.text('Rp 560.000'), findsWidgets);
       expect(find.text('KTP Valid'), findsNothing);
 
@@ -375,7 +375,7 @@ void main() {
       await tester.tap(step3Cta);
       await tester.pumpAndSettle();
 
-      expect(find.text('Tagihan Sewa'), findsOneWidget);
+      expect(find.text('Total Tagihan'), findsOneWidget);
       expect(find.text('Rp560.000'), findsOneWidget);
 
       final tunaiCard = find.text('Tunai');

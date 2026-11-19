@@ -133,7 +133,7 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: EdgeInsets.only(
         top: 12,
@@ -224,7 +224,7 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   filled: true,
                   fillColor: AppColors.surface,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -264,7 +264,7 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   filled: true,
                   fillColor: AppColors.surface,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -299,7 +299,7 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   filled: true,
                   fillColor: AppColors.surface,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -490,7 +490,7 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   filled: true,
                   fillColor: AppColors.surface,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -507,7 +507,7 @@ class _AddBranchExpenseModalState extends ConsumerState<AddBranchExpenseModal> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 icon: _isLoading

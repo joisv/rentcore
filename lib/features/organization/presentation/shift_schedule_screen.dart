@@ -291,7 +291,7 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
                       backgroundColor: AppColors.obsidian,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                     icon: _isSaving
@@ -356,7 +356,7 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -429,11 +429,11 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
   Widget _buildScheduleSettingsCard(bool isEditable) {
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
         child: Column(
@@ -505,7 +505,7 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
                 hintText: '30',
                 filled: true,
                 fillColor: isEditable ? AppColors.surface : AppColors.surfaceMuted,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
               validator: (val) {
@@ -524,11 +524,11 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
   Widget _buildBranchOverrideCard(bool isEditable) {
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
         child: Column(

@@ -200,7 +200,7 @@ void main() {
 
         // 8. Verify original rental cart context remains intact
         expect(find.text('Rp150.000'), findsOneWidget);
-        expect(find.text('Tagihan Sewa'), findsOneWidget);
+        expect(find.text('Total Tagihan'), findsOneWidget);
 
         // 9. Open detail sewa sheet and verify "KONFIRMASI PEMBAYARAN" is now active
         final detailLink = find.text('Detail Sewa');

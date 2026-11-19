@@ -152,8 +152,11 @@ void main() {
         await tester.enterText(directField.first, '1000000');
         await tester.pumpAndSettle();
 
-        // Sticky summary should reflect exact match (Selisih Nihil)
-        expect(find.text('Status: Selisih Nihil (Cocok)'), findsOneWidget);
+        // Blind Close: expected cash & live variance must NOT appear while closing
+        expect(find.text('Fisik Kas Wajib Ada'), findsNothing);
+        expect(find.text('Status: Selisih Nihil (Cocok)'), findsNothing);
+        expect(find.text('Mode Blind Close Aktif'), findsOneWidget);
+        expect(find.text('Total Fisik Hasil Hitung'), findsOneWidget);
         expect(find.text('Rp 1.000.000'), findsWidgets);
 
         // Submit Shift in direct lump-sum mode
@@ -206,7 +209,7 @@ void main() {
     );
 
     testWidgets(
-      '4. Sticky Summary & Status Indicator Colors: Green for match, Red for discrepancy',
+      '4. Sticky Summary Blind Close: Shows only actual counted total without leaking variance before close',
       (tester) async {
         tester.view.physicalSize = const Size(390 * 2.0, 844 * 2.0);
         tester.view.devicePixelRatio = 2.0;
@@ -231,17 +234,16 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // 1. Initial State: actual is 0, expected is 1.000.000 -> Selisih Kurang
-        expect(find.text('Status: Selisih Kurang'), findsOneWidget);
-        expect(find.text('-Rp 1.000.000'), findsOneWidget);
+        // Blind close: live variance indicators & expected total must stay hidden
+        expect(find.text('Fisik Kas Wajib Ada'), findsNothing);
+        expect(find.text('Status: Selisih Kurang'), findsNothing);
+        expect(find.text('Status: Selisih Nihil (Cocok)'), findsNothing);
+        expect(find.text('Status: Selisih Lebih'), findsNothing);
+        expect(find.text('-Rp 1.000.000'), findsNothing);
+        expect(find.text('Total Fisik Hasil Hitung'), findsOneWidget);
+        expect(find.text('Rp 0'), findsWidgets);
 
-        // Check Red status icon / color
-        final warningIcon = find.byIcon(Icons.warning_rounded);
-        expect(warningIcon, findsOneWidget);
-        final Icon iconWidget = tester.widget<Icon>(warningIcon);
-        expect(iconWidget.color, Colors.red.shade600);
-
-        // 2. Count 10 x 100k = 1.000.000 -> Selisih Nihil (Cocok)
+        // Count 10 x 100k = 1.000.000 -> updates only counted total
         final formFields = find.descendant(
           of: find.byType(CashDrawerShiftModal),
           matching: find.byType(TextFormField),
@@ -249,13 +251,8 @@ void main() {
         await tester.enterText(formFields.at(0), '10');
         await tester.pumpAndSettle();
 
-        expect(find.text('Status: Selisih Nihil (Cocok)'), findsOneWidget);
-        final checkIcon = find.byIcon(Icons.check_circle_rounded);
-        expect(checkIcon, findsWidgets);
-
-        // Check Green status icon
-        final matchIcon = tester.widget<Icon>(checkIcon.first);
-        expect(matchIcon.color, Colors.green.shade600);
+        expect(find.text('Rp 1.000.000'), findsWidgets);
+        expect(find.text('Status: Selisih Nihil (Cocok)'), findsNothing);
       },
     );
 

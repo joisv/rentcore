@@ -227,21 +227,17 @@ void main() {
           await tester.tap(find.text('OK'));
           await tester.pumpAndSettle();
 
-          // 2. Section header uses "PILIH MODEL PERANGKAT" without truncated suffix
-          expect(find.text('PILIH MODEL PERANGKAT'), findsOneWidget);
+          // 2. Clean micro-header "MODEL PERANGKAT" & single subtitle string without double pills
+          expect(find.text('MODEL PERANGKAT'), findsOneWidget);
+          expect(find.text('DURASI & JADWAL'), findsOneWidget);
 
           // Select floating model card
           final modelCard = find.byKey(const Key('floating_model_card_5'));
           await tester.ensureVisible(modelCard);
           await tester.tap(modelCard);
           await tester.pumpAndSettle();
-          expect(find.text('Model Dipilih'), findsOneWidget);
-
-          // Row 2 badges ("Tersedia 3 slot" and "Total 4 unit") sit horizontally side-by-side
-          final slotRect = tester.getRect(find.text('Tersedia 3 slot'));
-          final totalUnitsRect = tester.getRect(find.text('Total 4 unit'));
-          expect((slotRect.center.dy - totalUnitsRect.center.dy).abs(), lessThan(4.0));
-          expect(totalUnitsRect.left, greaterThan(slotRect.right));
+          expect(find.text('Model Dipilih'), findsNothing);
+          expect(find.text('Tersedia 3 dari 4 unit'), findsOneWidget);
 
           // 3. Combined Start Time & Estimated Return block + 1-row Package & Multiplier + 42px Voucher
           expect(find.byKey(const Key('inline_reset_now_action')), findsOneWidget);
@@ -261,38 +257,43 @@ void main() {
           expect(tester.getSize(voucherFieldFinder).height, 42.0);
           expect(tester.getSize(applyBtnFinder).height, 42.0);
 
-          // 4. Add-ons section subtitle fontSize 12 and 2-row addon item
-          final addonSubtitle = tester.widget<Text>(
+          // 4. Add-ons section uses "ADD-ON (OPSIONAL)" micro-header without helper paragraph
+          expect(find.text('ADD-ON (OPSIONAL)'), findsOneWidget);
+          expect(
             find.text(
               'Pilih power bank, charger, tripod, atau aksesoris tambahan yang disewa bersamaan.',
             ),
+            findsNothing,
           );
-          expect(addonSubtitle.style?.fontSize, 12.0);
 
-          final addonMetaFinder = find.text('RC-PB-01 • Grade A');
-          await tester.ensureVisible(addonMetaFinder);
-          expect(addonMetaFinder, findsOneWidget);
-          await tester.tap(find.text('Anker MagGo 10000mAh'));
+          final addonRowFinder = find.text('Anker MagGo 10000mAh • RC-PB-01');
+          await tester.ensureVisible(addonRowFinder);
+          expect(addonRowFinder, findsOneWidget);
+          await tester.tap(addonRowFinder);
           await tester.pumpAndSettle();
+          expect(find.text('Subtotal Add-on (1x)'), findsOneWidget);
 
           // Advance Step 1 -> Step 2 -> Step 3
-          await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa'));
+          await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
           await tester.pumpAndSettle();
 
-          expect(find.text('DATA PENYEWA & ALAMAT IDENTITAS'), findsOneWidget);
-          await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut: Ringkasan Biaya'));
+          expect(find.text('DATA PENYEWA'), findsOneWidget);
+          expect(find.text('Cari Pelanggan'), findsOneWidget);
+          await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
           await tester.pumpAndSettle();
 
           // 5. Step 3 shows exact device and addon names, all 3 payment options cleanly, and 46px sticky buttons
+          expect(find.text('RINGKASAN'), findsOneWidget);
           expect(find.text('iPhone 15 Pro Max'), findsOneWidget);
           expect(find.text('Anker MagGo 10000mAh'), findsOneWidget);
+          expect(find.text('PEMBAYARAN'), findsOneWidget);
           expect(find.text('Bayar Lunas'), findsOneWidget);
           expect(find.text('Bayar DP'), findsOneWidget);
           expect(find.text('Bayar Saat Ambil'), findsOneWidget);
 
-          final editBtnFinder = find.widgetWithText(OutlinedButton, 'Ubah Data');
+          final backBtnFinder = find.widgetWithText(OutlinedButton, 'Kembali');
           final saveBtnFinder = find.widgetWithText(ElevatedButton, 'Simpan Booking');
-          expect(tester.getSize(editBtnFinder).height, 46.0);
+          expect(tester.getSize(backBtnFinder).height, 46.0);
           expect(tester.getSize(saveBtnFinder).height, 46.0);
         } finally {
           FlutterError.onError = prevOnError;

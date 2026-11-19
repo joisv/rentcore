@@ -48,6 +48,7 @@ class _FakeHandoverCashierRepository extends CashierRepository {
     String? paymentType,
     String? notes,
     String? idempotencyKey,
+    String? externalReference,
     bool? frpCleared,
     bool? accountRemoved,
     bool? isHandoverSettlement,
@@ -230,7 +231,7 @@ void main() {
 
   group('Single-CTA Handover Sheet & Atomic Settlement Tests', () {
     testWidgets(
-      'DP booking shows single Lanjut ke Pembayaran CTA, routes to PaymentPage with handover flags, and shows Pembayaran Lunas & Unit Diserahkan',
+      'DP booking shows single Bayar & Serahkan Unit CTA, routes to PaymentPage with handover flags, and shows Pembayaran Lunas & Unit Diserahkan',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -269,10 +270,16 @@ void main() {
         await tester.tap(find.text('Serahkan Unit'));
         await tester.pumpAndSettle();
 
-        // Single primary CTA & zero secondary/competing buttons
+        // Compact header & single icon-free primary CTA
+        expect(
+          find.text('Dewi Lestari • iPhone 15 Pro • RC-HO-DP-501'),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('handover_grace_pill')), findsNothing);
         expect(find.byKey(const Key('confirm_checkin_button')), findsOneWidget);
-        expect(find.text('Lanjut ke Pembayaran'), findsOneWidget);
+        expect(find.text('Bayar & Serahkan Unit'), findsOneWidget);
         expect(find.text('Serahkan Unit Sekarang'), findsNothing);
+        expect(find.text('Lanjut ke Pembayaran'), findsNothing);
         expect(find.text('Bayar Sisa Tagihan di Kasir'), findsNothing);
         expect(find.text('Cetak Slip'), findsNothing);
         expect(find.text('Rincian Booking'), findsNothing);
@@ -322,7 +329,7 @@ void main() {
     );
 
     testWidgets(
-      'Fully paid booking shows single Serahkan Unit Sekarang CTA and activates directly without PaymentPage',
+      'Fully paid booking shows single Serahkan Unit CTA and activates directly without PaymentPage',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -342,10 +349,10 @@ void main() {
               'is_floating_unit': true,
               'collateral_storage_slot': 'Brankas A, Slot 02',
               'start_at': DateTime.now()
-                  .add(const Duration(hours: 1))
+                  .subtract(const Duration(minutes: 10))
                   .toIso8601String(),
               'grace_expires_at': DateTime.now()
-                  .add(const Duration(hours: 2))
+                  .add(const Duration(minutes: 50))
                   .toIso8601String(),
               'customer': {'name': 'Rudi Hartono', 'phone': '081234560002'},
               'asset_model': {'id': 5, 'name': 'iPhone 15 Pro'},
@@ -360,9 +367,20 @@ void main() {
         await tester.tap(find.text('Serahkan Unit'));
         await tester.pumpAndSettle();
 
+        expect(
+          find.text('Rudi Hartono • iPhone 15 Pro • RC-HO-PAID-502'),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('handover_grace_pill')), findsOneWidget);
         expect(find.byKey(const Key('confirm_checkin_button')), findsOneWidget);
-        expect(find.text('Serahkan Unit Sekarang'), findsOneWidget);
-        expect(find.text('Lanjut ke Pembayaran'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('confirm_checkin_button')),
+            matching: find.text('Serahkan Unit'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Bayar & Serahkan Unit'), findsNothing);
         expect(
           find.byKey(const Key('handover_remaining_balance_row')),
           findsNothing,

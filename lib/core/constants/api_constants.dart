@@ -76,6 +76,7 @@ class ApiConstants {
       '/bookings/$id/available-units';
   static String checkInBooking(dynamic id) => '/bookings/$id/check-in';
   static String markBookingNoShow(dynamic id) => '/bookings/$id/no-show';
+  static String cancelBooking(dynamic id) => '/bookings/$id/cancel';
   static String extendBookingGrace(dynamic id) => '/bookings/$id/extend-grace';
   static String rescheduleBooking(dynamic id) => '/bookings/$id/reschedule';
   static String extendBooking(dynamic id) => '/bookings/$id/extend';

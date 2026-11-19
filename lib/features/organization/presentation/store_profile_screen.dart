@@ -170,7 +170,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: AppColors.border),
                       ),
                       child: Column(
@@ -198,7 +198,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                               hintText: 'Contoh: SkyRent Gadget Center',
                               filled: true,
                               fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             ),
                             validator: (val) => (val == null || val.trim().isEmpty) ? 'Nama toko wajib diisi' : null,
@@ -215,7 +215,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                               hintText: 'Contoh: Sewa iPhone & Gadget Terpercaya Sejak 2020',
                               filled: true,
                               fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             ),
                           ),
@@ -232,7 +232,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                               hintText: 'Contoh: 081234567890',
                               filled: true,
                               fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             ),
                           ),
@@ -249,7 +249,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                               hintText: 'Contoh: Jl. Sudirman No. 45, Jakarta Pusat',
                               filled: true,
                               fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             ),
                           ),
@@ -272,7 +272,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                             backgroundColor: AppColors.obsidian,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           icon: _isLoading
                               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))

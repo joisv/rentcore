@@ -234,14 +234,15 @@ void main() {
       expect(find.byType(ExpansionTile), findsNothing);
       expect(find.byType(CircleAvatar), findsNothing);
 
-      // Top monochrome user header
-      expect(find.text('H'), findsOneWidget);
-      expect(find.text('Hadi Purwanto'), findsOneWidget);
-      expect(find.text('gwennrepair@gmail.com'), findsOneWidget);
-      expect(find.byIcon(Icons.logout_rounded), findsOneWidget);
+      // Redundant user profile & logout header removed from branch switcher
+      expect(find.text('H'), findsNothing);
+      expect(find.text('Hadi Purwanto'), findsNothing);
+      expect(find.text('gwennrepair@gmail.com'), findsNothing);
+      expect(find.byIcon(Icons.logout_rounded), findsNothing);
 
-      // Section & workspace header
-      expect(find.text('USAHA & CABANG'), findsOneWidget);
+      // Clean header & workspace section
+      expect(find.text('Pilih Cabang'), findsOneWidget);
+      expect(find.text('USAHA & CABANG'), findsNothing);
       expect(find.text('+ Tambah'), findsOneWidget);
       expect(find.text('Gwenn Rental Malang • 2 Cabang'), findsOneWidget);
       expect(find.text('OWNER'), findsOneWidget);

@@ -151,7 +151,7 @@ class _QuickOpenShiftModalState extends ConsumerState<QuickOpenShiftModal> {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: EdgeInsets.fromLTRB(20, 12, 20, bottomInset + 24),
       child: Form(
@@ -281,15 +281,15 @@ class _QuickOpenShiftModalState extends ConsumerState<QuickOpenShiftModal> {
                   fillColor: const Color(0xFFF8FAFC),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(color: Color(0xFF18181B), width: 1.5),
                   ),
                 ),
@@ -351,7 +351,7 @@ class _QuickOpenShiftModalState extends ConsumerState<QuickOpenShiftModal> {
                   disabledBackgroundColor: const Color(0xFF18181B).withValues(alpha: 0.5),
                   disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
                   minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
                 child: _isLoading

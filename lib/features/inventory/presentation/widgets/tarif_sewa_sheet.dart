@@ -29,7 +29,7 @@ class TarifSewaSheet extends ConsumerWidget {
         return Container(
           decoration: const BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
           ),
           child: Column(
             children: [
@@ -180,7 +180,7 @@ class TarifSewaSheet extends ConsumerWidget {
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: AppColors.border),
                             boxShadow: const [
                               BoxShadow(
@@ -309,7 +309,7 @@ class TarifSewaSheet extends ConsumerWidget {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     icon: const Icon(Icons.post_add_rounded, size: 18),

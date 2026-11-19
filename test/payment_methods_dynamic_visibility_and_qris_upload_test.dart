@@ -20,6 +20,8 @@ class MockPaymentRepoForVisibility extends PaymentRepository {
     required double amountToPay,
     required double cashReceived,
     String? notes,
+    String? idempotencyKey,
+    String? externalReference,
   }) async {
     lastContext = context;
     lastMethodCode = paymentMethodCode;

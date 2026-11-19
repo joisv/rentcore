@@ -399,27 +399,26 @@ void main() {
     // Select Power Bank add-on
     final searchField = find.byKey(const Key('booking_addon_search_field'));
     await tester.ensureVisible(searchField);
-    await tester.tap(find.text('Power Bank Anker 20000mAh').last);
+    await tester.tap(find.textContaining('Power Bank Anker 20000mAh').last);
     await tester.pumpAndSettle();
-    expect(find.text('1 Dipilih'), findsOneWidget);
+    expect(find.text('Subtotal Add-on (1x)'), findsOneWidget);
 
-    // Filter to Tripod -> Power Bank disappears from add-on list, but 1 Dipilih & subtotal remain preserved
-    final addonCardColumn = find.ancestor(
+    // Filter to Tripod -> Power Bank disappears from add-on list, but subtotal remains preserved
+    final addonSectionColumn = find.ancestor(
       of: searchField,
       matching: find.byType(Column),
     ).first;
     await tester.enterText(searchField, 'Tripod');
     await tester.pumpAndSettle();
-    expect(find.descendant(of: addonCardColumn, matching: find.text('Tripod Ulanzi MT-44')), findsOneWidget);
-    expect(find.descendant(of: addonCardColumn, matching: find.text('Power Bank Anker 20000mAh')), findsNothing);
-    expect(find.text('1 Dipilih'), findsOneWidget);
-    expect(find.text('Subtotal Add-on (1 item):'), findsOneWidget);
+    expect(find.descendant(of: addonSectionColumn, matching: find.textContaining('Tripod Ulanzi MT-44')), findsOneWidget);
+    expect(find.descendant(of: addonSectionColumn, matching: find.textContaining('Power Bank Anker 20000mAh')), findsNothing);
+    expect(find.text('Subtotal Add-on (1x)'), findsOneWidget);
 
     // Clear search via X button -> both add-ons reappear and selection stays intact
     await tester.tap(find.byKey(const Key('booking_addon_search_clear')));
     await tester.pumpAndSettle();
-    expect(find.descendant(of: addonCardColumn, matching: find.text('Power Bank Anker 20000mAh')), findsOneWidget);
-    expect(find.descendant(of: addonCardColumn, matching: find.text('Tripod Ulanzi MT-44')), findsOneWidget);
-    expect(find.text('1 Dipilih'), findsOneWidget);
+    expect(find.descendant(of: addonSectionColumn, matching: find.textContaining('Power Bank Anker 20000mAh')), findsOneWidget);
+    expect(find.descendant(of: addonSectionColumn, matching: find.textContaining('Tripod Ulanzi MT-44')), findsOneWidget);
+    expect(find.text('Subtotal Add-on (1x)'), findsOneWidget);
   });
 }

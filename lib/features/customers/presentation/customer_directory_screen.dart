@@ -110,7 +110,7 @@ class _CustomerDirectoryScreenState extends ConsumerState<CustomerDirectoryScree
                       fillColor: AppColors.surfaceMuted,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -151,13 +151,13 @@ class _CustomerDirectoryScreenState extends ConsumerState<CustomerDirectoryScree
       onTap: () {
         ref.read(customerProvider.notifier).setStatusFilter(value);
       },
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.obsidian : AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? AppColors.obsidian : AppColors.border,
           ),
@@ -272,7 +272,7 @@ class _CustomerDirectoryScreenState extends ConsumerState<CustomerDirectoryScree
           elevation: 0,
           color: AppColors.surface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             side: BorderSide(
               color: isBlacklisted ? AppColors.danger.withValues(alpha: 0.3) : AppColors.border,
               width: isBlacklisted ? 1.5 : 1.0,
@@ -280,7 +280,7 @@ class _CustomerDirectoryScreenState extends ConsumerState<CustomerDirectoryScree
           ),
           child: InkWell(
             onTap: () => CustomerDetailSheet.show(context, customer),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Row(

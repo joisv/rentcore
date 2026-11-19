@@ -36,6 +36,15 @@ class _FakeCashierRepo extends CashierRepository {
     double? cashReceived,
     String? notes,
     String? idempotencyKey,
+    String? externalReference,
+    bool? frpCleared,
+    bool? accountRemoved,
+    bool? isHandoverSettlement,
+    int? assetUnitId,
+    String? collateralType,
+    String? collateralStorageSlot,
+    bool? startNow,
+    bool? keepOriginalEndAt,
   }) async {
     lastBookingId = bookingId;
     lastPaymentMethodId = paymentMethodId;
@@ -72,8 +81,9 @@ class _FakeBookingRepo extends BookingRepository {
 
   @override
   Future<Map<String, dynamic>> createRental(
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    String? idempotencyKey,
+  }) async {
     lastRentalPayload = payload;
     return {
       'id': 88,
@@ -99,6 +109,7 @@ class _FakeBookingRepo extends BookingRepository {
     int? paymentMethodId,
     double? cashReceived,
     String? notes,
+    String? idempotencyKey,
   }) async {
     lastExtendBookingId = bookingId;
     lastExtendHours = additionalHours;
@@ -143,6 +154,7 @@ class _FakeBookingRepo extends BookingRepository {
     String? managerPin,
     String? reason,
     String? notes,
+    String? idempotencyKey,
   }) async {
     lastAdjustBookingId = bookingId;
     lastAdjustBookingItemId = bookingItemId;
@@ -249,9 +261,9 @@ void main() {
         await tester.pumpWidget(createTestWidget(context));
         await tester.pumpAndSettle();
 
-        // Verify Header & Tagihan Sewa
+        // Verify Header & Total Tagihan
         expect(find.text('Pembayaran  Sewa'), findsOneWidget);
-        expect(find.text('Tagihan Sewa'), findsOneWidget);
+        expect(find.text('Total Tagihan'), findsOneWidget);
         expect(find.text('Rp350.000'), findsOneWidget);
         expect(find.text('Detail Sewa'), findsOneWidget);
 
@@ -461,7 +473,9 @@ void main() {
         await tester.pumpWidget(createTestWidget(context));
         await tester.pumpAndSettle();
 
+        expect(find.text('Sisa Tagihan'), findsOneWidget);
         expect(find.text('Rp200.000'), findsOneWidget);
+        expect(find.text('Detail Sewa'), findsOneWidget);
 
         // Tap Tunai
         await tester.tap(find.text('Tunai'));

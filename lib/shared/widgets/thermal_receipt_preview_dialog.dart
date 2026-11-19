@@ -53,7 +53,7 @@ class _ThermalReceiptPreviewDialogState
         constraints: const BoxConstraints(maxWidth: 400),
         decoration: BoxDecoration(
           color: AppColors.background,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -168,7 +168,7 @@ class _ThermalReceiptPreviewDialogState
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: AppColors.border),
                     boxShadow: [
                       BoxShadow(
@@ -287,7 +287,7 @@ class _ThermalReceiptPreviewDialogState
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 icon: _isPrinting

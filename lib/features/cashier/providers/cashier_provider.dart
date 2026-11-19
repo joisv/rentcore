@@ -178,6 +178,26 @@ final currentShiftProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
 /// Alias for activeShiftProvider
 final activeShiftProvider = currentShiftProvider;
 
+/// Extracts whether cashier shift enforcement is enabled for the active branch/business.
+bool isShiftEnforcementEnabledFromPayload(Map<String, dynamic>? data) {
+  if (data == null) return true;
+  final raw = data['shift_enforcement_enabled'] ??
+      (data['data'] is Map ? (data['data'] as Map)['shift_enforcement_enabled'] : null);
+  if (raw is bool) return raw;
+  if (raw is num) return raw != 0;
+  if (raw is String) return raw.toLowerCase() != 'false' && raw != '0';
+  return true;
+}
+
+final shiftEnforcementEnabledProvider = Provider.autoDispose.family<bool, int?>((
+  ref,
+  branchId,
+) {
+  final branchShift = ref.watch(currentShiftByBranchProvider(branchId)).asData?.value;
+  final generalShift = ref.watch(currentShiftProvider).asData?.value;
+  return isShiftEnforcementEnabledFromPayload(branchShift ?? generalShift);
+});
+
 final currentShiftByBranchProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, int?>((
   ref,
   branchId,

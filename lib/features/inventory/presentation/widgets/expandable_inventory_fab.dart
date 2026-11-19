@@ -161,7 +161,7 @@ class ExpandableInventoryFabState extends State<ExpandableInventoryFab>
             child: InkWell(
               key: key,
               onTap: onTap,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(10),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
@@ -175,7 +175,7 @@ class ExpandableInventoryFabState extends State<ExpandableInventoryFab>
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: AppColors.border),
                         boxShadow: const [
                           BoxShadow(
@@ -204,7 +204,7 @@ class ExpandableInventoryFabState extends State<ExpandableInventoryFab>
                       height: 44,
                       decoration: BoxDecoration(
                         color: AppColors.obsidian,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         boxShadow: const [
                           BoxShadow(
                             color: Color(0x28000000),
@@ -232,13 +232,13 @@ class ExpandableInventoryFabState extends State<ExpandableInventoryFab>
       child: InkWell(
         key: const Key('inventory_expandable_main_fab'),
         onTap: toggle,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 56,
           height: 56,
           decoration: BoxDecoration(
             color: AppColors.obsidian,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x33000000),

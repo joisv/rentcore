@@ -198,7 +198,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       padding: const EdgeInsets.all(16),
@@ -358,7 +358,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
                 boxShadow: [
                   BoxShadow(
@@ -376,7 +376,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                     padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted.withValues(alpha: 0.4),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
                       border: Border(
                         bottom: BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
                       ),
@@ -422,7 +422,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted.withValues(alpha: 0.2),
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(9)),
                     ),
                     child: Center(
                       child: Text(
@@ -449,7 +449,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                   backgroundColor: AppColors.obsidian,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 icon: _isPrintingStandard
                     ? const SizedBox(
@@ -489,7 +489,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
                 boxShadow: [
                   BoxShadow(
@@ -507,7 +507,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                     padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted.withValues(alpha: 0.4),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
                       border: Border(
                         bottom: BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
                       ),
@@ -553,7 +553,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted.withValues(alpha: 0.2),
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(9)),
                     ),
                     child: Center(
                       child: Text(
@@ -580,7 +580,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                   backgroundColor: AppColors.obsidian,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 icon: _isPrintingEcho
                     ? const SizedBox(
@@ -810,7 +810,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -904,7 +904,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -976,7 +976,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -1007,15 +1007,15 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                 filled: true,
                 fillColor: Colors.grey.shade50,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: AppColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: AppColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: AppColors.obsidian, width: 1.5),
                 ),
               ),
@@ -1090,13 +1090,13 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.obsidian : AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? AppColors.obsidian : AppColors.border,
             width: isSelected ? 1.5 : 1,

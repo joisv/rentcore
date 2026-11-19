@@ -203,7 +203,7 @@ void main() {
 
       // --- STEP 1: Unit & Durasi ---
       // Primary button stays disabled until unit and duration are selected
-      final ctaFinder = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final ctaFinder = find.widgetWithText(ElevatedButton, 'Lanjut');
       expect(ctaFinder, findsOneWidget);
       final disabledButton = tester.widget<ElevatedButton>(ctaFinder);
       expect(disabledButton.onPressed, isNull);
@@ -220,38 +220,40 @@ void main() {
       await tester.pumpAndSettle();
 
       // --- STEP 2: Data Penyewa ---
-      expect(find.text('DATA PENYEWA & ALAMAT IDENTITAS'), findsOneWidget);
+      expect(find.text('DATA PENYEWA'), findsOneWidget);
+      expect(find.text('Cari Pelanggan'), findsOneWidget);
       expect(find.text('Kembali'), findsOneWidget);
-      expect(find.text('Lanjut: Ringkasan Biaya'), findsOneWidget);
+      expect(find.text('Lanjut'), findsOneWidget);
 
       // Verify customer form fields exist
-      expect(find.widgetWithText(TextFormField, 'Nama Lengkap Penyewa *'), findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Nomor WhatsApp Aktif *'), findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Alamat Sesuai Kartu Identitas *'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Nama Penyewa *'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Nomor WhatsApp *'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'), findsOneWidget);
       expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
 
       // Advance to Step 3
-      await tester.tap(find.text('Lanjut: Ringkasan Biaya'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
       await tester.pumpAndSettle();
 
       // --- STEP 3: Ringkasan Sewa & Review ---
-      expect(find.text('RINGKASAN SEWA & IDENTITAS PENYEWA'), findsOneWidget);
-      expect(find.text('TOTAL TAGIHAN POS:'), findsOneWidget);
-      expect(find.textContaining('Kembali:'), findsWidgets);
-      expect(find.text('Ubah Data'), findsOneWidget);
+      expect(find.text('RINGKASAN'), findsOneWidget);
+      expect(find.text('Total Tagihan'), findsOneWidget);
+      expect(find.text('Waktu Sewa'), findsOneWidget);
+      expect(find.textContaining('Mulai Sekarang • Kembali'), findsOneWidget);
+      expect(find.text('Kembali'), findsOneWidget);
       expect(find.text('Buat Sewa'), findsOneWidget);
 
-      // Test "Ubah Data" backward navigation to Step 2
-      await tester.tap(find.text('Ubah Data'));
+      // Test "Kembali" backward navigation to Step 2
+      await tester.tap(find.text('Kembali'));
       await tester.pumpAndSettle();
 
-      expect(find.text('DATA PENYEWA & ALAMAT IDENTITAS'), findsOneWidget);
+      expect(find.text('DATA PENYEWA'), findsOneWidget);
 
       // Test "Kembali" backward navigation to Step 1
       await tester.tap(find.text('Kembali'));
       await tester.pumpAndSettle();
 
-      expect(find.text('PILIH UNIT RENTAL TERSEDIA'), findsOneWidget);
+      expect(find.text('MODEL PERANGKAT'), findsOneWidget);
     });
   });
 }

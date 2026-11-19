@@ -258,7 +258,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
               child: Form(
@@ -293,11 +293,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         filled: true,
                         fillColor: AppColors.surfaceMuted,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                           borderSide: const BorderSide(color: AppColors.border),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                           borderSide: const BorderSide(color: AppColors.border),
                         ),
                       ),
@@ -312,7 +312,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                       decoration: InputDecoration(
                         labelText: 'Nama Lengkap *',
                         prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -335,7 +335,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         labelText: 'Nomor Telepon / WhatsApp',
                         prefixIcon: const Icon(Icons.phone_outlined, size: 20),
                         hintText: 'Contoh: 081234567890',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -346,7 +346,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         backgroundColor: AppColors.obsidian,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         elevation: 0,
                       ),
                       child: _isProfileLoading
@@ -371,7 +371,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
               child: Form(
@@ -401,7 +401,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF0FDF4),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: const Color(0xFFBBF7D0)),
                         ),
                         child: const Row(
@@ -441,7 +441,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                             ),
                             onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
                           ),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         validator: (value) {
                           if (hasPassword && (value == null || value.isEmpty)) {
@@ -467,7 +467,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           ),
                           onPressed: () => setState(() => _obscureNew = !_obscureNew),
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -498,7 +498,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           ),
                           onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -518,7 +518,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         backgroundColor: hasPassword ? AppColors.obsidian : const Color(0xFF16A34A),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         elevation: 0,
                       ),
                       child: _isPasswordLoading

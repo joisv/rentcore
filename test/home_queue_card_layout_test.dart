@@ -141,7 +141,7 @@ void main() {
         await tester.pumpWidget(buildHome(bookings));
         await tester.pumpAndSettle();
 
-        // 1. Top Header Row: Booking Code pill + soft blue remaining time badge
+        // 1. Top Header Row: Unboxed Booking Code + soft blue remaining time badge
         expect(find.text('RC-261114-0001-O7Q'), findsOneWidget);
         final statusBadge = tester.widget<StatusBadge>(
           find.byType(StatusBadge).first,
@@ -150,10 +150,9 @@ void main() {
         expect(statusBadge.textColor, AppColors.info);
         expect(statusBadge.backgroundColor, AppColors.infoLight);
 
-        // 2. Deadline Sub-row: clock icon + Batas sewa: <formatted>
-        expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
+        // 2. Unified single-line schedule row: Kembali: <formatted>
         expect(
-          find.text('Batas sewa: ${DateFormatter.formatFull(endAt)}'),
+          find.text('Kembali: ${DateFormatter.formatFull(endAt)}'),
           findsOneWidget,
         );
 
@@ -172,18 +171,15 @@ void main() {
         expect(iconContainerFinder, findsOneWidget);
 
         expect(find.text('iPhone 17 pro Max'), findsOneWidget);
-        final metaText = tester.widget<Text>(
-          find.text('FCHGTS42555 • SN: JVYJFHHFVYU'),
-        );
-        expect(metaText.style?.fontFamily, 'monospace');
+        expect(find.text('FCHGTS42555 • SN: JVYJFHHFVYU'), findsOneWidget);
         expect(find.text('jois • 083146838432'), findsOneWidget);
-        expect(find.byIcon(Icons.lock_clock_outlined), findsOneWidget);
         expect(find.text('Jaminan: Brankas B, Slot 02'), findsOneWidget);
 
-        // 4. Total Tagihan Strip: Colors.grey.shade100 + tabularFigures
+        // 4. Flat Total Row: No grey box wrapper + no duplicate "Total:" prefix + tabularFigures
         expect(find.text('Total Tagihan'), findsOneWidget);
-        final totalTextFinder = find.text('Total: Rp 280.000');
-        expect(totalTextFinder, findsOneWidget);
+        expect(find.text('Total: Rp 280.000'), findsNothing);
+        final totalTextFinder = find.text('Rp 280.000').last;
+        expect(find.text('Rp 280.000'), findsNWidgets(2));
         final totalTextWidget = tester.widget<Text>(totalTextFinder);
         expect(
           totalTextWidget.style?.fontFeatures,
@@ -198,7 +194,7 @@ void main() {
                 (w.decoration as BoxDecoration).color == Colors.grey.shade100,
           ),
         );
-        expect(totalStripFinder, findsOneWidget);
+        expect(totalStripFinder, findsNothing);
 
         // 5. Bottom action row preserved untouched
         expect(find.widgetWithText(OutlinedButton, 'Rincian'), findsOneWidget);
@@ -291,9 +287,59 @@ void main() {
         );
         expect(find.byIcon(Icons.camera_alt_rounded), findsOneWidget);
         expect(find.byIcon(Icons.flight_takeoff_rounded), findsOneWidget);
-        expect(find.text('Total: Rp 12.500.000'), findsOneWidget);
-        expect(find.text('Total: Rp 350.000'), findsOneWidget);
+        expect(find.text('Rp 12.500.000'), findsOneWidget);
+        expect(find.text('Rp 350.000'), findsOneWidget);
         expect(errors, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'Renders booked floating unit with DP badge, Booking status pill, unified Ambil/Batas line, and device icon instead of airplane',
+      (tester) async {
+        tester.view.physicalSize = const Size(430, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final startAt = DateTime.now().add(const Duration(days: 1, hours: 2));
+        final graceAt = startAt.add(const Duration(hours: 1));
+        final bookings = [
+          {
+            'id': 301,
+            'booking_code': 'RC-261118-0007-OYS',
+            'status': 'booked',
+            'payment_status': 'partial',
+            'is_floating_unit': true,
+            'start_at': startAt.toIso8601String(),
+            'grace_expires_at': graceAt.toIso8601String(),
+            'end_at': startAt.add(const Duration(hours: 24)).toIso8601String(),
+            'total_bill': 220000.0,
+            'collateral_storage_slot': 'Brankas A, Slot 01',
+            'customer': {'name': 'Dewi Lestari', 'phone': '081299001122'},
+            'asset_model': {'id': 9, 'name': 'DJI Osmo Pocket 3'},
+          },
+        ];
+
+        await tester.pumpWidget(buildHome(bookings));
+        await tester.pumpAndSettle();
+
+        expect(find.text('RC-261118-0007-OYS'), findsOneWidget);
+        expect(find.text('Booking'), findsWidgets);
+        expect(
+          find.text(
+            'Ambil: ${DateFormatter.formatFull(startAt)} (Batas ${DateFormatter.formatTime(graceAt)})',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Floating Unit'), findsOneWidget);
+        expect(find.text('Floating Unit • Belum Pilih SN'), findsNothing);
+        expect(find.byIcon(Icons.flight_takeoff_rounded), findsNothing);
+        expect(find.byIcon(Icons.smartphone_rounded), findsOneWidget);
+        expect(find.text('DP'), findsOneWidget);
+        expect(find.text('Total Tagihan'), findsOneWidget);
+        expect(find.text('Rp 220.000'), findsOneWidget);
+        expect(find.text('Total: Rp 220.000'), findsNothing);
         expect(tester.takeException(), isNull);
       },
     );

@@ -1,9 +1,40 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/constants/api_constants.dart';
 import '../../../core/models/paginated_result.dart';
 import '../../../core/network/api_client.dart';
 
 class BookingRepository {
   final ApiClient _client = ApiClient();
+
+  String? _resolveIdempotencyKey(
+    String? explicitKey,
+    Map<String, dynamic> payload,
+  ) {
+    final trimmedExplicit = explicitKey?.trim();
+    if (trimmedExplicit != null && trimmedExplicit.isNotEmpty) {
+      return trimmedExplicit;
+    }
+    final payloadKey = payload['idempotency_key']?.toString().trim();
+    if (payloadKey != null && payloadKey.isNotEmpty) {
+      return payloadKey;
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _attachIdempotencyKey(
+    Map<String, dynamic> payload,
+    String? idempotencyKey,
+  ) {
+    final key = _resolveIdempotencyKey(idempotencyKey, payload);
+    if (key == null) return payload;
+    return <String, dynamic>{...payload, 'idempotency_key': key};
+  }
+
+  Options? _idempotencyOptions(String? key) {
+    if (key == null || key.isEmpty) return null;
+    return Options(headers: {'X-Idempotency-Key': key});
+  }
 
   Future<List<Map<String, dynamic>>> fetchBookings({
     String? status,
@@ -99,12 +130,18 @@ class BookingRepository {
   }
 
   Future<List<Map<String, dynamic>>> fetchReadyAssets({int? branchId}) async {
-    final queryParams = <String, dynamic>{'status': 'ready'};
-    if (branchId != null) queryParams['branch_id'] = branchId;
+    if (branchId == null) {
+      return [];
+    }
+    final queryParams = <String, dynamic>{
+      'status': 'ready',
+      'branch_id': branchId,
+    };
 
     final response = await _client.dio.get(
       ApiConstants.assets,
       queryParameters: queryParams,
+      options: Options(headers: {'X-Branch-Id': branchId.toString()}),
     );
     final rawData = response.data['data'];
     if (rawData is List) {
@@ -116,10 +153,26 @@ class BookingRepository {
     return [];
   }
 
-  Future<Map<String, dynamic>> createRental(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> createRental(
+    Map<String, dynamic> payload, {
+    String? idempotencyKey,
+  }) async {
+    final body = _attachIdempotencyKey(payload, idempotencyKey);
+    final effectiveKey = _resolveIdempotencyKey(idempotencyKey, body);
+    Options? opts = _idempotencyOptions(effectiveKey);
+    final rawBranch = body['branch_id'] ?? body['affiliate_id'];
+    if (rawBranch != null && rawBranch.toString().trim().isNotEmpty) {
+      opts = (opts ?? Options()).copyWith(
+        headers: {
+          ...?opts?.headers,
+          'X-Branch-Id': rawBranch.toString().trim(),
+        },
+      );
+    }
     final response = await _client.dio.post(
       ApiConstants.bookings,
-      data: payload,
+      data: body,
+      options: opts,
     );
     return response.data['data'];
   }
@@ -131,6 +184,7 @@ class BookingRepository {
     int? paymentMethodId,
     double? cashReceived,
     String? notes,
+    String? idempotencyKey,
   }) async {
     final data = <String, dynamic>{
       'additional_hours': additionalHours,
@@ -139,10 +193,13 @@ class BookingRepository {
     if (paymentMethodId != null) data['payment_method_id'] = paymentMethodId;
     if (cashReceived != null) data['cash_received'] = cashReceived;
     if (notes != null) data['notes'] = notes;
+    final body = _attachIdempotencyKey(data, idempotencyKey);
+    final effectiveKey = _resolveIdempotencyKey(idempotencyKey, body);
 
     final response = await _client.dio.post(
       ApiConstants.extendBooking(bookingId),
-      data: data,
+      data: body,
+      options: _idempotencyOptions(effectiveKey),
     );
     return response.data['data'];
   }
@@ -158,6 +215,7 @@ class BookingRepository {
     String? managerPin,
     String? reason,
     String? notes,
+    String? idempotencyKey,
   }) async {
     final data = <String, dynamic>{
       'direction': direction,
@@ -170,10 +228,13 @@ class BookingRepository {
     if (managerPin != null && managerPin.isNotEmpty) data['manager_pin'] = managerPin;
     if (reason != null && reason.isNotEmpty) data['reason'] = reason;
     if (notes != null && notes.isNotEmpty) data['notes'] = notes;
+    final body = _attachIdempotencyKey(data, idempotencyKey);
+    final effectiveKey = _resolveIdempotencyKey(idempotencyKey, body);
 
     final response = await _client.dio.post(
       ApiConstants.adjustBookingDuration(bookingId),
-      data: data,
+      data: body,
+      options: _idempotencyOptions(effectiveKey),
     );
     final res = response.data;
     if (res is Map<String, dynamic>) {
@@ -182,10 +243,17 @@ class BookingRepository {
     return {};
   }
 
-  Future<Map<String, dynamic>> processReturn(int bookingId, Map<String, dynamic> returnData) async {
+  Future<Map<String, dynamic>> processReturn(
+    int bookingId,
+    Map<String, dynamic> returnData, {
+    String? idempotencyKey,
+  }) async {
+    final body = _attachIdempotencyKey(returnData, idempotencyKey);
+    final effectiveKey = _resolveIdempotencyKey(idempotencyKey, body);
     final response = await _client.dio.post(
       ApiConstants.returnBooking(bookingId),
-      data: returnData,
+      data: body,
+      options: _idempotencyOptions(effectiveKey),
     );
     return response.data['data'];
   }
@@ -220,11 +288,14 @@ class BookingRepository {
     int? categoryId,
     String? search,
   }) async {
+    if (branchId == null) {
+      throw Exception('Cabang aktif wajib dipilih sebelum mengecek ketersediaan booking.');
+    }
     final queryParams = <String, dynamic>{
       'start_at': startAt.toUtc().toIso8601String(),
       'end_at': endAt.toUtc().toIso8601String(),
+      'branch_id': branchId.toString(),
     };
-    if (branchId != null) queryParams['branch_id'] = branchId.toString();
     if (categoryId != null) queryParams['category_id'] = categoryId.toString();
     if (search != null && search.trim().isNotEmpty) {
       queryParams['search'] = search.trim();
@@ -233,6 +304,7 @@ class BookingRepository {
     final response = await _client.dio.get(
       ApiConstants.bookingAvailability,
       queryParameters: queryParams,
+      options: Options(headers: {'X-Branch-Id': branchId.toString()}),
     );
     final rawData = response.data['data'];
     if (rawData is List) {
@@ -317,6 +389,20 @@ class BookingRepository {
   }) async {
     final response = await _client.dio.post(
       ApiConstants.markBookingNoShow(bookingId),
+      data: {
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+    );
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> cancelBooking(
+    dynamic bookingId, {
+    String? reason,
+  }) async {
+    final response = await _client.dio.post(
+      ApiConstants.cancelBooking(bookingId),
       data: {
         if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
       },

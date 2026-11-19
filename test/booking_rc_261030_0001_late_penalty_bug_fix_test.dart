@@ -33,7 +33,7 @@ class _FakeBookingRepoForLatePenalty extends BookingRepository {
   int processReturnCalls = 0;
 
   @override
-  Future<Map<String, dynamic>> processReturn(int bookingId, Map<String, dynamic> returnData) async {
+  Future<Map<String, dynamic>> processReturn(int bookingId, Map<String, dynamic> returnData, {String? idempotencyKey}) async {
     processReturnCalls++;
     lastProcessedBookingId = bookingId;
     lastProcessedPayload = returnData;

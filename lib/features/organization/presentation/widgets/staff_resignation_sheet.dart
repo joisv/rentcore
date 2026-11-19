@@ -53,7 +53,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 22),
@@ -98,7 +98,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.danger,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               elevation: 0,
             ),
             child: const Text('Ya, Ajukan Resign', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -112,7 +112,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text('Batalkan Pengajuan', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
         content: const Text(
           'Apakah Anda yakin ingin membatalkan permohonan pengunduran diri? Anda akan tetap bertugas sebagai staf aktif.',
@@ -146,7 +146,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.obsidian,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               elevation: 0,
             ),
             child: const Text('Batalkan Pengajuan', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -172,7 +172,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: EdgeInsets.only(
         top: 20,
@@ -247,7 +247,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
               child: Column(
@@ -315,7 +315,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFEF3C7),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFF59E0B)),
                 ),
                 child: Column(
@@ -358,7 +358,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF92400E),
                         side: const BorderSide(color: Color(0xFFD97706)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                   ],
@@ -369,7 +369,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFEE2E2),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFEF4444)),
                 ),
                 child: Column(
@@ -401,7 +401,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.obsidian,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         elevation: 0,
                       ),
                       child: const Text('Ajukan Permohonan Baru', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
@@ -415,7 +415,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFBFDBFE)),
                 ),
                 child: const Row(
@@ -447,7 +447,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
                   labelText: 'Alasan Pengunduran Diri (Opsional)',
                   hintText: 'Contoh: Pindah domisili, fokus wirausaha, atau alasan pribadi lainnya...',
                   hintStyle: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   filled: true,
                   fillColor: Colors.white,
                 ),
@@ -471,7 +471,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
                   backgroundColor: AppColors.danger,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
               ),

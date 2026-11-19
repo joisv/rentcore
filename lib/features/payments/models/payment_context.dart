@@ -56,6 +56,7 @@ class PaymentContext {
   final bool isDownPayment;
   final double? contractTotalAmount;
   final bool isHandoverSettlement;
+  final String? idempotencyKey;
 
   double get effectiveContractTotal => contractTotalAmount ?? totalAmountDue;
   double get remainingAfterCurrentPayment => isDownPayment
@@ -88,6 +89,7 @@ class PaymentContext {
     this.isDownPayment = false,
     this.contractTotalAmount,
     this.isHandoverSettlement = false,
+    this.idempotencyKey,
   });
 
   String get transactionTypeTitle {
@@ -116,11 +118,16 @@ class PaymentContext {
   }
 
   String get tagihanLabel {
+    if (isDownPayment) return 'Nominal DP';
+    if (isHandoverSettlement ||
+        transactionType == PaymentTransactionType.settlement) {
+      return 'Sisa Tagihan';
+    }
     switch (transactionType) {
       case PaymentTransactionType.penalty:
         return 'Tagihan Denda';
       default:
-        return 'Tagihan Sewa';
+        return 'Total Tagihan';
     }
   }
 
@@ -167,6 +174,7 @@ class PaymentContext {
     double? depositFee,
     bool isDownPayment = false,
     double? contractTotalAmount,
+    String? idempotencyKey,
   }) {
     return PaymentContext(
       transactionType: PaymentTransactionType.booking,
@@ -191,6 +199,7 @@ class PaymentContext {
       depositFee: depositFee,
       isDownPayment: isDownPayment,
       contractTotalAmount: contractTotalAmount,
+      idempotencyKey: idempotencyKey,
     );
   }
 
@@ -204,6 +213,7 @@ class PaymentContext {
     bool startNow = false,
     bool keepOriginalEndAt = false,
     double? contractTotalOverride,
+    String? idempotencyKey,
   }) {
     final customer = booking['customer'] as Map? ?? {};
     final rawItems = (booking['items'] as List?) ?? [];
@@ -309,6 +319,7 @@ class PaymentContext {
       voucherCode: voucherCode,
       depositFee: depositFee,
       isHandoverSettlement: isHandoverSettlement,
+      idempotencyKey: idempotencyKey,
     );
   }
 
@@ -323,6 +334,7 @@ class PaymentContext {
     String? branchName,
     bool isCentral = false,
     Map<String, dynamic>? extraPayload,
+    String? idempotencyKey,
   }) {
     final b = booking ?? {};
     final bId = bookingId ?? b['id'] as int?;
@@ -424,6 +436,7 @@ class PaymentContext {
       isCentral: isCentral || affiliate['is_central'] == true,
       extraPayload: extraPayload != null ? {...b, ...extraPayload} : b,
       items: penaltyItems,
+      idempotencyKey: idempotencyKey,
     );
   }
 
@@ -439,6 +452,7 @@ class PaymentContext {
     String? branchName,
     bool isCentral = false,
     Map<String, dynamic>? extraPayload,
+    String? idempotencyKey,
   }) {
     final b = booking ?? {};
     final bId = bookingId ?? b['id'] as int?;
@@ -487,6 +501,7 @@ class PaymentContext {
       isCentral: isCentral || affiliate['is_central'] == true,
       extraPayload: extraPayload ?? b,
       items: extensionItems,
+      idempotencyKey: idempotencyKey,
     );
   }
 
@@ -512,6 +527,7 @@ class PaymentContext {
     double? discountAmount,
     String? voucherCode,
     double? depositFee,
+    String? idempotencyKey,
   }) {
     final effectiveBookingId = bookingId ?? referenceId;
     PaymentTransactionType type;
@@ -578,6 +594,7 @@ class PaymentContext {
       discountAmount: discountAmount,
       voucherCode: voucherCode,
       depositFee: depositFee,
+      idempotencyKey: idempotencyKey,
     );
   }
 }

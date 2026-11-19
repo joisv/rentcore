@@ -5,8 +5,8 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
-import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/unit_thumbnail.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/data/customer_repository.dart';
@@ -117,6 +117,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   final TextEditingController _dpAmountController = TextEditingController();
   bool _isSubmittingScheduled = false;
   int? _pendingScheduledModelId;
+  int? _manualBranchOverrideId;
 
   bool get _payLaterScheduled =>
       _scheduledPaymentOption == _ScheduledPaymentOption.payLater;
@@ -205,7 +206,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           backgroundColor: AppColors.surface,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: AppColors.border),
           ),
           title: const Text(
@@ -375,7 +376,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     super.dispose();
   }
 
-  String _formatReturnDeadline() {
+  String _formatReturnTimeLabel({bool includeWib = true}) {
     final hours = _selectedDuration ?? 24;
     final baseStart = (_isScheduledBooking && _scheduledStartAt != null)
         ? _scheduledStartAt!
@@ -403,7 +404,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       dayPrefix = '$dayName, ${returnTime.day} $monthName';
     }
 
-    return 'Kembali: $dayPrefix, $hh:$mm WIB';
+    return '$dayPrefix, $hh:$mm${includeWib ? ' WIB' : ''}';
+  }
+
+  String _formatReturnDeadline() {
+    return 'Kembali: ${_formatReturnTimeLabel()}';
   }
 
   String _formatLast4Sn(String? sn) {
@@ -411,20 +416,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final trimmed = sn.trim();
     if (trimmed.length <= 4) return trimmed;
     return '...${trimmed.substring(trimmed.length - 4)}';
-  }
-
-  Color _getGradeBgColor(dynamic grade) {
-    final g = grade?.toString().toUpperCase() ?? '';
-    if (g.contains('A')) return AppColors.successLight;
-    if (g.contains('B')) return AppColors.infoLight;
-    return AppColors.warningLight;
-  }
-
-  Color _getGradeTextColor(dynamic grade) {
-    final g = grade?.toString().toUpperCase() ?? '';
-    if (g.contains('A')) return AppColors.success;
-    if (g.contains('B')) return AppColors.info;
-    return AppColors.warning;
   }
 
   IconData _getCategoryIcon(String? categoryName) {
@@ -477,14 +468,32 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return list;
   }
 
-  bool _isFloatingAllowedForActiveBranch(BusinessState bizState) {
-    final branch = bizState.currentBranch;
+  Map<String, dynamic>? _findResolvedBranchMap(BusinessState bizState, {int? resolvedBranchId}) {
+    if (bizState.currentBranch != null && (resolvedBranchId == null || resolvedBranchId == bizState.activeBranchId)) {
+      return bizState.currentBranch;
+    }
+    final targetId = resolvedBranchId ??
+        _resolveTargetBranch(bizState, ref.read(authProvider)).branchId;
+    if (targetId == null) return null;
+    final branches = bizState.currentBusiness?['branches'] as List<dynamic>?;
+    if (branches != null) {
+      for (final b in branches.whereType<Map>()) {
+        if (_parseId(b['id']) == targetId) {
+          return Map<String, dynamic>.from(b);
+        }
+      }
+    }
+    return null;
+  }
+
+  bool _isFloatingAllowedForActiveBranch(BusinessState bizState, {int? resolvedBranchId}) {
+    final branch = _findResolvedBranchMap(bizState, resolvedBranchId: resolvedBranchId);
     if (branch == null) return true;
     return branch['allow_floating_unit_booking'] != false;
   }
 
-  int _graceMinutesForActiveBranch(BusinessState bizState) {
-    final branch = bizState.currentBranch;
+  int _graceMinutesForActiveBranch(BusinessState bizState, {int? resolvedBranchId}) {
+    final branch = _findResolvedBranchMap(bizState, resolvedBranchId: resolvedBranchId);
     return (branch?['booking_grace_period_minutes'] as num?)?.toInt() ?? 60;
   }
 
@@ -517,7 +526,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         break;
       }
     }
-    if (matchedModel == null) return true;
+    if (matchedModel == null) return false;
     final availableSlots = (_parseId(matchedModel['available_slots']) ?? 0);
     if (availableSlots <= 0) return false;
     final rawIds = matchedModel['available_asset_ids'];
@@ -548,11 +557,177 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return false;
   }
 
-  bool _isPrimarySelectionReady(BusinessState bizState) {
+  ({
+    int? branchId,
+    String? branchName,
+    bool isConsolidatedFallback,
+    List<Map<String, dynamic>> availableBranches,
+  }) _resolveTargetBranch(BusinessState bizState, AuthState authState) {
+    final rawBranches = bizState.currentBusiness?['branches'] as List<dynamic>?;
+    final availableBranches = rawBranches
+            ?.whereType<Map>()
+            .map((b) => Map<String, dynamic>.from(b))
+            .where((b) => b['is_active'] != false)
+            .toList() ??
+        const <Map<String, dynamic>>[];
+
+    Map<String, dynamic>? findBranchById(int? id) {
+      if (id == null) return null;
+      for (final b in availableBranches) {
+        if (_parseId(b['id']) == id) return b;
+      }
+      return null;
+    }
+
+    if (bizState.activeBranchId != null) {
+      final activeId = bizState.activeBranchId;
+      final matched = findBranchById(activeId);
+      final name = (bizState.activeBranchName != null && bizState.activeBranchName!.trim().isNotEmpty)
+          ? bizState.activeBranchName!.trim()
+          : matched?['name']?.toString();
+      return (
+        branchId: activeId,
+        branchName: name,
+        isConsolidatedFallback: false,
+        availableBranches: availableBranches,
+      );
+    }
+
+    // Consolidated ("Semua Cabang") mode: resolve a concrete branch fallback
+    final overrideBranch = findBranchById(_manualBranchOverrideId);
+    if (overrideBranch != null) {
+      return (
+        branchId: _parseId(overrideBranch['id']),
+        branchName: overrideBranch['name']?.toString(),
+        isConsolidatedFallback: true,
+        availableBranches: availableBranches,
+      );
+    }
+
+    final userAffiliateId = _parseId(authState.user?['affiliate_id']);
+    final userAssignedBranch = findBranchById(userAffiliateId);
+    if (userAssignedBranch != null) {
+      return (
+        branchId: _parseId(userAssignedBranch['id']),
+        branchName: userAssignedBranch['name']?.toString(),
+        isConsolidatedFallback: true,
+        availableBranches: availableBranches,
+      );
+    }
+
+    final firstBranch = availableBranches.isNotEmpty ? availableBranches.first : null;
+    return (
+      branchId: _parseId(firstBranch?['id']),
+      branchName: firstBranch?['name']?.toString(),
+      isConsolidatedFallback: true,
+      availableBranches: availableBranches,
+    );
+  }
+
+  void _resetBranchScopedSelections() {
+    _selectedModel = null;
+    _selectedModelId = null;
+    _pendingScheduledModelId = null;
+    _selectedAsset = null;
+    _selectedAssetId = null;
+    _lastImmediateAssetId = null;
+    _selectedAddons.clear();
+    _addonSubtotal = 0.0;
+    _selectedTierId = null;
+    _selectedRateHours = null;
+    _selectedRatePrice = 0.0;
+    _durationMultiplier = 1;
+    _selectedSafeSlot = 'Brankas A, Slot 05';
+    _slotController.text = _selectedSafeSlot;
+    _modelAvailabilityList = [];
+    _modelAvailabilityError = null;
+    _assetValidationError = null;
+    _durationValidationError = null;
+    if (_currentStep > 0) {
+      _currentStep = 0;
+    }
+  }
+
+  void _refreshBranchProviders(int? branchId) {
+    ref.invalidate(readyAssetsProvider);
+    ref.invalidate(readyAssetsByBranchProvider(branchId));
+    ref.invalidate(categoriesProvider);
+    ref.invalidate(currentShiftByBranchProvider(branchId));
+    ref.invalidate(currentShiftProvider);
+  }
+
+  Future<void> _showTargetBranchPickerSheet(
+    List<Map<String, dynamic>> branches,
+    int? currentBranchId,
+  ) async {
+    if (branches.isEmpty) return;
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Pilih Cabang Transaksi Booking',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111111)),
+              ),
+              const SizedBox(height: 10),
+              for (final b in branches)
+                ListTile(
+                  key: Key('booking_branch_option_${b['id']}'),
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  leading: Icon(
+                    Icons.storefront_rounded,
+                    size: 20,
+                    color: _parseId(b['id']) == currentBranchId ? const Color(0xFF111111) : const Color(0xFF6B7280),
+                  ),
+                  title: Text(
+                    b['name']?.toString() ?? 'Cabang',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: _parseId(b['id']) == currentBranchId ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                  trailing: _parseId(b['id']) == currentBranchId
+                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF111111), size: 18)
+                      : null,
+                  onTap: () => Navigator.pop(sheetCtx, _parseId(b['id'])),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null || picked == currentBranchId || !mounted) return;
+    setState(() {
+      _manualBranchOverrideId = picked;
+      _resetBranchScopedSelections();
+    });
+    _refreshBranchProviders(picked);
+    if (_isScheduledBooking && _scheduledStartAt != null) {
+      _loadModelAvailability(branchIdOverride: picked);
+    }
+    _syncUnsavedInputState();
+  }
+
+  bool _isPrimarySelectionReady(BusinessState bizState, {int? resolvedBranchId}) {
+    final effectiveBranchId = resolvedBranchId ??
+        _resolveTargetBranch(bizState, ref.read(authProvider)).branchId;
+    if (bizState.activeBusinessId != null && effectiveBranchId == null) {
+      return false;
+    }
     if (!_isScheduledBooking) {
       return _selectedAssetId != null;
     }
-    final floatingAllowed = _isFloatingAllowedForActiveBranch(bizState);
+    final floatingAllowed = _isFloatingAllowedForActiveBranch(bizState, resolvedBranchId: effectiveBranchId);
     if (!floatingAllowed || _pinSpecificUnit) {
       return _selectedAssetId != null;
     }
@@ -570,11 +745,26 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return start.add(Duration(hours: hours));
   }
 
-  Future<void> _loadModelAvailability() async {
+  Future<void> _loadModelAvailability({int? branchIdOverride}) async {
     final startAt = _scheduledStartAt;
     if (!_isScheduledBooking || startAt == null) return;
     final bizState = ref.read(businessProvider);
     if (bizState.activeBusinessId == null) return;
+    final activeBranchId = branchIdOverride ??
+        _resolveTargetBranch(bizState, ref.read(authProvider)).branchId;
+    if (activeBranchId == null) {
+      setState(() {
+        _modelAvailabilityList = [];
+        _isLoadingModelAvailability = false;
+        _modelAvailabilityError =
+            'Mode Semua Cabang aktif. Pilih cabang spesifik terlebih dahulu untuk mengecek ketersediaan booking.';
+        _selectedModel = null;
+        _selectedModelId = null;
+        _pendingScheduledModelId = null;
+      });
+      _syncUnsavedInputState();
+      return;
+    }
 
     setState(() {
       _isLoadingModelAvailability = true;
@@ -585,9 +775,17 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       final list = await ref.read(bookingRepositoryProvider).fetchModelAvailability(
             startAt: startAt,
             endAt: _effectiveScheduledEndAt,
-            branchId: bizState.activeBranchId,
+            branchId: activeBranchId,
           );
       if (!mounted) return;
+      // Ignore stale responses if the user switched branch mid-flight.
+      final currentResolvedBranchId = _resolveTargetBranch(
+        ref.read(businessProvider),
+        ref.read(authProvider),
+      ).branchId;
+      if (currentResolvedBranchId != activeBranchId) {
+        return;
+      }
       setState(() {
         _modelAvailabilityList = list;
         _isLoadingModelAvailability = false;
@@ -635,8 +833,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               }
             }
           } else {
-            // Preserve ID-based selection even if filtered/not returned
-            _selectedModelId = targetModelId;
+            // Model has 0 units / does not belong to this branch; clear stale cross-branch selection.
+            _selectedModel = null;
+            _selectedModelId = null;
           }
         }
       });
@@ -1159,14 +1358,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
   Map<String, dynamic> _buildBookingPayload() {
     final bizState = ref.read(businessProvider);
-    final activeBranchId = bizState.activeBranchId;
+    final authState = ref.read(authProvider);
+    final activeBranchId = _resolveTargetBranch(bizState, authState).branchId;
     final address = _addressController.text.trim();
     final customerId = _selectedCustomerId ?? _foundCustomer?['id'];
     final totalHours = _selectedDuration;
     final totalDurationValue = _totalDurationValue;
     final totalPayable =
         (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
-    final floatingAllowed = _isFloatingAllowedForActiveBranch(bizState);
+    final floatingAllowed = _isFloatingAllowedForActiveBranch(bizState, resolvedBranchId: activeBranchId);
     final isFloating =
         _isScheduledBooking && floatingAllowed && !_pinSpecificUnit;
 
@@ -1224,6 +1424,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       },
     };
     if (activeBranchId != null) {
+      payload['branch_id'] = activeBranchId;
       payload['affiliate_id'] = activeBranchId;
     }
     return payload;
@@ -1231,8 +1432,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
   PaymentContext _buildBookingPaymentContext() {
     final bizState = ref.read(businessProvider);
-    final activeBranchId = bizState.activeBranchId;
-    final activeBranchName = bizState.activeBranchName;
+    final authState = ref.read(authProvider);
+    final target = _resolveTargetBranch(bizState, authState);
+    final activeBranchId = target.branchId;
+    final activeBranchName = target.branchName;
     final address = _addressController.text.trim();
     final model = (_selectedAsset?['model'] as Map?) ?? _selectedModel;
     final deviceModelName = model?['name']?.toString() ?? 'Unit Sewa';
@@ -1368,7 +1571,12 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     }
   }
 
-  Widget _buildModalHeader() {
+  Widget _buildModalHeader({
+    String? branchName,
+    bool showSwitchBranch = false,
+    List<Map<String, dynamic>> availableBranches = const [],
+    int? currentBranchId,
+  }) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -1395,7 +1603,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                   ),
                   style: IconButton.styleFrom(
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   icon: const Icon(
@@ -1408,12 +1616,43 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Sewa / Booking Baru',
-                  style: AppTextStyles.pageHeader,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Sewa / Booking Baru',
+                      style: AppTextStyles.pageHeader,
+                    ),
+                    if (branchName != null && branchName.isNotEmpty)
+                      Text(
+                        'Cabang: $branchName',
+                        key: const Key('booking_active_branch_subtitle'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                  ],
                 ),
               ),
+              if (showSwitchBranch && availableBranches.length > 1)
+                TextButton.icon(
+                  key: const Key('booking_switch_branch_button'),
+                  onPressed: () => _showTargetBranchPickerSheet(availableBranches, currentBranchId),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: const Color(0xFF111111),
+                  ),
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                  label: const Text('Ganti', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
             ],
           ),
         ),
@@ -1423,11 +1662,40 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final readyAssetsAsync = ref.watch(readyAssetsProvider);
-    final categoriesAsync = ref.watch(categoriesProvider);
     final bizState = ref.watch(businessProvider);
+    final authState = ref.watch(authProvider);
+    final targetBranch = _resolveTargetBranch(bizState, authState);
+
+    ref.listen<int?>(
+      businessProvider.select((s) => s.activeBranchId),
+      (previous, next) {
+        if (previous == next || !mounted) return;
+        setState(() {
+          _manualBranchOverrideId = null;
+          _resetBranchScopedSelections();
+        });
+        final resolvedNextBranchId = next ??
+            _resolveTargetBranch(ref.read(businessProvider), ref.read(authProvider)).branchId;
+        _refreshBranchProviders(resolvedNextBranchId);
+        if (_isScheduledBooking && _scheduledStartAt != null && resolvedNextBranchId != null) {
+          _loadModelAvailability(branchIdOverride: resolvedNextBranchId);
+        }
+        _syncUnsavedInputState();
+      },
+    );
+
+    final readyAssetsAsync = (bizState.activeBranchId == null && targetBranch.branchId != null)
+        ? ref.watch(readyAssetsByBranchProvider(targetBranch.branchId))
+        : ref.watch(readyAssetsProvider);
+    if (targetBranch.branchId != null) {
+      ref.watch(currentShiftByBranchProvider(targetBranch.branchId));
+    }
+    final categoriesAsync = ref.watch(categoriesProvider);
     final totalPayable = (_basePrice + _addonSubtotal - _discountAmount).clamp(0.0, double.infinity);
-    final isUnitSelected = _isPrimarySelectionReady(bizState);
+    final isUnitSelected = _isPrimarySelectionReady(
+      bizState,
+      resolvedBranchId: targetBranch.branchId,
+    );
 
     return PopScope(
       canPop: !_hasUnsavedInput,
@@ -1436,17 +1704,59 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         _promptDiscardBooking();
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.white,
         appBar: widget.showAppBar
             ? RentCoreAppBar(
-                title: _isScheduledBooking
-                    ? 'Jadwalkan Booking Baru'
-                    : 'Transaksi Sewa Baru di Meja Kasir',
+                titleWidget: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _isScheduledBooking
+                          ? 'Jadwalkan Booking Baru'
+                          : 'Transaksi Sewa Baru di Meja Kasir',
+                      style: AppTextStyles.pageHeader,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (targetBranch.branchName != null && targetBranch.branchName!.isNotEmpty)
+                      Text(
+                        'Cabang: ${targetBranch.branchName}',
+                        key: const Key('booking_active_branch_subtitle'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                  ],
+                ),
+                actions: [
+                  if (targetBranch.isConsolidatedFallback && targetBranch.availableBranches.length > 1)
+                    TextButton.icon(
+                      key: const Key('booking_switch_branch_button'),
+                      onPressed: () => _showTargetBranchPickerSheet(
+                        targetBranch.availableBranches,
+                        targetBranch.branchId,
+                      ),
+                      style: TextButton.styleFrom(foregroundColor: const Color(0xFF111111)),
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                      label: const Text('Ganti', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    ),
+                ],
               )
             : null,
         body: Column(
           children: [
-            if (!widget.showAppBar) _buildModalHeader(),
+            if (!widget.showAppBar)
+              _buildModalHeader(
+                branchName: targetBranch.branchName,
+                showSwitchBranch: targetBranch.isConsolidatedFallback,
+                availableBranches: targetBranch.availableBranches,
+                currentBranchId: targetBranch.branchId,
+              ),
             Expanded(
               child: SingleChildScrollView(
                 controller: widget.scrollController,
@@ -1481,7 +1791,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Row(
@@ -1590,746 +1900,709 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     );
   }
 
+  Widget _buildUnitSelectionRow({
+    Key? key,
+    required bool isSelected,
+    required bool isEnabled,
+    required bool isAvailable,
+    required String? imageUrl,
+    required IconData fallbackIcon,
+    required String title,
+    required String subtitle,
+    Color subtitleColor = const Color(0xFF6B7280),
+    FontWeight subtitleWeight = FontWeight.w400,
+    required String rateLabel,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      key: key,
+      onTap: onTap,
+      child: Opacity(
+        opacity: (isEnabled || isSelected) ? 1.0 : 0.55,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          color: isSelected ? const Color(0xFFF9FAFB) : Colors.white,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                isSelected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
+                size: 18,
+                color: isSelected
+                    ? (isAvailable ? const Color(0xFF111111) : AppColors.danger)
+                    : AppColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              UnitThumbnail(
+                imageUrl: imageUrl,
+                fallbackIcon: fallbackIcon,
+                size: 34,
+                iconSize: 16,
+                borderRadius: 8,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                        fontSize: 13.5,
+                        color: const Color(0xFF111111),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: subtitleWeight,
+                        color: subtitleColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width < 350 ? 84 : 120,
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    rateLabel,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      color: Color(0xFF111111),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStep1UnitAndDuration(
     AsyncValue<List<dynamic>> readyAssetsAsync,
     AsyncValue<List<dynamic>> categoriesAsync,
     bool isUnitSelected,
   ) {
     final bizState = ref.watch(businessProvider);
-    final floatingAllowed = _isFloatingAllowedForActiveBranch(bizState);
+    final authState = ref.watch(authProvider);
+    final targetBranch = _resolveTargetBranch(bizState, authState);
+    final floatingAllowed = _isFloatingAllowedForActiveBranch(
+      bizState,
+      resolvedBranchId: targetBranch.branchId,
+    );
     final showFloatingModels = _isScheduledBooking && floatingAllowed && !_pinSpecificUnit;
-    final graceMinutes = _graceMinutesForActiveBranch(bizState);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isUnitSelected ? AppColors.obsidian : Colors.grey.shade300,
-              width: isUnitSelected ? 1.5 : 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (targetBranch.branchId == null) ...[
+            Container(
+              key: const Key('consolidated_branch_booking_warning'),
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.dangerLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
                 children: [
-                  Flexible(
+                  Icon(Icons.store_mall_directory_outlined, size: 18, color: AppColors.danger),
+                  SizedBox(width: 8),
+                  Expanded(
                     child: Text(
-                      showFloatingModels
-                          ? 'PILIH MODEL PERANGKAT'
-                          : 'PILIH UNIT RENTAL TERSEDIA',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        color: AppColors.textPrimary,
-                      ),
+                      'Tidak ada cabang aktif yang tersedia untuk transaksi booking.',
+                      style: TextStyle(fontSize: 12, color: AppColors.danger, fontWeight: FontWeight.w600),
                     ),
                   ),
-                  const Spacer(),
+                ],
+              ),
+            ),
+          ] else if (targetBranch.isConsolidatedFallback) ...[
+            Container(
+              key: const Key('consolidated_branch_fallback_banner'),
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.storefront_rounded, size: 16, color: Color(0xFF374151)),
                   const SizedBox(width: 8),
-                  if (isUnitSelected)
-                    StatusBadge(
-                      label: showFloatingModels ? 'Model Dipilih' : 'Unit Dipilih',
-                      textColor: AppColors.success,
-                      backgroundColor: AppColors.successLight,
-                      icon: Icons.check_circle_rounded,
-                    )
-                  else
-                    const Text(
-                      '*Wajib Dipilih',
-                      style: TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      'Mode Semua Cabang aktif. Booking diarahkan ke ${targetBranch.branchName ?? 'cabang terpilih'}.',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF374151), fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  if (targetBranch.availableBranches.length > 1)
+                    InkWell(
+                      onTap: () => _showTargetBranchPickerSheet(
+                        targetBranch.availableBranches,
+                        targetBranch.branchId,
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Text(
+                          'Ubah',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF111111)),
+                        ),
+                      ),
                     ),
                 ],
               ),
-              const SizedBox(height: 10),
+            ),
+          ],
 
-              // Real-Time Unit Search Field
-              TextField(
-                key: const Key('booking_unit_search_field'),
-                controller: _unitSearchController,
-                onChanged: (value) {
-                  setState(() {
-                    _unitSearchQuery = value.trim();
-                    _showAllUnits = false;
-                  });
-                  if (showFloatingModels) {
-                    _loadModelAvailability();
-                  }
-                },
-                decoration: InputDecoration(
-                  hintText: showFloatingModels
-                      ? 'Cari nama model atau merek...'
-                      : 'Cari nama unit, merek, atau kode...',
-                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textSecondary),
-                  suffixIcon: _unitSearchQuery.isNotEmpty
-                      ? IconButton(
-                          key: const Key('booking_unit_search_clear'),
-                          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
-                          onPressed: () {
-                            _unitSearchController.clear();
+          const Text(
+            'MODEL PERANGKAT',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Real-Time Unit Search Field
+          TextField(
+            key: const Key('booking_unit_search_field'),
+            controller: _unitSearchController,
+            onChanged: (value) {
+              setState(() {
+                _unitSearchQuery = value.trim();
+                _showAllUnits = false;
+              });
+              if (showFloatingModels) {
+                _loadModelAvailability();
+              }
+            },
+            decoration: InputDecoration(
+              hintText: showFloatingModels
+                  ? 'Cari nama model atau merek...'
+                  : 'Cari nama unit, merek, atau kode...',
+              hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+              prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textSecondary),
+              suffixIcon: _unitSearchQuery.isNotEmpty
+                  ? IconButton(
+                      key: const Key('booking_unit_search_clear'),
+                      icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                      onPressed: () {
+                        _unitSearchController.clear();
+                        setState(() {
+                          _unitSearchQuery = '';
+                          _showAllUnits = false;
+                        });
+                        if (showFloatingModels) {
+                          _loadModelAvailability();
+                        }
+                      },
+                    )
+                  : null,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              filled: true,
+              fillColor: const Color(0xFFF9FAFB),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF111111), width: 1.2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Category Filter Chips (Horizontally Scrollable)
+          categoriesAsync.when(
+            loading: () => const SizedBox.shrink(),
+            error: (e, s) => const SizedBox.shrink(),
+            data: (categories) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(
+                  height: 34,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: categories.length + 1,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        final isSelected = _selectedAssetCategoryId == null;
+                        return ChoiceChip(
+                          label: const Text('Semua'),
+                          selected: isSelected,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          visualDensity: VisualDensity.compact,
+                          onSelected: (_) {
                             setState(() {
-                              _unitSearchQuery = '';
+                              _selectedAssetCategoryId = null;
                               _showAllUnits = false;
                             });
                             if (showFloatingModels) {
                               _loadModelAvailability();
                             }
                           },
-                        )
-                      : null,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.borderSubtle),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.borderSubtle),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-
-              // Category Filter Chips (Horizontally Scrollable)
-              categoriesAsync.when(
-                loading: () => const SizedBox.shrink(),
-                error: (e, s) => const SizedBox.shrink(),
-                data: (categories) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: SizedBox(
-                      height: 34,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: categories.length + 1,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            final isSelected = _selectedAssetCategoryId == null;
-                            return ChoiceChip(
-                              label: const Text('Semua'),
-                              selected: isSelected,
-                              shape: const StadiumBorder(),
-                              visualDensity: VisualDensity.compact,
-                              onSelected: (_) {
-                                setState(() {
-                                  _selectedAssetCategoryId = null;
-                                  _showAllUnits = false;
-                                });
-                                if (showFloatingModels) {
-                                  _loadModelAvailability();
-                                }
-                              },
-                              selectedColor: AppColors.obsidian,
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.white : AppColors.textPrimary,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            );
-                          }
-                          final cat = categories[index - 1];
-                          final isSelected = _selectedAssetCategoryId == cat['id'];
-                          return ChoiceChip(
-                            label: Text(cat['name'] ?? ''),
-                            selected: isSelected,
-                            shape: const StadiumBorder(),
-                            visualDensity: VisualDensity.compact,
-                            onSelected: (_) {
-                              setState(() {
-                                _selectedAssetCategoryId = cat['id'];
-                                _showAllUnits = false;
-                              });
-                              if (showFloatingModels) {
-                                _loadModelAvailability();
-                              }
-                            },
-                            selectedColor: AppColors.obsidian,
-                            labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.textPrimary,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              if (_isScheduledBooking && floatingAllowed) ...[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8F9FA),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Kunci unit fisik tertentu (Serial/IMEI)',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              'Batas ambil (Grace): $graceMinutes menit',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch.adaptive(
-                        key: const Key('toggle_pin_specific_unit'),
-                        value: _pinSpecificUnit,
-                        activeThumbColor: AppColors.obsidian,
-                        onChanged: (v) {
-                          setState(() {
-                            _pinSpecificUnit = v;
-                            _selectedAsset = null;
-                            _selectedAssetId = null;
-                            if (!v) {
-                              _loadModelAvailability();
-                            }
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              if (_assetValidationError != null) ...[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.dangerLight,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _assetValidationError!,
-                          style: const TextStyle(fontSize: 12, color: AppColors.danger, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              if (showFloatingModels)
-                _buildFloatingModelList()
-              else
-                readyAssetsAsync.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (e, _) => Text('Gagal memuat unit: $e'),
-                  data: (assets) {
-                    final filteredAssets = assets
-                        .where((a) {
-                          final aId = _parseId(a['id']);
-                          final isCurrentlySelected = _selectedAssetId != null && aId == _selectedAssetId;
-                          if (isCurrentlySelected) return true;
-                          final aModelId = _parseId(a['model_id']) ?? _parseId(a['model']?['id']);
-                          final aCatId = _parseId(a['model']?['category_id']);
-                          final matchesCategory = _selectedAssetCategoryId == null ||
-                              aCatId == _selectedAssetCategoryId;
-                          if (!matchesCategory) return false;
-                          if (_isScheduledBooking &&
-                              _pinSpecificUnit &&
-                              _selectedModelId != null &&
-                              aModelId != _selectedModelId) {
-                            return false;
-                          }
-                          return a is Map<String, dynamic> && _matchesUnitSearch(a, _unitSearchQuery);
-                        })
-                        .toList();
-
-                  if (filteredAssets.isEmpty) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8F9FA),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.warning),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _unitSearchQuery.isNotEmpty
-                                  ? 'Tidak ada unit yang cocok dengan pencarian "$_unitSearchQuery".'
-                                  : 'Tidak ada unit rental ready sewa saat ini di kategori ini.',
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                            ),
+                          selectedColor: const Color(0xFF111111),
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : const Color(0xFF111111),
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontSize: 12,
                           ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final displayedAssets = _showAllUnits
-                      ? filteredAssets
-                      : filteredAssets.take(_initialUnitCap).toList();
-                  if (!_showAllUnits && _selectedAssetId != null) {
-                    final selectedInDisplayed = displayedAssets.any(
-                      (a) => _parseId(a['id']) == _selectedAssetId,
-                    );
-                    if (!selectedInDisplayed) {
-                      for (final a in filteredAssets) {
-                        if (_parseId(a['id']) == _selectedAssetId) {
-                          displayedAssets.insert(0, a);
-                          break;
-                        }
-                      }
-                    }
-                  }
-                  final hasMoreUnits = filteredAssets.length > _initialUnitCap && !_showAllUnits;
-
-                  return Column(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Column(
-                          children: [
-                            for (int i = 0; i < displayedAssets.length; i++) ...[
-                              if (i > 0)
-                                const Divider(height: 1, color: AppColors.borderSubtle),
-                              Builder(
-                                builder: (context) {
-                                  final asset = displayedAssets[i];
-                                  final assetId = _parseId(asset['id']);
-                                  final modelId = _parseId(asset['model_id']) ?? _parseId(asset['model']?['id']);
-                                  final isSelected = _selectedAssetId != null && assetId == _selectedAssetId;
-                                  final isAvailableOnSchedule = _isAssetAvailableForSchedule(assetId, modelId);
-                                  final model = asset['model'] ?? {};
-                                  final category = model['category'] ?? {};
-                                  final tiers = _getAvailableTiers(asset);
-                                  final primaryRateLabel = _formatPrimaryUnitRateLabel(tiers);
-                                  final snFormatted = _formatLast4Sn(asset['serial_number']?.toString());
-
-                                  return InkWell(
-                                    onTap: () => _onAssetSelected(asset),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                      color: isSelected ? const Color(0xFFF8F9FA) : Colors.transparent,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            crossAxisAlignment: CrossAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                                size: 18,
-                                                color: isSelected
-                                                    ? (isAvailableOnSchedule ? AppColors.obsidian : AppColors.danger)
-                                                    : AppColors.textMuted,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              UnitThumbnail(
-                                                imageUrl: extractUnitImageUrl(
-                                                  model: model is Map ? model : null,
-                                                  asset: asset is Map ? asset : null,
-                                                ),
-                                                fallbackIcon: _getCategoryIcon(category['name']),
-                                                size: 32,
-                                                iconSize: 16,
-                                                borderRadius: 10,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  model['name'] ?? '',
-                                                  style: TextStyle(
-                                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                                    fontSize: 12.5,
-                                                    color: AppColors.textPrimary,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              ConstrainedBox(
-                                                constraints: BoxConstraints(
-                                                  maxWidth: MediaQuery.sizeOf(context).width < 350 ? 78 : 116,
-                                                ),
-                                                child: FittedBox(
-                                                  fit: BoxFit.scaleDown,
-                                                  alignment: Alignment.centerRight,
-                                                  child: Text(
-                                                    primaryRateLabel,
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.w700,
-                                                      fontSize: 11.5,
-                                                      color: AppColors.obsidian,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Padding(
-                                            padding: const EdgeInsets.only(left: 26),
-                                            child: Wrap(
-                                              spacing: 6,
-                                              runSpacing: 4,
-                                              children: [
-                                                if (!isAvailableOnSchedule)
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.dangerLight,
-                                                      borderRadius: BorderRadius.circular(6),
-                                                    ),
-                                                    child: const Text(
-                                                      'Tidak tersedia pada jadwal ini',
-                                                      style: TextStyle(
-                                                        fontSize: 10.5,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: AppColors.danger,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.surfaceMuted,
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    asset['asset_code']?.toString() ?? '',
-                                                    style: const TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: AppColors.textSecondary,
-                                                    ),
-                                                  ),
-                                                ),
-                                                if (asset['condition_grade'] != null)
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: _getGradeBgColor(asset['condition_grade']),
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      'Grade ${asset['condition_grade']}',
-                                                      style: TextStyle(
-                                                        fontSize: 10,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: _getGradeTextColor(asset['condition_grade']),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (asset['battery_health'] != null)
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.successLight,
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      'BH ${asset['battery_health']}%',
-                                                      style: const TextStyle(
-                                                        fontSize: 10,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: AppColors.success,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (snFormatted.isNotEmpty)
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.surfaceMuted,
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      'SN: $snFormatted',
-                                                      style: const TextStyle(
-                                                        fontSize: 10,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: AppColors.textMuted,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      if (hasMoreUnits)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: InkWell(
-                            key: const Key('booking_show_all_units'),
-                            borderRadius: BorderRadius.circular(8),
-                            onTap: () => setState(() => _showAllUnits = true),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              child: Text(
-                                'Lihat semua (${filteredAssets.length} unit)',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-
-        // DURATION & VOUCHER SECTION
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'DURASI SEWA & VOUCHER PROMO',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _buildCompactScheduleAndReturnBlock(isUnitSelected),
-              const SizedBox(height: 10),
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 200),
-                opacity: isUnitSelected ? 1.0 : 0.6,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!isUnitSelected)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        margin: const EdgeInsets.only(bottom: 10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8F9FA),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.touch_app_outlined, size: 17, color: AppColors.textSecondary),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Pilih salah satu unit di atas untuk mengaktifkan pilihan durasi dan voucher.',
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    if (_durationValidationError != null) ...[
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.dangerLight,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _durationValidationError!,
-                                style: const TextStyle(fontSize: 12, color: AppColors.danger, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    readyAssetsAsync.when(
-                      loading: () => const SizedBox.shrink(),
-                      error: (e, s) => const SizedBox.shrink(),
-                      data: (assets) {
-                        Map<String, dynamic>? selectedAsset;
-                        for (final a in assets) {
-                          if (_parseId(a['id']) == _selectedAssetId) {
-                            selectedAsset = a;
-                            break;
-                          }
-                        }
-                        selectedAsset ??= _selectedAsset;
-                        final activeModel = _findSelectedModelInAvailability();
-                        final availableTiers = (showFloatingModels && activeModel != null)
-                            ? _getAvailableTiersForModel(activeModel)
-                            : (selectedAsset != null
-                                ? _getAvailableTiers(selectedAsset)
-                                : _getAvailableTiersForModel(activeModel));
-
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: availableTiers.map((tier) {
-                                  final isSelected = _selectedRateHours == tier.hours &&
-                                      _selectedDurationUnit == tier.unit &&
-                                      _selectedDurationValue == tier.value;
-                                  return ChoiceChip(
-                                    label: Text(tier.label),
-                                    selected: isSelected,
-                                    shape: const StadiumBorder(),
-                                    visualDensity: VisualDensity.compact,
-                                    onSelected: isUnitSelected ? (_) => _onTierSelected(tier) : null,
-                                    selectedColor: AppColors.obsidian,
-                                    labelStyle: TextStyle(
-                                      fontSize: 12,
-                                      color: isSelected ? Colors.white : AppColors.textPrimary,
-                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                            if (isUnitSelected && _selectedDuration != null) ...[
-                              const SizedBox(width: 8),
-                              _buildDurationMultiplierRow(
-                                totalHours: _selectedDuration!,
-                                canDecrement: _durationMultiplier > 1,
-                                canIncrement: _durationMultiplier < _maxDurationMultiplier,
-                              ),
-                            ],
-                          ],
                         );
-                      },
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // Voucher Input Field
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 42,
-                            child: TextField(
-                              controller: _voucherController,
-                              enabled: isUnitSelected,
-                              textCapitalization: TextCapitalization.characters,
-                              style: const TextStyle(fontSize: 13),
-                              decoration: InputDecoration(
-                                hintText: 'Kode voucher...',
-                                hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                                prefixIcon: const Icon(Icons.confirmation_number_outlined, size: 18),
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                filled: true,
-                                fillColor: AppColors.surfaceMuted,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                                ),
-                              ),
-                            ),
-                          ),
+                      }
+                      final cat = categories[index - 1];
+                      final isSelected = _selectedAssetCategoryId == cat['id'];
+                      return ChoiceChip(
+                        label: Text(cat['name'] ?? ''),
+                        selected: isSelected,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        visualDensity: VisualDensity.compact,
+                        onSelected: (_) {
+                          setState(() {
+                            _selectedAssetCategoryId = cat['id'];
+                            _showAllUnits = false;
+                          });
+                          if (showFloatingModels) {
+                            _loadModelAvailability();
+                          }
+                        },
+                        selectedColor: const Color(0xFF111111),
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : const Color(0xFF111111),
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          fontSize: 12,
                         ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+
+          if (_isScheduledBooking && floatingAllowed) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Pilih nomor seri unit tertentu',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF111111),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Switch.adaptive(
+                    key: const Key('toggle_pin_specific_unit'),
+                    value: _pinSpecificUnit,
+                    activeThumbColor: const Color(0xFF111111),
+                    onChanged: (v) {
+                      setState(() {
+                        _pinSpecificUnit = v;
+                        _selectedAsset = null;
+                        _selectedAssetId = null;
+                        if (!v) {
+                          _loadModelAvailability();
+                        }
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          if (_assetValidationError != null) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.dangerLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _assetValidationError!,
+                      style: const TextStyle(fontSize: 12, color: AppColors.danger, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          if (showFloatingModels)
+            _buildFloatingModelList()
+          else
+            readyAssetsAsync.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (e, _) => Text('Gagal memuat unit: $e'),
+              data: (assets) {
+                final filteredAssets = assets
+                    .where((a) {
+                      final aId = _parseId(a['id']);
+                      final isCurrentlySelected = _selectedAssetId != null && aId == _selectedAssetId;
+                      if (isCurrentlySelected) return true;
+                      final aModelId = _parseId(a['model_id']) ?? _parseId(a['model']?['id']);
+                      final aCatId = _parseId(a['model']?['category_id']);
+                      final matchesCategory = _selectedAssetCategoryId == null ||
+                          aCatId == _selectedAssetCategoryId;
+                      if (!matchesCategory) return false;
+                      if (_isScheduledBooking &&
+                          _pinSpecificUnit &&
+                          _selectedModelId != null &&
+                          aModelId != _selectedModelId) {
+                        return false;
+                      }
+                      return a is Map<String, dynamic> && _matchesUnitSearch(a, _unitSearchQuery);
+                    })
+                    .toList();
+
+                if (filteredAssets.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.warning),
                         const SizedBox(width: 8),
-                        SizedBox(
-                          height: 42,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              minimumSize: const Size(84, 42),
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            onPressed: (isUnitSelected && !_isValidatingVoucher) ? _validateVoucher : null,
-                            child: _isValidatingVoucher
-                                ? const SizedBox(
-                                    height: 16,
-                                    width: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                  )
-                                : const Text('Terapkan', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        Expanded(
+                          child: Text(
+                            _unitSearchQuery.isNotEmpty
+                                ? 'Tidak ada unit yang cocok dengan pencarian "$_unitSearchQuery".'
+                                : 'Tidak ada unit rental ready sewa saat ini di kategori ini.',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                           ),
                         ),
                       ],
                     ),
-                    if (_voucherMessage != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _voucherMessage!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _discountAmount > 0 ? AppColors.success : AppColors.danger,
-                        ),
+                  );
+                }
+
+                final displayedAssets = _showAllUnits
+                    ? filteredAssets
+                    : filteredAssets.take(_initialUnitCap).toList();
+                if (!_showAllUnits && _selectedAssetId != null) {
+                  final selectedInDisplayed = displayedAssets.any(
+                    (a) => _parseId(a['id']) == _selectedAssetId,
+                  );
+                  if (!selectedInDisplayed) {
+                    for (final a in filteredAssets) {
+                      if (_parseId(a['id']) == _selectedAssetId) {
+                        displayedAssets.insert(0, a);
+                        break;
+                      }
+                    }
+                  }
+                }
+                final hasMoreUnits = filteredAssets.length > _initialUnitCap && !_showAllUnits;
+
+                return Column(
+                  children: [
+                    for (int i = 0; i < displayedAssets.length; i++) ...[
+                      if (i > 0)
+                        const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+                      Builder(
+                        builder: (context) {
+                          final asset = displayedAssets[i];
+                          final assetId = _parseId(asset['id']);
+                          final modelId = _parseId(asset['model_id']) ?? _parseId(asset['model']?['id']);
+                          final isSelected = _selectedAssetId != null && assetId == _selectedAssetId;
+                          final isAvailableOnSchedule = _isAssetAvailableForSchedule(assetId, modelId);
+                          final model = asset['model'] ?? {};
+                          final category = model['category'] ?? {};
+                          final tiers = _getAvailableTiers(asset);
+                          final primaryRateLabel = _formatPrimaryUnitRateLabel(tiers);
+                          final snFormatted = _formatLast4Sn(asset['serial_number']?.toString());
+                          final grade = asset['condition_grade']?.toString();
+                          final bh = asset['battery_health'];
+                          final code = asset['asset_code']?.toString() ?? '';
+                          final metaText = !isAvailableOnSchedule
+                              ? 'Tidak tersedia pada jadwal ini'
+                              : [
+                                  if (code.isNotEmpty) code,
+                                  if (grade != null && grade.isNotEmpty) 'Grade $grade',
+                                  if (bh != null) 'BH $bh%',
+                                  if (snFormatted.isNotEmpty) 'SN: $snFormatted',
+                                ].join(' • ');
+
+                          return _buildUnitSelectionRow(
+                            isSelected: isSelected,
+                            isEnabled: true,
+                            isAvailable: isAvailableOnSchedule,
+                            imageUrl: extractUnitImageUrl(
+                              model: model is Map ? model : null,
+                              asset: asset is Map ? asset : null,
+                            ),
+                            fallbackIcon: _getCategoryIcon(category['name']),
+                            title: model['name']?.toString() ?? '',
+                            subtitle: metaText,
+                            subtitleColor: isAvailableOnSchedule
+                                ? const Color(0xFF6B7280)
+                                : const Color(0xFFEF4444),
+                            subtitleWeight: isAvailableOnSchedule
+                                ? FontWeight.w400
+                                : FontWeight.w500,
+                            rateLabel: primaryRateLabel,
+                            onTap: () => _onAssetSelected(asset),
+                          );
+                        },
                       ),
                     ],
+                    if (hasMoreUnits)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: InkWell(
+                          key: const Key('booking_show_all_units'),
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => setState(() => _showAllUnits = true),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            child: Text(
+                              'Lihat semua (${filteredAssets.length} unit)',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+          ),
+
+          // DURATION & SCHEDULE SECTION
+          const Text(
+            'DURASI & JADWAL',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildCompactScheduleAndReturnBlock(isUnitSelected),
+          const SizedBox(height: 12),
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: isUnitSelected ? 1.0 : 0.55,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_durationValidationError != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.danger),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _durationValidationError!,
+                            style: const TextStyle(fontSize: 12, color: AppColors.danger, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                readyAssetsAsync.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (e, s) => const SizedBox.shrink(),
+                  data: (assets) {
+                    Map<String, dynamic>? selectedAsset;
+                    for (final a in assets) {
+                      if (_parseId(a['id']) == _selectedAssetId) {
+                        selectedAsset = a;
+                        break;
+                      }
+                    }
+                    selectedAsset ??= _selectedAsset;
+                    final activeModel = _findSelectedModelInAvailability();
+                    final availableTiers = (showFloatingModels && activeModel != null)
+                        ? _getAvailableTiersForModel(activeModel)
+                        : (selectedAsset != null
+                            ? _getAvailableTiers(selectedAsset)
+                            : _getAvailableTiersForModel(activeModel));
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: availableTiers.map((tier) {
+                              final isSelected = _selectedRateHours == tier.hours &&
+                                  _selectedDurationUnit == tier.unit &&
+                                  _selectedDurationValue == tier.value;
+                              return ChoiceChip(
+                                label: Text(tier.label),
+                                selected: isSelected,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                visualDensity: VisualDensity.compact,
+                                onSelected: isUnitSelected ? (_) => _onTierSelected(tier) : null,
+                                selectedColor: const Color(0xFF111111),
+                                labelStyle: TextStyle(
+                                  fontSize: 12,
+                                  color: isSelected ? Colors.white : const Color(0xFF111111),
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        if (isUnitSelected && _selectedDuration != null) ...[
+                          const SizedBox(width: 8),
+                          _buildDurationMultiplierRow(
+                            totalHours: _selectedDuration!,
+                            canDecrement: _durationMultiplier > 1,
+                            canIncrement: _durationMultiplier < _maxDurationMultiplier,
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 10),
+
+                // Voucher Input Field
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 42,
+                        child: TextField(
+                          controller: _voucherController,
+                          enabled: isUnitSelected,
+                          textCapitalization: TextCapitalization.characters,
+                          style: const TextStyle(fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Kode voucher...',
+                            hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                            prefixIcon: const Icon(Icons.confirmation_number_outlined, size: 18),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0xFF111111), width: 1.2),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 42,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF111111),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(84, 42),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: (isUnitSelected && !_isValidatingVoucher) ? _validateVoucher : null,
+                        child: _isValidatingVoucher
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text('Terapkan', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
+                if (_voucherMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _voucherMessage!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _discountAmount > 0 ? AppColors.success : AppColors.danger,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
-        _buildAddonsSelectionSection(readyAssetsAsync, categoriesAsync),
-      ],
+
+          _buildAddonsSelectionSection(readyAssetsAsync, categoriesAsync),
+        ],
+      ),
     );
   }
 
@@ -2346,7 +2619,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.dangerLight,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
@@ -2369,6 +2642,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
     final query = _unitSearchQuery.trim().toLowerCase();
     final filteredModels = _modelAvailabilityList.where((model) {
+      final totalUnits = _parseId(model['total_units']) ?? 0;
+      if (totalUnits <= 0) {
+        return false;
+      }
       final modelId = _parseId(model['id']);
       if (_selectedModelId != null && modelId == _selectedModelId) {
         return true;
@@ -2383,16 +2660,12 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       return name.contains(query) || brand.contains(query);
     }).toList();
 
-    if (filteredModels.isEmpty && _selectedModel != null && _selectedModelId != null) {
-      filteredModels.add(_selectedModel!);
-    }
-
     if (filteredModels.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: const Row(
           children: [
@@ -2409,144 +2682,46 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Column(
-        children: [
-          for (int i = 0; i < filteredModels.length; i++) ...[
-            if (i > 0)
-              const Divider(height: 1, color: AppColors.borderSubtle),
-            Builder(
-              builder: (context) {
-                final model = filteredModels[i];
-                final modelId = _parseId(model['id']);
-                final isSelected = _selectedModelId != null && _selectedModelId == modelId;
-                final availableSlots = _parseId(model['available_slots']) ?? 0;
-                final totalUnits = _parseId(model['total_units']) ?? 0;
-                final isAvailable = availableSlots > 0;
-                final category = model['category'] as Map?;
-                final tiers = _getAvailableTiersForModel(model);
-                final primaryRateLabel = _formatPrimaryUnitRateLabel(tiers);
+    return Column(
+      children: [
+        for (int i = 0; i < filteredModels.length; i++) ...[
+          if (i > 0)
+            const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+          Builder(
+            builder: (context) {
+              final model = filteredModels[i];
+              final modelId = _parseId(model['id']);
+              final isSelected = _selectedModelId != null && _selectedModelId == modelId;
+              final availableSlots = _parseId(model['available_slots']) ?? 0;
+              final totalUnits = _parseId(model['total_units']) ?? 0;
+              final isAvailable = availableSlots > 0;
+              final category = model['category'] as Map?;
+              final tiers = _getAvailableTiersForModel(model);
+              final primaryRateLabel = _formatPrimaryUnitRateLabel(tiers);
+              final subtitle = isAvailable
+                  ? 'Tersedia $availableSlots dari $totalUnits unit'
+                  : (isSelected ? 'Tidak tersedia pada jadwal ini' : 'Penuh');
 
-                return InkWell(
-                  key: Key('floating_model_card_$modelId'),
-                  onTap: isAvailable ? () => _onModelSelected(model) : null,
-                  child: Opacity(
-                    opacity: (isAvailable || isSelected) ? 1.0 : 0.55,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      color: isSelected ? const Color(0xFFF8F9FA) : Colors.transparent,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Icon(
-                                isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                size: 18,
-                                color: isSelected
-                                    ? (isAvailable ? AppColors.obsidian : AppColors.danger)
-                                    : AppColors.textMuted,
-                              ),
-                              const SizedBox(width: 6),
-                              UnitThumbnail(
-                                imageUrl: extractUnitImageUrl(model: model),
-                                fallbackIcon: _getCategoryIcon(category?['name']?.toString()),
-                                size: 32,
-                                iconSize: 16,
-                                borderRadius: 10,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  model['name']?.toString() ?? '',
-                                  style: TextStyle(
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                    fontSize: 12.5,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: MediaQuery.sizeOf(context).width < 350 ? 78 : 116,
-                                ),
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerRight,
-                                  child: Text(
-                                    primaryRateLabel,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 11.5,
-                                      color: AppColors.obsidian,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 26),
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: isAvailable ? AppColors.successLight : AppColors.dangerLight,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        isAvailable
-                                            ? 'Tersedia $availableSlots slot'
-                                            : (isSelected
-                                                ? 'Tidak tersedia pada jadwal ini'
-                                                : 'Penuh (0 slot)'),
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: isAvailable ? AppColors.success : AppColors.danger,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceMuted,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    'Total $totalUnits unit',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+              return _buildUnitSelectionRow(
+                key: Key('floating_model_card_$modelId'),
+                isSelected: isSelected,
+                isEnabled: isAvailable,
+                isAvailable: isAvailable,
+                imageUrl: extractUnitImageUrl(model: model),
+                fallbackIcon: _getCategoryIcon(category?['name']?.toString()),
+                title: model['name']?.toString() ?? '',
+                subtitle: subtitle,
+                subtitleColor: isAvailable
+                    ? const Color(0xFF6B7280)
+                    : const Color(0xFFEF4444),
+                subtitleWeight: isAvailable ? FontWeight.w400 : FontWeight.w500,
+                rateLabel: primaryRateLabel,
+                onTap: isAvailable ? () => _onModelSelected(model) : null,
+              );
+            },
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -2691,245 +2866,173 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     cat.contains(addonQuery);
               }).toList();
 
-        return Container(
-          margin: const EdgeInsets.only(top: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _selectedAddons.isNotEmpty ? AppColors.obsidian : Colors.grey.shade300,
-              width: _selectedAddons.isNotEmpty ? 1.5 : 1,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.extension_outlined, size: 17, color: AppColors.obsidian),
-                  const SizedBox(width: 6),
-                  const Flexible(
-                    child: Text(
-                      'AKSESORIS & ADD-ON SEWA',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  const SizedBox(width: 8),
-                  if (_selectedAddons.isNotEmpty)
-                    StatusBadge(
-                      label: '${_selectedAddons.length} Dipilih',
-                      textColor: AppColors.success,
-                      backgroundColor: AppColors.successLight,
-                      icon: Icons.check_circle_rounded,
-                    )
-                  else
-                    const StatusBadge(
-                      label: 'Opsional',
-                      textColor: AppColors.textSecondary,
-                      backgroundColor: AppColors.surfaceMuted,
-                    ),
-                ],
+            const Text(
+              'ADD-ON (OPSIONAL)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.6,
+                color: Color(0xFF6B7280),
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'Pilih power bank, charger, tripod, atau aksesoris tambahan yang disewa bersamaan.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 10),
+            ),
+            const SizedBox(height: 10),
 
-              // Real-Time Add-on Search Field
-              TextField(
-                key: const Key('booking_addon_search_field'),
-                controller: _addonSearchController,
-                onChanged: (value) => setState(() {
-                  _addonSearchQuery = value.trim();
-                }),
-                decoration: InputDecoration(
-                  hintText: 'Cari add-on...',
-                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textSecondary),
-                  suffixIcon: _addonSearchQuery.isNotEmpty
-                      ? IconButton(
-                          key: const Key('booking_addon_search_clear'),
-                          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
-                          onPressed: () {
-                            _addonSearchController.clear();
-                            setState(() => _addonSearchQuery = '');
-                          },
-                        )
-                      : null,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.borderSubtle),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.borderSubtle),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Addon items list
-              if (filteredAddons.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8F9FA),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    _addonSearchQuery.isNotEmpty
-                        ? 'Tidak ada add-on yang cocok dengan "$_addonSearchQuery".'
-                        : 'Tidak ada add-on tersedia.',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                )
-              else
-                ClipRRect(
+            // Real-Time Add-on Search Field
+            TextField(
+              key: const Key('booking_addon_search_field'),
+              controller: _addonSearchController,
+              onChanged: (value) => setState(() {
+                _addonSearchQuery = value.trim();
+              }),
+              decoration: InputDecoration(
+                hintText: 'Cari add-on...',
+                hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textSecondary),
+                suffixIcon: _addonSearchQuery.isNotEmpty
+                    ? IconButton(
+                        key: const Key('booking_addon_search_clear'),
+                        icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                        onPressed: () {
+                          _addonSearchController.clear();
+                          setState(() => _addonSearchQuery = '');
+                        },
+                      )
+                    : null,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                filled: true,
+                fillColor: const Color(0xFFF9FAFB),
+                border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  child: Column(
-                    children: [
-                      for (int i = 0; i < filteredAddons.length; i++) ...[
-                        if (i > 0)
-                          const Divider(height: 1, color: AppColors.borderSubtle),
-                        Builder(
-                          builder: (context) {
-                            final addon = filteredAddons[i];
-                            final isSelected = _selectedAddons.any((a) => a['id'] == addon['id']);
-                            final model = addon['model'] as Map? ?? {};
-                            final modelName = model['name']?.toString() ?? 'Aksesoris';
-                            final price = _computeAddonPrice(addon);
-                            final assetCode = addon['asset_code']?.toString() ?? '-';
-                            final grade = addon['condition_grade']?.toString();
-                            final gradeMeta = grade != null && grade.isNotEmpty
-                                ? '$assetCode • Grade $grade'
-                                : assetCode;
-
-                            return InkWell(
-                              onTap: () => _toggleAddon(addon),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                color: isSelected ? const Color(0xFFF8F9FA) : Colors.transparent,
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Checkbox(
-                                      value: isSelected,
-                                      activeColor: AppColors.obsidian,
-                                      visualDensity: VisualDensity.compact,
-                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                      onChanged: (_) => _toggleAddon(addon),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.all(7),
-                                      decoration: BoxDecoration(
-                                        color: isSelected ? AppColors.obsidian : AppColors.surfaceMuted,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(
-                                        Icons.power_rounded,
-                                        size: 16,
-                                        color: isSelected ? Colors.white : AppColors.obsidian,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  modelName,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13,
-                                                    color: AppColors.textPrimary,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              ConstrainedBox(
-                                                constraints: const BoxConstraints(maxWidth: 112),
-                                                child: FittedBox(
-                                                  fit: BoxFit.scaleDown,
-                                                  alignment: Alignment.centerRight,
-                                                  child: Text(
-                                                    '+ ${CurrencyFormatter.format(price)}',
-                                                    style: TextStyle(
-                                                      fontWeight: FontWeight.w700,
-                                                      fontSize: 12.5,
-                                                      color: isSelected ? AppColors.obsidian : AppColors.textSecondary,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 3),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  gradeMeta,
-                                                  style: const TextStyle(
-                                                    fontSize: 11,
-                                                    color: AppColors.textSecondary,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF111111), width: 1.2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
 
-              if (_selectedAddons.isNotEmpty) ...[
-                const Divider(height: 16, color: AppColors.borderSubtle),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Subtotal Add-on (${_selectedAddons.length} item):',
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      CurrencyFormatter.format(_addonSubtotal),
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.obsidian),
+            // Addon items list
+            if (filteredAddons.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _addonSearchQuery.isNotEmpty
+                      ? 'Tidak ada add-on yang cocok dengan "$_addonSearchQuery".'
+                      : 'Tidak ada add-on tersedia.',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                ),
+              )
+            else
+              Column(
+                children: [
+                  for (int i = 0; i < filteredAddons.length; i++) ...[
+                    if (i > 0)
+                      const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+                    Builder(
+                      builder: (context) {
+                        final addon = filteredAddons[i];
+                        final isSelected = _selectedAddons.any((a) => a['id'] == addon['id']);
+                        final model = addon['model'] as Map? ?? {};
+                        final modelName = model['name']?.toString() ?? 'Aksesoris';
+                        final price = _computeAddonPrice(addon);
+                        final assetCode = addon['asset_code']?.toString() ?? '-';
+
+                        return InkWell(
+                          onTap: () => _toggleAddon(addon),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                            color: isSelected ? const Color(0xFFF9FAFB) : Colors.white,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Checkbox(
+                                  value: isSelected,
+                                  activeColor: const Color(0xFF111111),
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  onChanged: (_) => _toggleAddon(addon),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '$modelName • $assetCode',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13.5,
+                                      color: Color(0xFF111111),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '+ ${CurrencyFormatter.format(price)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12.5,
+                                    color: isSelected
+                                        ? const Color(0xFF111111)
+                                        : const Color(0xFF6B7280),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
-                ),
-              ],
+                ],
+              ),
+
+            if (_selectedAddons.isNotEmpty) ...[
+              const Divider(height: 16, thickness: 1, color: Color(0xFFF3F4F6)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Subtotal Add-on (${_selectedAddons.length}x)',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    CurrencyFormatter.format(_addonSubtotal),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      color: Color(0xFF111111),
+                    ),
+                  ),
+                ],
+              ),
             ],
-          ),
+          ],
         );
       },
     );
@@ -2941,263 +3044,347 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       String? hintText,
       bool alignLabelWithHint = false,
       Widget? prefixIcon,
-      Widget? suffixIcon,
     }) {
       return InputDecoration(
         labelText: labelText,
+        labelStyle: const TextStyle(
+          fontSize: 12,
+          color: Color(0xFF6B7280),
+        ),
         hintText: hintText,
+        hintStyle: const TextStyle(
+          fontSize: 12,
+          color: AppColors.textMuted,
+        ),
         alignLabelWithHint: alignLabelWithHint,
         prefixIcon: prefixIcon,
-        suffixIcon: suffixIcon,
         isDense: true,
+        filled: true,
+        fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF111111), width: 1.2),
         ),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Flexible(
-                      child: Text(
-                        'DATA PENYEWA & ALAMAT IDENTITAS',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
+                const Expanded(
+                  child: Text(
+                    'DATA PENYEWA',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.6,
+                      color: Color(0xFF6B7280),
                     ),
-                    const Spacer(),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: _searchCustomer,
-                      icon: _isSearchingCustomer
-                          ? const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.obsidian),
-                            )
-                          : const Icon(Icons.search_rounded, size: 14, color: AppColors.obsidian),
-                      label: const Text(
-                        'Cari Riwayat',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.obsidian,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  key: const Key('step2_search_customer_action'),
+                  onTap: _isSearchingCustomer ? null : _searchCustomer,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: _isSearchingCustomer
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF111111),
+                            ),
+                          )
+                        : const Text(
+                            'Cari Pelanggan',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111111),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Customer Name
+            TextFormField(
+              controller: _nameController,
+              style: const TextStyle(fontSize: 13.5, color: Color(0xFF111111)),
+              decoration: compactFieldDecoration(
+                labelText: 'Nama Penyewa *',
+                prefixIcon: const Icon(Icons.person_outline_rounded, size: 18),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().length < 3) {
+                  return 'Nama penyewa minimal 3 karakter';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // WhatsApp Phone
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              style: const TextStyle(fontSize: 13.5, color: Color(0xFF111111)),
+              decoration: compactFieldDecoration(
+                labelText: 'Nomor WhatsApp *',
+                prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().length < 8) {
+                  return 'Nomor WhatsApp wajib diisi minimal 8 digit';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Address
+            TextFormField(
+              controller: _addressController,
+              maxLines: 3,
+              minLines: 2,
+              style: const TextStyle(fontSize: 13.5, color: Color(0xFF111111)),
+              decoration: compactFieldDecoration(
+                labelText: 'Alamat (KTP/SIM) *',
+                hintText: 'Jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota',
+                alignLabelWithHint: true,
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.only(top: 2, bottom: 18),
+                  child: Icon(Icons.home_outlined, size: 18),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().length < 5) {
+                  return 'Alamat (KTP/SIM) wajib diisi lengkap';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Collateral Safe Slot Dropdown
+            DropdownButtonFormField<String>(
+              initialValue: _safeSlots.contains(_selectedSafeSlot)
+                  ? _selectedSafeSlot
+                  : _safeSlots.first,
+              decoration: compactFieldDecoration(
+                labelText: _isScheduledBooking
+                    ? 'Slot Brankas Jaminan'
+                    : 'Slot Brankas Jaminan *',
+                prefixIcon: const Icon(Icons.shield_outlined, size: 18),
+              ),
+              isExpanded: true,
+              items: _safeSlots.map((slot) {
+                return DropdownMenuItem<String>(
+                  value: slot,
+                  child: Text(
+                    slot,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF111111),
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _selectedSafeSlot = val;
+                    _slotController.text = val;
+                  });
+                }
+              },
+              validator: (v) {
+                if (!_isScheduledBooking && (v == null || v.trim().isEmpty)) {
+                  return 'Slot brankas jaminan wajib dipilih';
+                }
+                return null;
+              },
+            ),
+
+            // Customer Search Status Feedback
+            if (_foundCustomer != null && _foundCustomer!['is_blacklisted'] == true)
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.block_rounded, color: AppColors.danger, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'DAFTAR HITAM (BLACKLIST)',
+                            style: TextStyle(
+                              color: AppColors.danger,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            'Alasan: ${_foundCustomer!['blacklist_reason'] ?? 'Pelanggan bermasalah'}',
+                            style: const TextStyle(
+                              color: AppColors.danger,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-
-                // Customer Name
-                TextFormField(
-                  controller: _nameController,
-                  decoration: compactFieldDecoration(
-                    labelText: 'Nama Lengkap Penyewa *',
-                    prefixIcon: const Icon(Icons.person_outline_rounded, size: 19),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().length < 3) {
-                      return 'Nama lengkap penyewa minimal 3 karakter';
-                    }
-                    return null;
-                  },
+              )
+            else if (_foundCustomer != null)
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.successLight,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 10),
-
-                // WhatsApp Phone
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: compactFieldDecoration(
-                    labelText: 'Nomor WhatsApp Aktif *',
-                    prefixIcon: const Icon(Icons.phone_outlined, size: 19),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.search_rounded, size: 19),
-                      onPressed: _searchCustomer,
-                      tooltip: 'Cari Riwayat Pelanggan',
-                    ),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().length < 8) {
-                      return 'Nomor WhatsApp aktif wajib diisi minimal 8 digit';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 10),
-
-                // Address
-                TextFormField(
-                  controller: _addressController,
-                  maxLines: 3,
-                  minLines: 2,
-                  decoration: compactFieldDecoration(
-                    labelText: 'Alamat Sesuai Kartu Identitas *',
-                    hintText: 'Jalan, nomor rumah, RT/RW, kelurahan/desa, kecamatan, kota/kabupaten',
-                    alignLabelWithHint: true,
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.only(bottom: 24),
-                      child: Icon(Icons.home_outlined, size: 19),
-                    ),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().length < 5) {
-                      return 'Alamat sesuai kartu identitas wajib diisi lengkap';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 10),
-
-                // Collateral Safe Slot Dropdown
-                DropdownButtonFormField<String>(
-                  initialValue: _safeSlots.contains(_selectedSafeSlot) ? _selectedSafeSlot : _safeSlots.first,
-                  decoration: compactFieldDecoration(
-                    labelText: 'Slot Brankas Penyimpanan Jaminan Fisik *',
-                    prefixIcon: const Icon(Icons.shield_outlined, size: 19),
-                  ),
-                  isExpanded: true,
-                  items: _safeSlots.map((slot) {
-                    return DropdownMenuItem<String>(
-                      value: slot,
+                child: Row(
+                  children: [
+                    const Icon(Icons.verified_rounded, color: AppColors.success, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
                       child: Text(
-                        slot,
-                        style: const TextStyle(fontSize: 13),
+                        'Pelanggan Terdaftar • ${_foundCustomer!['bookings_count'] ?? 0}x Sewa',
+                        style: const TextStyle(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() {
-                        _selectedSafeSlot = val;
-                        _slotController.text = val;
-                      });
-                    }
-                  },
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Lokasi slot brankas jaminan fisik wajib dipilih';
-                    }
-                    return null;
-                  },
+                    ),
+                  ],
                 ),
-
-                // Customer Search Status Feedback
-                if (_foundCustomer != null && _foundCustomer!['is_blacklisted'] == true)
-                  Container(
-                    margin: const EdgeInsets.only(top: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.dangerLight,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.block_rounded, color: AppColors.danger, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'DAFTAR HITAM (BLACKLIST)',
-                                style: TextStyle(
-                                  color: AppColors.danger,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              Text(
-                                'Alasan: ${_foundCustomer!['blacklist_reason'] ?? 'Pelanggan bermasalah'}',
-                                style: const TextStyle(
-                                  color: AppColors.danger,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (_foundCustomer != null)
-                  Container(
-                    margin: const EdgeInsets.only(top: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.successLight,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.verified_rounded, color: AppColors.success, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Pelanggan Terdaftar • ${_foundCustomer!['bookings_count'] ?? 0}x Sewa Selesai',
-                            style: const TextStyle(
-                              color: AppColors.success,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (_customerLookupMessage != null)
-                  Container(
-                    margin: const EdgeInsets.only(top: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8F9FA),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      _customerLookupMessage!,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+              )
+            else if (_customerLookupMessage != null)
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _customerLookupMessage!,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
                   ),
-              ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReceiptMetaRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF6B7280),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF111111),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReceiptTotalRow(
+    String label,
+    String value, {
+    Color labelColor = const Color(0xFF6B7280),
+    Color valueColor = const Color(0xFF111111),
+    FontWeight labelWeight = FontWeight.w400,
+    FontWeight valueWeight = FontWeight.w500,
+    double labelSize = 13,
+    double valueSize = 13,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: labelSize,
+                fontWeight: labelWeight,
+                color: labelColor,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: valueSize,
+              fontWeight: valueWeight,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3209,335 +3396,205 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         _isFloatingAllowedForActiveBranch(bizState) &&
         !_pinSpecificUnit &&
         _selectedAsset == null;
+    final unitCode = _selectedAsset?['asset_code']?.toString() ?? '-';
+    final durationLabel =
+        '$_selectedDuration Jam${_durationMultiplier > 1 ? ' (${_durationMultiplier}x)' : ''}';
     final graceMinutes = _graceMinutesForActiveBranch(bizState);
     final graceDeadline = (_scheduledStartAt ?? DateTime.now()).add(
       Duration(minutes: graceMinutes),
     );
+    final customerName = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final collateralSlot = _slotController.text.trim();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // OVERVIEW REVIEW CARD
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade300),
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'RINGKASAN',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+              color: Color(0xFF6B7280),
+            ),
           ),
-          child: Column(
+          const SizedBox(height: 12),
+
+          // Primary Unit Row
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'RINGKASAN SEWA & IDENTITAS PENYEWA',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Unit + Add-ons Unified Summary Block (No double nested borders)
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FA),
-                  borderRadius: BorderRadius.circular(10),
-                ),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(7),
-                                decoration: BoxDecoration(
-                                  color: AppColors.obsidian,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.phone_iphone_rounded, color: Colors.white, size: 18),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      deviceModelName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${isFloating ? 'Floating Unit (Pilih SN saat serah terima)' : (_selectedAsset?['asset_code'] ?? '-')} • Durasi: $_selectedDuration Jam${_durationMultiplier > 1 ? ' (${_durationMultiplier}x)' : ''}',
-                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                CurrencyFormatter.format(_basePrice),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                  color: AppColors.obsidian,
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_isScheduledBooking && _scheduledStartAt != null) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.event_available_rounded, size: 13, color: AppColors.obsidian),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      'Jadwal ambil: ${DateFormatter.formatFull(_scheduledStartAt)} • Batas ambil: ${DateFormatter.formatTime(graceDeadline)}',
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.obsidian,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.infoLight,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.schedule_rounded, size: 12, color: AppColors.info),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    _formatReturnDeadline(),
-                                    style: const TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.info,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Add-on Review Rows separated by thin Divider
-                    if (_selectedAddons.isNotEmpty)
-                      for (final addon in _selectedAddons) ...[
-                        const Divider(height: 1, color: AppColors.borderSubtle),
-                        Builder(
-                          builder: (context) {
-                            final addonModel = addon['model'] as Map? ?? {};
-                            final addonName = addonModel['name']?.toString() ?? 'Aksesoris';
-                            final price = _computeAddonPrice(addon);
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.obsidian,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Icon(Icons.power_rounded, color: Colors.white, size: 14),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          addonName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 12.5,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        Text(
-                                          '${addon['asset_code'] ?? '-'} • Add-on',
-                                          style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const StatusBadge(
-                                    label: 'Add-on',
-                                    textColor: AppColors.obsidian,
-                                    backgroundColor: AppColors.surface,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    CurrencyFormatter.format(price),
-                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Customer Card Review
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FA),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.person_rounded, color: AppColors.obsidian, size: 18),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _nameController.text.trim(),
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                          ),
-                          Text(
-                            'WA: ${_phoneController.text.trim()} • Slot: ${_slotController.text.trim()}',
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 10),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-
-              // Itemized Bill
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Subtotal Perangkat Utama:',
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    CurrencyFormatter.format(_basePrice),
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                  ),
-                ],
-              ),
-              if (_selectedAddons.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Subtotal Add-on (${_selectedAddons.length} unit):',
-                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     Text(
-                      '+ ${CurrencyFormatter.format(_addonSubtotal)}',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.obsidian),
-                    ),
-                  ],
-                ),
-              ],
-              if (_discountAmount > 0) ...[
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Diskon Promo Voucher:',
-                        style: TextStyle(fontSize: 13, color: AppColors.success),
+                      deviceModelName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF111111),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 2),
                     Text(
-                      '- ${CurrencyFormatter.format(_discountAmount)}',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.success),
+                      '$durationLabel • ${isFloating ? 'Floating Unit' : unitCode}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B7280),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-              ],
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Divider(height: 1, color: AppColors.border),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'TOTAL TAGIHAN POS:',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    CurrencyFormatter.format(totalPayable),
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: AppColors.obsidian),
-                  ),
-                ],
+              const SizedBox(width: 12),
+              Text(
+                CurrencyFormatter.format(_basePrice),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF111111),
+                ),
               ),
-              if (_isScheduledBooking) ...[
-                const SizedBox(height: 10),
-                _buildScheduledPaymentSelector(totalPayable),
-              ],
             ],
           ),
-        ),
-      ],
+
+          // Add-on Line Items
+          if (_selectedAddons.isNotEmpty)
+            for (final addon in _selectedAddons) ...[
+              const SizedBox(height: 12),
+              Builder(
+                builder: (context) {
+                  final addonModel = addon['model'] as Map? ?? {};
+                  final addonName =
+                      addonModel['name']?.toString() ?? 'Aksesoris';
+                  final rawCode = addon['asset_code']?.toString().trim();
+                  final addonCode =
+                      (rawCode != null && rawCode.isNotEmpty) ? rawCode : null;
+                  final qty =
+                      (addon['qty'] as num?)?.toInt() ??
+                      (addon['quantity'] as num?)?.toInt() ??
+                      1;
+                  final price = _computeAddonPrice(addon);
+                  final subtitle =
+                      'Add-on${addonCode != null ? ' • $addonCode' : ''}${qty > 1 ? ' • ${qty}x' : ''}';
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              addonName,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF111111),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7280),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        CurrencyFormatter.format(price),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF111111),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+          ),
+
+          // Schedule & Customer Metadata Rows
+          if (_isScheduledBooking && _scheduledStartAt != null) ...[
+            _buildReceiptMetaRow(
+              'Jadwal Ambil',
+              '${DateFormatter.formatFull(_scheduledStartAt)} (Batas ${DateFormatter.formatTime(graceDeadline)})',
+            ),
+            _buildReceiptMetaRow(
+              'Kembali',
+              _formatReturnTimeLabel(),
+            ),
+          ] else ...[
+            _buildReceiptMetaRow(
+              'Waktu Sewa',
+              'Mulai Sekarang • Kembali ${_formatReturnTimeLabel(includeWib: false)}',
+            ),
+          ],
+          _buildReceiptMetaRow(
+            'Penyewa',
+            '$customerName${phone.isNotEmpty ? ' • $phone' : ''}',
+          ),
+          if (collateralSlot.isNotEmpty)
+            _buildReceiptMetaRow('Jaminan', collateralSlot),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+          ),
+
+          // Totals
+          _buildReceiptTotalRow(
+            'Subtotal Unit',
+            CurrencyFormatter.format(_basePrice),
+          ),
+          if (_selectedAddons.isNotEmpty)
+            _buildReceiptTotalRow(
+              'Subtotal Add-on (${_selectedAddons.length}x)',
+              CurrencyFormatter.format(_addonSubtotal),
+            ),
+          if (_discountAmount > 0)
+            _buildReceiptTotalRow(
+              'Diskon Voucher',
+              '- ${CurrencyFormatter.format(_discountAmount)}',
+              labelColor: AppColors.success,
+              valueColor: AppColors.success,
+              valueWeight: FontWeight.w600,
+            ),
+          const SizedBox(height: 6),
+          _buildReceiptTotalRow(
+            'Total Tagihan',
+            CurrencyFormatter.format(totalPayable),
+            labelColor: const Color(0xFF111111),
+            valueColor: const Color(0xFF111111),
+            labelWeight: FontWeight.w700,
+            valueWeight: FontWeight.w700,
+            labelSize: 15,
+            valueSize: 17,
+          ),
+
+          if (_isScheduledBooking) ...[
+            const SizedBox(height: 20),
+            _buildScheduledPaymentSelector(totalPayable),
+          ],
+        ],
+      ),
     );
   }
 
@@ -3553,154 +3610,146 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           'WAKTU MULAI',
           style: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             letterSpacing: 0.5,
             color: muted,
           ),
         ),
         const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Column(
-            children: [
-              Material(
-                color: const Color(0xFFF8F9FA),
-                child: InkWell(
-                  key: const Key('inline_start_time_row'),
-                  onTap: _pickScheduledDateTime,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    child: (!_isScheduledBooking || _scheduledStartAt == null)
-                        ? Row(
-                            children: [
-                              const Icon(
-                                Icons.access_time_rounded,
-                                size: 17,
+        Material(
+          color: Colors.white,
+          child: InkWell(
+            key: const Key('inline_start_time_row'),
+            onTap: _pickScheduledDateTime,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: (!_isScheduledBooking || _scheduledStartAt == null)
+                  ? Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time_rounded,
+                          size: 17,
+                          color: ink,
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Mulai Sekarang',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: ink,
+                            ),
+                          ),
+                        ),
+                        InkWell(
+                          key: const Key('inline_schedule_action'),
+                          onTap: _pickScheduledDateTime,
+                          borderRadius: BorderRadius.circular(6),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              'Jadwalkan ›',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                                 color: ink,
                               ),
-                              const SizedBox(width: 8),
-                              const Expanded(
-                                child: Text(
-                                  'Mulai Sekarang',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: ink,
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                key: const Key('inline_schedule_action'),
-                                onTap: _pickScheduledDateTime,
-                                borderRadius: BorderRadius.circular(6),
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 2,
-                                  ),
-                                  child: Text(
-                                    'Jadwalkan ›',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: ink,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : Row(
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        const Icon(
+                          Icons.event_rounded,
+                          size: 17,
+                          color: ink,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(
-                                Icons.event_rounded,
-                                size: 17,
-                                color: ink,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      DateFormatter.formatFull(_scheduledStartAt),
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: ink,
-                                      ),
-                                    ),
-                                    const Text(
-                                      'Booking Terjadwal',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: muted,
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                DateFormatter.formatFull(_scheduledStartAt),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: ink,
                                 ),
                               ),
-                              InkWell(
-                                key: const Key('inline_reset_now_action'),
-                                onTap: _resetToImmediateRental,
-                                borderRadius: BorderRadius.circular(6),
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 3,
-                                  ),
-                                  child: Text(
-                                    'Sekarang',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: muted,
-                                    ),
-                                  ),
+                              const Text(
+                                'Booking Terjadwal',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: muted,
                                 ),
                               ),
                             ],
                           ),
+                        ),
+                        InkWell(
+                          key: const Key('inline_reset_now_action'),
+                          onTap: _resetToImmediateRental,
+                          borderRadius: BorderRadius.circular(6),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            child: Text(
+                              'Sekarang',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: muted,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+        if (showReturnRow) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _formatReturnDeadline(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: muted,
                   ),
                 ),
               ),
-              if (showReturnRow) ...[
-                const Divider(height: 1, color: AppColors.borderSubtle),
-                Container(
-                  color: AppColors.infoLight,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.schedule_rounded, size: 15, color: AppColors.info),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _formatReturnDeadline(),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.info,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        CurrencyFormatter.format(_basePrice),
-                        key: const Key('booking_duration_live_subtotal'),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.info,
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(width: 8),
+              Text(
+                CurrencyFormatter.format(_basePrice),
+                key: const Key('booking_duration_live_subtotal'),
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: ink,
                 ),
-              ],
+              ),
             ],
           ),
-        ),
+        ],
         if (_scheduleValidationError != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -3721,11 +3770,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final remainingAfterDp =
         (totalPayable - dpParsed).clamp(0.0, totalPayable);
 
-    Widget buildOptionTile({
+    Widget buildRadioRow({
       required Key key,
       required _ScheduledPaymentOption option,
       required String title,
-      required String subtitle,
     }) {
       final isSelected = _scheduledPaymentOption == option;
       return InkWell(
@@ -3742,52 +3790,37 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           });
           _syncUnsavedInputState();
         },
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFF8F9FA) : Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isSelected ? AppColors.obsidian : AppColors.border,
-              width: isSelected ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isSelected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_off,
-                size: 18,
-                color: isSelected ? AppColors.obsidian : AppColors.textMuted,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+        child: SizedBox(
+          height: 46,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                Icon(
+                  isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                  size: 18,
+                  color: isSelected
+                      ? const Color(0xFF111111)
+                      : AppColors.textMuted,
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: const Color(0xFF111111),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -3797,80 +3830,108 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'OPSI PEMBAYARAN BOOKING',
+          'PEMBAYARAN',
           style: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.5,
-            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.6,
+            color: Color(0xFF6B7280),
           ),
         ),
         const SizedBox(height: 8),
-        buildOptionTile(
-          key: const Key('payment_option_full'),
-          option: _ScheduledPaymentOption.full,
-          title: 'Bayar Lunas',
-          subtitle:
-              'Lunasi ${CurrencyFormatter.format(totalPayable)} sekarang via kasir.',
-        ),
-        const SizedBox(height: 6),
-        buildOptionTile(
-          key: const Key('payment_option_dp'),
-          option: _ScheduledPaymentOption.dp,
-          title: 'Bayar DP',
-          subtitle: 'Bayar DP sekarang, sisa dilunasi saat ambil.',
-        ),
-        if (_scheduledPaymentOption == _ScheduledPaymentOption.dp) ...[
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8F9FA),
-              borderRadius: BorderRadius.circular(10),
-            ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  key: const Key('dp_amount_field'),
-                  controller: _dpAmountController,
-                  keyboardType: TextInputType.number,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Nominal DP (Rp)',
-                    hintText: 'Contoh: 150000',
-                    isDense: true,
-                    prefixText: 'Rp ',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                  ),
+                buildRadioRow(
+                  key: const Key('payment_option_full'),
+                  option: _ScheduledPaymentOption.full,
+                  title: 'Bayar Lunas',
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Sisa saat ambil: ${CurrencyFormatter.format(remainingAfterDp)}',
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
+                const Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Color(0xFFF3F4F6),
+                ),
+                buildRadioRow(
+                  key: const Key('payment_option_dp'),
+                  option: _ScheduledPaymentOption.dp,
+                  title: 'Bayar DP',
+                ),
+                if (_scheduledPaymentOption == _ScheduledPaymentOption.dp) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 2, 14, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          key: const Key('dp_amount_field'),
+                          controller: _dpAmountController,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            labelText: 'Nominal DP (Rp)',
+                            hintText: 'Contoh: 150000',
+                            isDense: true,
+                            prefixText: 'Rp ',
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE5E7EB),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE5E7EB),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF111111),
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Sisa saat ambil: ${CurrencyFormatter.format(remainingAfterDp)}',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ],
+                const Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Color(0xFFF3F4F6),
+                ),
+                buildRadioRow(
+                  key: const Key('toggle_scheduled_pay_later'),
+                  option: _ScheduledPaymentOption.payLater,
+                  title: 'Bayar Saat Ambil',
                 ),
               ],
             ),
           ),
-        ],
-        const SizedBox(height: 6),
-        buildOptionTile(
-          key: const Key('toggle_scheduled_pay_later'),
-          option: _ScheduledPaymentOption.payLater,
-          title: 'Bayar Saat Ambil',
-          subtitle: 'Simpan booking tanpa DP, bayar saat ambil.',
         ),
       ],
     );
@@ -3903,20 +3964,19 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       return SizedBox(
         height: 46,
         width: double.infinity,
-        child: ElevatedButton.icon(
+        child: ElevatedButton(
           onPressed: canAdvanceStep1 ? _onNextToCustomerStep : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.obsidian,
+            backgroundColor: const Color(0xFF111111),
             foregroundColor: Colors.white,
-            disabledBackgroundColor: AppColors.obsidian.withValues(alpha: 0.35),
+            disabledBackgroundColor: const Color(0xFF111111).withValues(alpha: 0.35),
             disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
             minimumSize: const Size.fromHeight(46),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-          label: const Text(
-            'Lanjut ke Data Penyewa',
+          child: const Text(
+            'Lanjut',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           ),
         ),
@@ -3927,16 +3987,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           SizedBox(
             width: 108,
             height: 46,
-            child: OutlinedButton.icon(
+            child: OutlinedButton(
               onPressed: _onBackStep,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 46),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              icon: const Icon(Icons.arrow_back_rounded, size: 16),
-              label: const Text(
+              child: const Text(
                 'Kembali',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
@@ -3946,18 +4005,17 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           Expanded(
             child: SizedBox(
               height: 46,
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: _onNextToSummaryStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
+                  backgroundColor: const Color(0xFF111111),
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(46),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                label: const Text(
-                  'Lanjut: Ringkasan Biaya',
+                child: const Text(
+                  'Lanjut',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
@@ -3969,19 +4027,18 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       return Row(
         children: [
           SizedBox(
-            width: 112,
+            width: 108,
             height: 46,
-            child: OutlinedButton.icon(
+            child: OutlinedButton(
               onPressed: _onBackStep,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 46),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              icon: const Icon(Icons.arrow_back_rounded, size: 16),
-              label: const Text(
-                'Ubah Data',
+              child: const Text(
+                'Kembali',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
             ),
@@ -3990,37 +4047,31 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           Expanded(
             child: SizedBox(
               height: 46,
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: (!isUnitSelected || _isNavigatingToPayment || _isSubmittingScheduled)
                     ? null
                     : (_isScheduledBooking && _payLaterScheduled
                         ? _submitScheduledWithoutPayment
                         : _navigateToUnifiedPaymentPage),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
+                  backgroundColor: const Color(0xFF111111),
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: AppColors.obsidian.withValues(alpha: 0.35),
+                  disabledBackgroundColor: const Color(0xFF111111).withValues(alpha: 0.35),
                   disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
                   minimumSize: const Size.fromHeight(46),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                icon: (_isNavigatingToPayment || _isSubmittingScheduled)
+                child: (_isNavigatingToPayment || _isSubmittingScheduled)
                     ? const SizedBox(
                         height: 18,
                         width: 18,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
-                    : Icon(
-                        _isScheduledBooking
-                            ? Icons.event_available_rounded
-                            : Icons.check_circle_outline_rounded,
-                        size: 18,
+                    : Text(
+                        _isScheduledBooking ? 'Simpan Booking' : 'Buat Sewa',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
-                label: Text(
-                  _isScheduledBooking ? 'Simpan Booking' : 'Buat Sewa',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
               ),
             ),
           ),

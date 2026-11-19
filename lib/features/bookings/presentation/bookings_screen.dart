@@ -267,21 +267,21 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     vertical: 10,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(
                       color: Color(0xFFE2E8F0),
                       width: 1,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(
                       color: AppColors.obsidian,
                       width: 1.2,
                     ),
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(
                       color: Color(0xFFE2E8F0),
                       width: 1,
@@ -535,7 +535,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
@@ -743,7 +743,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: AppColors.background,
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
                                       color: AppColors.borderSubtle,
                                     ),
@@ -1562,7 +1562,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
       ),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(
           color: isSelected ? AppColors.obsidian : AppColors.border,
         ),

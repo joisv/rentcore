@@ -120,8 +120,9 @@ class _FakePreserveBookingRepo extends BookingRepository {
 
   @override
   Future<Map<String, dynamic>> createRental(
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    String? idempotencyKey,
+  }) async {
     lastCreatedPayload = Map<String, dynamic>.from(payload);
     return {
       'id': 901,
@@ -222,9 +223,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('IP15P-001').last);
+      await tester.tap(find.textContaining('IP15P-001').last);
       await tester.pumpAndSettle();
-      expect(find.text('Unit Dipilih'), findsOneWidget);
 
       // 2. Increment duration multiplier 1x -> 2x (48 Jam, Rp 700.000)
       final plusBtn = find.byKey(const Key('booking_multiplier_increment'));
@@ -244,16 +244,15 @@ void main() {
       await tester.pumpAndSettle();
 
       // Model stays selected even though search query had 'IP15P-001'
-      expect(find.text('Model Dipilih'), findsOneWidget);
       expect(find.byKey(const Key('floating_model_card_5')), findsOneWidget);
-      expect(find.text('Tersedia 2 slot'), findsOneWidget);
+      expect(find.text('Tersedia 2 dari 2 unit'), findsOneWidget);
       // Multiplier & total duration remain 2x / 48 Jam!
       expect(find.text('48 Jam'), findsOneWidget);
 
       // Next button stays enabled and advances to Step 2
-      await tester.tap(find.text('Lanjut ke Data Penyewa'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
       await tester.pumpAndSettle();
-      expect(find.text('DATA PENYEWA & ALAMAT IDENTITAS'), findsOneWidget);
+      expect(find.text('DATA PENYEWA'), findsOneWidget);
     },
   );
 
@@ -291,9 +290,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Pick physical unit IP15P-001 first
-      await tester.tap(find.text('IP15P-001').last);
+      await tester.tap(find.textContaining('IP15P-001').last);
       await tester.pumpAndSettle();
-      expect(find.text('Unit Dipilih'), findsOneWidget);
 
       // Pick future schedule where model 5 is full (0 slots)
       final scheduleTrigger = find.byKey(const Key('inline_schedule_action'));
@@ -313,7 +311,7 @@ void main() {
 
       // Step 1 Next button is disabled until an available schedule or model is chosen
       final nextBtn = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa'),
+        find.widgetWithText(ElevatedButton, 'Lanjut'),
       );
       expect(nextBtn.onPressed, isNull);
     },

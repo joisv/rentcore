@@ -374,7 +374,7 @@ void main() {
         expect(find.text('Semua'), findsOneWidget);
         expect(find.text('Terlambat'), findsOneWidget);
         expect(find.text('Hari Ini'), findsOneWidget);
-        expect(find.text('Booking'), findsOneWidget);
+        expect(find.text('Booking'), findsNWidgets(2));
         expect(find.text('Selesai'), findsOneWidget);
         expect(navigatedTab, -1);
 
@@ -417,11 +417,12 @@ void main() {
         // Card Content & Status Pills (Antrean Sewa Cabang layout)
         expect(find.textContaining('Terlambat '), findsOneWidget);
         expect(find.text('Jatuh Tempo'), findsOneWidget);
-        expect(find.text('Siap Diambil'), findsOneWidget);
+        expect(find.text('Booking'), findsNWidgets(2));
         expect(find.textContaining('Sisa '), findsOneWidget);
         expect(find.text('SELESAI'), findsOneWidget);
         expect(find.text('Total Tagihan'), findsNWidgets(5));
-        expect(find.textContaining('Batas sewa:'), findsNWidgets(5));
+        expect(find.textContaining('Kembali:'), findsNWidgets(4));
+        expect(find.textContaining('Ambil:'), findsOneWidget);
 
         // Action buttons
         expect(find.text('Rincian'), findsWidgets);

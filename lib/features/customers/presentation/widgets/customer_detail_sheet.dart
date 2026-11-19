@@ -178,7 +178,7 @@ class _CustomerDetailSheetState extends ConsumerState<CustomerDetailSheet> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: SingleChildScrollView(
@@ -278,7 +278,7 @@ class _CustomerDetailSheetState extends ConsumerState<CustomerDetailSheet> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.dangerLight,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
                 ),
                 child: Row(
@@ -453,7 +453,7 @@ class _CustomerDetailSheetState extends ConsumerState<CustomerDetailSheet> {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       side: BorderSide(color: isBlacklisted ? AppColors.success : AppColors.danger),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     icon: Icon(
                       isBlacklisted ? Icons.lock_open_rounded : Icons.block_rounded,
@@ -478,7 +478,7 @@ class _CustomerDetailSheetState extends ConsumerState<CustomerDetailSheet> {
                       backgroundColor: isBlacklisted ? AppColors.textMuted : AppColors.obsidian,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                     icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../../../core/services/thermal_printer_service.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/business_provider.dart';
 import '../../../printer/providers/printer_provider.dart';
 import '../../providers/cashier_provider.dart';
@@ -70,6 +72,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
   CashCountMode _countMode = CashCountMode.denominations;
 
   bool _isLoading = false;
+  bool _serverRequiresReason = false;
   String? _errorMessage;
 
   bool get _isOpenMode =>
@@ -154,19 +157,25 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     return _actualDenominationTotal;
   }
 
-  double get _effectiveExpectedCash {
-    if (widget.activeShift != null &&
-        widget.activeShift!['expected_cash_now'] != null) {
-      return CurrencyFormatter.parse(widget.activeShift!['expected_cash_now']);
+  bool _isDifferenceReasonError(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final errors = data['errors'];
+        if (errors is Map && errors.containsKey('difference_reason')) {
+          return true;
+        }
+        final msg = data['message']?.toString().toLowerCase() ?? '';
+        if (msg.contains('difference_reason') ||
+            msg.contains('alasan selisih') ||
+            msg.contains('selisih')) {
+          return true;
+        }
+      }
     }
-    return widget.expectedDrawerCash;
+    final raw = error.toString().toLowerCase();
+    return raw.contains('difference_reason') || raw.contains('alasan selisih');
   }
-
-  double get _cashDifference {
-    return _actualCountedTotal - _effectiveExpectedCash;
-  }
-
-  bool get _hasDiscrepancy => _cashDifference.abs() > 5000.0;
 
   String _formatOpenedAt(dynamic openedAt) {
     if (openedAt == null || openedAt.toString().trim().isEmpty) return '-';
@@ -232,7 +241,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
   Future<void> _submitCloseShift() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_actualCountedTotal <= 0 && _effectiveExpectedCash > 0) {
+    if (_actualCountedTotal <= 0) {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -263,16 +272,14 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     try {
       final repo = ref.read(cashierRepositoryProvider);
       final shiftId = widget.activeShift?['id'];
+      final reasonText = _reasonController.text.trim();
+      final notesText = _closeNotesController.text.trim();
 
       final result = await repo.closeShift(
         actualCashCounted: _actualCountedTotal,
         shiftId: shiftId is int ? shiftId : null,
-        differenceReason: _hasDiscrepancy
-            ? _reasonController.text.trim()
-            : null,
-        closingNotes: _closeNotesController.text.trim().isEmpty
-            ? null
-            : _closeNotesController.text.trim(),
+        differenceReason: reasonText.isEmpty ? null : reasonText,
+        closingNotes: notesText.isEmpty ? null : notesText,
         branchId: widget.branchId,
       );
 
@@ -285,76 +292,128 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
 
       Navigator.pop(context);
 
-      // Offer printing shift closing receipt
+      // Offer printing shift closing receipt with post-close system comparison
       _showClosingPrintDialog(result);
     } catch (e) {
       if (!mounted) return;
+      final requiresReason = _isDifferenceReasonError(e);
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString().replaceFirst(
-          RegExp(r'^Exception:\s*'),
-          '',
-        );
+        if (requiresReason) {
+          _serverRequiresReason = true;
+          _errorMessage =
+              'Terdapat selisih kas signifikan terhadap catatan sistem. Isi alasan selisih di bawah lalu kirim ulang.';
+        } else {
+          _errorMessage = e.toString().replaceFirst(
+            RegExp(r'^Exception:\s*'),
+            '',
+          );
+        }
       });
     }
   }
 
+  Widget _buildPostCloseComparisonRow(
+    String label,
+    double amount, {
+    bool isBold = false,
+    Color? valueColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            CurrencyFormatter.format(amount),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              color: valueColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showClosingPrintDialog(Map<String, dynamic> shiftData) {
-    final shiftNum = shiftData['shift_number'] ?? 'SHF-CLOSING';
+    final shiftNum = (shiftData['shift_number'] ?? widget.activeShift?['shift_number'] ?? 'SHF-CLOSING').toString();
+    final openingFloat = CurrencyFormatter.parse(
+      shiftData['opening_cash_float'],
+    );
+    final cashInflow = CurrencyFormatter.parse(shiftData['cash_inflow']);
+    final nonCashInflow = CurrencyFormatter.parse(shiftData['non_cash_inflow']);
+    final cashExpenses = CurrencyFormatter.parse(shiftData['cash_expenses']);
     final actual = CurrencyFormatter.parse(shiftData['actual_cash_counted']);
     final expected = CurrencyFormatter.parse(shiftData['expected_cash_total']);
     final diff = CurrencyFormatter.parse(shiftData['cash_difference']);
+    final totalTx = int.tryParse(shiftData['total_transactions']?.toString() ?? '') ?? 0;
+
+    final authUser = ref.exists(authProvider) ? ref.read(authProvider).user : null;
+    final bizState = ref.exists(businessProvider) ? ref.read(businessProvider) : null;
+    final printerSettings = ref.read(printerProvider).settings;
+
+    final resolvedBranchName = (shiftData['branch_name'] ??
+            widget.activeShift?['branch_name'] ??
+            bizState?.activeBranchName ??
+            authUser?['affiliate']?['name'] ??
+            'Cabang Utama')
+        .toString();
+    final resolvedCashierName = (shiftData['closed_by_name'] ??
+            shiftData['opened_by_name'] ??
+            widget.activeShift?['opened_by_name'] ??
+            authUser?['name'] ??
+            'Kasir Bertugas')
+        .toString();
+    final openedAtFormatted = _formatOpenedAt(
+      shiftData['opened_at'] ?? widget.activeShift?['opened_at'],
+    );
+    final closedAtFormatted = _formatOpenedAt(shiftData['closed_at']);
 
     final printerService = ThermalPrinterService();
-
-    final receiptData = ReceiptDataModel(
-      type: ReceiptType.closingShift,
-      title: 'LAPORAN REKAP TUTUP SHIFT',
-      branchName: 'Cabang Mataram Central',
-      receiptNumber: shiftNum,
-      cashierName: 'Staff Kasir',
-      totalAmount: actual,
-      subtotal: expected,
-      discount: diff,
-      items: [
-        {
-          'name': 'Modal Awal Kas Laci',
-          'price': CurrencyFormatter.parse(shiftData['opening_cash_float']),
-        },
-        {
-          'name': 'Kas Masuk Penjualan (Net)',
-          'price': CurrencyFormatter.parse(shiftData['cash_inflow']),
-        },
-        {
-          'name': 'Pengeluaran Beban Laci',
-          'price': -CurrencyFormatter.parse(shiftData['cash_expenses']),
-        },
-        {'name': 'Fisik Kas Harus Ada', 'price': expected},
-        {'name': 'Fisik Kas Hasil Hitung', 'price': actual},
-        {'name': 'Selisih Kas (Variance)', 'price': diff},
-      ],
-      qrData: shiftNum,
-    );
+    final breakdown = <String, double>{
+      'Tunai (Net)': cashInflow,
+      if (nonCashInflow > 0) 'Non-Tunai': nonCashInflow,
+    };
 
     final escposBytes = printerService.buildClosingShiftSlipBytes(
-      branchName: 'Cabang Kasir',
-      cashierName: 'Staff Kasir',
-      date: DateTime.now().toString().substring(0, 16),
-      totalTransactions: 1,
-      totalRevenue: actual,
-      paymentBreakdown: {
-        'Modal Awal': CurrencyFormatter.parse(shiftData['opening_cash_float']),
-        'Kas Masuk': CurrencyFormatter.parse(shiftData['cash_inflow']),
-        'Beban Laci': -CurrencyFormatter.parse(shiftData['cash_expenses']),
-        'Fisik Kas Dihitung': actual,
-      },
+      branchName: resolvedBranchName,
+      cashierName: resolvedCashierName,
+      date: DateTime.now().toLocal().toString().substring(0, 16),
+      totalTransactions: totalTx,
+      totalRevenue: cashInflow + nonCashInflow,
+      paymentBreakdown: breakdown,
+      paperWidth: printerSettings.paperWidth,
+      openedAt: openedAtFormatted == '-' ? null : openedAtFormatted,
+      closedAt: closedAtFormatted == '-' ? null : closedAtFormatted,
+      openingCashFloat: openingFloat > 0 ? openingFloat : null,
+      netCashRevenue: cashInflow,
+      nonCashInflow: nonCashInflow > 0 ? nonCashInflow : null,
+      cashDrawerExpenses: cashExpenses > 0 ? cashExpenses : null,
+      expectedCashInDrawer: expected,
+      actualCashCounted: actual,
+      cashDifference: diff,
+      shiftNumber: shiftNum,
     );
 
     showDialog(
       context: context,
       builder: (ctx) => ThermalReceiptPreviewDialog(
         title: 'Struk Tutup Shift Kasir',
-        branchName: 'Cabang Kasir',
+        branchName: resolvedBranchName,
         escposBytes: escposBytes,
         content: Column(
           children: [
@@ -364,57 +423,37 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
             ),
             Text('No: $shiftNum', style: const TextStyle(fontSize: 11)),
             const Divider(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Fisik Kas Dihitung:',
-                    style: TextStyle(fontSize: 11),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    CurrencyFormatter.format(actual),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
+            _buildPostCloseComparisonRow('Modal Awal:', openingFloat),
+            const SizedBox(height: 4),
+            _buildPostCloseComparisonRow('Kas Masuk Bersih:', cashInflow),
+            if (cashExpenses > 0) ...[
+              const SizedBox(height: 4),
+              _buildPostCloseComparisonRow(
+                'Beban Laci:',
+                -cashExpenses,
+                valueColor: AppColors.danger,
+              ),
+            ],
+            const Divider(height: 12),
+            _buildPostCloseComparisonRow(
+              'Fisik Kas Sistem:',
+              expected,
+              isBold: true,
             ),
             const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Selisih Kas:',
-                    style: TextStyle(fontSize: 11),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    CurrencyFormatter.format(diff),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                      color: diff < 0
-                          ? AppColors.danger
-                          : (diff > 0 ? AppColors.info : AppColors.success),
-                    ),
-                  ),
-                ),
-              ],
+            _buildPostCloseComparisonRow(
+              'Fisik Kas Dihitung:',
+              actual,
+              isBold: true,
+            ),
+            const SizedBox(height: 4),
+            _buildPostCloseComparisonRow(
+              'Selisih Kas:',
+              diff,
+              isBold: true,
+              valueColor: diff < 0
+                  ? AppColors.danger
+                  : (diff > 0 ? AppColors.info : AppColors.success),
             ),
           ],
         ),
@@ -431,7 +470,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
         ),
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.9,
@@ -601,7 +640,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: const Row(
@@ -640,7 +679,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
             hintText: '500.000',
             filled: true,
             fillColor: AppColors.surface,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 12,
@@ -694,7 +733,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
             hintText: 'Keterangan pembukaan shift...',
             filled: true,
             fillColor: AppColors.surface,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 12,
@@ -730,7 +769,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
           ),
           elevation: 0,
         ),
@@ -755,28 +794,16 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
 
   Widget _buildCloseShiftMiddleContent() {
     final shiftNum = widget.activeShift?['shift_number'] ?? 'SHF-ACTIVE';
-    final floatAmt = CurrencyFormatter.parse(
-      widget.activeShift?['opening_cash_float'],
-    );
-    final inflowAmt = widget.activeShift?['current_cash_inflow'] != null
-        ? CurrencyFormatter.parse(widget.activeShift?['current_cash_inflow'])
-        : 0.0;
-    final refundAmt = widget.activeShift?['current_cash_refund'] != null
-        ? CurrencyFormatter.parse(widget.activeShift?['current_cash_refund'])
-        : 0.0;
-    final expensesAmt = widget.activeShift?['current_cash_expenses'] != null
-        ? CurrencyFormatter.parse(widget.activeShift?['current_cash_expenses'])
-        : 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Expected Cash Summary Card
+        // Blind Close Notice Card (no expected cash / system totals exposed while open)
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
@@ -818,130 +845,37 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
                 ],
               ),
               const Divider(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(
-                    child: Text(
-                      'Modal Awal Laci',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  Icon(
+                    Icons.visibility_off_rounded,
+                    size: 16,
+                    color: AppColors.textSecondary,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    CurrencyFormatter.format(floatAmt),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-              if (inflowAmt > 0) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Kas Masuk Shift (Penjualan/Denda)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.success,
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Mode Blind Close Aktif',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '+${CurrencyFormatter.format(inflowAmt)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        color: AppColors.success,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              if (refundAmt > 0) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Pengembalian Kas (Refund)',
-                        style: TextStyle(fontSize: 12, color: AppColors.danger),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '-${CurrencyFormatter.format(refundAmt)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        color: AppColors.danger,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              if (expensesAmt > 0) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Beban Pengeluaran Laci',
-                        style: TextStyle(fontSize: 12, color: AppColors.danger),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '-${CurrencyFormatter.format(expensesAmt)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        color: AppColors.danger,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Fisik Kas Wajib Ada',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    CurrencyFormatter.format(_effectiveExpectedCash),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.obsidian,
+                        SizedBox(height: 2),
+                        Text(
+                          'Hitung fisik seluruh uang tunai di laci. Perbandingan kas sistem akan ditampilkan setelah shift ditutup.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1020,8 +954,8 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
 
         const SizedBox(height: 12),
 
-        // Discrepancy Reason Field (mandatory if > 5000)
-        if (_hasDiscrepancy) ...[
+        // Discrepancy Reason Field (shown when required by server during blind close or optional note)
+        if (_serverRequiresReason) ...[
           const Text(
             'Alasan / Keterangan Selisih Kas *',
             style: TextStyle(
@@ -1039,7 +973,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               filled: true,
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
@@ -1047,8 +981,9 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               ),
             ),
             validator: (val) {
-              if (_hasDiscrepancy && (val == null || val.trim().isEmpty)) {
-                return 'Alasan selisih kas wajib diisi jika selisih > Rp 5.000.';
+              if (_serverRequiresReason &&
+                  (val == null || val.trim().isEmpty)) {
+                return 'Alasan selisih kas wajib diisi sebelum mengirim ulang.';
               }
               return null;
             },
@@ -1073,7 +1008,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
             hintText: 'Catatan serah terima shift kasir...',
             filled: true,
             fillColor: AppColors.surface,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 12,
@@ -1233,15 +1168,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
             filled: true,
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: AppColors.border),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: AppColors.border),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(
                 color: AppColors.obsidian,
                 width: 1.5,
@@ -1450,31 +1385,22 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     );
   }
 
-  Widget _buildSummaryCard(bool isMatch, bool isSurplus, double diff) {
-    final statusColor = isMatch
-        ? Colors.green.shade600
-        : (isSurplus ? Colors.amber.shade800 : Colors.red.shade600);
-    final statusBg = isMatch
-        ? Colors.green.shade50
-        : (isSurplus ? Colors.amber.shade50 : Colors.red.shade50);
-    final statusBorder = isMatch
-        ? Colors.green.shade200
-        : (isSurplus ? Colors.amber.shade200 : Colors.red.shade200);
-
+  Widget _buildSummaryCard() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: statusBg,
+        color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusBorder),
+        border: Border.all(color: AppColors.border),
       ),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Expanded(
-                child: Text(
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   'Total Fisik Hasil Hitung',
                   style: TextStyle(
                     fontSize: 12,
@@ -1484,72 +1410,27 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(
-                width: 0,
-                height: 0,
-                child: Text(
-                  'Total Fisik Hasil Hitung:',
-                  style: TextStyle(fontSize: 0),
+                SizedBox(height: 2),
+                Text(
+                  'Rekap selisih dihitung oleh sistem saat Tutup Shift',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                CurrencyFormatter.format(_actualCountedTotal),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.obsidian,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Icon(
-                      isMatch
-                          ? Icons.check_circle_rounded
-                          : (isSurplus
-                                ? Icons.arrow_upward_rounded
-                                : Icons.warning_rounded),
-                      size: 13,
-                      color: statusColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        isMatch
-                            ? 'Status: Selisih Nihil (Cocok)'
-                            : (isSurplus
-                                  ? 'Status: Selisih Lebih'
-                                  : 'Status: Selisih Kurang'),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: statusColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${isSurplus ? '+' : ''}${CurrencyFormatter.format(diff)}',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: statusColor,
-                ),
-              ),
-            ],
+          const SizedBox(width: 8),
+          Text(
+            CurrencyFormatter.format(_actualCountedTotal),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.obsidian,
+            ),
           ),
         ],
       ),
@@ -1557,10 +1438,6 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
   }
 
   Widget _buildStickyCloseFooter() {
-    final diff = _cashDifference;
-    final isMatch = diff == 0.0;
-    final isSurplus = diff > 0.0;
-
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       decoration: BoxDecoration(
@@ -1583,7 +1460,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildSummaryCard(isMatch, isSurplus, diff),
+          _buildSummaryCard(),
           const SizedBox(height: 10),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
@@ -1591,7 +1468,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(8),
               ),
               elevation: 0,
             ),

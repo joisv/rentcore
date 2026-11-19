@@ -147,8 +147,9 @@ class _FakeBookingRepository extends BookingRepository {
 
   @override
   Future<Map<String, dynamic>> createRental(
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    String? idempotencyKey,
+  }) async {
     createRentalCalls++;
     lastCreatedPayload = Map<String, dynamic>.from(payload);
     final paid = (payload['paid_amount'] as num?)?.toDouble() ?? 0.0;
@@ -232,24 +233,24 @@ void main() {
     WidgetTester tester, {
     required String dpText,
   }) async {
-    await tester.tap(find.text('Lanjut ke Data Penyewa'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nama Lengkap Penyewa *'),
+      find.widgetWithText(TextFormField, 'Nama Penyewa *'),
       'Andi Wijaya',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nomor WhatsApp Aktif *'),
+      find.widgetWithText(TextFormField, 'Nomor WhatsApp *'),
       '081234567000',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Alamat Sesuai Kartu Identitas *'),
+      find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'),
       'Jl. Gatot Subroto No. 8',
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Lanjut: Ringkasan Biaya'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('payment_option_dp')));
@@ -289,14 +290,34 @@ void main() {
 
         await completeCustomerAndSelectDp(tester, dpText: '100000');
 
-        // PaymentPage displays DP breakdown (300k total, 100k DP, 200k remaining)
-        expect(find.byKey(const Key('payment_dp_breakdown_card')), findsOneWidget);
-        expect(find.text('Nominal DP Dibayar Sekarang'), findsWidgets);
+        // Main PaymentPage canvas stays clean: shows Nominal DP label, Rp100.000, Detail Sewa link, and zero breakdown card
+        expect(find.byKey(const Key('payment_dp_breakdown_card')), findsNothing);
+        expect(find.text('Nominal DP'), findsOneWidget);
+        expect(find.text('Rp100.000'), findsOneWidget);
+        expect(find.text('Total Sewa'), findsNothing);
+        expect(find.text('Sisa Tagihan (Saat Ambil Unit)'), findsNothing);
+
+        // Tapping "Detail Sewa" reveals full DP breakdown (300k total, 100k DP, 200k remaining)
+        await tester.tap(find.text('Detail Sewa'));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('detail_sheet_payment_breakdown')), findsOneWidget);
         expect(find.text('Total Sewa'), findsOneWidget);
+        expect(find.text('Nominal DP Dibayar Sekarang'), findsOneWidget);
         expect(find.text('Sisa Tagihan (Saat Ambil Unit)'), findsOneWidget);
-        expect(find.text('Rp 300.000'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('detail_sheet_payment_breakdown')),
+            matching: find.text('Rp 300.000'),
+          ),
+          findsOneWidget,
+        );
         expect(find.text('Rp 100.000'), findsOneWidget);
         expect(find.text('Rp 200.000'), findsOneWidget);
+
+        // Close Detail Sewa sheet before tapping Tunai button
+        Navigator.of(tester.element(find.byKey(const Key('detail_sheet_payment_breakdown')))).pop();
+        await tester.pumpAndSettle();
 
         // Pay DP via Tunai
         await tester.tap(find.text('Tunai'));

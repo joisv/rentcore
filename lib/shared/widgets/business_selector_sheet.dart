@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
-import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/providers/business_provider.dart';
 import '../../features/onboarding/presentation/business_setup_wizard_screen.dart';
 import '../../features/organization/presentation/manage_organization_screen.dart';
@@ -36,17 +35,12 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
   @override
   Widget build(BuildContext context) {
     final businessState = ref.watch(businessProvider);
-    final user = ref.watch(authProvider).user;
     final businesses = businessState.businesses;
-    final userName = user?['name']?.toString() ?? 'Pengguna SkyRental';
-    final userEmail = user?['email']?.toString() ?? '';
-    final userInitial =
-        userName.trim().isNotEmpty ? userName.trim()[0].toUpperCase() : 'U';
 
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       child: SafeArea(
         top: false,
@@ -78,102 +72,17 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                 ),
                 const SizedBox(height: 16),
 
-                // User Header (Compact Monochrome)
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF111111),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      alignment: Alignment.center,
-                      child: user?['avatar_url'] != null
-                          ? Image.network(
-                              user!['avatar_url'],
-                              width: 42,
-                              height: 42,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Text(
-                                userInitial,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            )
-                          : Text(
-                              userInitial,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
-                            ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            userName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF111111),
-                            ),
-                          ),
-                          if (userEmail.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              userEmail,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                color: Color(0xFF6B7280),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.logout_rounded,
-                        size: 20,
-                        color: Color(0xFF6B7280),
-                      ),
-                      tooltip: 'Keluar',
-                      onPressed: () {
-                        Navigator.pop(context);
-                        ref.read(authProvider.notifier).logout();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                const SizedBox(height: 16),
-
                 Row(
                   children: [
                     const Expanded(
                       child: Text(
-                        'USAHA & CABANG',
+                        'Pilih Cabang',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
-                          color: Color(0xFF6B7280),
+                          color: Color(0xFF111111),
                         ),
                       ),
                     ),
@@ -204,7 +113,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
                       color: AppColors.dangerLight,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: AppColors.danger.withValues(alpha: 0.3),
                       ),
@@ -251,7 +160,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Column(
                       children: [
@@ -405,7 +314,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                 ),
               );
             },
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
             child: const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Row(
@@ -465,17 +374,26 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: isActive
-                  ? const Color(0xFF111111)
-                  : const Color(0xFF6B7280),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? const Color(0xFF111111)
+                    : const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                icon,
+                size: 18,
+                color: isActive ? Colors.white : const Color(0xFF6B7280),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -696,7 +614,7 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: Padding(
@@ -984,7 +902,7 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: InkWell(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               onTap: () {
                 setState(() {
                   if (isSelected) {
@@ -998,7 +916,7 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isSelected ? const Color(0xFF3B82F6) : AppColors.border,
                     width: isSelected ? 1.5 : 1,

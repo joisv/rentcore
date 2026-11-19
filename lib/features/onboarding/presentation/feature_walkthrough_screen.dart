@@ -178,7 +178,7 @@ class _FeatureWalkthroughScreenState
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
@@ -304,7 +304,7 @@ class _FeatureWalkthroughScreenState
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
@@ -437,7 +437,7 @@ class _FeatureWalkthroughScreenState
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
@@ -457,7 +457,7 @@ class _FeatureWalkthroughScreenState
             height: 136,
             decoration: BoxDecoration(
               color: AppColors.background,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border, width: 2),
             ),
             child: Column(
@@ -522,7 +522,7 @@ class _FeatureWalkthroughScreenState
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
                 color: AppColors.success.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
@@ -551,7 +551,7 @@ class _FeatureWalkthroughScreenState
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
@@ -644,7 +644,7 @@ class _FeatureWalkthroughScreenState
               padding: const EdgeInsets.symmetric(vertical: 12),
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               textStyle: const TextStyle(
                 fontSize: 12,
@@ -693,7 +693,7 @@ class _FeatureWalkthroughScreenState
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
               ),
               elevation: 0,
             ),

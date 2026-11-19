@@ -142,7 +142,7 @@ class VoucherDetailDialog extends ConsumerWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: const EdgeInsets.all(24),
       child: SingleChildScrollView(
@@ -201,7 +201,7 @@ class VoucherDetailDialog extends ConsumerWidget {
                         : isExpired
                             ? AppColors.danger.withValues(alpha: 0.1)
                             : AppColors.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     !isActive
@@ -261,7 +261,7 @@ class VoucherDetailDialog extends ConsumerWidget {
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 44),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               icon: const Icon(Icons.print_outlined, size: 18),
               label: const Text('Cetak Slip Fisik ke Printer Thermal'),
@@ -279,7 +279,7 @@ class VoucherDetailDialog extends ConsumerWidget {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 42),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: Icon(isActive ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded, size: 18),
                       label: Text(isActive ? 'Nonaktifkan' : 'Aktifkan'),
@@ -299,7 +299,7 @@ class VoucherDetailDialog extends ConsumerWidget {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 42),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: const Icon(Icons.edit_outlined, size: 18),
                       label: const Text('Edit'),
@@ -317,7 +317,7 @@ class VoucherDetailDialog extends ConsumerWidget {
                   IconButton(
                     style: IconButton.styleFrom(
                       backgroundColor: AppColors.danger.withValues(alpha: 0.1),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 20),
                     tooltip: 'Hapus Voucher',

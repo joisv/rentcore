@@ -21,6 +21,8 @@ class MockPaymentRepository extends PaymentRepository {
     required double amountToPay,
     required double cashReceived,
     String? notes,
+    String? idempotencyKey,
+    String? externalReference,
   }) async {
     lastContext = context;
     final isCash = paymentMethodCode.toUpperCase() == 'CASH';
@@ -109,16 +111,16 @@ void main() {
       expect(find.text('Smartphones'), findsOneWidget);
 
       // Verify CTA button is disabled before unit selection
-      final ctaFinder = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final ctaFinder = find.widgetWithText(ElevatedButton, 'Lanjut');
       expect(ctaFinder, findsOneWidget);
       final disabledCta = tester.widget<ElevatedButton>(ctaFinder);
       expect(disabledCta.onPressed, isNull);
 
-      // Verify compact metadata chips on unit card
-      expect(find.text('IPHONE-15-01'), findsOneWidget);
-      expect(find.text('Grade B'), findsOneWidget);
-      expect(find.text('BH 100%'), findsOneWidget);
-      expect(find.text('SN: ...1234'), findsOneWidget); // last 4 digits of SN99881234
+      // Verify compact metadata subtitle on unit row
+      expect(
+        find.text('IPHONE-15-01 • Grade B • BH 100% • SN: ...1234'),
+        findsOneWidget,
+      );
 
       // Select unit
       final unitFinder = find.text('iPhone 15 Pro Max 256GB Natural Titanium');
@@ -175,14 +177,14 @@ void main() {
       await tester.tap(find.text('iPhone 15 Pro Max 256GB Natural Titanium'));
       await tester.pumpAndSettle();
 
-      final ctaFinder = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final ctaFinder = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(ctaFinder);
       await tester.tap(ctaFinder);
       await tester.pumpAndSettle();
 
-      // Verify Step 2 header and Cari Riwayat button
-      expect(find.text('DATA PENYEWA & ALAMAT IDENTITAS'), findsOneWidget);
-      expect(find.text('Cari Riwayat'), findsOneWidget);
+      // Verify Step 2 header and Cari Pelanggan button
+      expect(find.text('DATA PENYEWA'), findsOneWidget);
+      expect(find.text('Cari Pelanggan'), findsOneWidget);
 
       // Verify no RenderFlex overflow occurred
       FlutterError.onError = previousOnError;
@@ -231,7 +233,7 @@ void main() {
       // Step 1: Select unit
       await tester.tap(find.text('iPhone 15 Pro Max 256GB Natural Titanium'));
       await tester.pumpAndSettle();
-      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut ke Data Penyewa');
+      final step1Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step1Cta);
       await tester.tap(step1Cta);
       await tester.pumpAndSettle();
@@ -250,7 +252,7 @@ void main() {
 
       // Verify Unified PaymentPage is rendered!
       expect(find.text('Pembayaran  Sewa'), findsOneWidget);
-      expect(find.text('Tagihan Sewa'), findsOneWidget);
+      expect(find.text('Total Tagihan'), findsOneWidget);
       expect(find.text('Rp300.000'), findsOneWidget);
       expect(find.text('Detail Sewa'), findsOneWidget);
 

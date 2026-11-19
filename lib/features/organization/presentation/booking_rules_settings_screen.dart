@@ -231,7 +231,7 @@ class _BookingRulesSettingsScreenState
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: AppColors.border),
                     ),
                     child: DropdownButtonHideUnderline(
@@ -269,7 +269,7 @@ class _BookingRulesSettingsScreenState
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: AppColors.border),
                   ),
                   child: Column(
@@ -333,7 +333,7 @@ class _BookingRulesSettingsScreenState
                 Material(
                   color: AppColors.surface,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                     side: const BorderSide(color: AppColors.border),
                   ),
                   clipBehavior: Clip.antiAlias,
@@ -401,7 +401,7 @@ class _BookingRulesSettingsScreenState
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       elevation: 0,
                     ),

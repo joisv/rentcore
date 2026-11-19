@@ -65,7 +65,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.infoLight,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
                   ),
                   child: Row(
@@ -115,7 +115,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isConnected ? AppColors.successLight : AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isConnected ? AppColors.success.withValues(alpha: 0.4) : AppColors.border,
           width: 1.5,
@@ -242,7 +242,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -317,12 +317,12 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.obsidian : AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? AppColors.obsidian : AppColors.border,
             width: isSelected ? 1.5 : 1,
@@ -369,7 +369,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(8),
                 side: const BorderSide(color: AppColors.border),
               ),
             ),
@@ -412,7 +412,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             icon: const Icon(Icons.tune_rounded, size: 18),
             label: const Text(
@@ -522,7 +522,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
             child: Column(
@@ -565,7 +565,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCurrent ? AppColors.successLight : AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: isCurrent ? AppColors.success.withValues(alpha: 0.4) : AppColors.border,
                 ),

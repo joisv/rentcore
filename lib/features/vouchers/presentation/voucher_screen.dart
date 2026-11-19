@@ -285,13 +285,13 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
                         branches: branches,
                         onPrintThermal: () => _showThermalSlipModal(context, v),
                       ),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(10),
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: !isActive
                                 ? AppColors.borderSubtle

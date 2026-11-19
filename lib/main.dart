@@ -109,7 +109,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
       backgroundColor: AppColors.surface,
       clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (_) => const SizedBox.expand(
         child: DirectRentalScreen(showAppBar: false),

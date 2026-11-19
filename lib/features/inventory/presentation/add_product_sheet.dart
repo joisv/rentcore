@@ -194,7 +194,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
         side: BorderSide(
           color: isAlreadyAdded ? const Color(0xFFA7F3D0) : const Color(0xFFCBD5E1),
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         onPressed: isAlreadyAdded ? null : () => _addPresetRate(unit, value),
       ),
     );
@@ -220,7 +220,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             title: const Text('Kategori Baru', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -234,7 +234,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                     hintText: 'Misal: Drone & Gimbal / Audio',
                     filled: true,
                     fillColor: AppColors.surfaceMuted,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                   ),
                 ),
                 if (localError != null) ...[
@@ -622,7 +622,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -674,7 +674,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Row(
@@ -764,13 +764,13 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
           InkWell(
             key: const Key('model_photo_picker_box'),
             onTap: _showImageSourceSheet,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFFCBD5E1)),
               ),
               child: const Column(
@@ -816,19 +816,19 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       prefixIcon: prefixIcon,
       prefixIconConstraints: prefixIconConstraints,
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: Color(0xFFF43F5E)),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: Color(0xFFF43F5E), width: 1.5),
       ),
     );
@@ -1187,7 +1187,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                           boxShadow: const [
                             BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 1)),
@@ -1231,7 +1231,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                             boxShadow: const [
                               BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 1)),
@@ -1293,7 +1293,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                           boxShadow: const [
                             BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 1)),
@@ -1375,7 +1375,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0xFFCBD5E1), width: 1.2),
                             boxShadow: const [
                               BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
@@ -1475,11 +1475,11 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                                             fillColor: Colors.white,
                                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
                                             enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius: BorderRadius.circular(8),
                                               borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
                                             ),
                                             focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius: BorderRadius.circular(8),
                                               borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
                                             ),
                                           ),
@@ -1506,11 +1506,11 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                                             fillColor: Colors.white,
                                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                                             enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius: BorderRadius.circular(8),
                                               borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
                                             ),
                                             focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius: BorderRadius.circular(8),
                                               borderSide: const BorderSide(color: Color(0xFF0F172A), width: 2),
                                             ),
                                           ),
@@ -1649,7 +1649,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           backgroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           side: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
                         label: const Text(
@@ -1683,7 +1683,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                   backgroundColor: const Color(0xFF0F172A),
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 2,
                   shadowColor: const Color(0x330F172A),
                 ),

@@ -539,7 +539,7 @@ class RentalQueueActions {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (_) => _CheckInHandoverSheet(
         booking: booking,
@@ -598,305 +598,244 @@ class RentalQueueActions {
         status == 'reserved' ||
         status == 'confirmed' ||
         status == 'waiting_handover';
+    final isActive = !isAwaitingHandover && !isReturned && !isNoShow;
     final bookingCode = booking['booking_code']?.toString() ?? 'Sewa';
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Aksi Transaksi • $bookingCode',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.obsidian,
+      builder: (ctx) {
+        final actionTiles = <Widget>[
+          if (isAwaitingHandover) ...[
+            _buildOverflowActionTile(
+              key: const Key('overflow_reschedule_tile'),
+              icon: Icons.edit_calendar_rounded,
+              title: 'Ubah Jadwal',
+              subtitle: 'Majukan atau geser tanggal & jam ambil',
+              onTap: () {
+                Navigator.pop(ctx);
+                openRescheduleFlow(
+                  context,
+                  ref,
+                  booking,
+                  onRefresh: onRefresh,
+                );
+              },
+            ),
+            _buildOverflowActionTile(
+              icon: Icons.schedule_rounded,
+              title: 'Perpanjang Batas Ambil (+30 mnt)',
+              subtitle: 'Tambah toleransi sebelum No-Show',
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _handleExtendGracePeriod(
+                  context,
+                  ref,
+                  booking,
+                  onRefresh: onRefresh,
+                );
+              },
+            ),
+            _buildOverflowActionTile(
+              key: const Key('overflow_mark_noshow_tile'),
+              icon: Icons.person_off_outlined,
+              title: 'Tandai No-Show',
+              subtitle: 'Batalkan & lepas slot unit',
+              isDanger: true,
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmMarkNoShow(
+                  context,
+                  ref,
+                  booking,
+                  onRefresh: onRefresh,
+                );
+              },
+            ),
+            _buildOverflowActionTile(
+              key: const Key('overflow_cancel_booking_tile'),
+              icon: Icons.cancel_outlined,
+              title: 'Batalkan Booking',
+              subtitle: 'Batalkan pesanan & kembalikan slot',
+              isDanger: true,
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmCancelBooking(
+                  context,
+                  ref,
+                  booking,
+                  onRefresh: onRefresh,
+                );
+              },
+            ),
+          ] else if (isActive) ...[
+            _buildOverflowActionTile(
+              icon: Icons.more_time_rounded,
+              title: 'Tambah Jam / Perpanjang',
+              subtitle: 'Sesuaikan durasi sewa berjalan',
+              onTap: () {
+                Navigator.pop(ctx);
+                showDurationAdjustmentDialog(
+                  context,
+                  ref,
+                  booking,
+                  onRefresh: onRefresh,
+                );
+              },
+            ),
+            _buildOverflowActionTile(
+              icon: Icons.swap_horiz_rounded,
+              title: 'Ganti Unit Fisik',
+              subtitle: 'Tukar unit jika ada kendala perangkat',
+              onTap: () {
+                Navigator.pop(ctx);
+                openExchangeWizard(
+                  context,
+                  ref,
+                  booking,
+                  onRefresh: onRefresh,
+                );
+              },
+            ),
+            _buildOverflowActionTile(
+              icon: Icons.print_rounded,
+              title: 'Cetak Ulang Struk',
+              subtitle: 'Cetak struk transaksi ke printer',
+              onTap: () {
+                Navigator.pop(ctx);
+                printBookingReceipt(context, ref, booking);
+              },
+            ),
+          ] else ...[
+            _buildOverflowActionTile(
+              icon: Icons.print_rounded,
+              title: 'Cetak Ulang Struk',
+              subtitle: 'Cetak struk transaksi ke printer',
+              onTap: () {
+                Navigator.pop(ctx);
+                printBookingReceipt(context, ref, booking);
+              },
+            ),
+          ],
+        ];
+
+        final dividedChildren = <Widget>[];
+        for (var i = 0; i < actionTiles.length; i++) {
+          if (i > 0) {
+            dividedChildren.add(
+              const Divider(
+                height: 1,
+                indent: 56,
+                endIndent: 20,
+                color: AppColors.border,
+              ),
+            );
+          }
+          dividedChildren.add(actionTiles[i]);
+        }
+
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 4,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Aksi Transaksi • $bookingCode',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.obsidian,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 20,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () => Navigator.pop(ctx),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        size: 20,
-                        color: AppColors.textSecondary,
-                      ),
-                      onPressed: () => Navigator.pop(ctx),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ...dividedChildren,
+                ],
               ),
-              const Divider(height: 1, color: AppColors.border),
-              ListTile(
-                enabled: !isReturned && !isNoShow,
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.obsidian.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.more_time_rounded,
-                    size: 20,
-                    color: (isReturned || isNoShow)
-                        ? AppColors.textMuted
-                        : AppColors.obsidian,
-                  ),
-                ),
-                title: const Text(
-                  'Tambah Jam / Perpanjang',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-                subtitle: Text(
-                  (isReturned || isNoShow)
-                      ? 'Tidak tersedia untuk status sewa saat ini'
-                      : 'Perpanjang atau sesuaikan durasi sewa unit',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                onTap: (isReturned || isNoShow)
-                    ? null
-                    : () {
-                        Navigator.pop(ctx);
-                        showDurationAdjustmentDialog(
-                          context,
-                          ref,
-                          booking,
-                          onRefresh: onRefresh,
-                        );
-                      },
-              ),
-              const Divider(
-                height: 1,
-                indent: 56,
-                endIndent: 20,
-                color: AppColors.border,
-              ),
-              ListTile(
-                enabled: !isReturned && !isNoShow,
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.obsidian.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.swap_horiz_rounded,
-                    size: 20,
-                    color: (isReturned || isNoShow)
-                        ? AppColors.textMuted
-                        : AppColors.obsidian,
-                  ),
-                ),
-                title: const Text(
-                  'Ganti Unit Fisik',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-                subtitle: Text(
-                  (isReturned || isNoShow)
-                      ? 'Tidak tersedia untuk status sewa saat ini'
-                      : 'Tukar unit fisik jika ada kendala perangkat',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                onTap: (isReturned || isNoShow)
-                    ? null
-                    : () {
-                        Navigator.pop(ctx);
-                        openExchangeWizard(
-                          context,
-                          ref,
-                          booking,
-                          onRefresh: onRefresh,
-                        );
-                      },
-              ),
-              if (isAwaitingHandover) ...[
-                const Divider(
-                  height: 1,
-                  indent: 56,
-                  endIndent: 20,
-                  color: AppColors.border,
-                ),
-                ListTile(
-                  key: const Key('overflow_reschedule_tile'),
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.obsidian.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.edit_calendar_rounded,
-                      size: 20,
-                      color: AppColors.obsidian,
-                    ),
-                  ),
-                  title: const Text(
-                    'Ubah Jadwal',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                  ),
-                  subtitle: const Text(
-                    'Majukan atau geser tanggal & jam mulai booking',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    openRescheduleFlow(
-                      context,
-                      ref,
-                      booking,
-                      onRefresh: onRefresh,
-                    );
-                  },
-                ),
-                const Divider(
-                  height: 1,
-                  indent: 56,
-                  endIndent: 20,
-                  color: AppColors.border,
-                ),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.obsidian.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.schedule_rounded,
-                      size: 20,
-                      color: AppColors.obsidian,
-                    ),
-                  ),
-                  title: const Text(
-                    'Perpanjang Batas Ambil (+30 mnt)',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                  ),
-                  subtitle: const Text(
-                    'Tambah masa tenggang sebelum booking dianggap No-Show',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    await _handleExtendGracePeriod(
-                      context,
-                      ref,
-                      booking,
-                      onRefresh: onRefresh,
-                    );
-                  },
-                ),
-                const Divider(
-                  height: 1,
-                  indent: 56,
-                  endIndent: 20,
-                  color: AppColors.border,
-                ),
-                ListTile(
-                  key: const Key('overflow_mark_noshow_tile'),
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.dangerLight,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.person_off_outlined,
-                      size: 20,
-                      color: AppColors.danger,
-                    ),
-                  ),
-                  title: const Text(
-                    'Tandai No-Show',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: AppColors.danger,
-                    ),
-                  ),
-                  subtitle: const Text(
-                    'Batalkan jadwal ambil & lepas slot unit ke stok tersedia',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _confirmMarkNoShow(
-                      context,
-                      ref,
-                      booking,
-                      onRefresh: onRefresh,
-                    );
-                  },
-                ),
-              ],
-              const Divider(
-                height: 1,
-                indent: 56,
-                endIndent: 20,
-                color: AppColors.border,
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.obsidian.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.print_rounded,
-                    size: 20,
-                    color: AppColors.obsidian,
-                  ),
-                ),
-                title: const Text(
-                  'Cetak Ulang Struk',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-                subtitle: const Text(
-                  'Preview & cetak ulang struk thermal ESC/POS',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  printBookingReceipt(context, ref, booking);
-                },
-              ),
-            ],
+            ),
           ),
+        );
+      },
+    );
+  }
+
+  static Widget _buildOverflowActionTile({
+    Key? key,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool isDanger = false,
+  }) {
+    final iconColor = isDanger ? AppColors.danger : AppColors.obsidian;
+    final bgColor = isDanger
+        ? AppColors.dangerLight
+        : AppColors.obsidian.withValues(alpha: 0.08);
+    return ListTile(
+      key: key,
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 18, color: iconColor),
+      ),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+          color: isDanger ? AppColors.danger : AppColors.obsidian,
         ),
       ),
+      subtitle: Text(
+        subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 12,
+          color: AppColors.textSecondary,
+        ),
+      ),
+      onTap: onTap,
     );
   }
 
@@ -987,7 +926,7 @@ class RentalQueueActions {
         builder: (dCtx, setDialogState) => AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
           ),
           title: const Row(
             children: [
@@ -1078,7 +1017,7 @@ class RentalQueueActions {
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
               onPressed: isSaving
@@ -1178,7 +1117,7 @@ class RentalQueueActions {
     showDialog(
       context: context,
       builder: (dCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [
             Icon(Icons.person_off_outlined, color: AppColors.danger, size: 22),
@@ -1256,6 +1195,103 @@ class RentalQueueActions {
               }
             },
             child: const Text('Konfirmasi No-Show'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static void _confirmCancelBooking(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> booking, {
+    VoidCallback? onRefresh,
+  }) {
+    final bookingId = (booking['id'] as num?)?.toInt();
+    if (bookingId == null) return;
+    final bookingCode = booking['booking_code']?.toString() ?? '#$bookingId';
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Row(
+          children: [
+            Icon(Icons.cancel_outlined, color: AppColors.danger, size: 22),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Batalkan Booking',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Booking $bookingCode akan dibatalkan dan slot unit akan dilepas kembali ke inventaris.',
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                hintText: 'Catatan alasan pembatalan (opsional)',
+                isDense: true,
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx),
+            child: const Text(
+              'Tutup',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            onPressed: () async {
+              final reason = reasonController.text.trim();
+              Navigator.pop(dCtx);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await ref
+                    .read(bookingRepositoryProvider)
+                    .cancelBooking(bookingId, reason: reason);
+                _invalidateQueueProviders(ref);
+                onRefresh?.call();
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Booking $bookingCode berhasil dibatalkan.'),
+                    backgroundColor: AppColors.obsidian,
+                  ),
+                );
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Gagal membatalkan booking: $e'),
+                    backgroundColor: AppColors.danger,
+                  ),
+                );
+              }
+            },
+            child: const Text('Konfirmasi Batal'),
           ),
         ],
       ),
@@ -1420,7 +1456,7 @@ class RentalQueueActions {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
@@ -1761,7 +1797,7 @@ class RentalQueueActions {
                                 vertical: 10,
                               ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                                 side: BorderSide(
                                   color: isSel && !isDisabled
                                       ? AppColors.obsidian
@@ -1873,7 +1909,7 @@ class RentalQueueActions {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: AppColors.border),
                       ),
                       child: Column(
@@ -1986,7 +2022,7 @@ class RentalQueueActions {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: AppColors.warning.withValues(alpha: 0.4),
                           ),
@@ -2040,7 +2076,7 @@ class RentalQueueActions {
                                 filled: true,
                                 fillColor: AppColors.surfaceMuted,
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(8),
                                   borderSide: const BorderSide(
                                     color: AppColors.border,
                                   ),
@@ -2068,7 +2104,7 @@ class RentalQueueActions {
                           filled: true,
                           fillColor: AppColors.surface,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 14,
@@ -2086,7 +2122,7 @@ class RentalQueueActions {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           elevation: 0,
                         ),
@@ -2163,7 +2199,7 @@ class RentalQueueActions {
                             horizontal: 14,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                         onPressed: isSubmitting
@@ -2238,7 +2274,7 @@ class RentalQueueActions {
                               : AppColors.textMuted,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           elevation: 0,
                         ),
@@ -2766,6 +2802,17 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
     }
   }
 
+  String _buildUnitSpecsText(Map<dynamic, dynamic> unit) {
+    final sn = unit['serial_number']?.toString();
+    final grade = unit['condition_grade']?.toString();
+    final bh = unit['battery_health'];
+    return [
+      if (sn != null && sn.isNotEmpty) 'SN: $sn',
+      if (grade != null && grade.isNotEmpty) 'Grade $grade',
+      if (bh != null) 'BH $bh%',
+    ].join(' • ');
+  }
+
   Widget _buildEarlyPickupRadioOption({
     required Key key,
     required bool value,
@@ -2787,13 +2834,15 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
       },
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? AppColors.obsidian : AppColors.border,
-            width: isSelected ? 1.3 : 1,
+            color: isSelected
+                ? const Color(0xFF111111)
+                : const Color(0xFFE5E7EB),
+            width: isSelected ? 1.5 : 1,
           ),
         ),
         child: Row(
@@ -2806,7 +2855,9 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? AppColors.obsidian : AppColors.textMuted,
+                  color: isSelected
+                      ? const Color(0xFF111111)
+                      : AppColors.textMuted,
                   width: 1.5,
                 ),
               ),
@@ -2817,13 +2868,13 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                         height: 8,
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppColors.obsidian,
+                          color: Color(0xFF111111),
                         ),
                       ),
                     )
                   : null,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2831,17 +2882,17 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.obsidian,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF111111),
                     ),
                   ),
-                  const SizedBox(height: 1),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      color: Color(0xFF6B7280),
                       height: 1.25,
                     ),
                   ),
@@ -2863,9 +2914,6 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
         booking['customer']?['name']?.toString() ??
         booking['customer_name']?.toString() ??
         'Pelanggan';
-    final paymentStatus =
-        (booking['payment_status'] ?? 'paid').toString().toLowerCase();
-    final isPaid = paymentStatus == 'paid';
 
     final modelName =
         booking['asset_model']?['name']?.toString() ??
@@ -2906,87 +2954,62 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                   ),
                 ),
               ),
-              Text(
-                'Serahkan Unit • $bookingCode',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.obsidian,
+              const Text(
+                'Serahkan Unit',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF111111),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                'Penyewa: $customerName • $modelName • ${isPaid ? 'Lunas' : 'Belum Lunas'}',
+                '$customerName • $modelName • $bookingCode',
                 style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  color: Color(0xFF6B7280),
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               if (_isEarlyPickup && _scheduledStartAt != null) ...[
-                const SizedBox(height: 10),
-                Container(
+                const SizedBox(height: 16),
+                Column(
                   key: const Key('early_pickup_banner'),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.event_available_rounded,
-                            size: 16,
-                            color: AppColors.obsidian,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Pengambilan Lebih Awal dari Jadwal',
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.obsidian,
-                              ),
-                            ),
-                          ),
-                        ],
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'AMBIL LEBIH AWAL • JADWAL: ${DateFormatter.formatDayMonth(_scheduledStartAt!).toUpperCase()}, ${DateFormatter.formatTime(_scheduledStartAt!)}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                        color: Color(0xFF6B7280),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Jadwal awal: ${DateFormatter.formatFull(_scheduledStartAt!)}',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildEarlyPickupRadioOption(
-                        key: const Key('early_pickup_shift_option'),
-                        value: false,
-                        title: 'Geser jadwal mulai sekarang',
-                        subtitle:
-                            'Durasi tetap, waktu selesai ikut maju otomatis',
-                      ),
-                      const SizedBox(height: 8),
-                      _buildEarlyPickupRadioOption(
-                        key: const Key('early_pickup_keep_end_option'),
-                        value: true,
-                        title: 'Mulai sekarang, batas kembali tetap',
-                        subtitle:
-                            'Menambah durasi & selisih tagihan hingga tanggal selesai semula',
-                      ),
-                    ],
-                  ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildEarlyPickupRadioOption(
+                      key: const Key('early_pickup_shift_option'),
+                      value: false,
+                      title: 'Mulai sekarang, durasi tetap',
+                      subtitle: 'Waktu selesai ikut maju otomatis',
+                    ),
+                    const SizedBox(height: 8),
+                    _buildEarlyPickupRadioOption(
+                      key: const Key('early_pickup_keep_end_option'),
+                      value: true,
+                      title: 'Mulai sekarang, batas kembali tetap',
+                      subtitle: 'Tambah durasi & selisih tagihan',
+                    ),
+                  ],
                 ),
               ],
-              if (graceAt != null) ...[
-                const SizedBox(height: 10),
+              if (graceAt != null && !_isEarlyPickup) ...[
+                const SizedBox(height: 12),
                 Container(
+                  key: const Key('handover_grace_pill'),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 7,
@@ -2999,7 +3022,7 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                     border: Border.all(
                       color: isOverduePickup
                           ? AppColors.danger.withValues(alpha: 0.3)
-                          : AppColors.border,
+                          : const Color(0xFFE5E7EB),
                     ),
                   ),
                   child: Row(
@@ -3011,28 +3034,30 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                         size: 15,
                         color: isOverduePickup
                             ? AppColors.danger
-                            : AppColors.obsidian,
+                            : const Color(0xFF111111),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           isOverduePickup
                               ? 'Lewat Jadwal Ambil (Batas: ${DateFormatter.formatTime(graceAt)})'
-                              : 'Batas ambil: ${DateFormatter.formatTime(graceAt)} WIB',
+                              : 'Batas ambil: ${DateFormatter.formatTime(graceAt)}',
                           style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                             color: isOverduePickup
                                 ? AppColors.danger
-                                : AppColors.obsidian,
+                                : const Color(0xFF111111),
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
                 ),
               ],
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // Unit Selection for Floating Unit vs Pinned Display
               if (_isFloating) ...[
@@ -3040,12 +3065,12 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'PILIH UNIT FISIK SIAP SERAH',
+                      'UNIT FISIK',
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280),
+                        letterSpacing: 0.5,
                       ),
                     ),
                     if (_isLoadingUnits)
@@ -3100,28 +3125,24 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                         final unitId = (unit['id'] as num?)?.toInt();
                         final isSelected = _selectedUnitId == unitId;
                         final code = unit['asset_code']?.toString() ?? '-';
-                        final sn = unit['serial_number']?.toString();
-                        final grade = unit['condition_grade']?.toString();
-                        final bh = unit['battery_health'];
+                        final specs = _buildUnitSpecsText(unit);
 
                         return InkWell(
                           key: Key('checkin_unit_option_$unitId'),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           onTap: () => setState(() => _selectedUnitId = unitId),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
+                              horizontal: 14,
                               vertical: 10,
                             ),
                             decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.surfaceMuted
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: isSelected
-                                    ? AppColors.obsidian
-                                    : AppColors.border,
+                                    ? const Color(0xFF111111)
+                                    : const Color(0xFFE5E7EB),
                                 width: isSelected ? 1.5 : 1,
                               ),
                             ),
@@ -3133,7 +3154,7 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                                       : Icons.radio_button_off,
                                   size: 18,
                                   color: isSelected
-                                      ? AppColors.obsidian
+                                      ? const Color(0xFF111111)
                                       : AppColors.textMuted,
                                 ),
                                 const SizedBox(width: 10),
@@ -3147,21 +3168,21 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                                         style: const TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w700,
-                                          color: AppColors.obsidian,
+                                          color: Color(0xFF111111),
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      Text(
-                                        [
-                                          if (sn != null && sn.isNotEmpty)
-                                            'SN: $sn',
-                                          if (grade != null) 'Grade $grade',
-                                          if (bh != null) 'BH $bh%',
-                                        ].join(' • '),
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textSecondary,
+                                      if (specs.isNotEmpty)
+                                        Text(
+                                          specs,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: Color(0xFF6B7280),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -3173,29 +3194,66 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                     ),
                   ),
               ] else if (pinnedAsset != null) ...[
+                const Text(
+                  'UNIT FISIK',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7280),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
                   ),
                   child: Row(
                     children: [
                       const Icon(
                         Icons.lock_outline_rounded,
-                        size: 18,
-                        color: AppColors.obsidian,
+                        size: 16,
+                        color: Color(0xFF111111),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          'Unit Terkunci: ${pinnedAsset['asset_code'] ?? '-'}${pinnedAsset['serial_number'] != null ? ' • SN: ${pinnedAsset['serial_number']}' : ''}',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.obsidian,
-                          ),
+                        child: Builder(
+                          builder: (_) {
+                            final code =
+                                pinnedAsset['asset_code']?.toString() ?? '-';
+                            final specs = _buildUnitSpecsText(pinnedAsset);
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  code,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF111111),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (specs.isNotEmpty)
+                                  Text(
+                                    specs,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFF6B7280),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -3203,18 +3261,47 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                 ),
               ],
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextField(
                 key: const Key('handover_collateral_field'),
                 controller: _slotController,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: Color(0xFF111111),
+                ),
                 decoration: InputDecoration(
                   labelText: 'Slot Brankas Jaminan (KTP/SIM)',
+                  labelStyle: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
                   isDense: true,
                   filled: true,
-                  fillColor: AppColors.surfaceMuted,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE5E7EB),
+                      width: 1,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE5E7EB),
+                      width: 1,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF111111),
+                      width: 1.2,
+                    ),
                   ),
                 ),
               ),
@@ -3228,56 +3315,44 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (needsSettlement) ...[
-                        const SizedBox(height: 12),
-                        Container(
+                        const SizedBox(height: 16),
+                        Row(
                           key: const Key('handover_remaining_balance_row'),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 11,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Sisa Tagihan',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                  Text(
-                                    CurrencyFormatter.format(remainingAmount),
-                                    style: const TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.obsidian,
-                                    ),
-                                  ),
-                                ],
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Sisa Tagihan',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF6B7280),
                               ),
-                              if (totals.extraFee > 0) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Termasuk estimasi selisih jadwal (${totals.estimatedHours} jam): +${CurrencyFormatter.format(totals.extraFee)}',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
-                                  ),
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                CurrencyFormatter.format(remainingAmount),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF111111),
                                 ),
-                              ],
-                            ],
-                          ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
+                        if (totals.extraFee > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Termasuk selisih jadwal (${totals.estimatedHours} jam): +${CurrencyFormatter.format(totals.extraFee)}',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
                       ],
                       if (_submitError != null) ...[
                         const SizedBox(height: 12),
@@ -3304,42 +3379,16 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           key: const Key('confirm_checkin_button'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.obsidian,
+                            backgroundColor: const Color(0xFF111111),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                             elevation: 0,
-                          ),
-                          icon: _isSubmitting
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Icon(
-                                  needsSettlement
-                                      ? Icons.payments_rounded
-                                      : Icons.check_circle_outline_rounded,
-                                  size: 18,
-                                ),
-                          label: Text(
-                            _isSubmitting
-                                ? 'Memproses...'
-                                : (needsSettlement
-                                    ? 'Lanjut ke Pembayaran'
-                                    : 'Serahkan Unit Sekarang'),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
                           ),
                           onPressed: _isSubmitting
                               ? null
@@ -3349,6 +3398,24 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                                       totals.totalBill,
                                     )
                                   : _submitCheckIn),
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  needsSettlement
+                                      ? 'Bayar & Serahkan Unit'
+                                      : 'Serahkan Unit',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
                         ),
                       ),
                     ],

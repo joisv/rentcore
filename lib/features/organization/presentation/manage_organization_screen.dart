@@ -241,7 +241,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           return Container(
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isCentral ? AppColors.obsidian : AppColors.border,
                 width: isCentral ? 1.5 : 1,
@@ -427,7 +427,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           return Container(
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: pendingResignation != null ? const Color(0xFFF59E0B) : AppColors.border,
                 width: pendingResignation != null ? 1.5 : 1,
@@ -643,7 +643,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFFEF3C7),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFF59E0B)),
       ),
       child: Row(
@@ -700,7 +700,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
             Container(
@@ -820,7 +820,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
@@ -905,7 +905,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: Row(
             children: [
               const Icon(Icons.swap_horiz_rounded, color: AppColors.obsidian),
@@ -937,7 +937,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                   value: selectedToBranchId,
                   decoration: InputDecoration(
                     labelText: 'Cabang Tujuan',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
                   items: availableBranches.map((b) {
@@ -958,7 +958,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                 controller: reasonController,
                 decoration: InputDecoration(
                   labelText: 'Alasan Pemindahan (Opsional)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
               ),
@@ -1023,7 +1023,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
             const Icon(Icons.pin_rounded, color: AppColors.obsidian),
@@ -1053,7 +1053,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
               decoration: InputDecoration(
                 labelText: 'PIN 6-Digit Angka',
                 hintText: 'Contoh: 123456',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
             ),
@@ -1134,7 +1134,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: AppColors.danger),
@@ -1282,7 +1282,7 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: EdgeInsets.only(
         top: 20,
@@ -1390,7 +1390,7 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
                   backgroundColor: AppColors.obsidian,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: isSubmitting ? null : _submit,
                 child: isSubmitting
@@ -1488,7 +1488,7 @@ class _InviteMemberBottomSheetState extends ConsumerState<_InviteMemberBottomShe
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       padding: EdgeInsets.only(
         top: 20,
@@ -1647,7 +1647,7 @@ class _InviteMemberBottomSheetState extends ConsumerState<_InviteMemberBottomShe
                   backgroundColor: AppColors.obsidian,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: isSubmitting ? null : _submit,
                 child: isSubmitting
@@ -1833,7 +1833,7 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
             child: const Row(
@@ -2024,7 +2024,7 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
                   backgroundColor: AppColors.obsidian,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 icon: _isSaving
                     ? const SizedBox(
@@ -2054,11 +2054,11 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
   }) {
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
         child: Column(

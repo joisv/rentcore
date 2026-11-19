@@ -61,7 +61,7 @@ class ExchangeHistorySheet extends ConsumerWidget {
         return Container(
           decoration: const BoxDecoration(
             color: AppColors.background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
           ),
           child: Column(
             children: [
@@ -157,7 +157,7 @@ class ExchangeHistorySheet extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(Icons.phonelink_erase_rounded, size: 40, color: AppColors.textMuted),
             ),
@@ -209,7 +209,7 @@ class ExchangeHistorySheet extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -220,7 +220,7 @@ class ExchangeHistorySheet extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: const BoxDecoration(
               color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(17)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(9)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -48,6 +48,7 @@ class _FakeRescheduleCashierRepository extends CashierRepository {
     String? paymentType,
     String? notes,
     String? idempotencyKey,
+    String? externalReference,
     bool? frpCleared,
     bool? accountRemoved,
     bool? isHandoverSettlement,
@@ -371,7 +372,7 @@ void main() {
   );
 
   testWidgets(
-    'Serahkan Unit detects early pickup for Nov 20 booking, defaults to Geser jadwal, and supports keeping original return date with extra settlement',
+    'Serahkan Unit detects early pickup for Nov 20 booking, defaults to MulaisSekarangDurasiTetap, hides grace pill, and supports keeping original return date with extra settlement',
     (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
@@ -394,30 +395,48 @@ void main() {
       await tester.tap(find.text('Serahkan Unit').first);
       await tester.pumpAndSettle();
 
-      // Early pickup banner appears with both radio options
+      // Early pickup section appears with flattened header & both radio options, and hides grace pill
       expect(find.byKey(const Key('early_pickup_banner')), findsOneWidget);
-      expect(find.text('Pengambilan Lebih Awal dari Jadwal'), findsOneWidget);
-      expect(find.textContaining('Jadwal awal: 20 Nov 2026'), findsOneWidget);
-      expect(find.text('Geser jadwal mulai sekarang'), findsOneWidget);
+      expect(find.byKey(const Key('handover_grace_pill')), findsNothing);
+      expect(
+        find.text('AMBIL LEBIH AWAL • JADWAL: 20 NOV, 18:00'),
+        findsOneWidget,
+      );
+      expect(find.text('Mulai sekarang, durasi tetap'), findsOneWidget);
+      expect(find.text('Waktu selesai ikut maju otomatis'), findsOneWidget);
       expect(find.text('Mulai sekarang, batas kembali tetap'), findsOneWidget);
+      expect(find.text('Tambah durasi & selisih tagihan'), findsOneWidget);
+      expect(find.text('UNIT FISIK'), findsOneWidget);
 
-      // Default mode keeps bill = 0 remaining -> button is Serahkan Unit Sekarang
+      // Default mode keeps bill = 0 remaining -> button is Serahkan Unit
       expect(bookingRepo.lastFetchUnitsStartNow, isTrue);
       expect(bookingRepo.lastFetchUnitsKeepOriginalEndAt, isFalse);
-      expect(find.text('Serahkan Unit Sekarang'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('confirm_checkin_button')),
+          matching: find.text('Serahkan Unit'),
+        ),
+        findsOneWidget,
+      );
 
-      // Switching to "Mulai sekarang, batas kembali tetap" reloads units & calculates extra hours fee -> CTA switches to Lanjut ke Pembayaran
+      // Switching to "Mulai sekarang, batas kembali tetap" reloads units & calculates extra hours fee -> CTA switches to Bayar & Serahkan Unit
       await tester.tap(find.byKey(const Key('early_pickup_keep_end_option')));
       await tester.pumpAndSettle();
 
       expect(bookingRepo.lastFetchUnitsKeepOriginalEndAt, isTrue);
       expect(find.byKey(const Key('handover_remaining_balance_row')), findsOneWidget);
-      expect(find.text('Lanjut ke Pembayaran'), findsOneWidget);
+      expect(find.text('Bayar & Serahkan Unit'), findsOneWidget);
 
-      // Switch back to default "Geser jadwal mulai sekarang" and complete direct check-in
+      // Switch back to default "Mulai sekarang, durasi tetap" and complete direct check-in
       await tester.tap(find.byKey(const Key('early_pickup_shift_option')));
       await tester.pumpAndSettle();
-      expect(find.text('Serahkan Unit Sekarang'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('confirm_checkin_button')),
+          matching: find.text('Serahkan Unit'),
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const Key('confirm_checkin_button')));
       await tester.pumpAndSettle();

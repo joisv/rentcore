@@ -244,7 +244,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.textContaining('1 Hari').first);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Lanjut ke Data Penyewa'));
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
         await tester.pumpAndSettle();
 
         final textFields = find.byType(TextFormField);

@@ -23,7 +23,7 @@ class StatusBadge extends StatelessWidget {
     this.icon,
     this.fontSize = 11,
     this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    this.borderRadius = 8,
+    this.borderRadius = 6,
     this.isLineThrough = false,
   });
 

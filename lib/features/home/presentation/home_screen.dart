@@ -47,6 +47,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   final _searchController = TextEditingController();
   final _queueSectionKey = GlobalKey();
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   String _searchQuery = '';
   String _selectedQueueFilter = 'Semua';
   int _queueLimit = 10;
@@ -154,7 +155,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -296,11 +297,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final kpiAsync = ref.watch(dashboardKpiProvider);
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.background,
+      drawer: _buildAccountDrawer(
+        context,
+        user: user,
+        businessState: businessState,
+      ),
       body: Column(
         children: [
           // 1. Threads-Style Single-Row Minimalist Header
-          _buildHeader(context, ref, user, businessState),
+          _buildHeader(context, businessState),
 
           // 2. Scrollable Dashboard Content (Reclaims vertical space naturally)
           Expanded(
@@ -372,18 +379,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // =========================================================================
   Widget _buildHeader(
     BuildContext context,
-    WidgetRef ref,
-    Map<String, dynamic>? user,
     BusinessState businessState,
   ) {
-    final userName = user?['name']?.toString() ?? 'Kasir';
-    final isSuperAdmin =
-        user?['is_platform_admin'] == true || user?['role'] == 'super_admin';
-    final activeRole =
-        businessState.currentBusiness?['role']?.toString() ??
-        user?['role']?.toString() ??
-        'staff';
-
     final isConsolidated = businessState.isConsolidated;
     final branchName = businessState.activeBranchName;
     final businessName = businessState.activeBusinessName;
@@ -422,13 +419,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   message: 'Menu Akun',
                   child: InkWell(
                     key: const Key('home_header_menu_button'),
-                    onTap: () => _showAccountMenuSheet(
-                      context,
-                      userName: userName,
-                      activeRole: activeRole,
-                      isSuperAdmin: isSuperAdmin,
-                      businessState: businessState,
-                    ),
+                    onTap: () => _scaffoldKey.currentState?.openDrawer(),
                     borderRadius: BorderRadius.circular(10),
                     child: const SizedBox(
                       width: 40,
@@ -522,7 +513,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                       );
                     },
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(8),
                     child: Padding(
                       padding: const EdgeInsets.all(4),
                       child: Consumer(
@@ -573,22 +564,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  void _showAccountMenuSheet(
+  Widget _buildAccountDrawer(
     BuildContext context, {
-    required String userName,
-    required String activeRole,
-    required bool isSuperAdmin,
+    required Map<String, dynamic>? user,
     required BusinessState businessState,
   }) {
-    showModalBottomSheet<void>(
-      context: context,
+    final userName = user?['name']?.toString() ?? 'Kasir';
+    final isSuperAdmin =
+        user?['is_platform_admin'] == true || user?['role'] == 'super_admin';
+    final activeRole =
+        businessState.currentBusiness?['role']?.toString() ??
+        user?['role']?.toString() ??
+        'staff';
+
+    return Drawer(
+      width: MediaQuery.of(context).size.width * 0.78,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(14)),
       ),
-      builder: (sheetContext) {
-        return Consumer(
-          builder: (context, ref, _) {
+      child: SafeArea(
+        child: Consumer(
+          builder: (drawerContext, ref, _) {
             final shiftAsync = ref.watch(
               currentShiftByBranchProvider(businessState.activeBranchId),
             );
@@ -602,181 +599,184 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             final shiftNumber =
                 shiftObj is Map ? shiftObj['shift_number']?.toString() : null;
 
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.obsidian,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            _getInitials(userName),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                userName,
+                        Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: AppColors.obsidian,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                _getInitials(userName),
                                 style: const TextStyle(
+                                  color: Colors.white,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.obsidian,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 4),
-                              _buildRoleBadge(activeRole, isSuperAdmin),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    userName,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.obsidian,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  _buildRoleBadge(activeRole, isSuperAdmin),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: hasActiveShift
+                                ? AppColors.successLight
+                                : const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: hasActiveShift
+                                  ? AppColors.success.withValues(alpha: 0.25)
+                                  : const Color(0xFFFDE68A),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                hasActiveShift
+                                    ? Icons.check_circle_rounded
+                                    : Icons.info_outline_rounded,
+                                size: 18,
+                                color: hasActiveShift
+                                    ? AppColors.success
+                                    : const Color(0xFFB45309),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  hasActiveShift
+                                      ? 'Shift Aktif${shiftNumber != null ? ' • $shiftNumber' : ''}'
+                                      : 'Shift Kasir Belum Dibuka',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: hasActiveShift
+                                        ? AppColors.success
+                                        : const Color(0xFF92400E),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: hasActiveShift
-                            ? AppColors.successLight
-                            : const Color(0xFFFFFBEB),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: hasActiveShift
-                              ? AppColors.success.withValues(alpha: 0.25)
-                              : const Color(0xFFFDE68A),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            hasActiveShift
-                                ? Icons.check_circle_rounded
-                                : Icons.info_outline_rounded,
-                            size: 18,
-                            color: hasActiveShift
-                                ? AppColors.success
-                                : const Color(0xFFB45309),
+                        const SizedBox(height: 16),
+                        const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                        const SizedBox(height: 8),
+                        ListTile(
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 4),
+                          leading: const Icon(
+                            Icons.storefront_outlined,
+                            color: AppColors.obsidian,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              hasActiveShift
-                                  ? 'Shift Aktif${shiftNumber != null ? ' • $shiftNumber' : ''}'
-                                  : 'Shift Kasir Belum Dibuka',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: hasActiveShift
-                                    ? AppColors.success
-                                    : const Color(0xFF92400E),
-                              ),
+                          title: const Text(
+                            'Ganti Usaha / Cabang',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                      leading: const Icon(
-                        Icons.storefront_outlined,
-                        color: AppColors.obsidian,
-                      ),
-                      title: const Text(
-                        'Ganti Usaha / Cabang',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            Navigator.pop(drawerContext);
+                            BusinessSelectorSheet.show(context);
+                          },
                         ),
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        BusinessSelectorSheet.show(context);
-                      },
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                      leading: const Icon(
-                        Icons.person_outline_rounded,
-                        color: AppColors.obsidian,
-                      ),
-                      title: const Text(
-                        'Profil Pengguna',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const UserProfileScreen(),
+                        ListTile(
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 4),
+                          leading: const Icon(
+                            Icons.person_outline_rounded,
+                            color: AppColors.obsidian,
                           ),
-                        );
-                      },
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                      leading: const Icon(
-                        Icons.logout_rounded,
-                        color: AppColors.danger,
-                      ),
-                      title: const Text(
-                        'Keluar Akun',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.danger,
+                          title: const Text(
+                            'Profil Pengguna',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            Navigator.pop(drawerContext);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const UserProfileScreen(),
+                              ),
+                            );
+                          },
                         ),
-                      ),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        ref.read(authProvider.notifier).logout();
-                      },
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    leading: const Icon(
+                      Icons.logout_rounded,
+                      color: Color(0xFFDC2626),
+                    ),
+                    title: const Text(
+                      'Keluar Akun',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFDC2626),
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(drawerContext);
+                      ref.read(authProvider.notifier).logout();
+                    },
+                  ),
+                ),
+              ],
             );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -864,7 +864,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
@@ -1175,15 +1175,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           vertical: 10,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.obsidian, width: 1.2),
         ),
       ),
@@ -1215,7 +1215,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.obsidian : AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isSelected ? AppColors.obsidian : AppColors.border,
                 ),
@@ -1239,7 +1239,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               color: hasDateRange ? AppColors.obsidian : AppColors.surface,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: hasDateRange ? AppColors.obsidian : AppColors.border,
               ),
@@ -1273,7 +1273,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.border),
               ),
               child: const Row(
@@ -1422,7 +1422,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
             child: Row(
@@ -1535,7 +1535,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Column(
@@ -1776,7 +1776,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ?.toString()
             .trim();
     final assetIdentifierParts = <String>[
-      if (isFloatingUnit) 'Floating Unit • Belum Pilih SN',
+      if (isFloatingUnit) 'Floating Unit',
       if (!isFloatingUnit && assetCode != null && assetCode.isNotEmpty) assetCode,
       if (!isFloatingUnit && serialNumber != null && serialNumber.isNotEmpty) 'SN: $serialNumber',
     ];
@@ -1802,10 +1802,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final isOverduePickup = isBookedStatus &&
         (booking['is_overdue_pickup'] == true ||
             (graceAt != null && graceAt.isBefore(nowLocal)));
-    final isGraceWarningWindow = isBookedStatus &&
-        !isOverduePickup &&
-        graceAt != null &&
-        graceAt.difference(nowLocal).inMinutes <= 15;
 
     final totalBill = CurrencyFormatter.parse(
       booking['total_bill'] ??
@@ -1821,8 +1817,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
     final effectiveTotal = totalBill + penaltyDue;
     final totalBillText = penaltyDue > 0
-        ? 'Total: ${CurrencyFormatter.format(effectiveTotal)} (+ Denda)'
-        : 'Total: ${CurrencyFormatter.format(totalBill)}';
+        ? '${CurrencyFormatter.format(effectiveTotal)} (+ Denda)'
+        : CurrencyFormatter.format(totalBill);
 
     final paymentStatus = (booking['payment_status'] ?? 'paid')
         .toString()
@@ -1851,11 +1847,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       pillBg = AppColors.dangerLight;
       pillFg = AppColors.danger;
     } else if (isBookedStatus) {
-      pillText = graceAt != null
-          ? 'Batas ambil: ${DateFormatter.formatTime(graceAt)}'
-          : 'Siap Diambil';
-      pillBg = isGraceWarningWindow ? AppColors.warningLight : AppColors.infoLight;
-      pillFg = isGraceWarningWindow ? AppColors.warning : AppColors.info;
+      pillText = 'Booking';
+      pillBg = AppColors.infoLight;
+      pillFg = AppColors.info;
     } else if (isOverdue) {
       pillText = endAt != null
           ? DateFormatter.formatRelative(endAt)
@@ -1874,12 +1868,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       pillFg = AppColors.info;
     }
 
+    final categoryIcon = RentalQueueActions.getItemCategoryIcon(
+      model: model,
+      asset: activeAsset,
+      primaryItem: primaryItem,
+    );
+    final thumbnailFallbackIcon = isFloatingUnit &&
+            (categoryIcon == Icons.flight_takeoff_rounded ||
+                categoryIcon == Icons.devices_other_rounded)
+        ? Icons.smartphone_rounded
+        : categoryIcon;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isOverdue
               ? AppColors.danger.withValues(alpha: 0.3)
@@ -1890,31 +1895,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Top Header Row: Booking Code Pill & Status / Remaining Time Badge
+          // 1. Top Header Row: Unboxed Booking Code & Crisp Status Badge
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+              Expanded(
+                child: Text(
+                  bookingCode,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                    fontFeatures: [FontFeature.tabularFigures()],
+                    color: Color(0xFF6B7280),
                   ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.borderSubtle),
-                  ),
-                  child: Text(
-                    bookingCode,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.obsidian,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 8),
@@ -1924,7 +1920,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   label: pillText,
                   textColor: pillFg,
                   backgroundColor: pillBg,
-                  borderRadius: 12,
+                  borderRadius: 6,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 4,
@@ -1934,58 +1930,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
 
-          // 2. Deadline Sub-row (right-aligned clock icon + Jadwal Ambil / Batas Sewa)
+          // 2. Unified Single-Line Schedule Row (left-aligned directly under code)
           if (isBookedStatus && startAt != null) ...[
             const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                const Icon(
-                  Icons.event_available_rounded,
-                  size: 11,
-                  color: AppColors.textSecondary,
-                ),
-                const SizedBox(width: 3),
-                Flexible(
-                  child: Text(
-                    'Jadwal ambil: ${DateFormatter.formatFull(startAt)}',
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                  ),
-                ),
-              ],
+            Text(
+              'Ambil: ${DateFormatter.formatFull(startAt)}${graceAt != null ? ' (Batas ${DateFormatter.formatTime(graceAt)})' : ''}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF4B5563),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ] else if (endAt != null) ...[
             const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                const Icon(
-                  Icons.schedule_rounded,
-                  size: 11,
-                  color: AppColors.textSecondary,
-                ),
-                const SizedBox(width: 3),
-                Flexible(
-                  child: Text(
-                    'Batas sewa: ${DateFormatter.formatFull(endAt)}',
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                  ),
-                ),
-              ],
+            Text(
+              'Kembali: ${DateFormatter.formatFull(endAt)}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF4B5563),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
           const SizedBox(height: 12),
@@ -2001,11 +1967,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   primaryItem: primaryItem,
                   booking: booking,
                 ),
-                fallbackIcon: RentalQueueActions.getItemCategoryIcon(
-                  model: model,
-                  asset: activeAsset,
-                  primaryItem: primaryItem,
-                ),
+                fallbackIcon: thumbnailFallbackIcon,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -2027,9 +1989,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       Text(
                         assetIdentifierText,
                         style: const TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          color: AppColors.textMuted,
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -2040,33 +2001,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       customerInfoText,
                       style: const TextStyle(
                         fontSize: 13,
-                        color: AppColors.textSecondary,
+                        color: Color(0xFF4B5563),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.lock_clock_outlined,
-                          size: 14,
-                          color: AppColors.textMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Jaminan: $collateralSlot',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(
+                      'Jaminan: $collateralSlot',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B7280),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -2074,85 +2022,69 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
 
-          // 4. Total Tagihan Strip
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderSubtle),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Flexible(
-                  child: Text(
-                    'Total Tagihan',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+          // 4. Flat Total Row (No grey box wrapper, no duplicate "Total:")
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total Tagihan',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF6B7280),
                 ),
-                const SizedBox(width: 8),
-                Flexible(
-                  flex: 2,
-                  child: Align(
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
                     alignment: Alignment.centerRight,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isBookedStatus &&
-                              (booking['payment_status'] ?? '').toString().toLowerCase() == 'partial') ...[
-                            Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.warningLight,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'DP',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.warning,
-                                ),
-                              ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isBookedStatus && paymentStatus == 'partial') ...[
+                          Container(
+                            margin: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
                             ),
-                          ],
-                          Text(
-                            totalBillText,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.obsidian,
-                              letterSpacing: -0.2,
-                              fontFeatures: [FontFeature.tabularFigures()],
+                            decoration: BoxDecoration(
+                              color: AppColors.warningLight,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'DP',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.warning,
+                              ),
                             ),
                           ),
                         ],
-                      ),
+                        Text(
+                          totalBillText,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF111111),
+                            letterSpacing: -0.2,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
 
           if (addonSummaries.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               '+ Add-on: ${addonSummaries.map((a) => '${a.name}${a.quantity > 1 ? ' (${a.quantity}x)' : ''}').join(', ')}',
               key: const Key('queue_card_addons_summary'),
@@ -2166,7 +2098,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ] else
             const SizedBox.shrink(),
 
-          const Divider(height: 16),
+          const Divider(height: 16, thickness: 1, color: Color(0xFFF3F4F6)),
 
           // Unified 3-element Action Row: [ Rincian ] [ Primary Action ] [ ⋮ ]
           Builder(
@@ -2319,7 +2251,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.dangerLight,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -2446,7 +2378,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -2510,7 +2442,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
               icon: const Icon(Icons.add_business_rounded, size: 16),
@@ -2536,7 +2468,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.dangerLight,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
       ),
       child: Row(
@@ -2608,7 +2540,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
       ),
       child: Column(

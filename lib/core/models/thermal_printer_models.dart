@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 enum ReceiptPaperWidth {
   mm58(columns: 32, label: '58mm (Standar Portabel)'),
   mm80(columns: 48, label: '80mm (Desktop POS)');
@@ -332,6 +330,8 @@ class ReceiptDataModel {
   final String? oldUnitSerial;
   final double? priceDifferential;
   final String? exchangeReason;
+  final bool isDownPayment;
+  final double? remainingBalance;
 
   const ReceiptDataModel({
     required this.type,
@@ -370,6 +370,8 @@ class ReceiptDataModel {
     this.oldUnitSerial,
     this.priceDifferential,
     this.exchangeReason,
+    this.isDownPayment = false,
+    this.remainingBalance,
   });
 }
 

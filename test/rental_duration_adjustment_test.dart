@@ -34,6 +34,7 @@ class _FakeBookingRepository extends BookingRepository {
     String? managerPin,
     String? reason,
     String? notes,
+    String? idempotencyKey,
   }) async {
     lastAdjustBookingId = bookingId;
     lastAdjustPayload = {

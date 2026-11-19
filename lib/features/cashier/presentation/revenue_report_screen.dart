@@ -112,7 +112,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.dangerLight,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Column(
                         children: [
@@ -172,7 +172,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isConsolidated ? AppColors.warning.withValues(alpha: 0.6) : AppColors.border,
           width: isConsolidated ? 1.5 : 1.0,
@@ -256,7 +256,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
         return Container(
           decoration: const BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
           ),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           child: Column(
@@ -434,7 +434,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
       selectedColor: AppColors.obsidian,
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(
           color: isSelected ? AppColors.obsidian : AppColors.border,
           width: 1,
@@ -469,7 +469,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
       ),
       backgroundColor: isCustom ? AppColors.obsidian : AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(
           color: isCustom ? AppColors.obsidian : AppColors.border,
           width: 1,
@@ -596,7 +596,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.obsidian,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -773,7 +773,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
         Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
@@ -928,7 +928,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
             child: Column(
@@ -1026,7 +1026,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
         Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: breakdown.isEmpty
@@ -1198,7 +1198,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
           }
 
           return InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             onTap: () {
               showModalBottomSheet(
                 context: context,
@@ -1214,7 +1214,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
               child: Row(

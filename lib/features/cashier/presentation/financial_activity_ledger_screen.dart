@@ -60,7 +60,7 @@ class _FinancialActivityLedgerScreenState
                     filled: true,
                     fillColor: AppColors.background,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: AppColors.border),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
@@ -382,7 +382,7 @@ class _FinancialActivityLedgerScreenState
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
             const Icon(Icons.receipt_long_rounded, color: AppColors.obsidian),
@@ -545,7 +545,7 @@ class _FinancialActivityLedgerScreenState
         : (isOutflow ? AppColors.danger : AppColors.success);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       onTap: () {
         if (!isExpense && item['booking_id'] != null) {
           showModalBottomSheet(
@@ -562,7 +562,7 @@ class _FinancialActivityLedgerScreenState
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isVoid
                 ? AppColors.border

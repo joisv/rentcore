@@ -177,6 +177,15 @@ class _FakeCashierRepository extends CashierRepository {
     String? paymentType,
     String? notes,
     String? idempotencyKey,
+    String? externalReference,
+    bool? frpCleared,
+    bool? accountRemoved,
+    bool? isHandoverSettlement,
+    int? assetUnitId,
+    String? collateralType,
+    String? collateralStorageSlot,
+    bool? startNow,
+    bool? keepOriginalEndAt,
   }) async {
     paidBookingId = bookingId;
     lastPaymentType = paymentType;

@@ -57,9 +57,23 @@ final bookingsListProvider = FutureProvider.autoDispose<List<Map<String, dynamic
 
 final readyAssetsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final bizState = ref.watch(businessProvider);
-  if (bizState.activeBusinessId == null || bizState.businesses.isEmpty) {
+  if (bizState.activeBusinessId == null ||
+      bizState.activeBranchId == null ||
+      bizState.businesses.isEmpty) {
     return [];
   }
   final repo = ref.watch(bookingRepositoryProvider);
   return repo.fetchReadyAssets(branchId: bizState.activeBranchId);
+});
+
+final readyAssetsByBranchProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int?>((ref, branchId) async {
+  final bizState = ref.watch(businessProvider);
+  final effectiveBranchId = branchId ?? bizState.activeBranchId;
+  if (bizState.activeBusinessId == null ||
+      effectiveBranchId == null ||
+      bizState.businesses.isEmpty) {
+    return [];
+  }
+  final repo = ref.watch(bookingRepositoryProvider);
+  return repo.fetchReadyAssets(branchId: effectiveBranchId);
 });
