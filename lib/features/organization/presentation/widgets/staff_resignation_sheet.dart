@@ -39,7 +39,15 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(organizationProvider.notifier).loadResignations();
+      final orgState = ref.read(organizationProvider);
+      if (orgState.businessId == widget.businessId) {
+        ref.read(organizationProvider.notifier).loadResignations();
+      } else {
+        ref.read(organizationProvider.notifier).ensureBusinessResignationsLoaded(
+              widget.businessId,
+              businessName: widget.businessName,
+            );
+      }
     });
   }
 
@@ -76,6 +84,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
             onPressed: () async {
               Navigator.pop(ctx);
               final success = await ref.read(organizationProvider.notifier).submitResignation(
+                    businessId: widget.businessId,
                     reason: _reasonController.text.trim(),
                   );
               if (mounted) {
@@ -126,7 +135,10 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              final success = await ref.read(organizationProvider.notifier).cancelResignation(requestId);
+              final success = await ref.read(organizationProvider.notifier).cancelResignation(
+                    requestId,
+                    businessId: widget.businessId,
+                  );
               if (mounted) {
                 if (success) {
                   ScaffoldMessenger.of(context).showSnackBar(

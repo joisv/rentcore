@@ -10,7 +10,10 @@ class ApiClient {
   late Dio dio;
   String _baseUrl = ApiConstants.defaultBaseUrl;
 
+  static bool isLoggingOut = false;
+
   void Function(bool isConnected)? onConnectivityChanged;
+  void Function()? onUnauthorized;
 
   ApiClient._internal() {
     dio = Dio(
@@ -52,11 +55,20 @@ class ApiClient {
           return handler.next(response);
         },
         onError: (DioException error, handler) {
-          if (error.type == DioExceptionType.connectionError ||
-              error.type == DioExceptionType.connectionTimeout ||
-              error.type == DioExceptionType.receiveTimeout ||
-              error.type == DioExceptionType.sendTimeout) {
+          final isLogoutRequest =
+              error.requestOptions.path.contains('/auth/logout');
+          final suppressSessionHooks = isLogoutRequest || isLoggingOut;
+
+          if (!suppressSessionHooks &&
+              (error.type == DioExceptionType.connectionError ||
+                  error.type == DioExceptionType.connectionTimeout ||
+                  error.type == DioExceptionType.receiveTimeout ||
+                  error.type == DioExceptionType.sendTimeout)) {
             onConnectivityChanged?.call(false);
+          }
+
+          if (!suppressSessionHooks && error.response?.statusCode == 401) {
+            onUnauthorized?.call();
           }
           // Format user-friendly error message with diagnostic hints
           String message = 'Terjadi kesalahan pada koneksi jaringan.';
@@ -67,16 +79,10 @@ class ApiClient {
           } else if (error.type == DioExceptionType.connectionError) {
             message = 'Tidak dapat terhubung ke $_baseUrl.\n\nTips:\n1. Pastikan HP dan PC berada di satu jaringan Wi-Fi.\n2. Pastikan server backend Laravel aktif di PC (0.0.0.0:8000).';
           } else if (error.response?.data != null && error.response?.data is Map) {
-            final data = error.response?.data as Map;
-            if (data['message'] != null) {
-              message = data['message'].toString();
-            } else if (data['errors'] != null && data['errors'] is Map) {
-              final errors = data['errors'] as Map;
-              final firstError = errors.values.first;
-              if (firstError is List && firstError.isNotEmpty) {
-                message = firstError.first.toString();
-              }
-            }
+            message = extractMessageFromResponseData(
+              error.response?.data as Map,
+              fallback: message,
+            );
           }
 
           final customError = DioException(
@@ -84,11 +90,63 @@ class ApiClient {
             response: error.response,
             type: error.type,
             error: message,
+            message: message,
           );
           return handler.next(customError);
         },
       ),
     );
+  }
+
+  /// Extract a clean user-facing message from a Laravel JSON error payload.
+  static String extractMessageFromResponseData(
+    Map data, {
+    String fallback = 'Terjadi kesalahan pada server.',
+  }) {
+    final errors = data['errors'];
+    final rawMessage = data['message']?.toString().trim() ?? '';
+
+    if (rawMessage.isNotEmpty &&
+        rawMessage.toLowerCase() != 'the given data was invalid.') {
+      return rawMessage;
+    }
+
+    if (errors is Map && errors.isNotEmpty) {
+      final firstError = errors.values.first;
+      if (firstError is List && firstError.isNotEmpty) {
+        final firstMsg = firstError.first.toString().trim();
+        if (firstMsg.isNotEmpty) return firstMsg;
+      } else if (firstError != null && firstError.toString().trim().isNotEmpty) {
+        return firstError.toString().trim();
+      }
+    }
+
+    return rawMessage.isNotEmpty ? rawMessage : fallback;
+  }
+
+  /// Extract a clean error message from any thrown error, unwrapping DioException payloads.
+  static String extractErrorMessage(
+    Object error, {
+    String fallback = 'Terjadi kesalahan. Silakan coba lagi.',
+  }) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        return extractMessageFromResponseData(data, fallback: fallback);
+      }
+      final errText = error.error?.toString().trim();
+      if (errText != null && errText.isNotEmpty) {
+        return errText;
+      }
+      final msgText = error.message?.trim();
+      if (msgText != null && msgText.isNotEmpty) {
+        return msgText;
+      }
+      return fallback;
+    }
+
+    final raw = error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '').trim();
+    return raw.isNotEmpty ? raw : fallback;
   }
 
   Future<void> init() async {

@@ -54,14 +54,9 @@ class StoreSettingsScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
+              final authNotifier = ref.read(authProvider.notifier);
               Navigator.pop(ctx);
-              await ref.read(authProvider.notifier).logout();
-              if (context.mounted) {
-                Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
-                  '/login',
-                  (route) => false,
-                );
-              }
+              await authNotifier.logout();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.danger,

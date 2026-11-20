@@ -156,7 +156,7 @@ void main() {
         expect(find.text('Fisik Kas Wajib Ada'), findsNothing);
         expect(find.text('Status: Selisih Nihil (Cocok)'), findsNothing);
         expect(find.text('Mode Blind Close Aktif'), findsOneWidget);
-        expect(find.text('Total Fisik Hasil Hitung'), findsOneWidget);
+        expect(find.text('Uang Fisik yang Anda Hitung'), findsOneWidget);
         expect(find.text('Rp 1.000.000'), findsWidgets);
 
         // Submit Shift in direct lump-sum mode
@@ -240,7 +240,7 @@ void main() {
         expect(find.text('Status: Selisih Nihil (Cocok)'), findsNothing);
         expect(find.text('Status: Selisih Lebih'), findsNothing);
         expect(find.text('-Rp 1.000.000'), findsNothing);
-        expect(find.text('Total Fisik Hasil Hitung'), findsOneWidget);
+        expect(find.text('Uang Fisik yang Anda Hitung'), findsOneWidget);
         expect(find.text('Rp 0'), findsWidgets);
 
         // Count 10 x 100k = 1.000.000 -> updates only counted total

@@ -11,6 +11,7 @@ import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/idempotency_helper.dart';
 import '../../../core/widgets/animated_success_checkmark.dart';
+import '../../../shared/widgets/authenticated_network_image.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -1359,8 +1360,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                         : ((_selectedQrisImageUrl != null && _selectedQrisImageUrl!.trim().isNotEmpty)
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
-                                child: Image.network(
-                                  _selectedQrisImageUrl!,
+                                child: AuthenticatedNetworkImage(
+                                  url: _selectedQrisImageUrl!,
                                   width: 220,
                                   height: 220,
                                   fit: BoxFit.contain,

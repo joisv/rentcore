@@ -266,7 +266,66 @@ void main() {
       expect(find.textContaining('Pindah ke Surabaya'), findsOneWidget);
       expect(find.text('Batalkan Pengajuan Resign'), findsOneWidget);
     });
+
+    testWidgets('StaffResignationSheet populates businessId via ensureBusinessResignationsLoaded when organizationProvider starts empty', (tester) async {
+      final trackingOrg = _TrackingEmptyOrgNotifier();
+      final container = ProviderContainer(
+        overrides: [
+          authProvider.overrideWith(
+            () => _MockAuthNotifier(
+              const AuthState(
+                isAuthenticated: true,
+                user: {'id': 'staff-uuid', 'name': 'Agus Pratama', 'role': 'staff'},
+              ),
+            ),
+          ),
+          businessProvider.overrideWith(
+            () => _MockBusinessNotifier(
+              const BusinessState(
+                activeBusinessId: 42,
+                activeBusinessName: 'Kamera Baru',
+                businesses: [
+                  {'id': 42, 'name': 'Kamera Baru', 'role': 'staff', 'branches': []},
+                ],
+              ),
+            ),
+          ),
+          organizationProvider.overrideWith(() => trackingOrg),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: Scaffold(
+              body: StaffResignationSheet(
+                businessId: 42,
+                businessName: 'Kamera Baru',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(trackingOrg.ensuredBusinessId, 42);
+      expect(container.read(organizationProvider).businessId, 42);
+    });
   });
+}
+
+class _TrackingEmptyOrgNotifier extends OrganizationNotifier {
+  int? ensuredBusinessId;
+
+  @override
+  OrganizationState build() => const OrganizationState();
+
+  @override
+  Future<void> ensureBusinessResignationsLoaded(int businessId, {String? businessName}) async {
+    ensuredBusinessId = businessId;
+    state = state.copyWith(businessId: businessId, businessName: businessName);
+  }
 }
 
 class _MockAuthNotifier extends AuthNotifier {

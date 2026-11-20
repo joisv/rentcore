@@ -333,5 +333,109 @@ void main() {
       expect(fullPath, isNot(contains('/api/v1/api/v1')));
       expect(fullPath, endsWith('/api/v1/notifications'));
     });
+
+    testWidgets('Owner sees interactive Tolak and Setujui buttons for pending resignation notification and badges when resolved', (tester) async {
+      final now = DateTime.now();
+      final items = [
+        NotificationItem(
+          id: 501,
+          businessId: 1,
+          category: 'membership',
+          type: 'staff.resignation_submitted',
+          title: 'Pengajuan Resign Staf',
+          body: 'Agus (Cabang Pusat) mengajukan pengunduran diri.',
+          actionRoute: '/organization',
+          actionPayload: {
+            'resignation_request_id': 77,
+            'staff_name': 'Agus',
+            'branch_name': 'Cabang Pusat',
+            'reason': 'Pindah domisili',
+            'status': 'pending',
+          },
+          readAt: null,
+          createdAt: now,
+        ),
+        NotificationItem(
+          id: 502,
+          businessId: 1,
+          category: 'membership',
+          type: 'staff.resignation_submitted',
+          title: 'Pengajuan Resign Staf',
+          body: 'Budi mengajukan pengunduran diri.',
+          actionRoute: '/organization',
+          actionPayload: {
+            'resignation_request_id': 78,
+            'staff_name': 'Budi',
+            'status': 'approved',
+          },
+          readAt: now,
+          createdAt: now.subtract(const Duration(hours: 2)),
+        ),
+      ];
+
+      final fakeNotifier = _TrackingResignNotificationNotifier(
+        NotificationState(
+          notifications: items,
+          unreadCount: 1,
+          isLoading: false,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            notificationProvider.overrideWith(() => fakeNotifier),
+          ],
+          child: const MaterialApp(
+            home: NotificationCenterScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Staf: Agus • Cabang Pusat'), findsOneWidget);
+      expect(find.text('Alasan: "Pindah domisili"'), findsOneWidget);
+      expect(find.text('Tolak'), findsOneWidget);
+      expect(find.text('Setujui'), findsOneWidget);
+      expect(find.text('Disetujui'), findsOneWidget);
+
+      await tester.tap(find.text('Setujui'));
+      await tester.pumpAndSettle();
+      expect(find.text('Setujui Pengajuan Resign?'), findsOneWidget);
+
+      // Confirm dialog Setujui
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Setujui').last);
+      await tester.pumpAndSettle();
+
+      expect(fakeNotifier.approvedResignationId, 77);
+      expect(find.text('Disetujui'), findsNWidgets(2));
+      expect(find.text('Tolak'), findsNothing);
+    });
   });
+}
+
+class _TrackingResignNotificationNotifier extends _FakeNotificationNotifier {
+  int? approvedResignationId;
+  _TrackingResignNotificationNotifier(super.initialState);
+
+  @override
+  Future<String?> approveResignationNotification({
+    required int resignationRequestId,
+    required int notificationId,
+  }) async {
+    approvedResignationId = resignationRequestId;
+    final updatedList = state.notifications.map((n) {
+      if (n.id == notificationId) {
+        final nextPayload = Map<String, dynamic>.from(n.actionPayload ?? {});
+        nextPayload['status'] = 'approved';
+        return n.copyWith(actionPayload: nextPayload, readAt: DateTime.now());
+      }
+      return n;
+    }).toList();
+    state = state.copyWith(
+      notifications: updatedList,
+      unreadCount: 0,
+    );
+    return null;
+  }
 }

@@ -42,12 +42,18 @@ class ApiConstants {
       '/branches/$branchId/booking-rules';
   static String resignationRequests(dynamic id) =>
       '/businesses/$id/resignation-requests';
+  static String resignStatus(dynamic id) => '/businesses/$id/resign-status';
+  static String resign(dynamic id) => '/businesses/$id/resign';
   static String cancelResignation(dynamic bizId, dynamic reqId) =>
       '/businesses/$bizId/resignation-requests/$reqId/cancel';
   static String approveResignation(dynamic bizId, dynamic reqId) =>
       '/businesses/$bizId/resignation-requests/$reqId/approve';
   static String rejectResignation(dynamic bizId, dynamic reqId) =>
       '/businesses/$bizId/resignation-requests/$reqId/reject';
+  static String approveResignationById(dynamic reqId) =>
+      '/resignation-requests/$reqId/approve';
+  static String rejectResignationById(dynamic reqId) =>
+      '/resignation-requests/$reqId/reject';
 
   // Dashboard
   static const String dashboardKpi = '/dashboard/kpi';

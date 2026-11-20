@@ -120,7 +120,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
 
         final repo = _FakeWave2CashierRepo(
-          hasActiveShift: true,
+          hasActiveShift: false,
           cashDrawerExpenses: 0.0,
           totalExpenses: 500000.0,
         );

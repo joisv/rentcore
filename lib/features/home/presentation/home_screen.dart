@@ -766,9 +766,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         color: Color(0xFFDC2626),
                       ),
                     ),
-                    onTap: () {
+                    onTap: () async {
+                      final authNotifier = ref.read(authProvider.notifier);
                       Navigator.pop(drawerContext);
-                      ref.read(authProvider.notifier).logout();
+                      await authNotifier.logout();
                     },
                   ),
                 ),

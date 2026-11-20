@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -111,13 +112,14 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
   }
 
   Future<bool> createBranch({
+    int? businessId,
     required String name,
     required String code,
     String? city,
     String? address,
     String? phone,
   }) async {
-    final bizId = state.businessId;
+    final bizId = businessId ?? state.businessId;
     if (bizId == null) return false;
 
     state = state.copyWith(isSubmitting: true, error: null);
@@ -259,41 +261,63 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
     }
   }
 
+  Future<void> ensureBusinessResignationsLoaded(int businessId, {String? businessName}) async {
+    if (state.businessId != businessId) {
+      state = state.copyWith(
+        businessId: businessId,
+        businessName: businessName ?? state.businessName,
+        error: null,
+      );
+    }
+    await loadResignations();
+  }
+
   Future<void> loadResignations() async {
     final bizId = state.businessId;
     if (bizId == null) return;
     try {
       final resignations = await _repository.fetchResignationRequests(bizId);
+      if (!ref.mounted) return;
       state = state.copyWith(resignationRequests: resignations);
     } catch (_) {}
   }
 
-  Future<bool> submitResignation({String? reason}) async {
-    final bizId = state.businessId;
+  Future<bool> submitResignation({String? reason, int? businessId}) async {
+    final bizId = businessId ?? state.businessId;
     if (bizId == null) return false;
-    state = state.copyWith(isSubmitting: true, error: null);
+    state = state.copyWith(businessId: bizId, isSubmitting: true, error: null);
     try {
       await _repository.submitResignation(bizId, reason: reason);
       final resignations = await _repository.fetchResignationRequests(bizId);
+      if (!ref.mounted) return true;
       state = state.copyWith(isSubmitting: false, resignationRequests: resignations);
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString().replaceAll('Exception: ', ''));
+      if (!ref.mounted) return false;
+      state = state.copyWith(
+        isSubmitting: false,
+        error: ApiClient.extractErrorMessage(e, fallback: 'Gagal mengajukan pengunduran diri.'),
+      );
       return false;
     }
   }
 
-  Future<bool> cancelResignation(int requestId) async {
-    final bizId = state.businessId;
+  Future<bool> cancelResignation(int requestId, {int? businessId}) async {
+    final bizId = businessId ?? state.businessId;
     if (bizId == null) return false;
-    state = state.copyWith(isSubmitting: true, error: null);
+    state = state.copyWith(businessId: bizId, isSubmitting: true, error: null);
     try {
       await _repository.cancelResignation(bizId, requestId);
       final resignations = await _repository.fetchResignationRequests(bizId);
+      if (!ref.mounted) return true;
       state = state.copyWith(isSubmitting: false, resignationRequests: resignations);
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString().replaceAll('Exception: ', ''));
+      if (!ref.mounted) return false;
+      state = state.copyWith(
+        isSubmitting: false,
+        error: ApiClient.extractErrorMessage(e, fallback: 'Gagal membatalkan pengajuan.'),
+      );
       return false;
     }
   }
@@ -310,6 +334,7 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
       }
       final members = await _repository.fetchMembers(bizId);
       final resignations = await _repository.fetchResignationRequests(bizId);
+      if (!ref.mounted) return true;
       state = state.copyWith(
         isSubmitting: false,
         members: members,
@@ -317,7 +342,11 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString().replaceAll('Exception: ', ''));
+      if (!ref.mounted) return false;
+      state = state.copyWith(
+        isSubmitting: false,
+        error: ApiClient.extractErrorMessage(e, fallback: 'Gagal memproses pengajuan resign.'),
+      );
       return false;
     }
   }

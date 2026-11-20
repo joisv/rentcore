@@ -381,7 +381,9 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
                             height: 1.4,
                           ),
                         ),
-                        if (_hasAction(item)) ...[
+                        if (_isInteractiveResignationNotification(item))
+                          _buildResignationNotificationActions(item)
+                        else if (_hasAction(item)) ...[
                           const SizedBox(height: 8),
                           Text(
                             '${_getActionLabel(item)} ›',
@@ -402,6 +404,268 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
         ),
         const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
       ],
+    );
+  }
+
+  bool _isInteractiveResignationNotification(NotificationItem item) {
+    final isResignType = item.type == 'staff.resignation_submitted' ||
+        item.type == 'resignation_request';
+    if (!isResignType) return false;
+    final payload = item.actionPayload;
+    if (payload == null) return false;
+    return (payload['resignation_request_id'] ?? payload['resignation_id']) != null;
+  }
+
+  int? _extractResignationId(NotificationItem item) {
+    final raw = item.actionPayload?['resignation_request_id'] ??
+        item.actionPayload?['resignation_id'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
+  Widget _buildResignationNotificationActions(NotificationItem item) {
+    final payload = item.actionPayload ?? const <String, dynamic>{};
+    final staffName = payload['staff_name']?.toString();
+    final branchName = payload['branch_name']?.toString();
+    final reason = payload['reason']?.toString();
+    final status = (payload['status']?.toString() ?? 'pending').toLowerCase();
+    final resignationId = _extractResignationId(item);
+    final isProcessing =
+        ref.watch(notificationProvider).processingNotificationId == item.id;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if ((staffName != null && staffName.isNotEmpty) ||
+              (branchName != null && branchName.isNotEmpty) ||
+              (reason != null && reason.isNotEmpty))
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (staffName != null && staffName.isNotEmpty)
+                    Text(
+                      'Staf: $staffName${branchName != null && branchName.isNotEmpty ? ' • $branchName' : ''}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF111111),
+                      ),
+                    ),
+                  if (reason != null && reason.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      'Alasan: "$reason"',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF4B5563),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          if (status == 'pending' && resignationId != null)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: isProcessing
+                        ? null
+                        : () => _promptRejectResignation(item, resignationId),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      side: const BorderSide(color: AppColors.danger),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text(
+                      'Tolak',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: isProcessing
+                        ? null
+                        : () => _confirmApproveResignation(item, resignationId),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.obsidian,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: isProcessing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Setujui',
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: status == 'approved'
+                    ? const Color(0xFFDCFCE7)
+                    : const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                status == 'approved' ? 'Disetujui' : 'Ditolak',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: status == 'approved'
+                      ? const Color(0xFF166534)
+                      : const Color(0xFF991B1B),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmApproveResignation(NotificationItem item, int resignationId) {
+    final staffName = item.actionPayload?['staff_name']?.toString() ?? 'staf ini';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          'Setujui Pengajuan Resign?',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+        content: Text(
+          'Menyetujui resign $staffName akan menonaktifkan keanggotaan dan seluruh akses cabangnya secara permanen.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Batal',
+              style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final notifier = ref.read(notificationProvider.notifier);
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+              final err = await notifier.approveResignationNotification(
+                resignationRequestId: resignationId,
+                notificationId: item.id,
+              );
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    err ?? 'Permohonan resign disetujui. Akses staf telah dicabut.',
+                  ),
+                  backgroundColor: err == null ? AppColors.success : AppColors.danger,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.obsidian,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Setujui', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _promptRejectResignation(NotificationItem item, int resignationId) {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          'Tolak Pengajuan Resign',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+        content: TextField(
+          controller: reasonController,
+          maxLines: 2,
+          decoration: InputDecoration(
+            labelText: 'Alasan Penolakan (Opsional)',
+            hintText: 'Contoh: Masih dibutuhkan untuk periode akhir pekan...',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Batal',
+              style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final notifier = ref.read(notificationProvider.notifier);
+              final messenger = ScaffoldMessenger.of(context);
+              final reason = reasonController.text.trim();
+              Navigator.pop(ctx);
+              final err = await notifier.rejectResignationNotification(
+                resignationRequestId: resignationId,
+                notificationId: item.id,
+                rejectionReason: reason.isNotEmpty ? reason : null,
+              );
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(err ?? 'Permohonan resign ditolak.'),
+                  backgroundColor: err == null ? AppColors.obsidian : AppColors.danger,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Tolak', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
     );
   }
 

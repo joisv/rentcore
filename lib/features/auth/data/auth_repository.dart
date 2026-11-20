@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/api_constants.dart';
@@ -25,6 +26,7 @@ class AuthRepository {
     await SecureTokenStorage().saveToken(token);
 
     final prefs = await SharedPreferences.getInstance();
+    await _clearStaleSessionPrefs(prefs);
     await prefs.setString('user_name', user['name'] ?? '');
     await prefs.setString('user_role', user['role'] ?? '');
     await prefs.setString('user_email', user['email'] ?? '');
@@ -36,13 +38,19 @@ class AuthRepository {
 
     final businesses = data['businesses'] ?? user['businesses'];
     if (businesses is List && businesses.isNotEmpty) {
-      final firstBiz = businesses.first;
-      await prefs.setInt('active_business_id', firstBiz['id'] ?? 0);
-      await prefs.setString('active_business_name', firstBiz['name'] ?? '');
-      if (firstBiz['branches'] != null && (firstBiz['branches'] as List).isNotEmpty) {
-        final firstBranch = (firstBiz['branches'] as List).first;
+      final defaultBiz = _pickDefaultBusiness(businesses);
+      await prefs.setInt('active_business_id', defaultBiz['id'] ?? 0);
+      await prefs.setString('active_business_name', defaultBiz['name'] ?? '');
+      final branches = defaultBiz['branches'];
+      if (branches is List && branches.isNotEmpty) {
+        final firstBranch = branches.first;
         await prefs.setInt('active_branch_id', firstBranch['id'] ?? 0);
         await prefs.setString('branch_name', firstBranch['name'] ?? '');
+        if (firstBranch['code'] != null) {
+          await prefs.setString('branch_code', firstBranch['code'].toString());
+        } else {
+          await prefs.remove('branch_code');
+        }
       } else {
         await prefs.remove('active_branch_id');
         await prefs.remove('branch_name');
@@ -84,22 +92,34 @@ class AuthRepository {
     await SecureTokenStorage().saveToken(token);
 
     final prefs = await SharedPreferences.getInstance();
+    await _clearStaleSessionPrefs(prefs);
     await prefs.setString('user_name', user['name'] ?? '');
     await prefs.setString('user_role', user['role'] ?? '');
     await prefs.setString('user_email', user['email'] ?? '');
     if (user['avatar_url'] != null) {
       await prefs.setString('user_avatar', user['avatar_url']);
     }
+    if (user['affiliate'] != null) {
+      await prefs.setString('branch_name', user['affiliate']['name'] ?? '');
+      await prefs.setString('branch_code', user['affiliate']['code'] ?? '');
+      await prefs.setInt('active_branch_id', user['affiliate']['id'] ?? 0);
+    }
 
     final businesses = data['businesses'] ?? user['businesses'];
     if (businesses is List && businesses.isNotEmpty) {
-      final firstBiz = businesses.first;
-      await prefs.setInt('active_business_id', firstBiz['id'] ?? 0);
-      await prefs.setString('active_business_name', firstBiz['name'] ?? '');
-      if (firstBiz['branches'] != null && (firstBiz['branches'] as List).isNotEmpty) {
-        final firstBranch = (firstBiz['branches'] as List).first;
+      final defaultBiz = _pickDefaultBusiness(businesses);
+      await prefs.setInt('active_business_id', defaultBiz['id'] ?? 0);
+      await prefs.setString('active_business_name', defaultBiz['name'] ?? '');
+      final branches = defaultBiz['branches'];
+      if (branches is List && branches.isNotEmpty) {
+        final firstBranch = branches.first;
         await prefs.setInt('active_branch_id', firstBranch['id'] ?? 0);
         await prefs.setString('branch_name', firstBranch['name'] ?? '');
+        if (firstBranch['code'] != null) {
+          await prefs.setString('branch_code', firstBranch['code'].toString());
+        } else {
+          await prefs.remove('branch_code');
+        }
       } else {
         await prefs.remove('active_branch_id');
         await prefs.remove('branch_name');
@@ -114,6 +134,41 @@ class AuthRepository {
     }
 
     return data;
+  }
+
+  Map<String, dynamic> _pickDefaultBusiness(List<dynamic> businesses) {
+    final typed = businesses
+        .whereType<Map>()
+        .map((b) => Map<String, dynamic>.from(b))
+        .toList();
+    return typed.firstWhere(
+      (b) => (b['role'] ?? '').toString() == 'owner',
+      orElse: () => typed.first,
+    );
+  }
+
+  Future<void> _clearStaleSessionPrefs(SharedPreferences prefs) async {
+    await prefs.remove('active_business_id');
+    await prefs.remove('active_business_name');
+    await prefs.remove('active_branch_id');
+    await prefs.remove('branch_name');
+    await prefs.remove('branch_code');
+    await prefs.remove('user_name');
+    await prefs.remove('user_role');
+    await prefs.remove('user_email');
+    await prefs.remove('user_avatar');
+
+    final keysToPurge = prefs
+        .getKeys()
+        .where((k) =>
+            k.startsWith('onboarding_') ||
+            k.startsWith('wizard_') ||
+            k.contains('_onboarding_') ||
+            k.contains('_wizard_'))
+        .toList();
+    for (final key in keysToPurge) {
+      await prefs.remove(key);
+    }
   }
 
   Future<List<dynamic>> fetchBusinesses() async {
@@ -298,6 +353,14 @@ class AuthRepository {
     );
   }
 
+  Future<Map<String, dynamic>?> fetchResignStatus(int businessId) async {
+    final response = await _client.dio.get(
+      ApiConstants.resignStatus(businessId),
+    );
+    final data = response.data['data'];
+    return data is Map<String, dynamic> ? data : (data is Map ? Map<String, dynamic>.from(data) : null);
+  }
+
   Future<List<dynamic>> fetchResignationRequests(int businessId, {String? status}) async {
     final queryParams = <String, dynamic>{};
     if (status != null && status.isNotEmpty) {
@@ -316,7 +379,7 @@ class AuthRepository {
       payload['reason'] = reason.trim();
     }
     final response = await _client.dio.post(
-      ApiConstants.resignationRequests(businessId),
+      ApiConstants.resign(businessId),
       data: payload,
     );
     return response.data['data'] ?? {};
@@ -345,9 +408,35 @@ class AuthRepository {
     final payload = <String, dynamic>{};
     if (decisionNotes != null && decisionNotes.trim().isNotEmpty) {
       payload['decision_notes'] = decisionNotes.trim();
+      payload['rejection_reason'] = decisionNotes.trim();
     }
     final response = await _client.dio.post(
       ApiConstants.rejectResignation(businessId, requestId),
+      data: payload,
+    );
+    return response.data['data'] ?? {};
+  }
+
+  Future<Map<String, dynamic>> approveResignationById(int requestId, {String? decisionNotes}) async {
+    final payload = <String, dynamic>{};
+    if (decisionNotes != null && decisionNotes.trim().isNotEmpty) {
+      payload['decision_notes'] = decisionNotes.trim();
+    }
+    final response = await _client.dio.post(
+      ApiConstants.approveResignationById(requestId),
+      data: payload,
+    );
+    return response.data['data'] ?? {};
+  }
+
+  Future<Map<String, dynamic>> rejectResignationById(int requestId, {String? rejectionReason}) async {
+    final payload = <String, dynamic>{};
+    if (rejectionReason != null && rejectionReason.trim().isNotEmpty) {
+      payload['decision_notes'] = rejectionReason.trim();
+      payload['rejection_reason'] = rejectionReason.trim();
+    }
+    final response = await _client.dio.post(
+      ApiConstants.rejectResignationById(requestId),
       data: payload,
     );
     return response.data['data'] ?? {};
@@ -497,45 +586,37 @@ class AuthRepository {
   Future<void> logout() async {
     final isTesting =
         WidgetsBinding.instance.runtimeType.toString().contains('Test');
-    if (!isTesting) {
-      try {
-        await _client.dio.post(ApiConstants.logout);
-      } catch (_) {}
-    }
-
-    // Invalidate secure token storage defensively
+    ApiClient.isLoggingOut = true;
     try {
-      await SecureTokenStorage().clearToken();
-    } catch (_) {}
-
-    // Purge tenant-scoped session context and user profile from preferences while preserving
-    // hardware configurations (thermal printer settings, paired Bluetooth devices)
-    // and network setup (custom server base URL, google server client ID).
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('active_business_id');
-      await prefs.remove('active_business_name');
-      await prefs.remove('active_branch_id');
-      await prefs.remove('branch_name');
-      await prefs.remove('branch_code');
-      await prefs.remove('user_name');
-      await prefs.remove('user_role');
-      await prefs.remove('user_email');
-      await prefs.remove('user_avatar');
-
-      // Purge onboarding & wizard draft caches across accounts on logout to prevent data leakage
-      final keysToPurge = prefs
-          .getKeys()
-          .where((k) =>
-              k.startsWith('onboarding_') ||
-              k.startsWith('wizard_') ||
-              k.contains('_onboarding_') ||
-              k.contains('_wizard_'))
-          .toList();
-      for (final key in keysToPurge) {
-        await prefs.remove(key);
+      if (!isTesting) {
+        await _client.dio
+            .post(
+              ApiConstants.logout,
+              options: Options(
+                sendTimeout: const Duration(seconds: 3),
+                receiveTimeout: const Duration(seconds: 3),
+              ),
+            )
+            .timeout(const Duration(seconds: 3));
       }
-    } catch (_) {}
+    } catch (_) {
+      // Best-effort remote logout: 401, timeout, or offline must never block local session clear.
+    } finally {
+      // Invalidate secure token storage defensively
+      try {
+        await SecureTokenStorage().clearToken();
+      } catch (_) {}
+
+      // Purge tenant-scoped session context and user profile from preferences while preserving
+      // hardware configurations (thermal printer settings, paired Bluetooth devices)
+      // and network setup (custom server base URL, google server client ID).
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await _clearStaleSessionPrefs(prefs);
+      } catch (_) {}
+
+      ApiClient.isLoggingOut = false;
+    }
   }
 
   // --- Walkthrough & Onboarding State Management ---

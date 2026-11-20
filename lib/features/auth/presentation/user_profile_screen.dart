@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
+import '../../organization/presentation/widgets/staff_resignation_sheet.dart';
 import '../providers/auth_provider.dart';
+import '../providers/business_provider.dart';
 
 class UserProfileScreen extends ConsumerStatefulWidget {
   const UserProfileScreen({super.key});
@@ -535,6 +537,63 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                   ],
                 ),
               ),
+            ),
+            Builder(
+              builder: (context) {
+                final bState = ref.watch(businessProvider);
+                final currentBiz = bState.currentBusiness;
+                final bizRole = (currentBiz?['role'] ?? 'owner').toString();
+                if (bState.activeBusinessId == null || bizRole == 'owner') {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.badge_outlined, color: AppColors.obsidian, size: 22),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Status Kepegawaian & Resign',
+                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                              ),
+                              Text(
+                                bState.activeBusinessName ?? 'Bisnis Rental',
+                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        OutlinedButton(
+                          onPressed: () {
+                            StaffResignationSheet.show(
+                              context,
+                              businessId: bState.activeBusinessId!,
+                              businessName: bState.activeBusinessName ?? 'Bisnis Rental',
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.danger,
+                            side: const BorderSide(color: AppColors.danger),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Ajukan Resign', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),

@@ -1,18 +1,28 @@
+import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rentcore_mobile/core/constants/navigation_keys.dart';
+import 'package:rentcore_mobile/core/network/api_client.dart';
 import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
+import 'package:rentcore_mobile/features/auth/presentation/login_screen.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
+import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
+import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
 import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
 import 'package:rentcore_mobile/features/inventory/presentation/inventory_screen.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
+import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
+import 'package:rentcore_mobile/features/onboarding/providers/onboarding_provider.dart';
 import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
 
 class _ThrowingAuthRepository extends AuthRepository {
+  int logoutCalls = 0;
+
   @override
   Future<List<Map<String, dynamic>>> fetchBusinesses() async => [
     {'id': 99, 'name': 'Active Rental Biz', 'role': 'owner'}
@@ -28,8 +38,61 @@ class _ThrowingAuthRepository extends AuthRepository {
 
   @override
   Future<void> logout() async {
+    logoutCalls++;
     throw Exception('Simulated network/storage crash during logout');
   }
+}
+
+class _DelayedAuthRepository extends AuthRepository {
+  final Completer<void> completer = Completer<void>();
+  int logoutCalls = 0;
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchBusinesses() async => [
+    {'id': 99, 'name': 'Active Rental Biz', 'role': 'owner'}
+  ];
+
+  @override
+  Future<void> setActiveContext({
+    required int businessId,
+    required String businessName,
+    int? branchId,
+    String? branchName,
+  }) async {}
+
+  @override
+  Future<void> logout() async {
+    logoutCalls++;
+    await completer.future;
+  }
+}
+
+class _SignedInAuthNotifier extends AuthNotifier {
+  @override
+  AuthState build() => const AuthState(
+        isAuthenticated: true,
+        isLoading: false,
+        user: {'id': 1, 'name': 'Hadi', 'role': 'owner'},
+      );
+
+  @override
+  Future<void> checkCurrentSession() async {}
+}
+
+class _IdleNotificationNotifier extends NotificationNotifier {
+  @override
+  NotificationState build() => const NotificationState();
+
+  @override
+  Future<void> fetchUnreadCountOnly() async {}
+}
+
+class _CompletedOnboardingNotifier extends OnboardingNotifier {
+  @override
+  OnboardingState build() => const OnboardingState(
+        hasCompletedWalkthrough: true,
+        isLoading: false,
+      );
 }
 
 class _MockAssetRepository extends AssetRepository {
@@ -166,6 +229,148 @@ void main() {
       // Navigation backstack wiped and redirected to /login
       expect(loginRoutePushed, isTrue);
       expect(find.text('LOGIN_SCREEN_LANDING'), findsOneWidget);
+    });
+
+    test('AuthNotifier.logout() prevents duplicate concurrent calls and never gets stuck loading', () async {
+      final delayedRepo = _DelayedAuthRepository();
+      final container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(delayedRepo),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(authProvider.notifier);
+      final firstCall = notifier.logout();
+      final duplicateCall = notifier.logout();
+
+      expect(delayedRepo.logoutCalls, 1);
+      expect(ApiClient.isLoggingOut, isTrue);
+
+      delayedRepo.completer.complete();
+      await Future.wait([firstCall, duplicateCall]);
+
+      expect(delayedRepo.logoutCalls, 1);
+      expect(ApiClient.isLoggingOut, isFalse);
+      final state = container.read(authProvider);
+      expect(state.isAuthenticated, isFalse);
+      expect(state.isLoading, isFalse);
+      expect(state.user, isNull);
+    });
+
+    test('ApiClient error interceptor skips onUnauthorized and connectivity drop for /auth/logout', () async {
+      final client = ApiClient();
+      int unauthorizedCalls = 0;
+      int connectivityDrops = 0;
+      client.onUnauthorized = () => unauthorizedCalls++;
+      client.onConnectivityChanged = (connected) {
+        if (!connected) connectivityDrops++;
+      };
+      addTearDown(() {
+        client.onUnauthorized = null;
+        client.onConnectivityChanged = null;
+        ApiClient.isLoggingOut = false;
+      });
+
+      final interceptor = client.dio.interceptors.whereType<InterceptorsWrapper>().first;
+      final handler = _RecordingErrorHandler();
+      final logout401 = DioException(
+        requestOptions: RequestOptions(path: '/auth/logout'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/auth/logout'),
+          statusCode: 401,
+          data: {'message': 'Unauthenticated.'},
+        ),
+        type: DioExceptionType.badResponse,
+      );
+
+      interceptor.onError(logout401, handler);
+      expect(unauthorizedCalls, 0);
+      expect(connectivityDrops, 0);
+      expect(handler.nextCalled, isTrue);
+    });
+
+    testWidgets('HomeScreen Left Drawer Keluar Akun clears session and renders LoginScreen without loading freeze', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final testBiz = const BusinessState(
+        activeBusinessId: 99,
+        activeBusinessName: 'Active Rental Biz',
+        activeBranchId: 10,
+        activeBranchName: 'Pusat',
+        businesses: [
+          {
+            'id': 99,
+            'name': 'Active Rental Biz',
+            'role': 'owner',
+            'branches': [
+              {'id': 10, 'name': 'Pusat', 'is_central': true},
+            ],
+          },
+        ],
+      );
+
+      final emptyKpi = <String, dynamic>{
+        'kpi': {
+          'total_revenue': 0,
+          'active_rentals': 0,
+          'overdue_rentals': 0,
+          'ready_assets': 0,
+          'rented_assets': 0,
+          'maintenance_assets': 0,
+          'fleet_total': 0,
+          'today_bookings': 0,
+          'today_returns': 0,
+        },
+        'overdue_list': [],
+      };
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(_ThrowingAuthRepository()),
+            authProvider.overrideWith(() => _SignedInAuthNotifier()),
+            businessProvider.overrideWith(() => _TestBusinessNotifier(testBiz)),
+            onboardingProvider.overrideWith(() => _CompletedOnboardingNotifier()),
+            notificationProvider.overrideWith(() => _IdleNotificationNotifier()),
+            dashboardKpiProvider.overrideWith((ref) => Future.value(emptyKpi)),
+            dashboardQueueBookingsProvider.overrideWith((ref) => Future.value(const [])),
+          ],
+          child: MaterialApp(
+            navigatorKey: rootNavigatorKey,
+            home: Consumer(
+              builder: (context, ref, _) {
+                final auth = ref.watch(authProvider);
+                if (!auth.isAuthenticated) {
+                  return const LoginScreen();
+                }
+                if (auth.isLoading) {
+                  return const Scaffold(body: Center(child: CircularProgressIndicator()));
+                }
+                return HomeScreen(onNavigateTab: (_) {});
+              },
+            ),
+            routes: {
+              '/login': (_) => const LoginScreen(),
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Open the Left Drawer via ScaffoldState
+      final scaffoldState = tester.state<ScaffoldState>(find.byType(Scaffold).first);
+      scaffoldState.openDrawer();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Keluar Akun'), findsOneWidget);
+      await tester.tap(find.text('Keluar Akun'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
   });
 
@@ -315,4 +520,13 @@ class _TestBusinessNotifier extends BusinessNotifier {
 
   @override
   BusinessState build() => _initial;
+}
+
+class _RecordingErrorHandler extends ErrorInterceptorHandler {
+  bool nextCalled = false;
+
+  @override
+  void next(DioException err) {
+    nextCalled = true;
+  }
 }

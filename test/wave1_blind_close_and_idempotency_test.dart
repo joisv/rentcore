@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:rentcore_mobile/core/network/api_client.dart';
 import 'package:rentcore_mobile/core/theme/app_theme.dart';
 import 'package:rentcore_mobile/core/utils/idempotency_helper.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
@@ -61,15 +62,14 @@ class _BlindCloseCashierRepo extends CashierRepository {
   @override
   Future<Map<String, dynamic>> fetchCurrentShift({int? branchId}) async {
     return {
-      'data': {
-        'has_active_shift': true,
-        'shift': {
-          'id': 42,
-          'shift_number': 'SHF-BLIND-001',
-          'status': 'open',
-          'opening_cash_float': 500000.0,
-          'is_blind_close': true,
-        },
+      'has_active_shift': true,
+      'shift_enforcement_enabled': true,
+      'shift': {
+        'id': 42,
+        'shift_number': 'SHF-BLIND-001',
+        'status': 'open',
+        'opening_cash_float': 500000.0,
+        'is_blind_close': true,
       },
     };
   }
@@ -328,8 +328,17 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Total Kas Laci (Blind Close)'), findsOneWidget);
+        expect(
+          find.text(
+            'Nominal kas laci disembunyikan hingga shift ditutup (Mode Blind Close).',
+          ),
+          findsOneWidget,
+        );
         expect(find.text('Total Kas Wajib di Laci'), findsNothing);
+        expect(find.text('Kas Masuk Tunai'), findsNothing);
+        expect(find.text('Rp 900.000'), findsNothing);
         expect(find.text('Rp 1.400.000'), findsNothing);
+        expect(find.text('Disembunyikan'), findsOneWidget);
       },
     );
 
@@ -380,7 +389,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(repo.closeCalls, 1);
-        expect(find.text('Alasan / Keterangan Selisih Kas *'), findsOneWidget);
+        expect(find.text('Alasan Selisih Kas *'), findsOneWidget);
 
         // Enter discrepancy reason & resubmit
         await tester.enterText(
@@ -395,10 +404,15 @@ void main() {
         expect(repo.reasons.last, 'Uang receh kembalian tercecer');
 
         // Post-close preview dialog now reveals system expected vs counted comparison
-        expect(find.text('Fisik Kas Sistem:'), findsOneWidget);
+        expect(find.text('Hasil Rekonsiliasi Tutup Shift'), findsOneWidget);
+        expect(find.text('Modal Awal Laci:'), findsOneWidget);
+        expect(find.text('Penerimaan Tunai:'), findsOneWidget);
+        expect(find.text('Pengeluaran/Refund Tunai:'), findsOneWidget);
+        expect(find.text('Ekspektasi Kas Sistem:'), findsOneWidget);
+        expect(find.text('Uang Fisik Dihitung:'), findsOneWidget);
+        expect(find.text('Selisih Kas (Kurang):'), findsOneWidget);
         expect(find.text('Rp 1.400.000'), findsOneWidget);
         expect(find.text('Rp 1.350.000'), findsOneWidget);
-        expect(find.text('Selisih Kas:'), findsOneWidget);
       },
     );
 
@@ -568,5 +582,95 @@ void main() {
         expect(thirdKey, isNot(equals(firstKey)));
       },
     );
+
+    testWidgets(
+      'CashDrawerShiftModal extracts clean Indonesian message from DioException without raw null prefix',
+      (tester) async {
+        tester.view.physicalSize = const Size(430, 932);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final repo = _Failing422CashierRepo();
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              cashierRepositoryProvider.overrideWithValue(repo),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightTheme,
+              home: const Scaffold(
+                body: CashDrawerShiftModal(
+                  activeShift: {
+                    'id': 13,
+                    'shift_number': 'SHF-HAL-261104-0001',
+                    'status': 'open',
+                    'is_blind_close': true,
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Input Total Langsung'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextFormField).first, '270000');
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Tutup Shift & Rekapitulasi Kasir'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Tidak ada shift kasir yang sedang aktif untuk ditutup.'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('DioException'), findsNothing);
+        expect(find.textContaining('bad response'), findsNothing);
+      },
+    );
+
+    test('ApiClient.extractErrorMessage extracts clean JSON message from DioException', () {
+      final dioErr = DioException(
+        requestOptions: RequestOptions(path: '/cashier/shift/close'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/cashier/shift/close'),
+          statusCode: 422,
+          data: {
+            'message': 'Tidak ada shift kasir yang sedang aktif untuk ditutup.',
+          },
+        ),
+        type: DioExceptionType.badResponse,
+      );
+
+      expect(
+        ApiClient.extractErrorMessage(dioErr),
+        equals('Tidak ada shift kasir yang sedang aktif untuk ditutup.'),
+      );
+    });
   });
+}
+
+class _Failing422CashierRepo extends CashierRepository {
+  @override
+  Future<Map<String, dynamic>> closeShift({
+    required double actualCashCounted,
+    int? shiftId,
+    String? differenceReason,
+    String? closingNotes,
+    int? branchId,
+  }) async {
+    throw DioException(
+      requestOptions: RequestOptions(path: '/cashier/shift/close'),
+      response: Response(
+        requestOptions: RequestOptions(path: '/cashier/shift/close'),
+        statusCode: 422,
+        data: {
+          'message': 'Tidak ada shift kasir yang sedang aktif untuk ditutup.',
+        },
+      ),
+      type: DioExceptionType.badResponse,
+    );
+  }
 }

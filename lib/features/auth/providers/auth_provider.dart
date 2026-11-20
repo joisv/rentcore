@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/navigation_keys.dart';
+import '../../../../core/network/api_client.dart';
 import '../../bookings/providers/booking_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../customers/providers/customer_provider.dart';
@@ -47,6 +48,7 @@ class AuthState {
 
 class AuthNotifier extends Notifier<AuthState> {
   AuthRepository get _repository => ref.read(authRepositoryProvider);
+  bool _isLoggingOut = false;
 
   @override
   AuthState build() {
@@ -248,24 +250,44 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    if (_isLoggingOut) return;
+    _isLoggingOut = true;
+    ApiClient.isLoggingOut = true;
+
     try {
       await _repository.logout();
     } catch (e) {
       debugPrint('[AuthProvider] remote logout error (local session will still be cleared): $e');
     } finally {
-      if (ref.mounted) {
-        _invalidateTenantAndUserData();
-        state = const AuthState();
-      }
       try {
-        rootNavigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/login',
-          (route) => false,
-        );
-      } catch (e) {
-        debugPrint('[AuthProvider] logout navigation fallback: $e');
-        rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+        if (ref.mounted) {
+          // Transition to clean unauthenticated state BEFORE invalidating tenant providers
+          // so AuthRoutingGate immediately shows LoginScreen instead of letting mounted widgets
+          // re-fetch data or trap isLoading == true if a provider invalidation throws.
+          state = const AuthState(
+            isAuthenticated: false,
+            isLoading: false,
+            user: null,
+            errorMessage: null,
+          );
+          try {
+            _invalidateTenantAndUserData();
+          } catch (e) {
+            debugPrint('[AuthProvider] provider invalidation error during logout: $e');
+          }
+        }
+        try {
+          rootNavigatorKey.currentState?.pushNamedAndRemoveUntil(
+            '/login',
+            (route) => false,
+          );
+        } catch (e) {
+          debugPrint('[AuthProvider] logout navigation fallback: $e');
+          rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+        }
+      } finally {
+        ApiClient.isLoggingOut = false;
+        _isLoggingOut = false;
       }
     }
   }
@@ -387,11 +409,11 @@ class AuthNotifier extends Notifier<AuthState> {
     // 11. Thermal Printer
     if (ref.exists(printerProvider)) {
       try { ref.read(printerProvider.notifier).reset(); } catch (_) {}
+      try { ref.invalidate(printerProvider); } catch (_) {}
     }
-    ref.invalidate(printerProvider);
 
     // 12. Notifications
-    ref.invalidate(notificationProvider);
+    try { ref.invalidate(notificationProvider); } catch (_) {}
   }
 }
 

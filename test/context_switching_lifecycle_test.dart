@@ -8,6 +8,7 @@ import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
+import 'package:rentcore_mobile/features/organization/providers/organization_provider.dart';
 import 'package:rentcore_mobile/shared/widgets/business_selector_sheet.dart';
 
 class _FakeAuthRepository extends AuthRepository {
@@ -254,6 +255,55 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt('active_business_id'), 1);
       expect(prefs.getInt('active_branch_id'), 10);
+    });
+
+    test('loadInitialContext prefers role == owner business when no saved preference exists', () async {
+      final businesses = await fakeAuthRepo.fetchBusinesses();
+      // businesses[0] is staff (id: 1), businesses[1] is owner (id: 2)
+      final container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(fakeAuthRepo),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(businessProvider.notifier).loadInitialContext(
+        preloadedBusinesses: businesses,
+      );
+
+      final state = container.read(businessProvider);
+      expect(state.activeBusinessId, 2);
+      expect(state.activeBusinessName, 'My Independent Rental B');
+    });
+
+    test('selectContext resets organizationProvider when activeBusinessId changes', () async {
+      final businesses = await fakeAuthRepo.fetchBusinesses();
+      final employerBiz = businesses[0];
+
+      final container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(fakeAuthRepo),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(businessProvider.notifier).loadInitialContext(
+        preloadedBusinesses: businesses,
+      );
+
+      // Instantiate organizationProvider and verify it starts cleanly and resets cleanly on switch
+      final orgNotifier = container.read(organizationProvider.notifier);
+      orgNotifier.state = orgNotifier.state.copyWith(businessId: 2, members: [{'id': 99}]);
+      expect(container.read(organizationProvider).businessId, 2);
+
+      await container.read(businessProvider.notifier).selectContext(
+        business: employerBiz,
+        branch: employerBiz['branches'][0],
+      );
+
+      final orgAfterSwitch = container.read(organizationProvider);
+      expect(orgAfterSwitch.businessId, isNull);
+      expect(orgAfterSwitch.members, isEmpty);
     });
   });
 }

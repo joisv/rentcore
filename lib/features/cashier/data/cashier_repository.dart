@@ -3,6 +3,19 @@ import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 
+class CashierApiException implements Exception {
+  final String message;
+  final bool requiresDifferenceReason;
+
+  const CashierApiException(
+    this.message, {
+    this.requiresDifferenceReason = false,
+  });
+
+  @override
+  String toString() => message;
+}
+
 class CashierRepository {
   final ApiClient _client = ApiClient();
 
@@ -352,16 +365,25 @@ class CashierRepository {
     final headers = <String, dynamic>{};
     if (branchId != null) headers['X-Branch-Id'] = branchId.toString();
 
-    final response = await _client.dio.post(
-      ApiConstants.openShift,
-      data: payload,
-      options: headers.isNotEmpty ? Options(headers: headers) : null,
-    );
-    final data = response.data['data'];
-    if (data is Map) {
-      return Map<String, dynamic>.from(data);
+    try {
+      final response = await _client.dio.post(
+        ApiConstants.openShift,
+        data: payload,
+        options: headers.isNotEmpty ? Options(headers: headers) : null,
+      );
+      final data = response.data['data'];
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
+      return {};
+    } on DioException catch (e) {
+      throw CashierApiException(
+        ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal membuka shift kasir.',
+        ),
+      );
     }
-    return {};
   }
 
   Future<Map<String, dynamic>> closeShift({
@@ -383,16 +405,33 @@ class CashierRepository {
     final headers = <String, dynamic>{};
     if (branchId != null) headers['X-Branch-Id'] = branchId.toString();
 
-    final response = await _client.dio.post(
-      ApiConstants.closeShift,
-      data: payload,
-      options: headers.isNotEmpty ? Options(headers: headers) : null,
-    );
-    final data = response.data['data'];
-    if (data is Map) {
-      return Map<String, dynamic>.from(data);
+    try {
+      final response = await _client.dio.post(
+        ApiConstants.closeShift,
+        data: payload,
+        options: headers.isNotEmpty ? Options(headers: headers) : null,
+      );
+      final data = response.data['data'];
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
+      return {};
+    } on DioException catch (e) {
+      final resData = e.response?.data;
+      final bool needsReason =
+          resData is Map &&
+          (resData['requires_difference_reason'] == true ||
+              (resData['errors'] is Map &&
+                  (resData['errors'] as Map).containsKey('difference_reason')));
+      final cleanMessage = ApiClient.extractErrorMessage(
+        e,
+        fallback: 'Gagal menutup shift kasir.',
+      );
+      throw CashierApiException(
+        cleanMessage,
+        requiresDifferenceReason: needsReason,
+      );
     }
-    return {};
   }
 
   Future<List<Map<String, dynamic>>> fetchShiftHistory({

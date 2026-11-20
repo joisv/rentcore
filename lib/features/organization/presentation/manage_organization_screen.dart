@@ -47,7 +47,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AddBranchBottomSheet(businessId: widget.businessId),
+      builder: (_) => AddBranchBottomSheet(businessId: widget.businessId),
     );
   }
 
@@ -1219,16 +1219,16 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
 // =============================================================================
 // MODAL BOTTOM SHEET: TAMBAH CABANG
 // =============================================================================
-class _AddBranchBottomSheet extends ConsumerStatefulWidget {
+class AddBranchBottomSheet extends ConsumerStatefulWidget {
   final int businessId;
 
-  const _AddBranchBottomSheet({required this.businessId});
+  const AddBranchBottomSheet({super.key, required this.businessId});
 
   @override
-  ConsumerState<_AddBranchBottomSheet> createState() => _AddBranchBottomSheetState();
+  ConsumerState<AddBranchBottomSheet> createState() => _AddBranchBottomSheetState();
 }
 
-class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
+class _AddBranchBottomSheetState extends ConsumerState<AddBranchBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _codeController = TextEditingController();
@@ -1252,6 +1252,7 @@ class _AddBranchBottomSheetState extends ConsumerState<_AddBranchBottomSheet> {
     setState(() => _errorMessage = null);
 
     final success = await ref.read(organizationProvider.notifier).createBranch(
+          businessId: widget.businessId,
           name: _nameController.text.trim(),
           code: _codeController.text.trim().toUpperCase(),
           city: _cityController.text.trim().isNotEmpty ? _cityController.text.trim() : null,

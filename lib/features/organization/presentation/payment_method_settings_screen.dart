@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/skeleton_loading.dart';
+import '../../../../shared/widgets/authenticated_network_image.dart';
 import '../../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -657,8 +658,8 @@ class _PaymentMethodSettingsScreenState
                                               color: AppColors.success,
                                               size: 32,
                                             )
-                                          : Image.network(
-                                              _qrisImageUrl!,
+                                          : AuthenticatedNetworkImage(
+                                              url: _qrisImageUrl!,
                                               fit: BoxFit.contain,
                                               loadingBuilder:
                                                   (

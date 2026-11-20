@@ -272,5 +272,68 @@ void main() {
 
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('shows Buat Usaha / Bisnis Baru and opens AddBranchBottomSheet when + Tambah tapped by owner', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final fakeAuth = _FakeAuthNotifier(
+        const AuthState(
+          isAuthenticated: true,
+          user: {'id': 1, 'name': 'Owner', 'email': 'owner@test.com'},
+        ),
+      );
+
+      final business = {
+        'id': 4,
+        'name': 'halo',
+        'role': 'owner',
+        'branches': [
+          {'id': 6, 'name': 'halo Pusat', 'code': 'HLO', 'is_central': true},
+        ],
+      };
+
+      final fakeBusiness = _FakeBusinessNotifier(
+        BusinessState(
+          businesses: [business],
+          activeBusinessId: 4,
+          activeBusinessName: 'halo',
+          activeBranchId: 6,
+          activeBranchName: 'halo Pusat',
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authProvider.overrideWith(() => fakeAuth),
+            businessProvider.overrideWith(() => fakeBusiness),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () => BusinessSelectorSheet.show(context),
+                  child: const Text('Open Sheet'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Sheet'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Buat Usaha / Bisnis Baru'), findsOneWidget);
+      expect(find.text('+ Tambah'), findsOneWidget);
+
+      await tester.tap(find.text('+ Tambah'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tambah Cabang / Outlet Baru'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

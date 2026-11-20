@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/models/thermal_printer_models.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/services/thermal_printer_service.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/date_formatter.dart';
@@ -12,6 +13,7 @@ import '../../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/business_provider.dart';
 import '../../../printer/providers/printer_provider.dart';
+import '../../data/cashier_repository.dart';
 import '../../providers/cashier_provider.dart';
 
 enum CashCountMode {
@@ -68,6 +70,8 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
   final _count2kFocus = FocusNode();
   final _coinFocus = FocusNode();
   final _directTotalFocus = FocusNode();
+  final _reasonFocus = FocusNode();
+  final _reasonFieldKey = GlobalKey();
 
   CashCountMode _countMode = CashCountMode.denominations;
 
@@ -128,6 +132,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     _count2kFocus.dispose();
     _coinFocus.dispose();
     _directTotalFocus.dispose();
+    _reasonFocus.dispose();
     super.dispose();
   }
 
@@ -158,9 +163,19 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
   }
 
   bool _isDifferenceReasonError(Object error) {
+    if (error is CashierApiException) {
+      if (error.requiresDifferenceReason) return true;
+      final msg = error.message.toLowerCase();
+      return msg.contains('difference_reason') ||
+          msg.contains('alasan selisih') ||
+          msg.contains('selisih');
+    }
     if (error is DioException) {
       final data = error.response?.data;
       if (data is Map) {
+        if (data['requires_difference_reason'] == true) {
+          return true;
+        }
         final errors = data['errors'];
         if (errors is Map && errors.containsKey('difference_reason')) {
           return true;
@@ -175,6 +190,10 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     }
     final raw = error.toString().toLowerCase();
     return raw.contains('difference_reason') || raw.contains('alasan selisih');
+  }
+
+  String _formatErrorMessage(Object error) {
+    return ApiClient.extractErrorMessage(error);
   }
 
   String _formatOpenedAt(dynamic openedAt) {
@@ -230,10 +249,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString().replaceFirst(
-          RegExp(r'^Exception:\s*'),
-          '',
-        );
+        _errorMessage = _formatErrorMessage(e);
       });
     }
   }
@@ -301,15 +317,25 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
         _isLoading = false;
         if (requiresReason) {
           _serverRequiresReason = true;
-          _errorMessage =
-              'Terdapat selisih kas signifikan terhadap catatan sistem. Isi alasan selisih di bawah lalu kirim ulang.';
+          _errorMessage = _formatErrorMessage(e);
         } else {
-          _errorMessage = e.toString().replaceFirst(
-            RegExp(r'^Exception:\s*'),
-            '',
-          );
+          _errorMessage = _formatErrorMessage(e);
         }
       });
+      if (requiresReason) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final reasonContext = _reasonFieldKey.currentContext;
+          if (reasonContext != null) {
+            Scrollable.ensureVisible(
+              reasonContext,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+            );
+          }
+          _reasonFocus.requestFocus();
+        });
+      }
     }
   }
 
@@ -355,11 +381,18 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
       shiftData['opening_cash_float'],
     );
     final cashInflow = CurrencyFormatter.parse(shiftData['cash_inflow']);
+    final cashOutflow = CurrencyFormatter.parse(
+      shiftData['cash_outflow'] ?? shiftData['cash_refund'],
+    );
     final nonCashInflow = CurrencyFormatter.parse(shiftData['non_cash_inflow']);
     final cashExpenses = CurrencyFormatter.parse(shiftData['cash_expenses']);
+    final totalCashOut = cashOutflow + cashExpenses;
     final actual = CurrencyFormatter.parse(shiftData['actual_cash_counted']);
     final expected = CurrencyFormatter.parse(shiftData['expected_cash_total']);
     final diff = CurrencyFormatter.parse(shiftData['cash_difference']);
+    final String diffStatusLabel = diff == 0
+        ? 'Pas'
+        : (diff < 0 ? 'Kurang' : 'Lebih');
     final totalTx = int.tryParse(shiftData['total_transactions']?.toString() ?? '') ?? 0;
 
     final authUser = ref.exists(authProvider) ? ref.read(authProvider).user : null;
@@ -412,48 +445,68 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     showDialog(
       context: context,
       builder: (ctx) => ThermalReceiptPreviewDialog(
-        title: 'Struk Tutup Shift Kasir',
+        title: 'Hasil Rekonsiliasi Tutup Shift',
         branchName: resolvedBranchName,
         escposBytes: escposBytes,
         content: Column(
           children: [
             const Text(
-              'LAPORAN TUTUP SHIFT',
+              'HASIL REKONSILIASI TUTUP SHIFT',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             ),
             Text('No: $shiftNum', style: const TextStyle(fontSize: 11)),
             const Divider(height: 16),
-            _buildPostCloseComparisonRow('Modal Awal:', openingFloat),
+            _buildPostCloseComparisonRow('Modal Awal Laci:', openingFloat),
             const SizedBox(height: 4),
-            _buildPostCloseComparisonRow('Kas Masuk Bersih:', cashInflow),
-            if (cashExpenses > 0) ...[
-              const SizedBox(height: 4),
-              _buildPostCloseComparisonRow(
-                'Beban Laci:',
-                -cashExpenses,
-                valueColor: AppColors.danger,
-              ),
-            ],
+            _buildPostCloseComparisonRow('Penerimaan Tunai:', cashInflow),
+            const SizedBox(height: 4),
+            _buildPostCloseComparisonRow(
+              'Pengeluaran/Refund Tunai:',
+              totalCashOut > 0 ? -totalCashOut : 0.0,
+              valueColor: totalCashOut > 0 ? AppColors.danger : null,
+            ),
             const Divider(height: 12),
             _buildPostCloseComparisonRow(
-              'Fisik Kas Sistem:',
+              'Ekspektasi Kas Sistem:',
               expected,
               isBold: true,
             ),
             const SizedBox(height: 4),
             _buildPostCloseComparisonRow(
-              'Fisik Kas Dihitung:',
+              'Uang Fisik Dihitung:',
               actual,
               isBold: true,
             ),
             const SizedBox(height: 4),
-            _buildPostCloseComparisonRow(
-              'Selisih Kas:',
-              diff,
-              isBold: true,
-              valueColor: diff < 0
-                  ? AppColors.danger
-                  : (diff > 0 ? AppColors.info : AppColors.success),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Selisih Kas ($diffStatusLabel):',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    CurrencyFormatter.format(diff),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      color: diff < 0
+                          ? AppColors.danger
+                          : (diff > 0 ? AppColors.info : AppColors.success),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -868,7 +921,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'Hitung fisik seluruh uang tunai di laci. Perbandingan kas sistem akan ditampilkan setelah shift ditutup.',
+                          'Mode True Blind Close: Hitung seluruh uang tunai fisik di laci. Target kas sistem baru ditampilkan setelah shift dikunci.',
                           style: TextStyle(
                             fontSize: 11,
                             color: AppColors.textSecondary,
@@ -954,39 +1007,65 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
 
         const SizedBox(height: 12),
 
-        // Discrepancy Reason Field (shown when required by server during blind close or optional note)
+        // Discrepancy Reason Field (shown when required by server during blind close)
         if (_serverRequiresReason) ...[
-          const Text(
-            'Alasan / Keterangan Selisih Kas *',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              color: AppColors.danger,
+          Container(
+            key: _reasonFieldKey,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.dangerLight.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.danger, width: 1.25),
             ),
-          ),
-          const SizedBox(height: 6),
-          TextFormField(
-            controller: _reasonController,
-            maxLines: 2,
-            decoration: InputDecoration(
-              hintText: 'Jelaskan penyebab selisih uang kas fisik...',
-              filled: true,
-              fillColor: AppColors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Alasan Selisih Kas *',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: AppColors.danger,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _reasonController,
+                  focusNode: _reasonFocus,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    hintText: 'Jelaskan penyebab selisih uang kas fisik...',
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.danger),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: AppColors.danger,
+                        width: 1.5,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                  ),
+                  validator: (val) {
+                    if (_serverRequiresReason &&
+                        (val == null || val.trim().isEmpty)) {
+                      return 'Alasan selisih kas wajib diisi sebelum mengirim ulang.';
+                    }
+                    return null;
+                  },
+                ),
+              ],
             ),
-            validator: (val) {
-              if (_serverRequiresReason &&
-                  (val == null || val.trim().isEmpty)) {
-                return 'Alasan selisih kas wajib diisi sebelum mengirim ulang.';
-              }
-              return null;
-            },
           ),
           const SizedBox(height: 12),
         ],
@@ -1401,7 +1480,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Total Fisik Hasil Hitung',
+                  'Uang Fisik yang Anda Hitung',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

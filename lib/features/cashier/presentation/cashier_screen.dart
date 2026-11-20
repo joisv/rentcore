@@ -472,11 +472,10 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                       ? Map<String, dynamic>.from(recon['active_shift'] as Map)
                       : null;
                   final shiftPayload = currentShiftAsync.asData?.value;
-                  final currentShiftData =
-                      shiftPayload?['data']?['shift'] is Map
-                      ? Map<String, dynamic>.from(
-                          shiftPayload!['data']['shift'] as Map,
-                        )
+                  final dynamic rawShift =
+                      shiftPayload?['shift'] ?? shiftPayload?['data']?['shift'];
+                  final currentShiftData = rawShift is Map
+                      ? Map<String, dynamic>.from(rawShift)
                       : null;
                   final effectiveShift = currentShiftData ?? activeShift;
                   final hasActiveShift =
@@ -496,6 +495,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                       hasActiveShift &&
                       (effectiveShift['is_blind_close'] == true ||
                           recon['is_blind_close'] == true ||
+                          data['is_blind_close'] == true ||
                           (effectiveShift['expected_cash_now'] == null &&
                               !recon.containsKey('expected_cash_in_drawer')));
 
@@ -712,36 +712,38 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                                   ],
                                 ),
                               ],
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Modal Kas Awal',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      CurrencyFormatter.format(openingFloat),
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.obsidian,
+                              if (!isBlindClose) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Expanded(
+                                      child: Text(
+                                        'Modal Kas Awal',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    const SizedBox(width: 8),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        CurrencyFormatter.format(openingFloat),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.obsidian,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ] else ...[
                               const Text(
                                 'Laci kasir belum memiliki sesi shift aktif. Buka shift kasir untuk memasukkan modal awal kas laci.',
@@ -818,86 +820,70 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                             ),
                             const SizedBox(height: 14),
 
-                            // Kas Masuk Tunai
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Kas Masuk Tunai',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        'Kas Masuk Bersih (Sistem)',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: AppColors.textMuted,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
+                            if (isBlindClose) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  CurrencyFormatter.format(cashTotal),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                    color: AppColors.success,
-                                  ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-
-                            // Total Non-Tunai
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Expanded(
-                                  child: Text(
-                                    'Total Non-Tunai (QRIS / Bank / EDC)',
-                                    style: TextStyle(
-                                      fontSize: 12,
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.visibility_off_rounded,
+                                      size: 18,
                                       color: AppColors.textSecondary,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Total Kas Laci (Blind Close)',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.obsidian,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Shift #${effectiveShift['shift_number'] ?? effectiveShift['id']}${openedAt != null ? ' • Dibuka ${DateFormatter.formatFull(DateTime.tryParse(openedAt.toString()))}' : ''}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          const Text(
+                                            'Nominal kas laci disembunyikan hingga shift ditutup (Mode Blind Close).',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textMuted,
+                                              height: 1.35,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  CurrencyFormatter.format(nonCashTotal),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                    color: AppColors.obsidian,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-
-                            if (openingFloat > 0) ...[
+                              ),
+                              const SizedBox(height: 8),
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Expanded(
                                     child: Text(
-                                      'Modal Awal Kas Laci',
+                                      'Total Non-Tunai (QRIS / Bank / EDC)',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: AppColors.textSecondary,
@@ -908,147 +894,210 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    CurrencyFormatter.format(openingFloat),
+                                    CurrencyFormatter.format(nonCashTotal),
                                     style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.w700,
                                       fontSize: 12,
+                                      color: AppColors.obsidian,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else ...[
+                              // Kas Masuk Tunai
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Kas Masuk Tunai',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          'Kas Masuk Bersih (Sistem)',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: AppColors.textMuted,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    CurrencyFormatter.format(cashTotal),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      color: AppColors.success,
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 6),
-                            ],
 
-                            // Pengeluaran Kasir Laci Tunai (hanya payment_source == 'cash_drawer')
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    cashExp > 0
-                                        ? 'Beban Pengeluaran Cabang (Kas Laci)'
-                                        : 'Beban Kas Keluar (Laci)',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary,
+                              // Total Non-Tunai
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'Total Non-Tunai (QRIS / Bank / EDC)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  cashExp > 0
-                                      ? '-${CurrencyFormatter.format(cashExp)}'
-                                      : 'Rp 0',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                    color: cashExp > 0
-                                        ? AppColors.danger
-                                        : AppColors.textMuted,
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    CurrencyFormatter.format(nonCashTotal),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      color: AppColors.obsidian,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 18),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
 
-                            // Ekspektasi Uang Fisik di Laci (disembunyikan saat mode Blind Close aktif)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceMuted,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: isBlindClose
-                                  ? const Row(
-                                      children: [
-                                        Icon(
-                                          Icons.visibility_off_rounded,
-                                          size: 16,
+                              if (openingFloat > 0) ...[
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Expanded(
+                                      child: Text(
+                                        'Modal Awal Kas Laci',
+                                        style: TextStyle(
+                                          fontSize: 12,
                                           color: AppColors.textSecondary,
                                         ),
-                                        SizedBox(width: 8),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Total Kas Laci (Blind Close)',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: AppColors.obsidian,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              Text(
-                                                'Hitung fisik kas dan tutup shift untuk melihat perbandingan sistem.',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: AppColors.textMuted,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Total Kas Wajib di Laci',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: AppColors.obsidian,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              Text(
-                                                'Total Fisik Kas Wajib di Laci',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: AppColors.textMuted,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Text(
-                                            CurrencyFormatter.format(
-                                              expectedCash,
-                                            ),
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w900,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      CurrencyFormatter.format(openingFloat),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                              ],
+
+                              // Pengeluaran Kasir Laci Tunai (hanya payment_source == 'cash_drawer')
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      cashExp > 0
+                                          ? 'Beban Pengeluaran Cabang (Kas Laci)'
+                                          : 'Beban Kas Keluar (Laci)',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    cashExp > 0
+                                        ? '-${CurrencyFormatter.format(cashExp)}'
+                                        : 'Rp 0',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      color: cashExp > 0
+                                          ? AppColors.danger
+                                          : AppColors.textMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 18),
+
+                              // Ekspektasi Uang Fisik di Laci
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Total Kas Wajib di Laci',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
                                               color: AppColors.obsidian,
                                             ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                        ),
-                                      ],
+                                          Text(
+                                            'Total Fisik Kas Wajib di Laci',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: AppColors.textMuted,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                            ),
+                                    const SizedBox(width: 8),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        CurrencyFormatter.format(
+                                          expectedCash,
+                                        ),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          color: AppColors.obsidian,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1220,10 +1269,43 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                                               ),
                                               const SizedBox(width: 8),
                                               Text(
-                                                CurrencyFormatter.format(total),
-                                                style: const TextStyle(
+                                                (isBlindClose &&
+                                                        (val['is_blind_close'] ==
+                                                                true ||
+                                                            val['total'] ==
+                                                                null ||
+                                                            kStr.contains(
+                                                              'tunai',
+                                                            ) ||
+                                                            kStr == 'cash'))
+                                                    ? 'Disembunyikan'
+                                                    : CurrencyFormatter.format(
+                                                        total,
+                                                      ),
+                                                style: TextStyle(
                                                   fontWeight: FontWeight.w800,
-                                                  fontSize: 13,
+                                                  fontSize: (isBlindClose &&
+                                                          (val['is_blind_close'] ==
+                                                                  true ||
+                                                              val['total'] ==
+                                                                  null ||
+                                                              kStr.contains(
+                                                                'tunai',
+                                                              ) ||
+                                                              kStr == 'cash'))
+                                                      ? 11
+                                                      : 13,
+                                                  color: (isBlindClose &&
+                                                          (val['is_blind_close'] ==
+                                                                  true ||
+                                                              val['total'] ==
+                                                                  null ||
+                                                              kStr.contains(
+                                                                'tunai',
+                                                              ) ||
+                                                              kStr == 'cash'))
+                                                      ? AppColors.textMuted
+                                                      : null,
                                                 ),
                                               ),
                                             ],

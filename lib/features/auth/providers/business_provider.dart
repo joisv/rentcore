@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../customers/providers/customer_provider.dart';
+import '../../organization/providers/organization_provider.dart';
+import '../../vouchers/providers/voucher_provider.dart';
 import '../data/auth_repository.dart';
 import 'auth_provider.dart';
 
@@ -105,6 +108,8 @@ class BusinessNotifier extends Notifier<BusinessState> {
     final branchId = prefs.getInt('active_branch_id');
     final branchName = prefs.getString('branch_name');
 
+    final previousBusinessId = state.activeBusinessId;
+
     try {
       final list = preloadedBusinesses ?? await _repository.fetchBusinesses();
       if (!ref.mounted) return;
@@ -120,10 +125,28 @@ class BusinessNotifier extends Notifier<BusinessState> {
         await prefs.remove('active_branch_id');
         await prefs.remove('branch_name');
         await prefs.remove('branch_code');
+
+        if (!ref.mounted) return;
+        state = const BusinessState(
+          isLoading: false,
+          activeBusinessId: null,
+          activeBusinessName: null,
+          activeBranchId: null,
+          activeBranchName: null,
+          businesses: [],
+          error: null,
+        );
+        if (previousBusinessId != null || bizId != null) {
+          _invalidateTenantScopedProviders();
+        }
+        return;
       } else {
         // Validate if previously stored business still exists in user's memberships
         final match = list.where((b) => b['id'] == bizId).firstOrNull;
-        final targetBiz = match ?? list.first;
+        final ownedFallback = list
+            .where((b) => (b['role'] ?? '').toString() == 'owner')
+            .firstOrNull;
+        final targetBiz = match ?? ownedFallback ?? list.first;
         effectiveBizId = targetBiz['id'];
         effectiveBizName = match != null ? (bizName ?? targetBiz['name']) : targetBiz['name'];
         if (match == null) {
@@ -169,6 +192,11 @@ class BusinessNotifier extends Notifier<BusinessState> {
         businesses: list,
         clearError: true,
       );
+
+      if ((previousBusinessId != null && previousBusinessId != effectiveBizId) ||
+          (bizId != null && bizId != effectiveBizId)) {
+        _invalidateTenantScopedProviders();
+      }
     } catch (e) {
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -209,6 +237,9 @@ class BusinessNotifier extends Notifier<BusinessState> {
       }
     }
 
+    final previousBusinessId = state.activeBusinessId;
+    final businessChanged = previousBusinessId != null && previousBusinessId != bizId;
+
     await _repository.setActiveContext(
       businessId: bizId,
       businessName: bizName,
@@ -225,6 +256,27 @@ class BusinessNotifier extends Notifier<BusinessState> {
       clearBranch: branchId == null,
       clearError: true,
     );
+
+    if (businessChanged) {
+      _invalidateTenantScopedProviders();
+    }
+  }
+
+  void _invalidateTenantScopedProviders() {
+    // Only reset/invalidate imperative notifiers that do not watch businessProvider directly;
+    // reactive providers watching businessProvider rebuild automatically on state change.
+    if (ref.exists(organizationProvider)) {
+      try { ref.read(organizationProvider.notifier).reset(); } catch (_) {}
+      ref.invalidate(organizationProvider);
+    }
+    if (ref.exists(customerProvider)) {
+      try { ref.read(customerProvider.notifier).reset(); } catch (_) {}
+      ref.invalidate(customerProvider);
+    }
+    if (ref.exists(voucherProvider)) {
+      try { ref.read(voucherProvider.notifier).reset(); } catch (_) {}
+      ref.invalidate(voucherProvider);
+    }
   }
 
   Future<void> selectBusiness(

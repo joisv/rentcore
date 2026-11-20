@@ -32,10 +32,37 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
     );
   }
 
+  void _openAddBranchSheet(int businessId) {
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    showModalBottomSheet(
+      context: navigator.context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddBranchBottomSheet(businessId: businessId),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final businessState = ref.watch(businessProvider);
     final businesses = businessState.businesses;
+
+    Map<String, dynamic>? activeBiz;
+    if (businesses.isNotEmpty) {
+      if (businessState.activeBusinessId != null) {
+        activeBiz = businesses.cast<Map<String, dynamic>>().firstWhere(
+              (b) => b['id'] == businessState.activeBusinessId,
+              orElse: () => businesses.first as Map<String, dynamic>,
+            );
+      } else {
+        activeBiz = businesses.first as Map<String, dynamic>;
+      }
+    }
+    final activeRole = (activeBiz?['role'] ?? '').toString();
+    final canAddBranch = activeBiz != null &&
+        activeBiz['id'] is int &&
+        (activeRole == 'owner' || activeRole == 'admin');
 
     return Container(
       decoration: const BoxDecoration(
@@ -86,22 +113,30 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: _openOnboardingDialog,
-                      borderRadius: BorderRadius.circular(6),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        child: Text(
-                          '+ Tambah',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF111111),
+                    if (canAddBranch || businesses.isEmpty) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () {
+                          if (canAddBranch) {
+                            _openAddBranchSheet(activeBiz!['id'] as int);
+                          } else {
+                            _openOnboardingDialog();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Text(
+                            '+ Tambah',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111111),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -192,7 +227,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                       ],
                     ),
                   )
-                else
+                else ...[
                   Flexible(
                     child: ListView.separated(
                       shrinkWrap: true,
@@ -211,6 +246,39 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                       },
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: _openOnboardingDialog,
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.add_business_outlined,
+                            size: 18,
+                            color: Color(0xFF4B5563),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Buat Usaha / Bisnis Baru',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF374151),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
