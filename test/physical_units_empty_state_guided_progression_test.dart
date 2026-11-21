@@ -108,38 +108,40 @@ void main() {
         await tester.pumpWidget(createTestWidget(repo: repo));
         await tester.pumpAndSettle();
 
-        // 1. Heading and explanation
-        expect(find.text('Mulai Catat Inventaris Rental Anda'), findsOneWidget);
+        // 1. Segmented tabs & concise empty state copy (search bar hidden)
+        expect(find.byKey(const Key('inventory_tab_units')), findsOneWidget);
+        expect(find.byKey(const Key('inventory_tab_catalog')), findsOneWidget);
+        expect(find.byKey(const Key('inventory_units_search_field')), findsNothing);
+        expect(find.byKey(const Key('inventory_units_filter_button')), findsNothing);
+        expect(find.text('Belum Ada Inventaris'), findsOneWidget);
         expect(
-          find.text('Sebelum mendaftarkan unit fisik, pahami hierarki inventaris rental berikut:'),
+          find.text('Buat model katalog terlebih dahulu sebelum mendaftarkan unit fisik.'),
           findsOneWidget,
         );
 
-        // 2. Hierarchy concept cards
-        expect(find.text('1. Model / Katalog'), findsOneWidget);
+        // 2. Single-numbered hierarchy step cards
+        expect(find.text('Model & Tarif'), findsOneWidget);
         expect(
-          find.textContaining('Tipe barang dan tarif sewanya'),
+          find.textContaining('Tipe barang dan harga sewa'),
           findsOneWidget,
         );
-        expect(find.text('2. Unit Fisik'), findsOneWidget);
+        expect(find.byKey(const Key('inventory_empty_step_2_title')), findsOneWidget);
         expect(
-          find.textContaining('Barang nyata yang diserahkan ke pelanggan'),
+          find.textContaining('Stok nyata siap sewa lengkap'),
           findsOneWidget,
         );
 
-        // 3. Primary CTA has clean label with single '+' without icon duplication
+        // 3. Full-width Primary CTA shows + Buat Model Pertama
         expect(find.text('+ Buat Model Pertama'), findsOneWidget);
 
-        // 4. Secondary button ('Registrasi Unit Baru') is HIDDEN because no parent models exist
+        // 4. Secondary button ('Registrasi Unit Baru') & Floating Action Button (+) are HIDDEN
         expect(find.text('Registrasi Unit Baru'), findsNothing);
-
-        // 5. Floating Action Button (+) is HIDDEN to eliminate bottom-right clutter
         expect(find.byKey(const Key('inventory_expandable_main_fab')), findsNothing);
 
-        // 6. Verify icon is inventory_2_outlined
+        // 5. Verify icon is inventory_2_outlined
         expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
 
-        // 7. Tapping primary CTA opens AddProductSheet
+        // 6. Tapping primary CTA opens AddProductSheet
         await tester.tap(find.text('+ Buat Model Pertama'));
         await tester.pumpAndSettle();
         expect(find.byType(AddProductSheet), findsOneWidget);
@@ -147,7 +149,7 @@ void main() {
     );
 
     testWidgets(
-      'When models exist but physical units are empty: prompts unit registration, shows secondary model CTA and shows FAB',
+      'When models exist but physical units are empty: smart CTA switches to + Tambah Unit Fisik and opens unit registration sheet',
       (tester) async {
         final sampleProducts = [
           {
@@ -173,35 +175,27 @@ void main() {
         await tester.pumpWidget(createTestWidget(repo: repo));
         await tester.pumpAndSettle();
 
-        // 1. Heading and guidance for model-ready state
-        expect(find.text('Model Sudah Tersedia'), findsOneWidget);
+        // 1. Concise empty state header + hidden search bar (no units yet)
+        expect(find.text('Belum Ada Inventaris'), findsOneWidget);
         expect(
-          find.text('Model sudah tersedia. Daftarkan unit fisik pertama Anda.'),
+          find.text('Buat model katalog terlebih dahulu sebelum mendaftarkan unit fisik.'),
           findsOneWidget,
         );
+        expect(find.byKey(const Key('inventory_units_search_field')), findsNothing);
 
-        // 2. Action buttons: Primary is + Registrasi Unit Pertama, Secondary is + Buat Model Baru
-        expect(find.text('+ Registrasi Unit Pertama'), findsOneWidget);
-        expect(find.text('+ Buat Model Baru'), findsOneWidget);
+        // 2. Smart Primary CTA shows + Tambah Unit Fisik because models exist
+        expect(find.text('+ Tambah Unit Fisik'), findsOneWidget);
+        expect(find.text('+ Buat Model Pertama'), findsNothing);
 
         // 3. Floating Action Button IS visible because models exist
         expect(find.byKey(const Key('inventory_expandable_main_fab')), findsOneWidget);
 
-        // 4. Tapping + Registrasi Unit Pertama opens unit registration sheet
-        await tester.tap(find.text('+ Registrasi Unit Pertama'));
+        // 4. Tapping + Tambah Unit Fisik opens unit registration sheet
+        await tester.tap(find.text('+ Tambah Unit Fisik'));
         await tester.pumpAndSettle();
 
         // Sheet title is 'Registrasi Unit Baru'
         expect(find.text('Registrasi Unit Baru'), findsOneWidget);
-
-        // Dismiss sheet
-        await tester.tap(find.byIcon(Icons.close_rounded));
-        await tester.pumpAndSettle();
-
-        // 5. Tapping + Buat Model Baru opens AddProductSheet
-        await tester.tap(find.text('+ Buat Model Baru'));
-        await tester.pumpAndSettle();
-        expect(find.byType(AddProductSheet), findsOneWidget);
       },
     );
   });

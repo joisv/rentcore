@@ -140,6 +140,8 @@ class ReceiptCustomizationSettings {
   // Formatting options
   final bool compactSpacing;
   final String separatorStyle; // 'dash' (-) or 'double' (=)
+  final int extraFeedLines;
+  final bool useRasterQr;
 
   const ReceiptCustomizationSettings({
     this.paperWidth = ReceiptPaperWidth.mm58,
@@ -162,6 +164,8 @@ class ReceiptCustomizationSettings {
     this.returnTermsText = 'Harap mengembalikan unit tepat waktu sesuai jadwal sewa. Keterlambatan dikenakan denda resmi.',
     this.compactSpacing = false,
     this.separatorStyle = 'dash',
+    this.extraFeedLines = 3,
+    this.useRasterQr = false,
   });
 
   ReceiptCustomizationSettings copyWith({
@@ -185,6 +189,8 @@ class ReceiptCustomizationSettings {
     String? returnTermsText,
     bool? compactSpacing,
     String? separatorStyle,
+    int? extraFeedLines,
+    bool? useRasterQr,
   }) {
     return ReceiptCustomizationSettings(
       paperWidth: paperWidth ?? this.paperWidth,
@@ -207,6 +213,8 @@ class ReceiptCustomizationSettings {
       returnTermsText: returnTermsText ?? this.returnTermsText,
       compactSpacing: compactSpacing ?? this.compactSpacing,
       separatorStyle: separatorStyle ?? this.separatorStyle,
+      extraFeedLines: (extraFeedLines ?? this.extraFeedLines).clamp(0, 15),
+      useRasterQr: useRasterQr ?? this.useRasterQr,
     );
   }
 
@@ -231,30 +239,40 @@ class ReceiptCustomizationSettings {
     'returnTermsText': returnTermsText,
     'compactSpacing': compactSpacing,
     'separatorStyle': separatorStyle,
+    'extraFeedLines': extraFeedLines,
+    'useRasterQr': useRasterQr,
   };
 
-  factory ReceiptCustomizationSettings.fromJson(Map<String, dynamic> json) => ReceiptCustomizationSettings(
-    paperWidth: ReceiptPaperWidth.fromName(json['paperWidth']?.toString()),
-    printMode: PrintMode.fromName(json['printMode']?.toString()),
-    customShopName: json['customShopName']?.toString() ?? '',
-    customSlogan: json['customSlogan']?.toString() ?? '',
-    customBranchName: json['customBranchName']?.toString() ?? '',
-    storeAddress: json['storeAddress']?.toString() ?? '',
-    storePhone: json['storePhone']?.toString() ?? '',
-    headerAlignment: ReceiptHeaderAlignment.fromName(json['headerAlignment']?.toString()),
-    showCashierName: json['showCashierName'] != false,
-    showCustomerPhone: json['showCustomerPhone'] != false,
-    maskCustomerPhone: json['maskCustomerPhone'] != false,
-    showCollateralInfo: json['showCollateralInfo'] != false,
-    showReturnTerms: json['showReturnTerms'] != false,
-    showQrBarcode: json['showQrBarcode'] != false,
-    showChangeDue: json['showChangeDue'] != false,
-    showPenaltyDetails: json['showPenaltyDetails'] != false,
-    customFooterMessage: json['customFooterMessage']?.toString() ?? '*** TERIMA KASIH ***\nSimpan struk ini sebagai bukti resmi',
-    returnTermsText: json['returnTermsText']?.toString() ?? 'Harap mengembalikan unit tepat waktu sesuai jadwal sewa. Keterlambatan dikenakan denda resmi.',
-    compactSpacing: json['compactSpacing'] == true,
-    separatorStyle: json['separatorStyle']?.toString() ?? 'dash',
-  );
+  factory ReceiptCustomizationSettings.fromJson(Map<String, dynamic> json) {
+    final rawFeed = json['extraFeedLines'];
+    final parsedFeed = rawFeed is int
+        ? rawFeed
+        : int.tryParse(rawFeed?.toString() ?? '') ?? 3;
+    return ReceiptCustomizationSettings(
+      paperWidth: ReceiptPaperWidth.fromName(json['paperWidth']?.toString()),
+      printMode: PrintMode.fromName(json['printMode']?.toString()),
+      customShopName: json['customShopName']?.toString() ?? '',
+      customSlogan: json['customSlogan']?.toString() ?? '',
+      customBranchName: json['customBranchName']?.toString() ?? '',
+      storeAddress: json['storeAddress']?.toString() ?? '',
+      storePhone: json['storePhone']?.toString() ?? '',
+      headerAlignment: ReceiptHeaderAlignment.fromName(json['headerAlignment']?.toString()),
+      showCashierName: json['showCashierName'] != false,
+      showCustomerPhone: json['showCustomerPhone'] != false,
+      maskCustomerPhone: json['maskCustomerPhone'] != false,
+      showCollateralInfo: json['showCollateralInfo'] != false,
+      showReturnTerms: json['showReturnTerms'] != false,
+      showQrBarcode: json['showQrBarcode'] != false,
+      showChangeDue: json['showChangeDue'] != false,
+      showPenaltyDetails: json['showPenaltyDetails'] != false,
+      customFooterMessage: json['customFooterMessage']?.toString() ?? '*** TERIMA KASIH ***\nSimpan struk ini sebagai bukti resmi',
+      returnTermsText: json['returnTermsText']?.toString() ?? 'Harap mengembalikan unit tepat waktu sesuai jadwal sewa. Keterlambatan dikenakan denda resmi.',
+      compactSpacing: json['compactSpacing'] == true,
+      separatorStyle: json['separatorStyle']?.toString() ?? 'dash',
+      extraFeedLines: parsedFeed.clamp(0, 15),
+      useRasterQr: json['useRasterQr'] == true,
+    );
+  }
 
   static ReceiptCustomizationSettings defaultSettings({String? shopName, String? branchName}) {
     return ReceiptCustomizationSettings(
@@ -298,6 +316,9 @@ class ReceiptDataModel {
   final String title;
   final String branchName;
   final String? shopName;
+  final String? branchAddress;
+  final String? branchPhone;
+  final bool isReprint;
   final String? receiptNumber;
   final String? bookingCode;
   final String? customerName;
@@ -338,6 +359,9 @@ class ReceiptDataModel {
     required this.title,
     required this.branchName,
     this.shopName,
+    this.branchAddress,
+    this.branchPhone,
+    this.isReprint = false,
     this.receiptNumber,
     this.bookingCode,
     this.customerName,

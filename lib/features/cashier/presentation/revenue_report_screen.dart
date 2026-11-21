@@ -164,7 +164,10 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
     } else {
       final effectiveId = posBranchFilter ?? bizState.activeBranchId;
       final match = branches.where((b) => b['id'] == effectiveId).firstOrNull;
-      branchLabel = match?['name'] ?? bizState.activeBranchName ?? 'Cabang Aktif';
+      branchLabel = match?['name'] ??
+          (bizState.resolvedBranchName.isNotEmpty
+              ? bizState.resolvedBranchName
+              : 'Cabang Terpilih');
     }
 
     return Container(

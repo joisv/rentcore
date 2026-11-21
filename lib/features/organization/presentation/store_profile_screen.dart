@@ -60,7 +60,8 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
 
     final messenger = ScaffoldMessenger.of(context);
     final bState = ref.read(businessProvider);
-    final bizId = bState.activeBusinessId;
+    final bizId =
+        bState.activeBusinessId ?? parseEntityIntId(bState.currentBusiness?['id']);
 
     if (bizId == null) {
       setState(() => _isLoading = false);
@@ -75,15 +76,31 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
 
     try {
       final repo = ref.read(authRepositoryProvider);
+      final trimmedName = _nameController.text.trim();
       final payload = <String, dynamic>{
-        'name': _nameController.text.trim(),
+        'name': trimmedName,
         'slogan': _sloganController.text.trim(),
         'address': _addressController.text.trim(),
         'phone': _phoneController.text.trim(),
       };
 
-      await repo.updateBusiness(bizId, payload);
-      await ref.read(businessProvider.notifier).refresh();
+      final updatedBiz = await repo.updateBusiness(bizId, payload);
+      final mergedFields = <String, dynamic>{
+        ...payload,
+        ...updatedBiz,
+        'name': (updatedBiz['name']?.toString().trim().isNotEmpty == true)
+            ? updatedBiz['name'].toString().trim()
+            : trimmedName,
+      };
+      await ref
+          .read(businessProvider.notifier)
+          .updateActiveBusinessProfile(bizId, mergedFields);
+      ref
+          .read(authProvider.notifier)
+          .syncUpdatedBusiness(bizId, mergedFields);
+      try {
+        await ref.read(businessProvider.notifier).refresh();
+      } catch (_) {}
       ref.invalidate(onboardingProvider);
       ref.invalidate(storeChecklistProvider);
 
@@ -195,7 +212,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                             controller: _nameController,
                             enabled: isOwnerOrAdmin,
                             decoration: InputDecoration(
-                              hintText: 'Contoh: SkyRent Gadget Center',
+                              hintText: 'Contoh: Rental Kamera & Studio',
                               filled: true,
                               fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),

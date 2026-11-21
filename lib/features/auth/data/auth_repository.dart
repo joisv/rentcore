@@ -189,8 +189,8 @@ class AuthRepository {
   }) async {
     final payload = <String, dynamic>{
       'name': name,
-      'city': city,
     };
+    if (city.trim().isNotEmpty) payload['city'] = city.trim();
     if (address != null && address.isNotEmpty) payload['address'] = address;
     if (phone != null && phone.isNotEmpty) payload['phone'] = phone;
     if (businessCategories != null && businessCategories.isNotEmpty) {
@@ -213,14 +213,16 @@ class AuthRepository {
       ApiConstants.businesses,
       data: payload,
     );
-    final data = response.data['data'];
+    final data = Map<String, dynamic>.from(response.data['data'] as Map);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('active_business_id', data['id']);
-    await prefs.setString('active_business_name', data['name']);
+    final bizId = int.tryParse(data['id']?.toString() ?? '');
+    if (bizId != null) await prefs.setInt('active_business_id', bizId);
+    await prefs.setString('active_business_name', data['name']?.toString() ?? '');
     if (data['branches'] != null && (data['branches'] as List).isNotEmpty) {
       final branch = (data['branches'] as List).first;
-      await prefs.setInt('active_branch_id', branch['id']);
-      await prefs.setString('branch_name', branch['name']);
+      final branchId = int.tryParse(branch['id']?.toString() ?? '');
+      if (branchId != null) await prefs.setInt('active_branch_id', branchId);
+      await prefs.setString('branch_name', branch['name']?.toString() ?? '');
     }
     return data;
   }
@@ -233,10 +235,16 @@ class AuthRepository {
       ApiConstants.businessDetail(businessId),
       data: payload,
     );
-    final data = response.data['data'] as Map<String, dynamic>;
+    final rawData = response.data['data'];
+    final data = rawData is Map
+        ? Map<String, dynamic>.from(rawData)
+        : <String, dynamic>{...payload, 'id': businessId};
     final prefs = await SharedPreferences.getInstance();
-    if (data.containsKey('name')) {
-      await prefs.setString('active_business_name', data['name']);
+    final resolvedId = int.tryParse(data['id']?.toString() ?? '') ?? businessId;
+    await prefs.setInt('active_business_id', resolvedId);
+    final resolvedName = (data['name'] ?? payload['name'])?.toString().trim();
+    if (resolvedName != null && resolvedName.isNotEmpty) {
+      await prefs.setString('active_business_name', resolvedName);
     }
     return data;
   }
@@ -262,6 +270,34 @@ class AuthRepository {
       data: payload,
     );
     return response.data['data'];
+  }
+
+  Future<Map<String, dynamic>> updateBranch(
+    int businessId,
+    int branchId, {
+    required String name,
+    required String code,
+    String? city,
+    String? address,
+    String? phone,
+  }) async {
+    final payload = <String, dynamic>{
+      'name': name.trim(),
+      'code': code.trim().toUpperCase(),
+      'city': (city != null && city.trim().isNotEmpty) ? city.trim() : null,
+      'address':
+          (address != null && address.trim().isNotEmpty) ? address.trim() : null,
+      'phone': (phone != null && phone.trim().isNotEmpty) ? phone.trim() : null,
+    };
+
+    final response = await _client.dio.put(
+      ApiConstants.businessBranchDetail(businessId, branchId),
+      data: payload,
+    );
+    final raw = response.data['data'];
+    return raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : <String, dynamic>{...payload, 'id': branchId};
   }
 
   Future<List<dynamic>> fetchBranches(int businessId) async {
@@ -468,23 +504,36 @@ class AuthRepository {
       final resData = response.data['data'];
       final user = resData['user'];
       final businesses = resData['businesses'] ?? user['businesses'];
-      // Ensure active business is set if available
-      final currentBizId = prefs.getInt('active_business_id');
+      // Ensure active business is set if available and keep names synced
+      final rawCurrentBizId = prefs.get('active_business_id');
+      final currentBizId = rawCurrentBizId == null
+          ? null
+          : int.tryParse(rawCurrentBizId.toString().trim());
       if (businesses is List && businesses.isNotEmpty) {
-        final matches = businesses.where((b) => b['id'] == currentBizId);
+        final matches = businesses.where(
+          (b) => b['id']?.toString().trim() == currentBizId?.toString(),
+        );
         if (currentBizId == null || currentBizId == 0 || matches.isEmpty) {
           final firstBiz = businesses.first;
-          await prefs.setInt('active_business_id', firstBiz['id'] ?? 0);
-          await prefs.setString('active_business_name', firstBiz['name'] ?? '');
+          final firstBizId = int.tryParse(firstBiz['id']?.toString() ?? '') ?? 0;
+          await prefs.setInt('active_business_id', firstBizId);
+          await prefs.setString('active_business_name', firstBiz['name']?.toString() ?? '');
           if (firstBiz['branches'] != null && (firstBiz['branches'] as List).isNotEmpty) {
             final firstBranch = (firstBiz['branches'] as List).first;
-            await prefs.setInt('active_branch_id', firstBranch['id'] ?? 0);
-            await prefs.setString('branch_name', firstBranch['name'] ?? '');
+            final firstBranchId = int.tryParse(firstBranch['id']?.toString() ?? '') ?? 0;
+            await prefs.setInt('active_branch_id', firstBranchId);
+            await prefs.setString('branch_name', firstBranch['name']?.toString() ?? '');
           } else {
             await prefs.remove('active_branch_id');
             await prefs.remove('branch_name');
             await prefs.remove('branch_code');
           }
+        } else {
+          final matchedBiz = matches.first;
+          await prefs.setString(
+            'active_business_name',
+            matchedBiz['name']?.toString() ?? '',
+          );
         }
       } else if (businesses is List && businesses.isEmpty) {
         await prefs.remove('active_business_id');

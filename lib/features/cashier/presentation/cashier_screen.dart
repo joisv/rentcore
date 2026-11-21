@@ -134,7 +134,10 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       final effectiveId = posBranchFilter ?? bizState.activeBranchId;
       final match = branches.where((b) => b['id'] == effectiveId).firstOrNull;
       branchLabel =
-          match?['name'] ?? bizState.activeBranchName ?? 'Cabang Aktif';
+          match?['name'] ??
+          (bizState.resolvedBranchName.isNotEmpty
+              ? bizState.resolvedBranchName
+              : 'Cabang Terpilih');
     }
 
     return Container(
@@ -320,7 +323,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                       ),
                     ),
                     subtitle: Text(
-                      isCent ? 'Kantor Pusat (Main Store)' : 'Outlet Cabang',
+                      isCent ? 'Kantor Pusat' : 'Cabang',
                       style: const TextStyle(fontSize: 11),
                     ),
                     trailing: isSelected
@@ -525,8 +528,9 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                   final branchName =
                       effectiveShift?['branch_name'] ??
                       effectiveShift?['affiliate']?['name'] ??
-                      bizState.activeBranchName ??
-                      'Cabang Utama';
+                      (bizState.resolvedBranchName.isNotEmpty
+                          ? bizState.resolvedBranchName
+                          : 'Cabang');
                   final openedAt =
                       effectiveShift?['opened_at'] ??
                       effectiveShift?['created_at'];
@@ -2320,10 +2324,19 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
     final shiftNum = shift['shift_number'] ?? 'SHF-${shift['id'] ?? ''}';
     final cashierName =
         shift['cashier_name'] ?? shift['cashier']?['name'] ?? 'Kasir Bertugas';
-    final branchName =
-        shift['branch_name'] ??
-        shift['affiliate']?['name'] ??
-        'Cabang Operasional RentCore';
+    final bizState = ref.read(businessProvider);
+    final shopName = bizState.resolvedStoreName;
+    final rawBranch = (shift['branch_name']?.toString() ??
+            shift['affiliate']?['name']?.toString() ??
+            bizState.resolvedBranchName)
+        .trim();
+    final branchName = rawBranch.isNotEmpty ? rawBranch : 'Cabang Utama';
+    final branchAddress = (shift['affiliate']?['address']?.toString() ??
+            bizState.resolvedBranchAddress)
+        .trim();
+    final branchPhone = (shift['affiliate']?['phone']?.toString() ??
+            bizState.resolvedBranchPhone)
+        .trim();
     final openedAtStr = shift['opened_at'] ?? shift['created_at'];
     final closedAtStr = shift['closed_at'] ?? shift['updated_at'];
     final openedAt = openedAtStr != null
@@ -2364,6 +2377,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
     };
 
     final printerService = ThermalPrinterService();
+    final printerSettings = ref.read(printerProvider).settings;
     final escposBytes = printerService.buildClosingShiftSlipBytes(
       branchName: branchName,
       cashierName: cashierName,
@@ -2376,13 +2390,21 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       cashDrawerExpenses: cashExpenses > 0 ? cashExpenses : null,
       expectedCashInDrawer: expected,
       shiftNumber: shiftNum.toString(),
+      shopName: shopName.isNotEmpty ? shopName : null,
+      branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+      branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+      settings: printerSettings,
     );
 
     showDialog(
       context: context,
       builder: (ctx) => ThermalReceiptPreviewDialog(
         title: 'Preview Cetak Struk Closing',
+        shopName: shopName.isNotEmpty ? shopName : null,
         branchName: branchName,
+        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+        isReprint: true,
         escposBytes: escposBytes,
         content: Column(
           children: [
@@ -2675,9 +2697,19 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
     Map<String, dynamic> data,
   ) {
     final authState = ref.read(authProvider);
+    final bizState = ref.read(businessProvider);
     final user = authState.user;
-    final branchName =
-        user?['affiliate']?['name'] ?? 'Cabang Operasional RentCore';
+    final shopName = bizState.resolvedStoreName;
+    final rawBranch = (user?['affiliate']?['name']?.toString() ??
+            bizState.resolvedBranchName)
+        .trim();
+    final branchName = rawBranch.isNotEmpty ? rawBranch : 'Cabang Utama';
+    final branchAddress = (user?['affiliate']?['address']?.toString() ??
+            bizState.resolvedBranchAddress)
+        .trim();
+    final branchPhone = (user?['affiliate']?['phone']?.toString() ??
+            bizState.resolvedBranchPhone)
+        .trim();
     final cashierName = user?['name'] ?? 'Kasir Bertugas';
     final totalRev = CurrencyFormatter.parse(data['total_revenue']);
     final totalTx =
@@ -2710,7 +2742,8 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
         : null;
 
     final printerService = ThermalPrinterService();
-    final paperWidth = ref.read(printerProvider).settings.paperWidth;
+    final printerSettings = ref.read(printerProvider).settings;
+    final paperWidth = printerSettings.paperWidth;
     final escposBytes = printerService.buildClosingShiftSlipBytes(
       branchName: branchName,
       cashierName: cashierName,
@@ -2724,13 +2757,20 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       cashDrawerExpenses: cashExpenses > 0 ? cashExpenses : null,
       expectedCashInDrawer: expectedDrawerCash,
       shiftNumber: shiftNum,
+      shopName: shopName.isNotEmpty ? shopName : null,
+      branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+      branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+      settings: printerSettings,
     );
 
     showDialog(
       context: context,
       builder: (ctx) => ThermalReceiptPreviewDialog(
         title: 'Preview Closing Kasir',
+        shopName: shopName.isNotEmpty ? shopName : null,
         branchName: branchName,
+        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
         escposBytes: escposBytes,
         content: Column(
           children: [

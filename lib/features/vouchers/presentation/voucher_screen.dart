@@ -12,6 +12,7 @@ import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../organization/providers/organization_provider.dart';
+import '../../printer/providers/printer_provider.dart';
 import '../providers/voucher_provider.dart';
 import 'voucher_detail_dialog.dart';
 import 'voucher_form_dialog.dart';
@@ -40,23 +41,35 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
     final percent = CurrencyFormatter.parse(voucher['discount_percentage']);
     final minSpend = CurrencyFormatter.parse(voucher['min_transaction_amount']);
     final validUntil = voucher['end_at'] != null ? DateFormatter.formatShort(voucher['end_at']) : '-';
-    final branchName = voucher['affiliate']?['name'] ?? 'Semua Cabang RentCore';
+    final bizState = ref.read(businessProvider);
+    final printerSettings = ref.read(printerProvider).settings;
+    final shopName = bizState.resolvedStoreName.isNotEmpty ? bizState.resolvedStoreName : 'Toko Rental';
+    final rawBranch = (voucher['affiliate']?['name']?.toString() ?? bizState.resolvedBranchName).trim();
+    final branchName = rawBranch.isNotEmpty ? rawBranch : 'Semua Cabang';
+    final branchAddress = (voucher['affiliate']?['address']?.toString() ?? bizState.resolvedBranchAddress).trim();
+    final branchPhone = (voucher['affiliate']?['phone']?.toString() ?? bizState.resolvedBranchPhone).trim();
 
     final printerService = ThermalPrinterService();
     final escposBytes = printerService.buildVoucherSlipBytes(
-      shopName: 'RENTCORE GADGETS',
+      shopName: shopName,
       branchName: branchName,
       voucherCode: code,
       discountPercentage: percent,
       minTransaction: minSpend,
       validUntil: validUntil,
+      branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+      branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+      settings: printerSettings,
     );
 
     showDialog(
       context: context,
       builder: (ctx) => ThermalReceiptPreviewDialog(
         title: 'Cetak Slip Voucher Fisik',
+        shopName: shopName,
         branchName: branchName,
+        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
         escposBytes: escposBytes,
         qrData: code,
         content: Column(
@@ -96,7 +109,14 @@ class _VoucherScreenState extends ConsumerState<VoucherScreen> {
     final orgState = ref.watch(organizationProvider);
 
     // Resolve user role in active business
-    final activeBiz = bizState.businesses.where((b) => b['id'] == bizState.activeBusinessId).firstOrNull;
+    final activeBiz = bizState.businesses
+        .whereType<Map>()
+        .where(
+          (b) =>
+              normalizeEntityId(b['id']) ==
+              normalizeEntityId(bizState.activeBusinessId),
+        )
+        .firstOrNull;
     final role = activeBiz?['role']?.toString().toLowerCase() ?? authState.user?['role']?.toString().toLowerCase();
     final isSuperAdmin = authState.user?['role'] == 'super_admin' || authState.user?['is_platform_admin'] == true;
     final isOwner = isSuperAdmin || role == 'owner';

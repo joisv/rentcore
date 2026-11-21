@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/legal_links.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/presentation/user_profile_screen.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -92,9 +93,22 @@ class StoreSettingsScreen extends ConsumerWidget {
     final isOwnerOrAdmin =
         userRole == 'owner' || userRole == 'admin' || isSuperAdmin;
 
-    final userName = user?['name']?.toString() ?? 'Pengguna RentCore';
+    final userName = user?['name']?.toString() ?? 'Pengguna';
     final userEmail = user?['email']?.toString() ?? '-';
-    final storeName = bState.activeBusinessName ?? 'Belum ada usaha terpilih';
+    final resolvedStore = bState.resolvedStoreName;
+    final resolvedBranch = bState.resolvedBranchName;
+    final branchList = bState.currentBusiness?['branches'];
+    final hasMultiBranches = branchList is List && branchList.length > 1;
+    final activeBranchLabel = bState.isConsolidated && hasMultiBranches
+        ? 'Semua Cabang'
+        : resolvedBranch;
+    final storeName = resolvedStore.isEmpty
+        ? 'Belum ada usaha terpilih'
+        : (activeBranchLabel.isNotEmpty
+            ? '$resolvedStore • $activeBranchLabel'
+            : resolvedStore);
+    final activeBusinessDisplayName =
+        resolvedStore.isNotEmpty ? resolvedStore : 'Usaha Rental';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -245,7 +259,7 @@ class StoreSettingsScreen extends ConsumerWidget {
                   StaffResignationSheet.show(
                     context,
                     businessId: bState.activeBusinessId!,
-                    businessName: bState.activeBusinessName ?? 'Bisnis Rental',
+                    businessName: activeBusinessDisplayName,
                   );
                 },
               ),
@@ -383,8 +397,7 @@ class StoreSettingsScreen extends ConsumerWidget {
                     MaterialPageRoute(
                       builder: (_) => ManageOrganizationScreen(
                         businessId: bizId,
-                        businessName:
-                            bState.activeBusinessName ?? 'Bisnis Rental',
+                        businessName: activeBusinessDisplayName,
                       ),
                     ),
                   );
@@ -401,7 +414,34 @@ class StoreSettingsScreen extends ConsumerWidget {
           ]),
           const SizedBox(height: 20),
 
-          // GROUP 4: SESI AKUN
+          // GROUP 4: PRIVASI & LEGAL
+          _buildGroupHeader('PRIVASI & LEGAL'),
+          _buildSettingsCard([
+            _buildListTile(
+              icon: Icons.privacy_tip_outlined,
+              title: 'Kebijakan Privasi',
+              subtitle: 'Penggunaan data, izin Bluetooth & keamanan',
+              onTap: () => LegalLinks.openExternal(
+                context,
+                LegalLinks.privacyPolicyUri,
+              ),
+            ),
+            _buildDivider(),
+            _buildListTile(
+              icon: Icons.delete_outline_rounded,
+              title: 'Hapus Akun',
+              subtitle: 'Permintaan penghapusan & anonimisasi akun',
+              iconColor: AppColors.danger,
+              titleColor: AppColors.danger,
+              onTap: () => LegalLinks.openExternal(
+                context,
+                LegalLinks.accountDeletionUri,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 20),
+
+          // GROUP 5: SESI AKUN
           _buildGroupHeader('SESI AKUN'),
           _buildSettingsCard([
             _buildListTile(

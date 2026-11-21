@@ -136,7 +136,52 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
       final branches = await _repository.fetchBranches(bizId);
       state = state.copyWith(isSubmitting: false, branches: branches);
 
-      ref.read(businessProvider.notifier).refresh();
+      ref.read(businessProvider.notifier).refreshSilently();
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> updateBranch({
+    int? businessId,
+    required int branchId,
+    required String name,
+    required String code,
+    String? city,
+    String? address,
+    String? phone,
+  }) async {
+    final bizId = businessId ?? state.businessId;
+    if (bizId == null) return false;
+
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      final updatedBranch = await _repository.updateBranch(
+        bizId,
+        branchId,
+        name: name,
+        code: code,
+        city: city,
+        address: address,
+        phone: phone,
+      );
+
+      final branches = await _repository.fetchBranches(bizId);
+      if (!ref.mounted) return true;
+      state = state.copyWith(isSubmitting: false, branches: branches);
+
+      await ref.read(businessProvider.notifier).updateActiveBranchMetadata(
+            branchId,
+            name: updatedBranch['name']?.toString() ?? name,
+            code: updatedBranch['code']?.toString() ?? code,
+            city: updatedBranch['city']?.toString(),
+            address: updatedBranch['address']?.toString(),
+            phone: updatedBranch['phone']?.toString(),
+            updateLocationFields: true,
+          );
+      ref.read(businessProvider.notifier).refreshSilently();
       return true;
     } catch (e) {
       state = state.copyWith(isSubmitting: false, error: e.toString());

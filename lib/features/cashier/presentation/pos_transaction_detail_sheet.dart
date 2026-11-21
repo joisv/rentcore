@@ -10,6 +10,7 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/exchange_history_sheet.dart';
 import '../../bookings/presentation/exchange_wizard_screen.dart';
 import '../../bookings/providers/booking_provider.dart';
@@ -181,7 +182,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
 
     final isCentral = affiliate['is_central'] == true;
     final branchName =
-        affiliate['name'] ?? (isCentral ? 'Pusat (Main Store)' : 'Cabang');
+        affiliate['name'] ?? (isCentral ? 'Pusat' : 'Cabang');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -265,7 +266,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        isCentral ? 'PUSAT (MAIN STORE)' : 'CABANG SATELLITE',
+                        isCentral ? 'PUSAT' : 'CABANG',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
@@ -335,7 +336,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 ),
                 const Divider(height: 16),
                 Text(
-                  'Petugas/Kasir: ${creator['name'] ?? 'Staff RentCore'}',
+                  'Petugas/Kasir: ${creator['name'] ?? 'Kasir'}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -1215,6 +1216,7 @@ class PosTransactionDetailSheet extends ConsumerWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
+                  key: const Key('reprint_receipt_button'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -1223,10 +1225,10 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                   ),
                   icon: const Icon(Icons.print_rounded, size: 18),
                   label: const Text(
-                    'Cetak Struk (ESC/POS)',
+                    'Cetak Ulang Struk',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
-                  onPressed: () => _printBookingReceipt(context, ref, b),
+                  onPressed: () => _printBookingReceipt(context, ref, b, isReprint: true),
                 ),
               ),
               if (remainingDue > 0) ...[
@@ -1352,8 +1354,9 @@ class PosTransactionDetailSheet extends ConsumerWidget {
   void _printBookingReceipt(
     BuildContext context,
     WidgetRef ref,
-    Map<String, dynamic> b,
-  ) async {
+    Map<String, dynamic> b, {
+    bool isReprint = true,
+  }) async {
     try {
       final repo = ref.read(cashierRepositoryProvider);
       final payments = (b['payments'] as List?) ?? [];
@@ -1364,8 +1367,26 @@ class PosTransactionDetailSheet extends ConsumerWidget {
       final receiptData = await repo.fetchReceipt(receiptId);
       if (!context.mounted) return;
 
-      final branchName =
-          receiptData['outlet_name'] ?? b['affiliate']?['name'] ?? 'RentCore';
+      final bizState = ref.read(businessProvider);
+      final affiliate = b['affiliate'] as Map?;
+      final shopName = (receiptData['business_name']?.toString() ??
+              bizState.resolvedStoreName)
+          .trim();
+      final branchName = (receiptData['outlet_name']?.toString() ??
+              affiliate?['name']?.toString() ??
+              bizState.resolvedBranchName)
+          .trim();
+      final resolvedBranchName =
+          branchName.isNotEmpty ? branchName : 'Cabang Utama';
+      final branchAddress = (receiptData['outlet_address']?.toString() ??
+              affiliate?['address']?.toString() ??
+              bizState.resolvedBranchAddress)
+          .trim();
+      final branchPhone = (receiptData['outlet_phone']?.toString() ??
+              affiliate?['phone']?.toString() ??
+              bizState.resolvedBranchPhone)
+          .trim();
+
       final cashierName = receiptData['cashier_name'] ?? 'Kasir';
       final receiptNum =
           receiptData['receipt_number'] ?? b['booking_code'] ?? '-';
@@ -1379,7 +1400,11 @@ class PosTransactionDetailSheet extends ConsumerWidget {
       final model = ReceiptDataModel(
         type: ReceiptType.posPayment,
         title: 'STRUK TRANSAKSI POS',
-        branchName: branchName,
+        shopName: shopName.isNotEmpty ? shopName : null,
+        branchName: resolvedBranchName,
+        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+        isReprint: isReprint,
         receiptNumber: receiptNum,
         bookingCode: b['booking_code']?.toString(),
         customerName: b['customer']?['name']?.toString() ?? '-',
@@ -1398,8 +1423,13 @@ class PosTransactionDetailSheet extends ConsumerWidget {
       showDialog(
         context: context,
         builder: (ctx) => ThermalReceiptPreviewDialog(
-          title: 'Struk Transaksi POS',
-          branchName: branchName,
+          title: isReprint ? 'Cetak Ulang Struk POS' : 'Struk Transaksi POS',
+          shopName: shopName.isNotEmpty ? shopName : null,
+          branchName: resolvedBranchName,
+          branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+          branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+          isReprint: isReprint,
+          qrData: b['booking_code']?.toString(),
           escposBytes: escposBytes,
           content: Column(
             children: [

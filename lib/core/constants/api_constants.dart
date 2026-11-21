@@ -7,6 +7,9 @@ class ApiConstants {
   static const String emulatorBaseUrl = 'http://10.0.2.2:8000/api/v1';
   static const String laragonVhostUrl = 'http://rentcore_backend.test/api/v1';
 
+  // Public App Gate & Telemetry
+  static const String appConfig = '/app-config';
+
   // Auth & OAuth
   static const String googleServerClientId = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',
@@ -36,6 +39,8 @@ class ApiConstants {
   static String memberManagerPin(dynamic bizId, dynamic memberId) =>
       '/businesses/$bizId/members/$memberId/pin';
   static String businessBranches(dynamic id) => '/businesses/$id/branches';
+  static String businessBranchDetail(dynamic bizId, dynamic branchId) =>
+      '/businesses/$bizId/branches/$branchId';
   static String businessRentalRules(dynamic id) =>
       '/businesses/$id/rental-rules';
   static String branchBookingRules(dynamic branchId) =>

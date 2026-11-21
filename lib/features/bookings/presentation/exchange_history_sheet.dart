@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/thermal_printer_models.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../printer/providers/printer_provider.dart';
 
 class ExchangeHistorySheet extends ConsumerWidget {
@@ -593,8 +593,14 @@ class ExchangeHistorySheet extends ConsumerWidget {
     final payment = (exc['payment'] as Map? ?? {}).cast<String, dynamic>();
 
     final printerState = ref.read(printerProvider);
+    final bizState = ref.read(businessProvider);
     final printerService = ThermalPrinterService();
     final settings = printerState.settings;
+    final shopName = bizState.resolvedStoreName;
+    final rawBranch = (affiliate['name']?.toString() ?? bizState.resolvedBranchName).trim();
+    final resolvedBranch = rawBranch.isNotEmpty ? rawBranch : 'Cabang Utama';
+    final branchAddress = (affiliate['address']?.toString() ?? bizState.resolvedBranchAddress).trim();
+    final branchPhone = (affiliate['phone']?.toString() ?? bizState.resolvedBranchPhone).trim();
 
     final diff = CurrencyFormatter.parse(exc['price_differential']);
     final feeWaived = exc['fee_waived'] == true;
@@ -607,7 +613,10 @@ class ExchangeHistorySheet extends ConsumerWidget {
     final doc = ReceiptDataModel(
       type: ReceiptType.rentalExchange,
       title: 'BUKTI PENGGANTIAN UNIT',
-      branchName: affiliate['name'] ?? 'RentCore Store',
+      shopName: shopName.isNotEmpty ? shopName : null,
+      branchName: resolvedBranch,
+      branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+      branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
       receiptNumber: exc['exchange_reference'] ?? 'EXC-${exc['id']}',
       bookingCode: booking['booking_code'],
       customerName: customer['name'] ?? 'Pelanggan',
@@ -632,7 +641,11 @@ class ExchangeHistorySheet extends ConsumerWidget {
       context: context,
       builder: (ctx) => ThermalReceiptPreviewDialog(
         title: 'Bukti Penggantian Unit',
+        shopName: shopName.isNotEmpty ? shopName : null,
         branchName: doc.branchName,
+        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+        qrData: doc.bookingCode,
         escposBytes: escposBytes,
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

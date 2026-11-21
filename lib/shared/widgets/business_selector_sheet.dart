@@ -22,6 +22,16 @@ class BusinessSelectorSheet extends ConsumerStatefulWidget {
 }
 
 class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      if (mounted) {
+        ref.read(businessProvider.notifier).refreshSilently();
+      }
+    });
+  }
+
   void _openOnboardingDialog() {
     Navigator.pop(context);
     Navigator.push(
@@ -50,19 +60,26 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
 
     Map<String, dynamic>? activeBiz;
     if (businesses.isNotEmpty) {
-      if (businessState.activeBusinessId != null) {
-        activeBiz = businesses.cast<Map<String, dynamic>>().firstWhere(
-              (b) => b['id'] == businessState.activeBusinessId,
-              orElse: () => businesses.first as Map<String, dynamic>,
+      final activeBizKey = normalizeEntityId(businessState.activeBusinessId);
+      if (activeBizKey != null) {
+        activeBiz = businesses
+            .whereType<Map>()
+            .map((b) => Map<String, dynamic>.from(b))
+            .firstWhere(
+              (b) => normalizeEntityId(b['id']) == activeBizKey,
+              orElse: () => Map<String, dynamic>.from(businesses.first as Map),
             );
       } else {
-        activeBiz = businesses.first as Map<String, dynamic>;
+        activeBiz = Map<String, dynamic>.from(businesses.first as Map);
       }
     }
     final activeRole = (activeBiz?['role'] ?? '').toString();
-    final canAddBranch = activeBiz != null &&
-        activeBiz['id'] is int &&
+    final activeBizId = parseEntityIntId(activeBiz?['id']);
+    final canAddBranch = activeBizId != null &&
         (activeRole == 'owner' || activeRole == 'admin');
+    final activeStoreName = businessState.resolvedStoreName.isNotEmpty
+        ? businessState.resolvedStoreName
+        : (activeBiz?['name']?.toString().trim() ?? '');
 
     return Container(
       decoration: const BoxDecoration(
@@ -101,16 +118,35 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
 
                 Row(
                   children: [
-                    const Expanded(
-                      child: Text(
-                        'Pilih Cabang',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF111111),
-                        ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Pilih Cabang',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF111111),
+                            ),
+                          ),
+                          if (activeStoreName.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              activeStoreName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                     if (canAddBranch || businesses.isEmpty) ...[
@@ -118,7 +154,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                       InkWell(
                         onTap: () {
                           if (canAddBranch) {
-                            _openAddBranchSheet(activeBiz!['id'] as int);
+                            _openAddBranchSheet(activeBizId);
                           } else {
                             _openOnboardingDialog();
                           }
@@ -292,10 +328,13 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
     required Map<String, dynamic> biz,
     required BusinessState businessState,
   }) {
-    final isSelected = biz['id'] == businessState.activeBusinessId;
+    final isSelected = normalizeEntityId(biz['id']) ==
+        normalizeEntityId(businessState.activeBusinessId);
     final role = (biz['role'] ?? 'owner').toString();
     final branches = (biz['branches'] as List<dynamic>?) ?? [];
     final canManageOrg = role == 'owner' || role == 'admin';
+    final rawBizName = (biz['name']?.toString() ?? '').trim();
+    final displayBizName = rawBizName.isNotEmpty ? rawBizName : 'Usaha Rental';
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -306,7 +345,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
           children: [
             Expanded(
               child: Text(
-                '${biz['name'] ?? 'Rental Business'} • ${branches.length} Cabang',
+                '$displayBizName • ${branches.length} Cabang',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -330,8 +369,9 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
             subtitle: 'Laporan & analitik gabungan seluruh cabang',
             isActive: isSelected && businessState.activeBranchId == null,
             onTap: () async {
+              final bizNotifier = ref.read(businessProvider.notifier);
               Navigator.pop(context);
-              await ref.read(businessProvider.notifier).selectContext(
+              await bizNotifier.selectContext(
                 business: biz,
                 isConsolidated: true,
               );
@@ -339,15 +379,20 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
           ),
 
         ...branches.map((b) {
-          final branchMap = b as Map<String, dynamic>;
-          final isBranchActive =
-              isSelected && branchMap['id'] == businessState.activeBranchId;
+          final branchMap = Map<String, dynamic>.from(b as Map);
+          final activeBranchId =
+              businessState.activeBranch?['id'] ?? businessState.activeBranchId;
+          final isBranchActive = isSelected &&
+              normalizeEntityId(branchMap['id']) ==
+                  normalizeEntityId(activeBranchId);
           final isCentral = branchMap['is_central'] == true;
           final code = branchMap['code']?.toString().trim() ?? '';
           final city = branchMap['city']?.toString().trim() ?? '';
+          final address = branchMap['address']?.toString().trim() ?? '';
+          final location = city.isNotEmpty ? city : address;
           final subtitle = [
             if (code.isNotEmpty) code,
-            if (city.isNotEmpty) city,
+            if (location.isNotEmpty) location,
           ].join(' • ');
 
           return _buildBranchRow(
@@ -357,8 +402,9 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
             subtitle: subtitle.isNotEmpty ? subtitle : null,
             isActive: isBranchActive,
             onTap: () async {
+              final bizNotifier = ref.read(businessProvider.notifier);
               Navigator.pop(context);
-              await ref.read(businessProvider.notifier).selectContext(
+              await bizNotifier.selectContext(
                 business: biz,
                 branch: branchMap,
               );
@@ -371,13 +417,14 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
           const Divider(height: 1, color: Color(0xFFF3F4F6)),
           InkWell(
             onTap: () {
+              final targetBizId = parseEntityIntId(biz['id']) ?? 0;
               Navigator.pop(context);
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => ManageOrganizationScreen(
-                    businessId: biz['id'] as int,
-                    businessName: biz['name']?.toString() ?? '',
+                    businessId: targetBizId,
+                    businessName: displayBizName,
                   ),
                 ),
               );
@@ -486,7 +533,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                         ),
                       ),
                       if (tag != null) ...[
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
                         _buildMonochromePill(tag),
                       ],
                     ],
@@ -532,7 +579,7 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
   int _currentStep = 0; // 0: Info Bisnis, 1: Situasi Cabang, 2: Kategori Rental
 
   final _nameCtrl = TextEditingController();
-  final _cityCtrl = TextEditingController(text: 'Denpasar');
+  final _cityCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
 
@@ -614,10 +661,9 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
   void _nextStep() {
     if (_currentStep == 0) {
       final name = _nameCtrl.text.trim();
-      final city = _cityCtrl.text.trim();
-      if (name.isEmpty || city.isEmpty) {
+      if (name.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nama usaha rental dan kota domisili wajib diisi.')),
+          const SnackBar(content: Text('Nama usaha rental wajib diisi.')),
         );
         return;
       }
@@ -641,10 +687,10 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
   void _submit() async {
     final name = _nameCtrl.text.trim();
     final city = _cityCtrl.text.trim();
-    if (name.isEmpty || city.isEmpty) {
+    if (name.isEmpty) {
       setState(() => _currentStep = 0);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nama usaha rental dan kota wajib diisi.')),
+        const SnackBar(content: Text('Nama usaha rental wajib diisi.')),
       );
       return;
     }
@@ -652,7 +698,7 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
     setState(() => _isSubmitting = true);
     final success = await ref.read(businessProvider.notifier).registerNewBusiness(
       name: name,
-      city: city,
+      city: city.isNotEmpty ? city : null,
       address: _addressCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
       businessCategories: _selectedCategories.isNotEmpty ? _selectedCategories.toList() : null,
@@ -837,7 +883,7 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
           controller: _nameCtrl,
           decoration: const InputDecoration(
             labelText: 'Nama Usaha Rental *',
-            hintText: 'Misal: SkyRental Bali / Sumber Teknik Perkakas',
+            hintText: 'Misal: Lensa Nusantara / Sumber Teknik Perkakas',
             border: OutlineInputBorder(),
             isDense: true,
           ),
@@ -846,8 +892,8 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
         TextField(
           controller: _cityCtrl,
           decoration: const InputDecoration(
-            labelText: 'Kota / Lokasi Domisili *',
-            hintText: 'Contoh: Denpasar / Surabaya / Jakarta',
+            labelText: 'Kota / Lokasi Domisili (Opsional)',
+            hintText: 'Contoh: Surabaya / Jakarta (Opsional)',
             border: OutlineInputBorder(),
             isDense: true,
           ),
@@ -927,7 +973,7 @@ class _BusinessOnboardingDialogState extends ConsumerState<_BusinessOnboardingDi
                 controller: _branchNameCtrl,
                 decoration: const InputDecoration(
                   labelText: 'Nama Cabang Utama',
-                  hintText: 'Misal: SkyRental Pusat / Cabang Teuku Umar',
+                  hintText: 'Misal: Cabang Pusat / Cabang Teuku Umar',
                   border: OutlineInputBorder(),
                   isDense: true,
                   filled: true,

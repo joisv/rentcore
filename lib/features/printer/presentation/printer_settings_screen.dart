@@ -28,6 +28,23 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
     final state = ref.watch(printerProvider);
     final notifier = ref.read(printerProvider.notifier);
 
+    ref.listen<PrinterState>(printerProvider, (prev, next) {
+      final err = next.errorMessage;
+      if (err != null &&
+          err != prev?.errorMessage &&
+          err.toLowerCase().contains('izin bluetooth') &&
+          context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(err),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: RentCoreAppBar(
@@ -90,9 +107,13 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
 
               // 3. Quick Actions (Test Print & Customization)
               _buildQuickActionsCard(context, state, notifier),
+              const SizedBox(height: 16),
+
+              // 4. Advanced ESC/POS Settings (Extra Feed Lines & Raster QR)
+              _buildAdvancedEscPosCard(context, state, notifier),
               const SizedBox(height: 20),
 
-              // 4. Bluetooth Discovery List
+              // 5. Bluetooth Discovery List
               _buildDiscoveredDevicesSection(context, state, notifier),
             ],
           ),
@@ -301,6 +322,113 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                   isSelected: state.settings.printMode == PrintMode.echo,
                   onTap: () => notifier.setPrintMode(PrintMode.echo),
                 ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancedEscPosCard(
+    BuildContext context,
+    PrinterState state,
+    PrinterNotifier notifier,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'KOMPATIBILITAS ESC/POS LANJUTAN',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 14),
+
+          // Extra Feed Lines (default 3)
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Jarak Feed Kertas Akhir',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Jumlah baris kosong sebelum potong struk',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    key: const Key('feed_lines_decrement_button'),
+                    icon: const Icon(Icons.remove_circle_outline_rounded, size: 20),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: state.settings.extraFeedLines > 0
+                        ? () => notifier.setExtraFeedLines(state.settings.extraFeedLines - 1)
+                        : null,
+                  ),
+                  SizedBox(
+                    width: 28,
+                    child: Text(
+                      '${state.settings.extraFeedLines}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('feed_lines_increment_button'),
+                    icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: state.settings.extraFeedLines < 15
+                        ? () => notifier.setExtraFeedLines(state.settings.extraFeedLines + 1)
+                        : null,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 10),
+
+          // Raster QR Toggle (default false)
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mode QR Raster Bitmap',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Cetak QR sebagai gambar monokrom untuk printer ESC/POS ekonomis',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                key: const Key('use_raster_qr_switch'),
+                value: state.settings.useRasterQr,
+                activeTrackColor: AppColors.obsidian,
+                onChanged: (val) => notifier.setUseRasterQr(val),
               ),
             ],
           ),
@@ -618,16 +746,19 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                           : () async {
                               final success = await notifier.connectDevice(device);
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      success
-                                          ? 'Berhasil terhubung ke ${device.name}'
-                                          : 'Gagal terhubung ke ${device.name}',
+                                final err = ref.read(printerProvider).errorMessage;
+                                ScaffoldMessenger.of(context)
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        success
+                                            ? 'Berhasil terhubung ke ${device.name}'
+                                            : (err ?? 'Gagal terhubung ke ${device.name}'),
+                                      ),
+                                      backgroundColor: success ? AppColors.success : AppColors.danger,
                                     ),
-                                    backgroundColor: success ? AppColors.success : AppColors.danger,
-                                  ),
-                                );
+                                  );
                               }
                             },
                       child: isConnectingThis

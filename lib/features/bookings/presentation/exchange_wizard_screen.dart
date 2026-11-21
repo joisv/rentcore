@@ -6,6 +6,7 @@ import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../providers/booking_provider.dart';
@@ -1346,13 +1347,22 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
     if (receiptData == null) return;
 
     final printerState = ref.read(printerProvider);
+    final bizState = ref.read(businessProvider);
     final printerService = ThermalPrinterService();
     final settings = printerState.settings;
+    final shopName = bizState.resolvedStoreName;
+    final rawBranch = (receiptData['branch_name']?.toString() ?? bizState.resolvedBranchName).trim();
+    final resolvedBranch = rawBranch.isNotEmpty ? rawBranch : 'Cabang Utama';
+    final branchAddress = (receiptData['branch_address']?.toString() ?? bizState.resolvedBranchAddress).trim();
+    final branchPhone = (receiptData['branch_phone']?.toString() ?? bizState.resolvedBranchPhone).trim();
 
     final doc = ReceiptDataModel(
       type: ReceiptType.rentalExchange,
       title: 'BUKTI PENGGANTIAN UNIT',
-      branchName: receiptData['branch_name'] ?? 'Cabang',
+      shopName: shopName.isNotEmpty ? shopName : null,
+      branchName: resolvedBranch,
+      branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+      branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
       receiptNumber: receiptData['receipt_number'],
       bookingCode: receiptData['booking_code'],
       customerName: receiptData['customer_name'],
@@ -1378,7 +1388,10 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
       context: context,
       builder: (_) => ThermalReceiptPreviewDialog(
         title: 'Bukti Penggantian Unit',
+        shopName: shopName.isNotEmpty ? shopName : null,
         branchName: doc.branchName,
+        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
         escposBytes: escposBytes,
         qrData: doc.bookingCode,
         content: Column(

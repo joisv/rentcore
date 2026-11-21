@@ -1971,6 +1971,28 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         _showQuickOpenShiftModal(context, effectiveBranchId);
         return;
       }
+      if (e is DioException && e.response?.statusCode == 422) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.event_busy_rounded, color: AppColors.danger),
+                SizedBox(width: 8),
+                Expanded(child: Text('Jadwal / Stok Tidak Tersedia')),
+              ],
+            ),
+            content: Text(readableError),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Mengerti'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal memproses pembayaran: $readableError'),
@@ -2029,6 +2051,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       contractTotalAmount: ctx.effectiveContractTotal,
       remainingBalance: ctx.remainingAfterCurrentPayment,
       onPrintReceipt: () => _printPaymentReceipt(result),
+      onShareReceipt: () => _printPaymentReceipt(result, autoShareOnOpen: true),
       onDone: () => Navigator.pop(context, result),
     );
   }
@@ -2082,7 +2105,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     );
   }
 
-  void _printPaymentReceipt(PaymentResult result) {
+  void _printPaymentReceipt(PaymentResult result, {bool autoShareOnOpen = false}) {
     try {
       final printerService = ThermalPrinterService();
       final printerSettings = ref.read(printerProvider).settings;
@@ -2090,11 +2113,14 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       final bizState = ref.read(businessProvider);
       final ctx = widget.paymentContext;
 
+      final resolvedStoreName = bizState.resolvedStoreName;
       final resolvedBranchName = (ctx.branchName != null && ctx.branchName!.trim().isNotEmpty)
           ? ctx.branchName!.trim()
-          : ((bizState.activeBranchName != null && bizState.activeBranchName!.trim().isNotEmpty)
-              ? bizState.activeBranchName!.trim()
-              : 'Cabang');
+          : (bizState.resolvedBranchName.isNotEmpty
+              ? bizState.resolvedBranchName
+              : 'Cabang Utama');
+      final resolvedAddress = bizState.resolvedBranchAddress;
+      final resolvedPhone = bizState.resolvedBranchPhone;
       final rawCashierName = authState.user?['name']?.toString().trim();
       final resolvedCashierName =
           (rawCashierName != null && rawCashierName.isNotEmpty) ? rawCashierName : 'Kasir';
@@ -2102,7 +2128,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       final model = ReceiptDataModel(
         type: ReceiptType.posPayment,
         title: 'STRUK TRANSAKSI POS',
+        shopName: resolvedStoreName.isNotEmpty ? resolvedStoreName : null,
         branchName: resolvedBranchName,
+        branchAddress: resolvedAddress.isNotEmpty ? resolvedAddress : null,
+        branchPhone: resolvedPhone.isNotEmpty ? resolvedPhone : null,
         receiptNumber: result.receiptNumber,
         bookingCode: ctx.bookingCode,
         customerName: ctx.customerName,
@@ -2138,7 +2167,12 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         context: context,
         builder: (dCtx) => ThermalReceiptPreviewDialog(
           title: 'Struk Pembayaran POS',
-          branchName: ctx.branchName ?? 'RentCore',
+          shopName: resolvedStoreName.isNotEmpty ? resolvedStoreName : null,
+          branchName: resolvedBranchName,
+          branchAddress: resolvedAddress.isNotEmpty ? resolvedAddress : null,
+          branchPhone: resolvedPhone.isNotEmpty ? resolvedPhone : null,
+          autoShareOnOpen: autoShareOnOpen,
+          qrData: ctx.bookingCode ?? result.receiptNumber,
           escposBytes: escposBytes,
           content: Column(
             children: [
@@ -2175,6 +2209,7 @@ class _PaymentSuccessView extends StatefulWidget {
   final double contractTotalAmount;
   final double remainingBalance;
   final VoidCallback onPrintReceipt;
+  final VoidCallback? onShareReceipt;
   final VoidCallback onDone;
 
   const _PaymentSuccessView({
@@ -2186,6 +2221,7 @@ class _PaymentSuccessView extends StatefulWidget {
     this.contractTotalAmount = 0.0,
     this.remainingBalance = 0.0,
     required this.onPrintReceipt,
+    this.onShareReceipt,
     required this.onDone,
   });
 
@@ -2540,6 +2576,31 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                   ),
                   onPressed: widget.onPrintReceipt,
                 ),
+                if (widget.onShareReceipt != null) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    key: const Key('share_payment_receipt_button'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.obsidian,
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(
+                        color: AppColors.border,
+                        width: 1.5,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.share_rounded, size: 18),
+                    label: const Text(
+                      'Bagikan Struk',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    onPressed: widget.onShareReceipt,
+                  ),
+                ],
                 const SizedBox(height: 10),
                 OutlinedButton(
                   key: const Key('payment_success_done_button'),

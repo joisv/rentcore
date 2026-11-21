@@ -380,40 +380,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 title: const Text(
                   'Daftar Aset',
                   style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
-                    color: AppColors.obsidian,
-                    letterSpacing: -0.3,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.4,
                   ),
                 ),
                 bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(48),
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-                      ),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      labelColor: const Color(0xFF0F172A),
-                      unselectedLabelColor: const Color(0xFF94A3B8),
-                      indicatorColor: const Color(0xFF0F172A),
-                      indicatorWeight: 2.5,
-                      labelStyle: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                      unselectedLabelStyle: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                      tabs: const [
-                        Tab(text: 'Unit Fisik (Inventaris)'),
-                        Tab(text: 'Katalog & Tarif'),
-                      ],
-                    ),
-                  ),
+                  preferredSize: const Size.fromHeight(56),
+                  child: _buildSegmentedTabSwitcher(),
                 ),
               )
             : null,
@@ -484,6 +459,84 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     );
   }
 
+  Widget _buildSegmentedTabSwitcher() {
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+      child: AnimatedBuilder(
+        animation: _tabController,
+        builder: (context, _) {
+          final currentIndex = _tabController.index;
+          return Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                _buildSegmentedTabPill(
+                  key: const Key('inventory_tab_units'),
+                  label: 'Unit Fisik',
+                  isActive: currentIndex == 0,
+                  onTap: () => _tabController.animateTo(0),
+                ),
+                _buildSegmentedTabPill(
+                  key: const Key('inventory_tab_catalog'),
+                  label: 'Katalog & Tarif',
+                  isActive: currentIndex == 1,
+                  onTap: () => _tabController.animateTo(1),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSegmentedTabPill({
+    required Key key,
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        key: key,
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          decoration: BoxDecoration(
+            color: isActive ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            border: isActive
+                ? Border.all(color: const Color(0xFFE2E8F0), width: 1)
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+              color: isActive
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFF64748B),
+              letterSpacing: -0.1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ==========================================
   // BRANCH CONTEXT HEADER
   // ==========================================
@@ -491,7 +544,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final isConsolidated = bizState.isConsolidated;
     final branchName = isConsolidated
         ? 'Semua Cabang (Konsolidasi)'
-        : (bizState.activeBranchName ?? 'Pilih Cabang');
+        : (bizState.resolvedBranchName.isNotEmpty
+            ? bizState.resolvedBranchName
+            : 'Pilih Cabang');
     final isCentral = !isConsolidated && bizState.isCentralBranch;
 
     return Container(
@@ -593,110 +648,51 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     AsyncValue<List<Map<String, dynamic>>> assetsAsync,
     AsyncValue<List<Map<String, dynamic>>> productsAsync,
   ) {
+    final hasActiveSearchOrFilter =
+        searchQuery.trim().isNotEmpty ||
+        statusFilter != null ||
+        categoryFilter != null;
+    final loadedAssets = assetsAsync.value;
+    final showSearchBar =
+        hasActiveSearchOrFilter ||
+        (loadedAssets != null && loadedAssets.isNotEmpty);
+
     return Column(
       children: [
-        // Search & Drawer Section
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              _buildDrawerButton(
-                hasActiveFilter: statusFilter != null || categoryFilter != null,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: TextField(
-                    controller: _unitsSearchController,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF0F172A),
-                    ),
-                    decoration: InputDecoration(
-                      hintText:
-                          'Cari kode unit, serial number, atau nama tipe...',
-                      hintStyle: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w400,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search_rounded,
-                        size: 20,
-                        color: Color(0xFF94A3B8),
-                      ),
-                      suffixIcon: _unitsSearchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, size: 18),
-                              onPressed: () {
-                                _unitsSearchController.clear();
-                                setState(() {});
-                                ref
-                                    .read(assetSearchQueryProvider.notifier)
-                                    .setSearch('');
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
-                          width: 1,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF0F172A),
-                          width: 1.2,
-                        ),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    onChanged: (val) {
-                      setState(() {});
-                      _unitsSearchDebounceTimer?.cancel();
-                      final isTesting = WidgetsBinding.instance.runtimeType
-                          .toString()
-                          .contains('Test');
-                      if (isTesting) {
-                        ref
-                            .read(assetSearchQueryProvider.notifier)
-                            .setSearch(val.trim());
-                      } else {
-                        _unitsSearchDebounceTimer = Timer(
-                          const Duration(milliseconds: 300),
-                          () {
-                            if (mounted) {
-                              ref
-                                  .read(assetSearchQueryProvider.notifier)
-                                  .setSearch(val.trim());
-                            }
-                          },
-                        );
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
+        if (showSearchBar)
+          _buildSearchAndFilterBar(
+            searchKey: const Key('inventory_units_search_field'),
+            filterKey: const Key('inventory_units_filter_button'),
+            controller: _unitsSearchController,
+            hintText: 'Cari kode unit, serial number, atau nama tipe...',
+            hasActiveFilter: statusFilter != null || categoryFilter != null,
+            onClear: () {
+              _unitsSearchController.clear();
+              setState(() {});
+              ref.read(assetSearchQueryProvider.notifier).setSearch('');
+            },
+            onChanged: (val) {
+              setState(() {});
+              _unitsSearchDebounceTimer?.cancel();
+              final isTesting = WidgetsBinding.instance.runtimeType
+                  .toString()
+                  .contains('Test');
+              if (isTesting) {
+                ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
+              } else {
+                _unitsSearchDebounceTimer = Timer(
+                  const Duration(milliseconds: 300),
+                  () {
+                    if (mounted) {
+                      ref
+                          .read(assetSearchQueryProvider.notifier)
+                          .setSearch(val.trim());
+                    }
+                  },
+                );
+              }
+            },
           ),
-        ),
 
         // List Area
         Expanded(
@@ -1241,107 +1237,51 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
     AsyncValue<List<Map<String, dynamic>>> productsAsync,
   ) {
+    final hasActiveSearchOrFilter =
+        searchQuery.trim().isNotEmpty || categoryFilter != null;
+    final loadedProducts = productsAsync.value;
+    final showSearchBar =
+        hasActiveSearchOrFilter ||
+        (loadedProducts != null && loadedProducts.isNotEmpty);
+
     return Column(
       children: [
-        // Search & Drawer Section
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              _buildDrawerButton(hasActiveFilter: categoryFilter != null),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: TextField(
-                    controller: _catalogSearchController,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF0F172A),
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Cari model, merk, tipe...',
-                      hintStyle: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w400,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search_rounded,
-                        size: 20,
-                        color: Color(0xFF94A3B8),
-                      ),
-                      suffixIcon: _catalogSearchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, size: 18),
-                              onPressed: () {
-                                _catalogSearchController.clear();
-                                setState(() {});
-                                ref
-                                    .read(catalogSearchQueryProvider.notifier)
-                                    .setSearch('');
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
-                          width: 1,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF0F172A),
-                          width: 1.2,
-                        ),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE2E8F0),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    onChanged: (val) {
-                      setState(() {});
-                      _catalogSearchDebounceTimer?.cancel();
-                      final isTesting = WidgetsBinding.instance.runtimeType
-                          .toString()
-                          .contains('Test');
-                      if (isTesting) {
-                        ref
-                            .read(catalogSearchQueryProvider.notifier)
-                            .setSearch(val.trim());
-                      } else {
-                        _catalogSearchDebounceTimer = Timer(
-                          const Duration(milliseconds: 300),
-                          () {
-                            if (mounted) {
-                              ref
-                                  .read(catalogSearchQueryProvider.notifier)
-                                  .setSearch(val.trim());
-                            }
-                          },
-                        );
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
+        if (showSearchBar)
+          _buildSearchAndFilterBar(
+            searchKey: const Key('inventory_catalog_search_field'),
+            filterKey: const Key('inventory_catalog_filter_button'),
+            controller: _catalogSearchController,
+            hintText: 'Cari model, merk, tipe...',
+            hasActiveFilter: categoryFilter != null,
+            onClear: () {
+              _catalogSearchController.clear();
+              setState(() {});
+              ref.read(catalogSearchQueryProvider.notifier).setSearch('');
+            },
+            onChanged: (val) {
+              setState(() {});
+              _catalogSearchDebounceTimer?.cancel();
+              final isTesting = WidgetsBinding.instance.runtimeType
+                  .toString()
+                  .contains('Test');
+              if (isTesting) {
+                ref
+                    .read(catalogSearchQueryProvider.notifier)
+                    .setSearch(val.trim());
+              } else {
+                _catalogSearchDebounceTimer = Timer(
+                  const Duration(milliseconds: 300),
+                  () {
+                    if (mounted) {
+                      ref
+                          .read(catalogSearchQueryProvider.notifier)
+                          .setSearch(val.trim());
+                    }
+                  },
+                );
+              }
+            },
           ),
-        ),
 
         Expanded(
           child: productsAsync.when(
@@ -1858,18 +1798,105 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   // ==========================================
   // HELPERS & SHEETS
   // ==========================================
-  Widget _buildDrawerButton({required bool hasActiveFilter}) {
+  Widget _buildSearchAndFilterBar({
+    required Key searchKey,
+    required Key filterKey,
+    required TextEditingController controller,
+    required String hintText,
+    required bool hasActiveFilter,
+    required VoidCallback onClear,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Container(
+      color: const Color(0xFFF8FAFC),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      child: Row(
+        children: [
+          _buildDrawerButton(key: filterKey, hasActiveFilter: hasActiveFilter),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 44,
+              child: TextField(
+                key: searchKey,
+                controller: controller,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: Color(0xFF0F172A),
+                ),
+                decoration: InputDecoration(
+                  hintText: hintText,
+                  hintStyle: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w400,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 19,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  suffixIcon: controller.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            size: 18,
+                            color: Color(0xFF64748B),
+                          ),
+                          onPressed: onClear,
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF0F172A),
+                      width: 1.2,
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawerButton({Key? key, required bool hasActiveFilter}) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        key: key,
         onTap: () => _scaffoldKey.currentState?.openDrawer(),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: hasActiveFilter ? const Color(0xFF0F172A) : Colors.white,
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: hasActiveFilter
                   ? const Color(0xFF0F172A)
@@ -1883,17 +1910,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               Icon(
                 Icons.tune_rounded,
                 size: 20,
-                color: hasActiveFilter ? Colors.white : const Color(0xFF334155),
+                color: hasActiveFilter
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFF475569),
               ),
               if (hasActiveFilter)
                 Positioned(
                   top: 8,
                   right: 8,
                   child: Container(
+                    key: const Key('inventory_filter_active_dot'),
                     width: 7,
                     height: 7,
                     decoration: const BoxDecoration(
-                      color: AppColors.success,
+                      color: Color(0xFF10B981),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -2325,252 +2355,247 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     VoidCallback? onRegisterUnit,
     required Future<void> Function() onRefresh,
   }) {
+    final bool canRegisterUnit = hasModels && onRegisterUnit != null;
+    final String primaryLabel =
+        canRegisterUnit ? '+ Tambah Unit Fisik' : '+ Buat Model Pertama';
+    final VoidCallback primaryAction =
+        canRegisterUnit ? onRegisterUnit : onCreateModel;
+
     return RefreshIndicator(
       onRefresh: onRefresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
-        children: [
-          Center(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.border),
-              ),
-              child: const Icon(
-                Icons.inventory_2_outlined,
-                size: 38,
-                color: AppColors.obsidian,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            hasModels
-                ? 'Model Sudah Tersedia'
-                : 'Mulai Catat Inventaris Rental Anda',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hasModels
-                ? 'Model sudah tersedia. Daftarkan unit fisik pertama Anda.'
-                : 'Sebelum mendaftarkan unit fisik, pahami hierarki inventaris rental berikut:',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: AppColors.obsidian,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        '1',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                                width: 1,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 24,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '1. Model / Katalog',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: AppColors.textPrimary,
-                            ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Belum Ada Inventaris',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Tipe barang dan tarif sewanya (contoh: iPhone 13 128GB, PS5 Digital, Aerox 2021).',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Divider(color: AppColors.border, height: 1),
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        '2',
-                        style: TextStyle(
-                          color: AppColors.obsidian,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '2. Unit Fisik',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: AppColors.textPrimary,
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Buat model katalog terlebih dahulu sebelum mendaftarkan unit fisik.',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 13,
+                            height: 1.45,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                              width: 1,
                             ),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Barang nyata yang diserahkan ke pelanggan lengkap dengan nomor seri / barcode unik.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                              height: 1.35,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              IntrinsicHeight(
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    SizedBox(
+                                      width: 26,
+                                      child: Column(
+                                        children: [
+                                          Container(
+                                            width: 26,
+                                            height: 26,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF0F172A),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: const Text(
+                                              '1',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Expanded(
+                                            child: Center(
+                                              child: Container(
+                                                width: 1.5,
+                                                color: const Color(0xFFE2E8F0),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Expanded(
+                                      child: Padding(
+                                        padding: EdgeInsets.only(bottom: 16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Model & Tarif',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14,
+                                                color: Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            SizedBox(height: 3),
+                                            Text(
+                                              'Tipe barang dan harga sewa (mis. iPhone 13, PS5).',
+                                              style: TextStyle(
+                                                fontSize: 12.5,
+                                                color: Color(0xFF64748B),
+                                                height: 1.4,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 26,
+                                    height: 26,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: const Color(0xFFE2E8F0),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: const Text(
+                                      '2',
+                                      style: TextStyle(
+                                        color: Color(0xFF475569),
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Unit Fisik',
+                                          key: Key(
+                                            'inventory_empty_step_2_title',
+                                          ),
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                            color: Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                        SizedBox(height: 3),
+                                        Text(
+                                          'Stok nyata siap sewa lengkap dengan nomor seri / barcode.',
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            color: Color(0xFF64748B),
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton(
+                            key: const Key('inventory_empty_primary_cta'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: primaryAction,
+                            child: Text(
+                              primaryLabel,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Center(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 10,
-              children: [
-                if (!hasModels) ...[
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.obsidian,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 13,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: onCreateModel,
-                    child: const Text(
-                      '+ Buat Model Pertama',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                ] else ...[
-                  if (onRegisterUnit != null)
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.obsidian,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 22,
-                          vertical: 13,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: onRegisterUnit,
-                      child: const Text(
-                        '+ Registrasi Unit Pertama',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.obsidian,
-                      side: const BorderSide(color: AppColors.border),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 13,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: onCreateModel,
-                    child: const Text(
-                      '+ Buat Model Baru',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+                ),
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

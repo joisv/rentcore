@@ -767,7 +767,9 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
           MaterialPageRoute(
             builder: (_) => ManageOrganizationScreen(
               businessId: biz['id'] as int,
-              businessName: biz['name']?.toString() ?? 'Bisnis Rental',
+              businessName: (biz['name']?.toString().trim().isNotEmpty == true)
+                  ? biz['name'].toString().trim()
+                  : 'Usaha Rental',
             ),
           ),
         );

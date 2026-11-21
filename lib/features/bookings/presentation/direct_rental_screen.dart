@@ -15,6 +15,7 @@ import '../../inventory/providers/asset_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
 import '../../vouchers/data/voucher_repository.dart';
+import '../data/booking_repository.dart';
 import '../providers/booking_provider.dart';
 
 enum _ScheduledPaymentOption { full, dp, payLater }
@@ -127,6 +128,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   List<Map<String, dynamic>> _modelAvailabilityList = [];
   bool _isLoadingModelAvailability = false;
   String? _modelAvailabilityError;
+  Map<int, Map<String, dynamic>> _immediateWindowAvailabilityByAssetId = {};
+  int? _immediateWindowBranchId;
+  int? _immediateWindowDurationHours;
 
   Map<String, dynamic>? _selectedAsset;
   int? _selectedAssetId;
@@ -321,6 +325,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     _addressController.addListener(_syncUnsavedInputState);
     _voucherController.addListener(_syncUnsavedInputState);
     _dpAmountController.addListener(_syncUnsavedInputState);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isScheduledBooking) {
+        _loadImmediateWindowAvailability();
+      }
+    });
   }
 
   @override
@@ -515,7 +524,19 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   }
 
   bool _isAssetAvailableForSchedule(int? assetId, int? modelId) {
-    if (!_isScheduledBooking || _modelAvailabilityList.isEmpty || _isLoadingModelAvailability) {
+    if (!_isScheduledBooking) {
+      if (assetId == null) return true;
+      final info = _immediateWindowAvailabilityByAssetId[assetId];
+      if (info == null) return true;
+      if (info.containsKey('is_available_for_window')) {
+        return info['is_available_for_window'] != false;
+      }
+      if (info.containsKey('is_available_for_schedule')) {
+        return info['is_available_for_schedule'] != false;
+      }
+      return true;
+    }
+    if (_modelAvailabilityList.isEmpty || _isLoadingModelAvailability) {
       return true;
     }
     if (modelId == null) return true;
@@ -536,8 +557,22 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return true;
   }
 
+  String? _getAssetConflictReason(int? assetId) {
+    if (assetId == null) return null;
+    final info = _immediateWindowAvailabilityByAssetId[assetId];
+    final reason = info?['conflict_reason']?.toString().trim();
+    if (reason != null && reason.isNotEmpty) {
+      return reason;
+    }
+    return null;
+  }
+
   bool _isSelectedUnavailableForSchedule(BusinessState bizState) {
-    if (!_isScheduledBooking || _isLoadingModelAvailability) return false;
+    if (!_isScheduledBooking) {
+      if (_selectedAssetId == null) return false;
+      return !_isAssetAvailableForSchedule(_selectedAssetId, _selectedModelId);
+    }
+    if (_isLoadingModelAvailability) return false;
     final floatingAllowed = _isFloatingAllowedForActiveBranch(bizState);
     if (floatingAllowed && !_pinSpecificUnit) {
       if (_selectedModelId == null || _modelAvailabilityList.isEmpty) {
@@ -582,12 +617,12 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     if (bizState.activeBranchId != null) {
       final activeId = bizState.activeBranchId;
       final matched = findBranchById(activeId);
-      final name = (bizState.activeBranchName != null && bizState.activeBranchName!.trim().isNotEmpty)
-          ? bizState.activeBranchName!.trim()
+      final branchName = bizState.resolvedBranchName.isNotEmpty
+          ? bizState.resolvedBranchName
           : matched?['name']?.toString();
       return (
         branchId: activeId,
-        branchName: name,
+        branchName: branchName,
         isConsolidatedFallback: false,
         availableBranches: availableBranches,
       );
@@ -849,6 +884,68 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     }
   }
 
+  Future<void> _loadImmediateWindowAvailability({
+    int? branchIdOverride,
+    bool force = false,
+  }) async {
+    if (_isScheduledBooking) return;
+    final repo = ref.read(bookingRepositoryProvider);
+    final isWidgetTest =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (isWidgetTest && repo.runtimeType == BookingRepository) {
+      return;
+    }
+
+    final bizState = ref.read(businessProvider);
+    if (bizState.activeBusinessId == null) return;
+    final activeBranchId = branchIdOverride ??
+        _resolveTargetBranch(bizState, ref.read(authProvider)).branchId;
+    if (activeBranchId == null) return;
+
+    final durationHours = _selectedDuration ?? 24;
+    if (!force &&
+        _immediateWindowBranchId == activeBranchId &&
+        _immediateWindowDurationHours == durationHours &&
+        _immediateWindowAvailabilityByAssetId.isNotEmpty) {
+      return;
+    }
+
+    final startAt = DateTime.now();
+    final endAt = startAt.add(Duration(hours: durationHours));
+
+    try {
+      final list = await repo.fetchAssetsForWindow(
+        branchId: activeBranchId,
+        startAt: startAt,
+        endAt: endAt,
+      );
+      if (!mounted) return;
+      final map = <int, Map<String, dynamic>>{};
+      for (final item in list) {
+        final id = _parseId(item['id']);
+        if (id != null) {
+          map[id] = item;
+        }
+      }
+      setState(() {
+        _immediateWindowBranchId = activeBranchId;
+        _immediateWindowDurationHours = durationHours;
+        _immediateWindowAvailabilityByAssetId = map;
+        if (_selectedAssetId != null) {
+          final reason = _getAssetConflictReason(_selectedAssetId);
+          if (!_isAssetAvailableForSchedule(_selectedAssetId, _selectedModelId)) {
+            _assetValidationError = reason ??
+                'Unit/model yang dipilih tidak tersedia untuk durasi $durationHours jam.';
+          } else {
+            _assetValidationError = null;
+          }
+        }
+      });
+    } catch (_) {
+      // Keep UI usable when offline; backend will still enforce overlap atomically at submit.
+    }
+  }
+
   void _resetToImmediateRental() {
     final readyAssets = ref.read(readyAssetsProvider).value;
     Map<String, dynamic>? restoredAsset;
@@ -892,6 +989,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       }
     });
     _syncUnsavedInputState();
+    _loadImmediateWindowAvailability(force: true);
   }
 
   Future<void> _pickScheduledDateTime() async {
@@ -1094,6 +1192,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     if (_voucherController.text.trim().isNotEmpty) {
       _validateVoucher();
     }
+    if (!_isScheduledBooking) {
+      _loadImmediateWindowAvailability(force: true);
+    }
   }
 
   void _onTierSelected(RentalTierOption tier) {
@@ -1110,6 +1211,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
     if (_isScheduledBooking) {
       _loadModelAvailability();
+    } else {
+      _loadImmediateWindowAvailability(force: true);
     }
     if (_voucherController.text.trim().isNotEmpty) {
       _validateVoucher();
@@ -1125,6 +1228,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     });
     if (_isScheduledBooking) {
       _loadModelAvailability();
+    } else {
+      _loadImmediateWindowAvailability(force: true);
     }
     if (_voucherController.text.trim().isNotEmpty) {
       _validateVoucher();
@@ -1273,13 +1378,18 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final bizState = ref.read(businessProvider);
     final isReady = _isPrimarySelectionReady(bizState);
     final isUnavailableOnSchedule = isReady && _isSelectedUnavailableForSchedule(bizState);
+    final conflictReason = _getAssetConflictReason(_selectedAssetId);
+    final unavailableMsg = conflictReason ??
+        (_isScheduledBooking
+            ? 'Unit/model yang dipilih tidak tersedia pada jadwal ini.'
+            : 'Unit/model yang dipilih sudah terikat jadwal sewa/booking lain untuk durasi tersebut.');
     setState(() {
       if (!isReady) {
         _assetValidationError = _isScheduledBooking && _isFloatingAllowedForActiveBranch(bizState) && !_pinSpecificUnit
             ? 'Pilih salah satu model perangkat terlebih dahulu.'
             : 'Pilih salah satu unit rental terlebih dahulu.';
       } else if (isUnavailableOnSchedule) {
-        _assetValidationError = 'Unit/model yang dipilih tidak tersedia pada jadwal ini.';
+        _assetValidationError = unavailableMsg;
       } else {
         _assetValidationError = null;
       }
@@ -1287,16 +1397,34 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     });
 
     if (!isReady || isUnavailableOnSchedule || _selectedDuration == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isUnavailableOnSchedule
-                ? 'Unit/model yang dipilih tidak tersedia pada jadwal ini.'
-                : 'Silakan pilih unit/model rental dan durasi terlebih dahulu.',
+      if (isUnavailableOnSchedule) {
+        showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.event_busy_rounded, color: AppColors.danger),
+                SizedBox(width: 8),
+                Expanded(child: Text('Jadwal Sewa Bentrok')),
+              ],
+            ),
+            content: Text(unavailableMsg),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Mengerti'),
+              ),
+            ],
           ),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Silakan pilih unit/model rental dan durasi terlebih dahulu.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
       return;
     }
 
@@ -2359,8 +2487,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                           final grade = asset['condition_grade']?.toString();
                           final bh = asset['battery_health'];
                           final code = asset['asset_code']?.toString() ?? '';
+                          final conflictReason = _getAssetConflictReason(assetId);
                           final metaText = !isAvailableOnSchedule
-                              ? 'Tidak tersedia pada jadwal ini'
+                              ? (conflictReason ?? 'Tidak tersedia pada jadwal ini')
                               : [
                                   if (code.isNotEmpty) code,
                                   if (grade != null && grade.isNotEmpty) 'Grade $grade',

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rentcore_mobile/core/services/printer_bluetooth_driver.dart';
 import 'package:rentcore_mobile/core/services/thermal_printer_service.dart';
 
@@ -224,12 +225,13 @@ void main() {
       expect(bytes, isNotEmpty);
 
       final rawString = utf8.decode(bytes, allowMalformed: true);
-      expect(rawString, contains('RENTCORE TEST PRINT'));
+      expect(rawString, contains('TEST PRINT THERMAL'));
       expect(rawString, contains('Thermal Printer Diagnostic'));
-      expect(rawString, contains('RENTCORE-TEST-OK'));
+      expect(rawString, contains('TEST-PRINT-OK'));
     });
 
     test('verifies Normal and Echo print modes execution', () async {
+      SharedPreferences.setMockInitialValues({});
       service.setConnectedDevice(const ThermalPrinterDevice(
         name: 'Test Thermal Printer',
         address: '00:11:22:33:44:55',
@@ -336,7 +338,7 @@ void main() {
       );
 
       final rawString = utf8.decode(bytes, allowMalformed: true);
-      expect(rawString, contains('RENTCORE CLOSING SHIFT'));
+      expect(rawString, contains('LAPORAN CLOSING SHIFT'));
       expect(rawString, contains('Cabang Utama Mataram'));
       expect(rawString, contains('Shift: SHIFT-001'));
       expect(rawString, contains('Budi Kasir'));
@@ -348,7 +350,87 @@ void main() {
       expect(rawString, contains('Beban Kas Laci'));
       expect(rawString, contains('FISIK KAS SISTEM'));
     });
+
+    test('supports dynamic tenant branding, clean empty fallbacks, extraFeedLines, raster QR, and reprint header', () {
+      const settings = ReceiptCustomizationSettings(
+        paperWidth: ReceiptPaperWidth.mm58,
+        extraFeedLines: 5,
+        useRasterQr: true,
+        customFooterMessage: 'Terima kasih banyak!',
+      );
+      const model = ReceiptDataModel(
+        type: ReceiptType.posPayment,
+        title: 'STRUK TRANSAKSI POS',
+        shopName: 'Lombok Camera Rent',
+        branchName: 'Cabang Senggigi',
+        branchAddress: '',
+        branchPhone: '081900001111',
+        isReprint: true,
+        receiptNumber: 'INV-9988',
+        bookingCode: 'LCR-001',
+        customerName: 'Rina',
+        totalAmount: 250000,
+        qrData: 'LCR-001',
+      );
+
+      final doc = service.buildReceiptDocument(model, settings);
+      final docBytes = service.buildSlipBytesFromDocument(doc, settings);
+      final rawText = latin1.decode(docBytes);
+
+      expect(rawText, contains('Lombok Camera Rent'));
+      expect(rawText, contains('Cabang Senggigi'));
+      expect(rawText, contains('Telp: 081900001111'));
+      expect(rawText, contains('-- CETAK ULANG --'));
+      expect(rawText, contains('Terima kasih banyak!'));
+      expect(rawText, isNot(contains('RENTCORE')));
+      // Raster QR emits GS v 0 (0x1D, 0x76, 0x30, 0x00) instead of native GS ( k (0x1D, 0x28, 0x6B)
+      expect(_containsSublist(docBytes, const [0x1D, 0x76, 0x30, 0x00]), isTrue);
+      expect(_containsSublist(docBytes, const [0x1D, 0x28, 0x6B]), isFalse);
+      // Extra feed lines = 5 (0x1B, 0x64, 0x05) before GS V 1 (0x1D, 0x56, 0x01)
+      expect(docBytes.sublist(docBytes.length - 6), equals([0x1B, 0x64, 0x05, 0x1D, 0x56, 0x01]));
+    });
+
+    test('silently auto-reconnects from saved SharedPreferences mac_address and handles permission denial cleanly', () async {
+      SharedPreferences.setMockInitialValues({
+        'mac_address': 'AA:BB:CC:DD:EE:FF',
+        'printer_name': 'Saved Portable 58',
+      });
+      service.setConnectedDevice(null);
+      final testBytes = service.buildTestSlipBytes(const ReceiptCustomizationSettings());
+
+      // Silent hydrate + reconnect succeeds
+      final ok = await service.sendPrintJob(testBytes, PrintMode.normal);
+      expect(ok, isTrue);
+      expect(service.connectedDevice?.address, equals('AA:BB:CC:DD:EE:FF'));
+      expect(service.connectedDevice?.name, equals('Saved Portable 58'));
+
+      // Permission denial returns false with clean error and does not throw
+      service.setDriver(_DeniedPermissionMockDriver());
+      final denied = await service.sendPrintJob(testBytes, PrintMode.normal);
+      expect(denied, isFalse);
+      expect(service.lastError, contains('Izin Bluetooth ditolak'));
+    });
   });
+}
+
+bool _containsSublist(List<int> haystack, List<int> needle) {
+  if (needle.isEmpty) return true;
+  for (int i = 0; i <= haystack.length - needle.length; i++) {
+    var matched = true;
+    for (int j = 0; j < needle.length; j++) {
+      if (haystack[i + j] != needle[j]) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return true;
+  }
+  return false;
+}
+
+class _DeniedPermissionMockDriver extends MockPrinterDriver {
+  @override
+  Future<bool> checkAndRequestPermissions() async => false;
 }
 
 class _FailingConnectMockDriver extends MockPrinterDriver {

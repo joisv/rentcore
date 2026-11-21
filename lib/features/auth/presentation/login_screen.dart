@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/legal_links.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -544,6 +545,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       onPressed: () => _quickFill('superadmin@rentcore.id'),
                     ),
                   ],
+                ),
+                const SizedBox(height: 20),
+                Center(
+                  child: TextButton.icon(
+                    key: const Key('login_privacy_policy_button'),
+                    onPressed: () => LegalLinks.openExternal(
+                      context,
+                      LegalLinks.privacyPolicyUri,
+                    ),
+                    icon: const Icon(
+                      Icons.privacy_tip_outlined,
+                      size: 15,
+                      color: AppColors.textSecondary,
+                    ),
+                    label: const Text(
+                      'Kebijakan Privasi',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

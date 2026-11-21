@@ -17,6 +17,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/network/api_client.dart';
 import 'core/constants/app_colors.dart';
 import 'core/network/network_status_provider.dart';
+import 'shared/widgets/app_gate_overlay.dart';
 import 'shared/widgets/floating_capsule_dock.dart';
 
 void main() async {
@@ -36,9 +37,9 @@ class RentCoreApp extends ConsumerWidget {
       title: 'RentCore Mobile',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const AuthRoutingGate(),
+      home: const AppConfigGateObserver(child: AuthRoutingGate()),
       routes: {
-        '/login': (context) => const AuthRoutingGate(),
+        '/login': (context) => const AppConfigGateObserver(child: AuthRoutingGate()),
       },
     );
   }

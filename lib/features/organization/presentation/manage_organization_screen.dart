@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
+import '../../auth/providers/business_provider.dart';
 import '../providers/organization_provider.dart';
 
 class ManageOrganizationScreen extends ConsumerStatefulWidget {
@@ -51,6 +52,21 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     );
   }
 
+  void _openEditBranchSheet(
+    BuildContext context,
+    Map<String, dynamic> branch,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddBranchBottomSheet(
+        businessId: widget.businessId,
+        branchToEdit: branch,
+      ),
+    );
+  }
+
   void _openInviteMemberSheet(BuildContext context, List<dynamic> branches) {
     showModalBottomSheet(
       context: context,
@@ -66,7 +82,14 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
   @override
   Widget build(BuildContext context) {
     final orgState = ref.watch(organizationProvider);
+    final bizState = ref.watch(businessProvider);
     final isOwnerOrAdmin = orgState.isOwnerOrAdmin;
+    final liveStoreName =
+        (normalizeEntityId(bizState.activeBusinessId) ==
+                    normalizeEntityId(widget.businessId) &&
+                bizState.resolvedStoreName.isNotEmpty)
+            ? bizState.resolvedStoreName
+            : widget.businessName;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -75,7 +98,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.businessName,
+              liveStoreName,
               style: AppTextStyles.pageHeader,
             ),
             const Text(
@@ -326,6 +349,18 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                             letterSpacing: 0.5,
                           ),
                         ),
+                      ),
+                    if (state.isOwnerOrAdmin)
+                      IconButton(
+                        key: Key('edit_branch_${branch['id']}'),
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          size: 19,
+                          color: AppColors.textSecondary,
+                        ),
+                        tooltip: 'Edit Cabang',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _openEditBranchSheet(context, branch),
                       ),
                   ],
                 ),
@@ -1221,8 +1256,13 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
 // =============================================================================
 class AddBranchBottomSheet extends ConsumerStatefulWidget {
   final int businessId;
+  final Map<String, dynamic>? branchToEdit;
 
-  const AddBranchBottomSheet({super.key, required this.businessId});
+  const AddBranchBottomSheet({
+    super.key,
+    required this.businessId,
+    this.branchToEdit,
+  });
 
   @override
   ConsumerState<AddBranchBottomSheet> createState() => _AddBranchBottomSheetState();
@@ -1236,6 +1276,21 @@ class _AddBranchBottomSheetState extends ConsumerState<AddBranchBottomSheet> {
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
   String? _errorMessage;
+
+  bool get _isEditing => widget.branchToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final b = widget.branchToEdit;
+    if (b != null) {
+      _nameController.text = b['name']?.toString() ?? '';
+      _codeController.text = b['code']?.toString() ?? '';
+      _cityController.text = b['city']?.toString() ?? '';
+      _addressController.text = b['address']?.toString() ?? '';
+      _phoneController.text = b['phone']?.toString() ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -1251,26 +1306,54 @@ class _AddBranchBottomSheetState extends ConsumerState<AddBranchBottomSheet> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _errorMessage = null);
 
-    final success = await ref.read(organizationProvider.notifier).createBranch(
-          businessId: widget.businessId,
-          name: _nameController.text.trim(),
-          code: _codeController.text.trim().toUpperCase(),
-          city: _cityController.text.trim().isNotEmpty ? _cityController.text.trim() : null,
-          address: _addressController.text.trim().isNotEmpty ? _addressController.text.trim() : null,
-          phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
-        );
+    final notifier = ref.read(organizationProvider.notifier);
+    final name = _nameController.text.trim();
+    final code = _codeController.text.trim().toUpperCase();
+    final city = _cityController.text.trim();
+    final address = _addressController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    final bool success;
+    if (_isEditing) {
+      final branchId = parseEntityIntId(widget.branchToEdit?['id']) ?? 0;
+      success = await notifier.updateBranch(
+        businessId: widget.businessId,
+        branchId: branchId,
+        name: name,
+        code: code,
+        city: city.isNotEmpty ? city : null,
+        address: address.isNotEmpty ? address : null,
+        phone: phone.isNotEmpty ? phone : null,
+      );
+    } else {
+      success = await notifier.createBranch(
+        businessId: widget.businessId,
+        name: name,
+        code: code,
+        city: city.isNotEmpty ? city : null,
+        address: address.isNotEmpty ? address : null,
+        phone: phone.isNotEmpty ? phone : null,
+      );
+    }
 
     if (mounted) {
       if (success) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cabang baru berhasil ditambahkan!'),
+          SnackBar(
+            content: Text(
+              _isEditing
+                  ? 'Data cabang berhasil diperbarui!'
+                  : 'Cabang baru berhasil ditambahkan!',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
       } else {
-        final err = ref.read(organizationProvider).error ?? 'Gagal menambahkan cabang.';
+        final err = ref.read(organizationProvider).error ??
+            (_isEditing
+                ? 'Gagal memperbarui cabang.'
+                : 'Gagal menambahkan cabang.');
         setState(() => _errorMessage = err);
       }
     }
@@ -1309,9 +1392,11 @@ class _AddBranchBottomSheetState extends ConsumerState<AddBranchBottomSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Tambah Cabang / Outlet Baru',
-                style: TextStyle(
+              Text(
+                _isEditing
+                    ? 'Edit Informasi Cabang'
+                    : 'Tambah Cabang / Outlet Baru',
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -1337,7 +1422,7 @@ class _AddBranchBottomSheetState extends ConsumerState<AddBranchBottomSheet> {
                 controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: 'Nama Cabang *',
-                  hintText: 'Contoh: SkyRental Canggu',
+                  hintText: 'Contoh: Cabang Canggu',
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Nama cabang wajib diisi';
@@ -1400,9 +1485,12 @@ class _AddBranchBottomSheetState extends ConsumerState<AddBranchBottomSheet> {
                         width: 20,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
-                    : const Text(
-                        'Simpan Cabang Baru',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    : Text(
+                        _isEditing ? 'Simpan Perubahan' : 'Simpan Cabang Baru',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
               ),
             ],

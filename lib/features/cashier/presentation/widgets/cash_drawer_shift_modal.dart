@@ -417,6 +417,9 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     final closedAtFormatted = _formatOpenedAt(shiftData['closed_at']);
 
     final printerService = ThermalPrinterService();
+    final shopName = bizState?.resolvedStoreName ?? '';
+    final branchAddress = bizState?.resolvedBranchAddress ?? '';
+    final branchPhone = bizState?.resolvedBranchPhone ?? '';
     final breakdown = <String, double>{
       'Tunai (Net)': cashInflow,
       if (nonCashInflow > 0) 'Non-Tunai': nonCashInflow,
@@ -440,13 +443,20 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
       actualCashCounted: actual,
       cashDifference: diff,
       shiftNumber: shiftNum,
+      shopName: shopName.isNotEmpty ? shopName : null,
+      branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+      branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+      settings: printerSettings,
     );
 
     showDialog(
       context: context,
       builder: (ctx) => ThermalReceiptPreviewDialog(
         title: 'Hasil Rekonsiliasi Tutup Shift',
+        shopName: shopName.isNotEmpty ? shopName : null,
         branchName: resolvedBranchName,
+        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
         escposBytes: escposBytes,
         content: Column(
           children: [

@@ -39,15 +39,21 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
     final biz = ref.read(businessProvider);
     final fallbackShop = savedSettings.customShopName.isNotEmpty
         ? savedSettings.customShopName
-        : (biz.activeBusinessName ?? 'RENTCORE GADGETS');
+        : (biz.resolvedStoreName.isNotEmpty ? biz.resolvedStoreName : 'Toko Rental');
     final fallbackBranch = savedSettings.customBranchName.isNotEmpty
         ? savedSettings.customBranchName
-        : (biz.activeBranchName ?? 'Pusat Operasional');
+        : (biz.resolvedBranchName.isNotEmpty ? biz.resolvedBranchName : 'Cabang Utama');
+    final fallbackAddress = savedSettings.storeAddress.isNotEmpty
+        ? savedSettings.storeAddress
+        : biz.resolvedBranchAddress;
+    final fallbackPhone = savedSettings.storePhone.isNotEmpty
+        ? savedSettings.storePhone
+        : biz.resolvedBranchPhone;
 
     _shopNameCtrl = TextEditingController(text: fallbackShop);
     _branchNameCtrl = TextEditingController(text: fallbackBranch);
-    _addressCtrl = TextEditingController(text: savedSettings.storeAddress);
-    _phoneCtrl = TextEditingController(text: savedSettings.storePhone);
+    _addressCtrl = TextEditingController(text: fallbackAddress);
+    _phoneCtrl = TextEditingController(text: fallbackPhone);
     _footerMsgCtrl = TextEditingController(text: savedSettings.customFooterMessage);
     _termsCtrl = TextEditingController(text: savedSettings.returnTermsText);
     _initialized = true;
@@ -110,8 +116,8 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
 
   void _resetToDefault() {
     final biz = ref.read(businessProvider);
-    final defaultShop = biz.activeBusinessName ?? 'RENTCORE GADGETS';
-    final defaultBranch = biz.activeBranchName ?? 'Pusat Operasional';
+    final defaultShop = biz.resolvedStoreName.isNotEmpty ? biz.resolvedStoreName : 'Toko Rental';
+    final defaultBranch = biz.resolvedBranchName.isNotEmpty ? biz.resolvedBranchName : 'Cabang Utama';
 
     final def = ReceiptCustomizationSettings.defaultSettings(
       shopName: defaultShop,
@@ -122,8 +128,8 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
       _currentSettings = def;
       _shopNameCtrl.text = defaultShop;
       _branchNameCtrl.text = defaultBranch;
-      _addressCtrl.text = '';
-      _phoneCtrl.text = '';
+      _addressCtrl.text = biz.resolvedBranchAddress;
+      _phoneCtrl.text = biz.resolvedBranchPhone;
       _footerMsgCtrl.text = def.customFooterMessage;
       _termsCtrl.text = def.returnTermsText;
     });
@@ -825,7 +831,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
             controller: _shopNameCtrl,
             decoration: const InputDecoration(
               labelText: 'Nama Usaha / Toko',
-              hintText: 'Contoh: RENTCORE GADGETS',
+              hintText: 'Contoh: Toko Kamera Nusantara',
               isDense: true,
             ),
             onChanged: (_) => _syncTextToSettings(),

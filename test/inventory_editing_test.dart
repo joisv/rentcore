@@ -164,7 +164,8 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Daftar Aset'), findsOneWidget);
-        expect(find.text('Unit Fisik (Inventaris)'), findsOneWidget);
+        expect(find.text('Unit Fisik'), findsOneWidget);
+        expect(find.text('Unit Fisik (Inventaris)'), findsNothing);
         expect(find.text('Katalog & Tarif'), findsOneWidget);
         expect(find.text('CAM-001'), findsOneWidget);
         expect(find.text('Edit Unit'), findsOneWidget);

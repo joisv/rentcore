@@ -382,19 +382,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     BusinessState businessState,
   ) {
     final isConsolidated = businessState.isConsolidated;
-    final branchName = businessState.activeBranchName;
-    final businessName = businessState.activeBusinessName;
+    final branchName = businessState.resolvedBranchName;
+    final businessName = businessState.resolvedStoreName;
 
-    final String storeTitle = (businessName != null && businessName.isNotEmpty)
+    final String storeTitle = businessName.isNotEmpty
         ? businessName
-        : (branchName != null && branchName.isNotEmpty
-            ? branchName
-            : 'RentCore');
+        : (branchName.isNotEmpty ? branchName : 'Toko Rental');
     final String? activeBranchLabel;
-    if (businessName != null && businessName.isNotEmpty) {
+    if (businessName.isNotEmpty) {
       if (isConsolidated) {
         activeBranchLabel = 'Semua Cabang';
-      } else if (branchName != null && branchName.isNotEmpty) {
+      } else if (branchName.isNotEmpty) {
         activeBranchLabel = branchName;
       } else {
         activeBranchLabel = null;
@@ -714,6 +712,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                          subtitle: businessState.resolvedStoreName.isNotEmpty
+                              ? Text(
+                                  businessState.resolvedBranchName.isNotEmpty
+                                      ? '${businessState.resolvedStoreName} • ${businessState.resolvedBranchName}'
+                                      : businessState.resolvedStoreName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                )
+                              : null,
                           trailing: const Icon(Icons.chevron_right_rounded),
                           onTap: () {
                             Navigator.pop(drawerContext);

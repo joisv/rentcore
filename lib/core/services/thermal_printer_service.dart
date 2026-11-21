@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
+import 'package:qr/qr.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/thermal_printer_models.dart';
 import 'printer_bluetooth_driver.dart';
 
@@ -55,17 +58,43 @@ class ThermalPrinterService {
     required double discountPercentage,
     required double minTransaction,
     required String validUntil,
+    String? branchAddress,
+    String? branchPhone,
+    ReceiptCustomizationSettings? settings,
   }) {
+    final effectiveSettings = settings ?? const ReceiptCustomizationSettings();
+    final resolvedShop = effectiveSettings.customShopName.trim().isNotEmpty
+        ? effectiveSettings.customShopName.trim()
+        : (shopName.trim().isNotEmpty ? shopName.trim() : 'Toko Rental');
+    final resolvedBranch = effectiveSettings.customBranchName.trim().isNotEmpty
+        ? effectiveSettings.customBranchName.trim()
+        : (branchName.trim().isNotEmpty ? branchName.trim() : 'Cabang Utama');
+    final resolvedAddress = effectiveSettings.storeAddress.trim().isNotEmpty
+        ? effectiveSettings.storeAddress.trim()
+        : (branchAddress?.trim() ?? '');
+    final resolvedPhone = effectiveSettings.storePhone.trim().isNotEmpty
+        ? effectiveSettings.storePhone.trim()
+        : (branchPhone?.trim() ?? '');
+    final width = effectiveSettings.paperWidth.columns;
+    final dividerChar = effectiveSettings.separatorStyle == 'double' ? '=' : '-';
+    final divider = dividerChar * width;
+
     final builder = BytesBuilder();
     builder.add(cmdInit);
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
     builder.add(cmdDoubleSize);
-    builder.add(_encodeEscPos('$shopName\n'));
+    builder.add(_encodeEscPos('$resolvedShop\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
-    builder.add(_encodeEscPos('$branchName\n'));
-    builder.add(_encodeEscPos('--------------------------------\n'));
+    builder.add(_encodeEscPos('$resolvedBranch\n'));
+    if (resolvedAddress.isNotEmpty) {
+      builder.add(_encodeEscPos('$resolvedAddress\n'));
+    }
+    if (resolvedPhone.isNotEmpty) {
+      builder.add(_encodeEscPos('Telp: $resolvedPhone\n'));
+    }
+    builder.add(_encodeEscPos('$divider\n'));
 
     builder.add(cmdBoldOn);
     builder.add(_encodeEscPos('VOUCHER DISKON SPESIAL\n'));
@@ -73,24 +102,34 @@ class ThermalPrinterService {
     builder.add(_encodeEscPos('${discountPercentage.toInt()}% OFF\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
-    builder.add(_encodeEscPos('--------------------------------\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     builder.add(cmdAlignLeft);
     builder.add(_encodeEscPos('Kode Voucher  : $voucherCode\n'));
     builder.add(_encodeEscPos('Min. Transaksi: Rp ${_formatNumber(minTransaction)}\n'));
     builder.add(_encodeEscPos('Berlaku s/d   : $validUntil\n'));
-    builder.add(_encodeEscPos('--------------------------------\n'));
+    builder.add(_encodeEscPos('$divider\n'));
 
     builder.add(cmdAlignCenter);
-    builder.add(_buildQrCodeEscPos(voucherCode));
+    builder.add(
+      buildQrCodeBytes(
+        voucherCode,
+        paperWidth: effectiveSettings.paperWidth,
+        useRasterQr: effectiveSettings.useRasterQr,
+      ),
+    );
     builder.add(_encodeEscPos('\n$voucherCode\n\n'));
 
     builder.add(_encodeEscPos('* Tunjukkan slip fisik ini atau\n'));
     builder.add(_encodeEscPos('  scan QR Code saat sewa gadget.\n'));
-    builder.add(_encodeEscPos('Terima kasih atas kunjungan Anda!\n'));
-    builder.add(_encodeEscPos('================================\n'));
+    if (effectiveSettings.customFooterMessage.trim().isNotEmpty) {
+      builder.add(_encodeEscPos('${effectiveSettings.customFooterMessage.trim()}\n'));
+    } else {
+      builder.add(_encodeEscPos('Terima kasih atas kunjungan Anda!\n'));
+    }
+    builder.add(_encodeEscPos('${'=' * width}\n'));
 
-    builder.add(cmdFeed3Lines);
+    builder.add(_buildFeedLinesCmd(effectiveSettings.extraFeedLines));
     builder.add(cmdCutPaper);
 
     return builder.toBytes();
@@ -117,20 +156,50 @@ class ThermalPrinterService {
     double? actualCashCounted,
     double? cashDifference,
     String? shiftNumber,
+    String? shopName,
+    String? branchAddress,
+    String? branchPhone,
+    ReceiptCustomizationSettings? settings,
   }) {
+    final effectiveWidth = settings?.paperWidth ?? paperWidth;
     final builder = BytesBuilder();
-    final width = paperWidth.columns;
+    final width = effectiveWidth.columns;
     final doubleDivider = '=' * width;
     final singleDivider = '-' * width;
+
+    final resolvedShop = (settings?.customShopName.trim().isNotEmpty == true)
+        ? settings!.customShopName.trim()
+        : (shopName?.trim().isNotEmpty == true ? shopName!.trim() : '');
+    final resolvedBranch = (settings?.customBranchName.trim().isNotEmpty == true)
+        ? settings!.customBranchName.trim()
+        : (branchName.trim().isNotEmpty ? branchName.trim() : 'Cabang Utama');
+    final resolvedAddress = (settings?.storeAddress.trim().isNotEmpty == true)
+        ? settings!.storeAddress.trim()
+        : (branchAddress?.trim() ?? '');
+    final resolvedPhone = (settings?.storePhone.trim().isNotEmpty == true)
+        ? settings!.storePhone.trim()
+        : (branchPhone?.trim() ?? '');
 
     builder.add(cmdInit);
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
     builder.add(cmdDoubleSize);
-    builder.add(_encodeEscPos('RENTCORE CLOSING SHIFT\n'));
-    builder.add(cmdNormalSize);
+    if (resolvedShop.isNotEmpty) {
+      builder.add(_encodeEscPos('$resolvedShop\n'));
+      builder.add(cmdNormalSize);
+      builder.add(_encodeEscPos('LAPORAN CLOSING SHIFT\n'));
+    } else {
+      builder.add(_encodeEscPos('LAPORAN CLOSING SHIFT\n'));
+      builder.add(cmdNormalSize);
+    }
     builder.add(cmdBoldOff);
-    builder.add(_encodeEscPos('$branchName\n'));
+    builder.add(_encodeEscPos('$resolvedBranch\n'));
+    if (resolvedAddress.isNotEmpty) {
+      builder.add(_encodeEscPos('$resolvedAddress\n'));
+    }
+    if (resolvedPhone.isNotEmpty) {
+      builder.add(_encodeEscPos('Telp: $resolvedPhone\n'));
+    }
     if (shiftNumber != null && shiftNumber.isNotEmpty) {
       builder.add(_encodeEscPos('Shift: $shiftNumber\n'));
     }
@@ -195,8 +264,11 @@ class ThermalPrinterService {
     builder.add(cmdAlignCenter);
     builder.add(_encodeEscPos('Tanda Tangan Kasir / Supervisor\n\n\n'));
     builder.add(_encodeEscPos('( ____________________ )\n'));
+    if (settings != null && settings.customFooterMessage.trim().isNotEmpty) {
+      builder.add(_encodeEscPos('\n${settings.customFooterMessage.trim()}\n'));
+    }
 
-    builder.add(cmdFeed3Lines);
+    builder.add(_buildFeedLinesCmd(settings?.extraFeedLines ?? 3));
     builder.add(cmdCutPaper);
 
     return builder.toBytes();
@@ -211,8 +283,10 @@ class ThermalPrinterService {
     return ReceiptDataModel(
       type: ReceiptType.rentalBooking,
       title: 'STRUK SEWA PERANGKAT',
-      branchName: settings.customBranchName.isNotEmpty ? settings.customBranchName : 'Cabang Mataram',
-      shopName: settings.customShopName.isNotEmpty ? settings.customShopName : 'RENTCORE GADGETS',
+      branchName: settings.customBranchName.isNotEmpty ? settings.customBranchName : 'Cabang Utama',
+      shopName: settings.customShopName.isNotEmpty ? settings.customShopName : 'Toko Rental',
+      branchAddress: settings.storeAddress.isNotEmpty ? settings.storeAddress : null,
+      branchPhone: settings.storePhone.isNotEmpty ? settings.storePhone : null,
       bookingCode: 'RC-202610-0042',
       customerName: 'Dewi Lestari',
       customerPhone: '081234568890',
@@ -248,12 +322,11 @@ class ThermalPrinterService {
     final lines = <ReceiptLineItem>[];
 
     // 1. Header Section
-    final shopName = settings.customShopName.isNotEmpty
-        ? settings.customShopName
-        : (data.shopName ?? 'RENTCORE GADGETS');
-    final branchName = settings.customBranchName.isNotEmpty
-        ? settings.customBranchName
-        : data.branchName;
+    final header = _resolveHeaderFields(data, settings);
+    final shopName = header.shopName;
+    final branchName = header.branchName;
+    final address = header.address;
+    final phone = header.phone;
 
     if (isEcho) {
       // Echo Mode: Clean, compact store identity
@@ -272,18 +345,18 @@ class ThermalPrinterService {
         ));
       }
       String subInfo = branchName;
-      if (settings.storePhone.isNotEmpty) {
-        subInfo = '$subInfo • ${settings.storePhone}';
+      if (phone.isNotEmpty) {
+        subInfo = '$subInfo • $phone';
       }
       lines.add(ReceiptLineItem(
         type: ReceiptLineType.text,
         text: subInfo,
         alignment: settings.headerAlignment,
       ));
-      if (settings.storeAddress.isNotEmpty) {
+      if (address.isNotEmpty) {
         lines.add(ReceiptLineItem(
           type: ReceiptLineType.text,
-          text: settings.storeAddress,
+          text: address,
           alignment: settings.headerAlignment,
         ));
       }
@@ -313,17 +386,17 @@ class ThermalPrinterService {
         text: branchName,
         alignment: settings.headerAlignment,
       ));
-      if (settings.storeAddress.isNotEmpty) {
+      if (address.isNotEmpty) {
         lines.add(ReceiptLineItem(
           type: ReceiptLineType.header,
-          text: settings.storeAddress,
+          text: address,
           alignment: settings.headerAlignment,
         ));
       }
-      if (settings.storePhone.isNotEmpty) {
+      if (phone.isNotEmpty) {
         lines.add(ReceiptLineItem(
           type: ReceiptLineType.header,
-          text: 'Telp: ${settings.storePhone}',
+          text: 'Telp: $phone',
           alignment: settings.headerAlignment,
         ));
       }
@@ -334,7 +407,15 @@ class ThermalPrinterService {
       ));
     }
 
-    // 2. Receipt Title
+    // 2. Receipt Title (plus optional Reprint header note)
+    if (data.isReprint) {
+      lines.add(const ReceiptLineItem(
+        type: ReceiptLineType.text,
+        text: '-- CETAK ULANG --',
+        alignment: ReceiptHeaderAlignment.center,
+        isBold: true,
+      ));
+    }
     lines.add(ReceiptLineItem(
       type: ReceiptLineType.text,
       text: data.title,
@@ -673,7 +754,13 @@ class ThermalPrinterService {
         case ReceiptLineType.qrCode:
           builder.add(cmdAlignCenter);
           if (line.qrData != null && line.qrData!.trim().isNotEmpty) {
-            builder.add(_buildQrCodeEscPos(line.qrData!, paperWidth: settings.paperWidth));
+            builder.add(
+              buildQrCodeBytes(
+                line.qrData!,
+                paperWidth: settings.paperWidth,
+                useRasterQr: settings.useRasterQr,
+              ),
+            );
           }
           builder.add(_encodeEscPos('${line.text}\n\n'));
           break;
@@ -683,7 +770,7 @@ class ThermalPrinterService {
       }
     }
 
-    builder.add(cmdFeed3Lines);
+    builder.add(_buildFeedLinesCmd(settings.extraFeedLines));
     builder.add(cmdCutPaper);
     return builder.toBytes();
   }
@@ -718,6 +805,9 @@ class ThermalPrinterService {
     // Title
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
+    if (data.isReprint) {
+      builder.add(_encodeEscPos('-- CETAK ULANG --\n'));
+    }
     builder.add(_encodeEscPos('${data.title}\n'));
     builder.add(cmdBoldOff);
     builder.add(_encodeEscPos('$divider\n'));
@@ -785,18 +875,24 @@ class ThermalPrinterService {
     }
     builder.add(_encodeEscPos('$divider\n'));
 
-    // QR Code for Fast Return (both 58mm size4 and 80mm size6)
+    // QR Code for Fast Return (both 58mm size4 and 80mm size6, or raster bitmap)
     if (settings.showQrBarcode && (data.qrData != null || data.bookingCode != null)) {
       final qrString = data.qrData ?? data.bookingCode!;
       builder.add(cmdAlignCenter);
-      builder.add(_buildQrCodeEscPos(qrString, paperWidth: settings.paperWidth));
+      builder.add(
+        buildQrCodeBytes(
+          qrString,
+          paperWidth: settings.paperWidth,
+          useRasterQr: settings.useRasterQr,
+        ),
+      );
       builder.add(_encodeEscPos('$qrString\n\n'));
     }
 
     // Footer & Terms
     _appendFooter(builder, settings, width);
 
-    builder.add(cmdFeed3Lines);
+    builder.add(_buildFeedLinesCmd(settings.extraFeedLines));
     builder.add(cmdCutPaper);
     return builder.toBytes();
   }
@@ -820,6 +916,9 @@ class ThermalPrinterService {
 
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
+    if (data.isReprint) {
+      builder.add(_encodeEscPos('-- CETAK ULANG --\n'));
+    }
     builder.add(_encodeEscPos('${data.title}\n'));
     builder.add(cmdBoldOff);
     builder.add(_encodeEscPos('$divider\n'));
@@ -892,7 +991,7 @@ class ThermalPrinterService {
 
     _appendFooter(builder, settings, width);
 
-    builder.add(cmdFeed3Lines);
+    builder.add(_buildFeedLinesCmd(settings.extraFeedLines));
     builder.add(cmdCutPaper);
     return builder.toBytes();
   }
@@ -916,6 +1015,9 @@ class ThermalPrinterService {
 
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
+    if (data.isReprint) {
+      builder.add(_encodeEscPos('-- CETAK ULANG --\n'));
+    }
     builder.add(_encodeEscPos('${data.title}\n'));
     builder.add(cmdBoldOff);
     builder.add(_encodeEscPos('$divider\n'));
@@ -963,7 +1065,7 @@ class ThermalPrinterService {
 
     _appendFooter(builder, settings, width);
 
-    builder.add(cmdFeed3Lines);
+    builder.add(_buildFeedLinesCmd(settings.extraFeedLines));
     builder.add(cmdCutPaper);
     return builder.toBytes();
   }
@@ -976,6 +1078,9 @@ class ThermalPrinterService {
     final width = settings.paperWidth.columns;
     final dividerChar = settings.separatorStyle == 'double' ? '=' : '-';
     final divider = dividerChar * width;
+    final headerTitle = settings.customShopName.trim().isNotEmpty
+        ? settings.customShopName.trim()
+        : 'TEST PRINT THERMAL';
 
     builder.add(cmdInit);
 
@@ -983,9 +1088,12 @@ class ThermalPrinterService {
     builder.add(cmdAlignCenter);
     builder.add(cmdBoldOn);
     builder.add(cmdDoubleSize);
-    builder.add(_encodeEscPos('RENTCORE TEST PRINT\n'));
+    builder.add(_encodeEscPos('$headerTitle\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
+    if (settings.customBranchName.trim().isNotEmpty) {
+      builder.add(_encodeEscPos('${settings.customBranchName.trim()}\n'));
+    }
     builder.add(_encodeEscPos('Thermal Printer Diagnostic\n'));
     builder.add(_encodeEscPos('$divider\n'));
 
@@ -994,6 +1102,8 @@ class ThermalPrinterService {
     builder.add(_encodeEscPos('${_formatTwoColumn('Lebar Kertas', settings.paperWidth.label, width)}\n'));
     builder.add(_encodeEscPos('${_formatTwoColumn('Mode Cetak', settings.printMode.name.toUpperCase(), width)}\n'));
     builder.add(_encodeEscPos('${_formatTwoColumn('Total Kolom', '$width Karakter', width)}\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('Feed Akhir', '${settings.extraFeedLines} Baris', width)}\n'));
+    builder.add(_encodeEscPos('${_formatTwoColumn('Mode QR', settings.useRasterQr ? 'Raster Bitmap' : 'ESC/POS Native', width)}\n'));
     builder.add(_encodeEscPos('$divider\n'));
 
     // Typography sample
@@ -1020,23 +1130,67 @@ class ThermalPrinterService {
     builder.add(_encodeEscPos('Ruler: $ruler\n'));
     builder.add(_encodeEscPos('$divider\n'));
 
-    // QR Code test (supports both 58mm size4 and 80mm size6)
+    // QR Code test (supports native 58mm/80mm and raster bitmap mode)
     if (settings.showQrBarcode) {
       builder.add(cmdAlignCenter);
-      builder.add(_buildQrCodeEscPos('RENTCORE-TEST-OK', paperWidth: settings.paperWidth));
-      builder.add(_encodeEscPos('RENTCORE-TEST-OK\n\n'));
+      builder.add(
+        buildQrCodeBytes(
+          'TEST-PRINT-OK',
+          paperWidth: settings.paperWidth,
+          useRasterQr: settings.useRasterQr,
+        ),
+      );
+      builder.add(_encodeEscPos('TEST-PRINT-OK\n\n'));
     }
 
     builder.add(cmdAlignCenter);
     builder.add(_encodeEscPos('Hardware siap & berfungsi baik!\n'));
     builder.add(_encodeEscPos('$divider\n'));
 
-    builder.add(cmdFeed3Lines);
+    builder.add(_buildFeedLinesCmd(settings.extraFeedLines));
     builder.add(cmdCutPaper);
     return builder.toBytes();
   }
 
   // --- Header & Footer Helpers ---
+  ({String shopName, String branchName, String address, String phone}) _resolveHeaderFields(
+    ReceiptDataModel? data,
+    ReceiptCustomizationSettings settings,
+  ) {
+    final customShop = settings.customShopName.trim();
+    final dataShop = data?.shopName?.trim() ?? '';
+    final shopName = customShop.isNotEmpty
+        ? customShop
+        : (dataShop.isNotEmpty ? dataShop : 'Toko Rental');
+
+    final customBranch = settings.customBranchName.trim();
+    final dataBranch = data?.branchName.trim() ?? '';
+    final branchName = customBranch.isNotEmpty
+        ? customBranch
+        : (dataBranch.isNotEmpty ? dataBranch : 'Cabang Utama');
+
+    final customAddr = settings.storeAddress.trim();
+    final dataAddr = data?.branchAddress?.trim() ?? '';
+    final address = customAddr.isNotEmpty ? customAddr : dataAddr;
+
+    final customPhone = settings.storePhone.trim();
+    final dataPhone = data?.branchPhone?.trim() ?? '';
+    final phone = customPhone.isNotEmpty ? customPhone : dataPhone;
+
+    return (
+      shopName: shopName,
+      branchName: branchName,
+      address: address,
+      phone: phone,
+    );
+  }
+
+  List<int> _buildFeedLinesCmd(int lines) {
+    final clamped = lines.clamp(0, 15);
+    if (clamped == 0) return const [];
+    return [0x1B, 0x64, clamped];
+  }
+
   void _appendHeader(BytesBuilder builder, ReceiptDataModel data, ReceiptCustomizationSettings settings) {
     if (settings.headerAlignment == ReceiptHeaderAlignment.center) {
       builder.add(cmdAlignCenter);
@@ -1044,26 +1198,25 @@ class ThermalPrinterService {
       builder.add(cmdAlignLeft);
     }
 
-    final shopName = settings.customShopName.isNotEmpty
-        ? settings.customShopName
-        : (data.shopName ?? 'RENTCORE GADGETS');
-    final branchName = settings.customBranchName.isNotEmpty
-        ? settings.customBranchName
-        : data.branchName;
+    final header = _resolveHeaderFields(data, settings);
 
     builder.add(cmdBoldOn);
     builder.add(cmdDoubleSize);
-    builder.add(_encodeEscPos('$shopName\n'));
+    builder.add(_encodeEscPos('${header.shopName}\n'));
     builder.add(cmdNormalSize);
     builder.add(cmdBoldOff);
 
-    builder.add(_encodeEscPos('$branchName\n'));
-
-    if (settings.storeAddress.isNotEmpty) {
-      builder.add(_encodeEscPos('${settings.storeAddress}\n'));
+    if (settings.customSlogan.trim().isNotEmpty) {
+      builder.add(_encodeEscPos('${settings.customSlogan.trim()}\n'));
     }
-    if (settings.storePhone.isNotEmpty) {
-      builder.add(_encodeEscPos('Telp: ${settings.storePhone}\n'));
+
+    builder.add(_encodeEscPos('${header.branchName}\n'));
+
+    if (header.address.isNotEmpty) {
+      builder.add(_encodeEscPos('${header.address}\n'));
+    }
+    if (header.phone.isNotEmpty) {
+      builder.add(_encodeEscPos('Telp: ${header.phone}\n'));
     }
   }
 
@@ -1178,6 +1331,19 @@ class ThermalPrinterService {
   }
 
   // --- QR Code ESC/POS Builder ---
+  /// Builds ESC/POS bytes for a QR code, choosing either native ESC/POS
+  /// `GS ( k` or monochrome raster bitmap `GS v 0` when [useRasterQr] is true.
+  List<int> buildQrCodeBytes(
+    String data, {
+    ReceiptPaperWidth paperWidth = ReceiptPaperWidth.mm80,
+    bool useRasterQr = false,
+  }) {
+    if (useRasterQr) {
+      return _buildQrCodeRasterEscPos(data, paperWidth: paperWidth);
+    }
+    return _buildQrCodeEscPos(data, paperWidth: paperWidth);
+  }
+
   List<int> _buildQrCodeEscPos(
     String data, {
     ReceiptPaperWidth paperWidth = ReceiptPaperWidth.mm80,
@@ -1204,6 +1370,111 @@ class ThermalPrinterService {
     return bytes;
   }
 
+  /// Renders [data] to a monochrome [img.Image] and encodes it with ESC/POS
+  /// `GS v 0` raster bit-image commands for low-cost ESC/POS printers that
+  /// lack native `GS ( k` QR firmware support.
+  List<int> _buildQrCodeRasterEscPos(
+    String data, {
+    ReceiptPaperWidth paperWidth = ReceiptPaperWidth.mm80,
+  }) {
+    final qrCode = QrCode.fromData(
+      data: data,
+      errorCorrectLevel: QrErrorCorrectLevel.M,
+    );
+    final qrImage = QrImage(qrCode);
+    final moduleCount = qrImage.moduleCount;
+    final targetPx = paperWidth == ReceiptPaperWidth.mm58 ? 192 : 256;
+    final modulePx = (targetPx ~/ (moduleCount + 4)).clamp(3, 10);
+    final rawSize = moduleCount * modulePx + modulePx * 4;
+    // Align width to 8-pixel byte boundary for GS v 0
+    final size = ((rawSize + 7) ~/ 8) * 8;
+    final offset = (size - moduleCount * modulePx) ~/ 2;
+
+    final bitmap = img.Image(width: size, height: size);
+    img.fill(bitmap, color: img.ColorRgb8(255, 255, 255));
+
+    for (var row = 0; row < moduleCount; row++) {
+      for (var col = 0; col < moduleCount; col++) {
+        if (qrImage.isDark(row, col)) {
+          final x0 = offset + col * modulePx;
+          final y0 = offset + row * modulePx;
+          img.fillRect(
+            bitmap,
+            x1: x0,
+            y1: y0,
+            x2: x0 + modulePx - 1,
+            y2: y0 + modulePx - 1,
+            color: img.ColorRgb8(0, 0, 0),
+          );
+        }
+      }
+    }
+
+    return encodeRasterImageEscPos(bitmap);
+  }
+
+  /// Encodes a [img.Image] as a 1-bit monochrome ESC/POS `GS v 0` raster image.
+  @visibleForTesting
+  List<int> encodeRasterImageEscPos(img.Image image) {
+    final width = image.width;
+    final height = image.height;
+    final xBytes = (width + 7) ~/ 8;
+    final xL = xBytes & 0xFF;
+    final xH = (xBytes >> 8) & 0xFF;
+    final yL = height & 0xFF;
+    final yH = (height >> 8) & 0xFF;
+
+    final bytes = <int>[0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH];
+    for (var y = 0; y < height; y++) {
+      for (var xByte = 0; xByte < xBytes; xByte++) {
+        var slice = 0;
+        for (var bit = 0; bit < 8; bit++) {
+          final x = xByte * 8 + bit;
+          if (x < width) {
+            final pixel = image.getPixel(x, y);
+            final luminance = (0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b);
+            if (luminance < 128) {
+              slice |= (1 << (7 - bit));
+            }
+          }
+        }
+        bytes.add(slice);
+      }
+    }
+    return bytes;
+  }
+
+  /// Restores the saved printer from SharedPreferences if [_connectedDevice] is null.
+  Future<ThermalPrinterDevice?> loadSavedDeviceFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deviceJson = prefs.getString('rentcore_printer_saved_device_v1');
+      if (deviceJson != null && deviceJson.trim().isNotEmpty) {
+        final decoded = json.decode(deviceJson) as Map<String, dynamic>;
+        final parsed = ThermalPrinterDevice.fromJson(decoded);
+        if (parsed.address.trim().isNotEmpty) return parsed;
+      }
+      final mac = (prefs.getString('mac_address') ??
+              prefs.getString('last_connected_printer_mac') ??
+              prefs.getString('selected_printer_device') ??
+              '')
+          .trim();
+      if (mac.isNotEmpty) {
+        final name = (prefs.getString('printer_name') ??
+                prefs.getString('last_connected_printer_name') ??
+                'Thermal Printer')
+            .trim();
+        return ThermalPrinterDevice(
+          name: name.isNotEmpty ? name : 'Thermal Printer',
+          address: mac,
+        );
+      }
+    } catch (e) {
+      debugPrint('[ThermalPrinterService] loadSavedDeviceFromPrefs error: $e');
+    }
+    return null;
+  }
+
   // ==========================================
   // Print Job Transmission (Normal vs Echo)
   // ==========================================
@@ -1212,16 +1483,30 @@ class ThermalPrinterService {
       _lastEchoLog = 'ECHO OK: ${payload.length} bytes dispatched at ${DateTime.now().toIso8601String()}';
     }
 
-    if (_connectedDevice == null) {
+    _connectedDevice ??= await loadSavedDeviceFromPrefs();
+    if (_connectedDevice == null || _connectedDevice!.address.trim().isEmpty) {
       _lastError = 'Belum ada printer yang dipilih.';
       return false;
     }
 
     try {
-      // 1. Verify active Bluetooth socket connection
+      // 1. Verify runtime Bluetooth permissions before touching socket
+      final bool hasPermission = await _driver.checkAndRequestPermissions();
+      if (!hasPermission) {
+        _lastError = 'Izin Bluetooth ditolak. Aktifkan izin Bluetooth di Pengaturan aplikasi.';
+        return false;
+      }
+
+      // 2. Verify Bluetooth adapter state
+      final bool btAvailable = await _driver.isBluetoothAvailable();
+      if (!btAvailable) {
+        _lastError = 'Bluetooth nonaktif. Silakan nyalakan Bluetooth Anda terlebih dahulu.';
+        return false;
+      }
+
+      // 3. Verify active Bluetooth socket connection; silent reconnect if disconnected
       final bool socketAlive = await _driver.isConnected();
       if (!socketAlive) {
-        // 2. Attempt transparent reconnection handshake
         final bool reconnected = await _driver.connect(_connectedDevice!.address);
         if (!reconnected) {
           _lastError = 'Gagal terhubung ke ${_connectedDevice!.name}. Pastikan printer menyala dan dalam jangkauan.';
@@ -1231,7 +1516,7 @@ class ThermalPrinterService {
         _connectedDevice = _connectedDevice!.copyWith(isConnected: true);
       }
 
-      // 3. Transmit payload bytes
+      // 4. Transmit payload bytes
       final bool success = await _driver.writeBytes(payload);
       if (!success) {
         _lastError = 'Gagal mengirim data cetak ke printer. Periksa status kertas atau koneksi Bluetooth.';

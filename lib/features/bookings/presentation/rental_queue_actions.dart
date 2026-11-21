@@ -7,6 +7,7 @@ import '../../../core/services/thermal_printer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
+import '../../auth/providers/business_provider.dart';
 import '../../cashier/presentation/pos_transaction_detail_sheet.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../home/providers/dashboard_provider.dart';
@@ -362,10 +363,24 @@ class RentalQueueActions {
       final receiptData = await repo.fetchReceipt(receiptId);
 
       if (!context.mounted) return;
-      final branchName =
-          receiptData['outlet_name'] ??
-          booking['affiliate']?['name'] ??
-          'RentCore';
+      final bizState = ref.read(businessProvider);
+      final affiliate = booking['affiliate'] as Map?;
+      final shopName = (receiptData['business_name']?.toString() ??
+              bizState.resolvedStoreName)
+          .trim();
+      final rawBranch = (receiptData['outlet_name']?.toString() ??
+              affiliate?['name']?.toString() ??
+              bizState.resolvedBranchName)
+          .trim();
+      final branchName = rawBranch.isNotEmpty ? rawBranch : 'Cabang Utama';
+      final branchAddress = (receiptData['outlet_address']?.toString() ??
+              affiliate?['address']?.toString() ??
+              bizState.resolvedBranchAddress)
+          .trim();
+      final branchPhone = (receiptData['outlet_phone']?.toString() ??
+              affiliate?['phone']?.toString() ??
+              bizState.resolvedBranchPhone)
+          .trim();
       final cashierName = receiptData['cashier_name'] ?? 'Kasir';
       final receiptNum =
           receiptData['receipt_number'] ?? booking['booking_code'] ?? '-';
@@ -383,7 +398,11 @@ class RentalQueueActions {
       final model = ReceiptDataModel(
         type: ReceiptType.posPayment,
         title: 'STRUK TRANSAKSI SEWA',
+        shopName: shopName.isNotEmpty ? shopName : null,
         branchName: branchName,
+        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+        isReprint: true,
         receiptNumber: receiptNum,
         bookingCode: booking['booking_code']?.toString(),
         customerName: customerName,
@@ -405,7 +424,12 @@ class RentalQueueActions {
         context: context,
         builder: (ctx) => ThermalReceiptPreviewDialog(
           title: 'Struk Transaksi Sewa',
+          shopName: shopName.isNotEmpty ? shopName : null,
           branchName: branchName,
+          branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+          branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
+          isReprint: true,
+          qrData: booking['booking_code']?.toString(),
           escposBytes: escposBytes,
           content: Column(
             children: [

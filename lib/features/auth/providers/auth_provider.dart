@@ -217,6 +217,48 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  /// Syncs updated business profile fields into any cached user metadata in memory
+  /// so no stale business name remains on `authProvider.user`.
+  void syncUpdatedBusiness(int businessId, Map<String, dynamic> updatedFields) {
+    final currentUser = state.user;
+    if (currentUser == null) return;
+    final targetKey = normalizeEntityId(businessId);
+    final nextUser = Map<String, dynamic>.from(currentUser);
+    var changed = false;
+
+    final userBusinesses = nextUser['businesses'];
+    if (userBusinesses is List) {
+      nextUser['businesses'] = userBusinesses.map((raw) {
+        if (raw is Map) {
+          final b = Map<String, dynamic>.from(raw);
+          if (normalizeEntityId(b['id']) == targetKey) {
+            updatedFields.forEach((key, value) {
+              if (key != 'branches' || value != null) b[key] = value;
+            });
+            changed = true;
+          }
+          return b;
+        }
+        return raw;
+      }).toList();
+    }
+
+    final singleBusiness = nextUser['business'];
+    if (singleBusiness is Map &&
+        normalizeEntityId(singleBusiness['id']) == targetKey) {
+      final updated = Map<String, dynamic>.from(singleBusiness);
+      updatedFields.forEach((key, value) {
+        if (key != 'branches' || value != null) updated[key] = value;
+      });
+      nextUser['business'] = updated;
+      changed = true;
+    }
+
+    if (changed) {
+      state = state.copyWith(user: nextUser);
+    }
+  }
+
   Future<bool> updatePassword({
     String? currentPassword,
     required String newPassword,

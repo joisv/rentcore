@@ -1286,7 +1286,13 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
             onPressed: () {
               final printerService = ThermalPrinterService();
               final printerSettings = ref.read(printerProvider).settings;
-              final branchName = ref.read(businessProvider).activeBranchName ?? 'RentCore';
+              final bizState = ref.read(businessProvider);
+              final shopName = bizState.resolvedStoreName;
+              final branchName = bizState.resolvedBranchName.isNotEmpty
+                  ? bizState.resolvedBranchName
+                  : 'Cabang Utama';
+              final branchAddress = bizState.resolvedBranchAddress;
+              final branchPhone = bizState.resolvedBranchPhone;
               final checklistSummary = _isQuarantined
                   ? 'Status: Karantina (Maintenance)'
                   : (_isSmartphone
@@ -1301,7 +1307,10 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               final model = ReceiptDataModel(
                 type: ReceiptType.rentalReturn,
                 title: 'BUKTI PENGEMBALIAN UNIT',
+                shopName: shopName.isNotEmpty ? shopName : null,
                 branchName: branchName,
+                branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+                branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
                 bookingCode: widget.booking['booking_code']?.toString() ?? '',
                 customerName: widget.booking['customer']?['name']?.toString() ?? 'Pelanggan',
                 unitName: widget.booking['asset']?['name']?.toString() ?? 'Perangkat Gadget',
@@ -1318,7 +1327,10 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 context: context,
                 builder: (dCtx) => ThermalReceiptPreviewDialog(
                   title: 'Bukti Pengembalian',
+                  shopName: shopName.isNotEmpty ? shopName : null,
                   branchName: branchName,
+                  branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
+                  branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
                   escposBytes: escposBytes,
                   qrData: widget.booking['booking_code']?.toString(),
                   content: Column(

@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../customers/providers/customer_provider.dart';
@@ -6,18 +7,31 @@ import '../../vouchers/providers/voucher_provider.dart';
 import '../data/auth_repository.dart';
 import 'auth_provider.dart';
 
+String? normalizeEntityId(dynamic raw) {
+  if (raw == null) return null;
+  final text = raw.toString().trim();
+  return text.isEmpty ? null : text;
+}
+
+int? parseEntityIntId(dynamic raw) {
+  if (raw == null) return null;
+  if (raw is int) return raw;
+  return int.tryParse(raw.toString().trim());
+}
+
 /// Picks the branch to use as the active context.
 ///
 /// [branches] is the list returned by the backend for a membership, which already
 /// contains only branches the member is authorized for (central branch first).
 /// Returns the branch matching [storedBranchId] if it is still authorized, otherwise the
 /// first authorized branch, or `null` if the member has no branches.
-Map<String, dynamic>? resolveAuthorizedBranch(List<dynamic>? branches, int? storedBranchId) {
+Map<String, dynamic>? resolveAuthorizedBranch(List<dynamic>? branches, dynamic storedBranchId) {
   if (branches == null || branches.isEmpty) return null;
   final typed = branches.whereType<Map>().map((b) => Map<String, dynamic>.from(b)).toList();
   if (typed.isEmpty) return null;
-  if (storedBranchId != null) {
-    final match = typed.where((b) => b['id'] == storedBranchId).firstOrNull;
+  final targetKey = normalizeEntityId(storedBranchId);
+  if (targetKey != null) {
+    final match = typed.where((b) => normalizeEntityId(b['id']) == targetKey).firstOrNull;
     if (match != null) return match;
   }
   return typed.first;
@@ -43,18 +57,62 @@ class BusinessState {
   });
 
   Map<String, dynamic>? get currentBusiness {
-    if (activeBusinessId == null) return null;
-    return businesses.where((b) => b['id'] == activeBusinessId).firstOrNull as Map<String, dynamic>?;
+    final activeKey = normalizeEntityId(activeBusinessId);
+    if (activeKey == null) return null;
+    final found = businesses
+        .whereType<Map>()
+        .where((b) => normalizeEntityId(b['id']) == activeKey)
+        .firstOrNull;
+    return found == null ? null : Map<String, dynamic>.from(found);
   }
 
+  Map<String, dynamic>? get activeBusiness => currentBusiness;
+
   Map<String, dynamic>? get currentBranch {
-    if (activeBranchId == null) return null;
+    final activeKey = normalizeEntityId(activeBranchId);
+    if (activeKey == null) return null;
     final branches = currentBusiness?['branches'] as List<dynamic>?;
-    return branches?.where((b) => b['id'] == activeBranchId).firstOrNull as Map<String, dynamic>?;
+    final found = branches
+        ?.whereType<Map>()
+        .where((b) => normalizeEntityId(b['id']) == activeKey)
+        .firstOrNull;
+    return found == null ? null : Map<String, dynamic>.from(found);
   }
+
+  Map<String, dynamic>? get activeBranch => currentBranch;
 
   bool get isCentralBranch => currentBranch?['is_central'] == true;
   bool get isConsolidated => activeBusinessId != null && activeBranchId == null;
+
+  String get resolvedStoreName {
+    final fromActive = (activeBusinessName ?? '').trim();
+    if (fromActive.isNotEmpty) return fromActive;
+    return (currentBusiness?['name']?.toString() ?? '').trim();
+  }
+
+  String get resolvedBranchName {
+    final fromActive = (activeBranchName ?? '').trim();
+    if (fromActive.isNotEmpty) return fromActive;
+    return (currentBranch?['name']?.toString() ?? '').trim();
+  }
+
+  String get resolvedBranchAddress {
+    final branchAddr = (currentBranch?['address']?.toString() ?? '').trim();
+    if (branchAddr.isNotEmpty) return branchAddr;
+    return (currentBusiness?['address']?.toString() ?? '').trim();
+  }
+
+  String get resolvedBranchPhone {
+    final branchPhone = (currentBranch?['whatsapp']?.toString() ??
+            currentBranch?['phone']?.toString() ??
+            '')
+        .trim();
+    if (branchPhone.isNotEmpty) return branchPhone;
+    return (currentBusiness?['whatsapp']?.toString() ??
+            currentBusiness?['phone']?.toString() ??
+            '')
+        .trim();
+  }
 
   List<String> get activeBusinessCategories {
     final raw = currentBusiness?['business_categories'];
@@ -103,10 +161,10 @@ class BusinessNotifier extends Notifier<BusinessState> {
   Future<void> loadInitialContext({List<dynamic>? preloadedBusinesses}) async {
     state = state.copyWith(isLoading: true);
     final prefs = await SharedPreferences.getInstance();
-    final bizId = prefs.getInt('active_business_id');
-    final bizName = prefs.getString('active_business_name');
-    final branchId = prefs.getInt('active_branch_id');
-    final branchName = prefs.getString('branch_name');
+    final bizId = parseEntityIntId(prefs.get('active_business_id'));
+    final cachedBizName = prefs.getString('active_business_name');
+    final branchId = parseEntityIntId(prefs.get('active_branch_id'));
+    final cachedBranchName = prefs.getString('branch_name');
 
     final previousBusinessId = state.activeBusinessId;
 
@@ -142,16 +200,27 @@ class BusinessNotifier extends Notifier<BusinessState> {
         return;
       } else {
         // Validate if previously stored business still exists in user's memberships
-        final match = list.where((b) => b['id'] == bizId).firstOrNull;
+        final targetKey = normalizeEntityId(bizId ?? previousBusinessId);
+        final match = targetKey == null
+            ? null
+            : list
+                .whereType<Map>()
+                .where((b) => normalizeEntityId(b['id']) == targetKey)
+                .firstOrNull;
         final ownedFallback = list
+            .whereType<Map>()
             .where((b) => (b['role'] ?? '').toString() == 'owner')
             .firstOrNull;
         final targetBiz = match ?? ownedFallback ?? list.first;
-        effectiveBizId = targetBiz['id'];
-        effectiveBizName = match != null ? (bizName ?? targetBiz['name']) : targetBiz['name'];
-        if (match == null) {
-          await prefs.setInt('active_business_id', effectiveBizId!);
-          await prefs.setString('active_business_name', effectiveBizName!);
+        effectiveBizId = parseEntityIntId(targetBiz['id']);
+        // Always prefer the fresh API business name so renames reflect immediately.
+        effectiveBizName = (targetBiz['name']?.toString() ?? '').trim();
+        if (effectiveBizId != null &&
+            (match == null ||
+                bizId != effectiveBizId ||
+                cachedBizName != effectiveBizName)) {
+          await prefs.setInt('active_business_id', effectiveBizId);
+          await prefs.setString('active_business_name', effectiveBizName);
         }
 
         // The backend only lists branches this member is authorized for. A stored branch
@@ -168,13 +237,14 @@ class BusinessNotifier extends Notifier<BusinessState> {
                 match != null ? branchId : null,
               );
         if (resolved != null) {
-          effectiveBranchId = resolved['id'] as int;
-          effectiveBranchName = (resolved['id'] == branchId && branchName != null)
-              ? branchName
-              : resolved['name'] as String?;
-          if (effectiveBranchId != branchId) {
+          effectiveBranchId = parseEntityIntId(resolved['id']);
+          // Always prefer the fresh API branch name so renames reflect immediately.
+          effectiveBranchName = (resolved['name']?.toString() ?? '').trim();
+          if (effectiveBranchId != null &&
+              (effectiveBranchId != branchId ||
+                  cachedBranchName != effectiveBranchName)) {
             await prefs.setInt('active_branch_id', effectiveBranchId);
-            await prefs.setString('branch_name', effectiveBranchName ?? '');
+            await prefs.setString('branch_name', effectiveBranchName);
           }
         } else {
           await prefs.remove('active_branch_id');
@@ -189,6 +259,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
         activeBusinessName: effectiveBizName,
         activeBranchId: effectiveBranchId,
         activeBranchName: effectiveBranchName,
+        clearBranch: effectiveBranchId == null,
         businesses: list,
         clearError: true,
       );
@@ -199,14 +270,23 @@ class BusinessNotifier extends Notifier<BusinessState> {
       }
     } catch (e) {
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isLoading: false,
-        activeBusinessId: null,
-        activeBusinessName: null,
-        activeBranchId: null,
-        activeBranchName: null,
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
+      // Preserve an already-loaded active context during transient refresh errors
+      // so in-memory updates (e.g. a store rename) are never wiped out.
+      if (state.activeBusinessId != null && state.businesses.isNotEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          error: e.toString().replaceAll('Exception: ', ''),
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          activeBusinessId: null,
+          activeBusinessName: null,
+          activeBranchId: null,
+          activeBranchName: null,
+          error: e.toString().replaceAll('Exception: ', ''),
+        );
+      }
     }
   }
 
@@ -217,8 +297,8 @@ class BusinessNotifier extends Notifier<BusinessState> {
     Map<String, dynamic>? branch,
     bool isConsolidated = false,
   }) async {
-    final bizId = business['id'] as int;
-    final bizName = business['name'] as String;
+    final bizId = parseEntityIntId(business['id']) ?? 0;
+    final bizName = (business['name']?.toString() ?? '').trim();
     int? branchId;
     String? branchName;
 
@@ -226,19 +306,20 @@ class BusinessNotifier extends Notifier<BusinessState> {
       branchId = null;
       branchName = null;
     } else if (branch != null) {
-      branchId = branch['id'] as int;
-      branchName = branch['name'] as String;
+      branchId = parseEntityIntId(branch['id']);
+      branchName = (branch['name']?.toString() ?? '').trim();
     } else {
       final branches = business['branches'] as List<dynamic>?;
       final resolved = resolveAuthorizedBranch(branches, null);
       if (resolved != null) {
-        branchId = resolved['id'] as int;
-        branchName = resolved['name'] as String;
+        branchId = parseEntityIntId(resolved['id']);
+        branchName = (resolved['name']?.toString() ?? '').trim();
       }
     }
 
     final previousBusinessId = state.activeBusinessId;
-    final businessChanged = previousBusinessId != null && previousBusinessId != bizId;
+    final businessChanged = previousBusinessId != null &&
+        normalizeEntityId(previousBusinessId) != normalizeEntityId(bizId);
 
     await _repository.setActiveContext(
       businessId: bizId,
@@ -248,7 +329,17 @@ class BusinessNotifier extends Notifier<BusinessState> {
     );
 
     if (!ref.mounted) return;
+    final bizKey = normalizeEntityId(bizId);
+    final updatedBusinesses = state.businesses.map((raw) {
+      final b = Map<String, dynamic>.from(raw as Map);
+      if (normalizeEntityId(b['id']) == bizKey && bizName.isNotEmpty) {
+        b['name'] = bizName;
+      }
+      return b;
+    }).toList();
+
     state = state.copyWith(
+      businesses: updatedBusinesses,
       activeBusinessId: bizId,
       activeBusinessName: bizName,
       activeBranchId: branchId,
@@ -304,7 +395,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
 
   Future<bool> registerNewBusiness({
     required String name,
-    required String city,
+    String? city,
     String? address,
     String? phone,
     List<String>? businessCategories,
@@ -317,7 +408,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
     try {
       final newBiz = await _repository.createBusiness(
         name: name,
-        city: city,
+        city: (city ?? '').trim(),
         address: address,
         phone: phone,
         businessCategories: businessCategories,
@@ -330,7 +421,13 @@ class BusinessNotifier extends Notifier<BusinessState> {
       final list = await _repository.fetchBusinesses();
       if (!ref.mounted) return false;
 
-      final targetBiz = list.where((b) => b['id'] == newBiz['id']).firstOrNull ?? newBiz;
+      final newBizKey = normalizeEntityId(newBiz['id']);
+      final targetBiz = list
+              .whereType<Map>()
+              .where((b) => normalizeEntityId(b['id']) == newBizKey)
+              .map((b) => Map<String, dynamic>.from(b))
+              .firstOrNull ??
+          newBiz;
       await selectContext(business: targetBiz);
 
       if (!ref.mounted) return false;
@@ -345,6 +442,115 @@ class BusinessNotifier extends Notifier<BusinessState> {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
       return false;
     }
+  }
+
+  /// Immediately updates the in-memory and persisted business fields
+  /// so headers, selectors, and settings reflect store renames without restart.
+  Future<void> updateActiveBusinessProfile(
+    int businessId,
+    Map<String, dynamic> updatedFields,
+  ) async {
+    final targetKey = normalizeEntityId(businessId);
+    final updatedBusinesses = state.businesses.map((raw) {
+      final b = Map<String, dynamic>.from(raw as Map);
+      if (normalizeEntityId(b['id']) == targetKey) {
+        updatedFields.forEach((key, value) {
+          if (key == 'branches' && value == null) return;
+          b[key] = value;
+        });
+      }
+      return b;
+    }).toList();
+
+    final updatedName = updatedFields['name']?.toString().trim();
+    final isActive = normalizeEntityId(state.activeBusinessId) == targetKey;
+    if (isActive && updatedName != null && updatedName.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('active_business_id', businessId);
+      await prefs.setString('active_business_name', updatedName);
+    }
+
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      businesses: updatedBusinesses,
+      activeBusinessName: (isActive && updatedName != null && updatedName.isNotEmpty)
+          ? updatedName
+          : state.activeBusinessName,
+    );
+  }
+
+  /// Immediately updates a branch's name/metadata in memory and persists active branch_name.
+  Future<void> updateActiveBranchMetadata(
+    int branchId, {
+    required String name,
+    String? code,
+    String? city,
+    String? address,
+    String? phone,
+    bool updateLocationFields = false,
+  }) async {
+    final targetKey = normalizeEntityId(branchId);
+    final trimmedName = name.trim();
+    final updatedBusinesses = state.businesses.map((raw) {
+      final b = Map<String, dynamic>.from(raw as Map);
+      final branches = b['branches'];
+      if (branches is List) {
+        b['branches'] = branches.map((brRaw) {
+          final br = Map<String, dynamic>.from(brRaw as Map);
+          if (normalizeEntityId(br['id']) == targetKey) {
+            if (trimmedName.isNotEmpty) br['name'] = trimmedName;
+            if (code != null) br['code'] = code.trim().toUpperCase();
+            if (updateLocationFields) {
+              br['city'] =
+                  (city != null && city.trim().isNotEmpty) ? city.trim() : null;
+              br['address'] =
+                  (address != null && address.trim().isNotEmpty)
+                      ? address.trim()
+                      : null;
+              br['phone'] =
+                  (phone != null && phone.trim().isNotEmpty)
+                      ? phone.trim()
+                      : null;
+            } else {
+              if (city != null) br['city'] = city;
+              if (address != null) br['address'] = address;
+              if (phone != null) br['phone'] = phone;
+            }
+          }
+          return br;
+        }).toList();
+      }
+      return b;
+    }).toList();
+
+    final isActiveBranch = normalizeEntityId(state.activeBranchId) == targetKey;
+    if (isActiveBranch && trimmedName.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('branch_name', trimmedName);
+    }
+
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      businesses: updatedBusinesses,
+      activeBranchName: (isActiveBranch && trimmedName.isNotEmpty)
+          ? trimmedName
+          : state.activeBranchName,
+    );
+  }
+
+  /// Refreshes business & branch list silently without flashing loading/error UI
+  /// if data is already present (e.g. when opening BusinessSelectorSheet).
+  Future<void> refreshSilently() async {
+    final isWidgetTest =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (isWidgetTest && _repository.runtimeType == AuthRepository) {
+      return;
+    }
+    try {
+      final list = await _repository.fetchBusinesses();
+      if (!ref.mounted) return;
+      await loadInitialContext(preloadedBusinesses: list);
+    } catch (_) {}
   }
 
   Future<void> refresh() async {

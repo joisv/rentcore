@@ -9,6 +9,11 @@ import '../../auth/providers/business_provider.dart';
 const String _kPrinterSettingsKey = 'rentcore_printer_settings_v1';
 const String _kPrinterSavedDeviceKey = 'rentcore_printer_saved_device_v1';
 const String _kHasEverConnectedPrinterPrefix = 'has_ever_connected_printer';
+const String _kPrefMacAddress = 'mac_address';
+const String _kPrefPrinterName = 'printer_name';
+const String _kPrefPaperWidth = 'paper_width';
+const String _kPrefExtraFeedLines = 'extra_feed_lines';
+const String _kPrefUseRasterQr = 'use_raster_qr';
 
 class PrinterState {
   final ThermalPrinterDevice? connectedDevice;
@@ -106,9 +111,10 @@ class PrinterNotifier extends Notifier<PrinterState> {
   bool _hasSavedPrinterConfig(SharedPreferences prefs) {
     final deviceJson = prefs.getString(_kPrinterSavedDeviceKey);
     if (deviceJson != null && deviceJson.trim().isNotEmpty) return true;
-    final legacyMac = prefs.getString('last_connected_printer_mac') ??
+    final mac = prefs.getString(_kPrefMacAddress) ??
+        prefs.getString('last_connected_printer_mac') ??
         prefs.getString('selected_printer_device');
-    return legacyMac != null && legacyMac.trim().isNotEmpty;
+    return mac != null && mac.trim().isNotEmpty;
   }
 
   Future<bool> _readAndSyncEverConnectedFlag(
@@ -165,7 +171,7 @@ class PrinterNotifier extends Notifier<PrinterState> {
       final prefs = await SharedPreferences.getInstance();
       if (!ref.mounted) return;
 
-      // 1. Load saved customization settings
+      // 1. Load saved customization settings & hydrate explicit flat keys
       final settingsJson = prefs.getString(_kPrinterSettingsKey);
       ReceiptCustomizationSettings settings = const ReceiptCustomizationSettings();
       if (settingsJson != null) {
@@ -176,8 +182,20 @@ class PrinterNotifier extends Notifier<PrinterState> {
           debugPrint('[PrinterNotifier] Error parsing saved settings: $e');
         }
       }
+      final savedPaperWidth = prefs.getInt(_kPrefPaperWidth);
+      final savedExtraFeed = prefs.getInt(_kPrefExtraFeedLines);
+      final savedRasterQr = prefs.getBool(_kPrefUseRasterQr);
+      if (savedPaperWidth != null || savedExtraFeed != null || savedRasterQr != null) {
+        settings = settings.copyWith(
+          paperWidth: savedPaperWidth == 80
+              ? ReceiptPaperWidth.mm80
+              : (savedPaperWidth == 58 ? ReceiptPaperWidth.mm58 : null),
+          extraFeedLines: savedExtraFeed,
+          useRasterQr: savedRasterQr,
+        );
+      }
 
-      // 2. Load saved device
+      // 2. Load saved device (JSON or explicit mac_address/printer_name keys)
       final deviceJson = prefs.getString(_kPrinterSavedDeviceKey);
       ThermalPrinterDevice? device;
       if (deviceJson != null) {
@@ -189,14 +207,16 @@ class PrinterNotifier extends Notifier<PrinterState> {
         }
       }
 
-      // Check legacy or alternate persistent keys if null
-      if (device == null) {
-        final legacyMac = prefs.getString('last_connected_printer_mac') ??
+      if (device == null || device.address.trim().isEmpty) {
+        final savedMac = prefs.getString(_kPrefMacAddress) ??
+            prefs.getString('last_connected_printer_mac') ??
             prefs.getString('selected_printer_device');
-        if (legacyMac != null && legacyMac.trim().isNotEmpty) {
+        if (savedMac != null && savedMac.trim().isNotEmpty) {
           device = ThermalPrinterDevice(
-            name: prefs.getString('last_connected_printer_name') ?? 'Thermal Printer',
-            address: legacyMac.trim(),
+            name: prefs.getString(_kPrefPrinterName) ??
+                prefs.getString('last_connected_printer_name') ??
+                'Thermal Printer',
+            address: savedMac.trim(),
           );
         }
       }
@@ -304,6 +324,16 @@ class PrinterNotifier extends Notifier<PrinterState> {
     );
 
     try {
+      final hasPerm = await _service.driver.checkAndRequestPermissions();
+      if (!hasPerm) {
+        state = state.copyWith(
+          isConnecting: false,
+          status: PrinterConnectionStatus.error,
+          errorMessage: 'Izin Bluetooth ditolak. Aktifkan izin Perangkat Terdekat (Bluetooth) di Pengaturan aplikasi.',
+        );
+        return false;
+      }
+
       final isBtOn = await _service.driver.isBluetoothAvailable();
       if (!isBtOn) {
         state = state.copyWith(
@@ -319,9 +349,11 @@ class PrinterNotifier extends Notifier<PrinterState> {
         final connected = device.copyWith(isConnected: true);
         _service.setConnectedDevice(connected);
 
-        // Persist saved device & scoped ever-connected flag
+        // Persist saved device, flat mac_address/printer_name keys & scoped ever-connected flag
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_kPrinterSavedDeviceKey, json.encode(connected.toJson()));
+        await prefs.setString(_kPrefMacAddress, connected.address);
+        await prefs.setString(_kPrefPrinterName, connected.name);
         await prefs.setBool(_resolveCurrentScopeKey(prefs), true);
 
         state = state.copyWith(
@@ -356,6 +388,8 @@ class PrinterNotifier extends Notifier<PrinterState> {
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kPrinterSavedDeviceKey);
+      await prefs.remove(_kPrefMacAddress);
+      await prefs.remove(_kPrefPrinterName);
 
       state = state.copyWith(
         clearConnectedDevice: true,
@@ -371,6 +405,12 @@ class PrinterNotifier extends Notifier<PrinterState> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kPrinterSettingsKey, json.encode(newSettings.toJson()));
+      await prefs.setInt(
+        _kPrefPaperWidth,
+        newSettings.paperWidth == ReceiptPaperWidth.mm80 ? 80 : 58,
+      );
+      await prefs.setInt(_kPrefExtraFeedLines, newSettings.extraFeedLines);
+      await prefs.setBool(_kPrefUseRasterQr, newSettings.useRasterQr);
     } catch (e) {
       debugPrint('[PrinterNotifier] Save settings error: $e');
     }
@@ -386,11 +426,29 @@ class PrinterNotifier extends Notifier<PrinterState> {
     await saveSettings(updated);
   }
 
-  Future<bool> printTestReceipt() async {
+  Future<void> setExtraFeedLines(int lines) async {
+    final updated = state.settings.copyWith(extraFeedLines: lines.clamp(0, 15));
+    await saveSettings(updated);
+  }
+
+  Future<void> setUseRasterQr(bool enabled) async {
+    final updated = state.settings.copyWith(useRasterQr: enabled);
+    await saveSettings(updated);
+  }
+
+  /// Ensures [_service.connectedDevice] is populated from state or SharedPreferences
+  /// and sends [bytes] via [_service.sendPrintJob] (which silently auto-reconnects if disconnected).
+  Future<bool> sendRawBytes(Uint8List bytes) async {
     if (state.isPrinting) return false;
     state = state.copyWith(isPrinting: true, clearError: true);
     try {
-      if (state.connectedDevice == null) {
+      ThermalPrinterDevice? target =
+          state.connectedDevice ?? _service.connectedDevice ?? await _service.loadSavedDeviceFromPrefs();
+      if (target != null && _service.connectedDevice == null) {
+        _service.setConnectedDevice(target);
+      }
+
+      if (target == null || target.address.trim().isEmpty) {
         state = state.copyWith(
           isPrinting: false,
           errorMessage: 'Belum ada printer yang dipilih. Silakan hubungkan printer dari daftar.',
@@ -398,11 +456,47 @@ class PrinterNotifier extends Notifier<PrinterState> {
         return false;
       }
 
-      final isBtOn = await _service.driver.isBluetoothAvailable();
-      if (!isBtOn) {
+      final success = await _service.sendPrintJob(bytes, state.settings.printMode);
+      if (!success) {
+        final err = _service.lastError ?? 'Gagal mencetak. Periksa koneksi printer.';
         state = state.copyWith(
           isPrinting: false,
-          errorMessage: 'Bluetooth nonaktif. Silakan nyalakan Bluetooth Anda terlebih dahulu.',
+          connectedDevice: _service.connectedDevice ?? target.copyWith(isConnected: false),
+          status: PrinterConnectionStatus.disconnected,
+          errorMessage: err,
+        );
+        return false;
+      }
+
+      state = state.copyWith(
+        isPrinting: false,
+        status: PrinterConnectionStatus.connected,
+        connectedDevice: (_service.connectedDevice ?? target).copyWith(isConnected: true),
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isPrinting: false,
+        errorMessage: 'Gagal mengirim data ke printer: $e',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> printTestReceipt() async {
+    if (state.isPrinting) return false;
+    state = state.copyWith(isPrinting: true, clearError: true);
+    try {
+      ThermalPrinterDevice? target =
+          state.connectedDevice ?? _service.connectedDevice ?? await _service.loadSavedDeviceFromPrefs();
+      if (target != null && _service.connectedDevice == null) {
+        _service.setConnectedDevice(target);
+      }
+
+      if (target == null || target.address.trim().isEmpty) {
+        state = state.copyWith(
+          isPrinting: false,
+          errorMessage: 'Belum ada printer yang dipilih. Silakan hubungkan printer dari daftar.',
         );
         return false;
       }
@@ -422,6 +516,8 @@ class PrinterNotifier extends Notifier<PrinterState> {
         final err = _service.lastError ?? 'Gagal mengirim test print. Periksa koneksi printer.';
         state = state.copyWith(
           isPrinting: false,
+          connectedDevice: _service.connectedDevice ?? target.copyWith(isConnected: false),
+          status: PrinterConnectionStatus.disconnected,
           errorMessage: err,
         );
         return false;
@@ -430,7 +526,7 @@ class PrinterNotifier extends Notifier<PrinterState> {
       state = state.copyWith(
         isPrinting: false,
         status: PrinterConnectionStatus.connected,
-        connectedDevice: state.connectedDevice?.copyWith(isConnected: true),
+        connectedDevice: (_service.connectedDevice ?? target).copyWith(isConnected: true),
         lastEchoLog: state.settings.printMode == PrintMode.echo
             ? '[ECHO CETAK BERHASIL]\n'
                 'Waktu: ${DateTime.now().toString().substring(0, 19)}\n'
@@ -452,7 +548,13 @@ class PrinterNotifier extends Notifier<PrinterState> {
     if (state.isPrinting) return false;
     state = state.copyWith(isPrinting: true, clearError: true);
     try {
-      if (state.connectedDevice == null) {
+      ThermalPrinterDevice? target =
+          state.connectedDevice ?? _service.connectedDevice ?? await _service.loadSavedDeviceFromPrefs();
+      if (target != null && _service.connectedDevice == null) {
+        _service.setConnectedDevice(target);
+      }
+
+      if (target == null || target.address.trim().isEmpty) {
         state = state.copyWith(
           isPrinting: false,
           errorMessage: 'Belum ada printer yang dipilih atau terhubung.',
@@ -460,14 +562,12 @@ class PrinterNotifier extends Notifier<PrinterState> {
         return false;
       }
 
-      final isBtOn = await _service.driver.isBluetoothAvailable();
-      if (!isBtOn) {
-        state = state.copyWith(
-          isPrinting: false,
-          errorMessage: 'Bluetooth nonaktif. Silakan nyalakan Bluetooth Anda.',
-        );
-        return false;
-      }
+      final biz = ref.exists(businessProvider) ? ref.read(businessProvider) : null;
+      final resolvedShopName = (data.shopName != null && data.shopName!.trim().isNotEmpty)
+          ? data.shopName!.trim()
+          : (biz != null && biz.resolvedStoreName.isNotEmpty ? biz.resolvedStoreName : 'Toko Rental');
+      final resolvedAddress = data.branchAddress ?? (biz?.resolvedBranchAddress);
+      final resolvedPhone = data.branchPhone ?? (biz?.resolvedBranchPhone);
 
       Uint8List bytes;
       if (state.settings.printMode == PrintMode.echo) {
@@ -496,16 +596,23 @@ class PrinterNotifier extends Notifier<PrinterState> {
               totalTransactions: data.shiftTotalTransactions ?? 1,
               totalRevenue: data.totalAmount,
               paymentBreakdown: data.shiftBreakdown ?? {'Tunai': data.totalAmount},
+              shopName: resolvedShopName,
+              branchAddress: resolvedAddress,
+              branchPhone: resolvedPhone,
+              settings: state.settings,
             );
             break;
           case ReceiptType.voucherSlip:
             bytes = _service.buildVoucherSlipBytes(
-              shopName: data.shopName ?? 'RENTCORE GADGETS',
+              shopName: resolvedShopName,
               branchName: data.branchName,
               voucherCode: data.bookingCode ?? 'PROMO',
               discountPercentage: data.discount ?? 10.0,
               minTransaction: data.subtotal ?? 100000.0,
               validUntil: data.rentalEndDate ?? '-',
+              branchAddress: resolvedAddress,
+              branchPhone: resolvedPhone,
+              settings: state.settings,
             );
             break;
           case ReceiptType.testPrint:
@@ -520,6 +627,8 @@ class PrinterNotifier extends Notifier<PrinterState> {
         final err = _service.lastError ?? 'Gagal mencetak struk transaksi. Periksa koneksi printer.';
         state = state.copyWith(
           isPrinting: false,
+          connectedDevice: _service.connectedDevice ?? target.copyWith(isConnected: false),
+          status: PrinterConnectionStatus.disconnected,
           errorMessage: err,
         );
         return false;
@@ -528,7 +637,7 @@ class PrinterNotifier extends Notifier<PrinterState> {
       state = state.copyWith(
         isPrinting: false,
         status: PrinterConnectionStatus.connected,
-        connectedDevice: state.connectedDevice?.copyWith(isConnected: true),
+        connectedDevice: (_service.connectedDevice ?? target).copyWith(isConnected: true),
         lastEchoLog: state.settings.printMode == PrintMode.echo
             ? '[ECHO STRUK]\n'
                 'Judul: ${data.title}\n'

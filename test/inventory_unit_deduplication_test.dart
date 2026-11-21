@@ -185,7 +185,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify Tab 0 is selected
-    expect(find.text('Unit Fisik (Inventaris)'), findsOneWidget);
+    expect(find.text('Unit Fisik'), findsOneWidget);
+    expect(find.text('Unit Fisik (Inventaris)'), findsNothing);
 
     // Verify unit 101 (IP15P-MTR-001) is rendered EXACTLY once, not duplicated
     expect(find.text('IP15P-MTR-001'), findsOneWidget);

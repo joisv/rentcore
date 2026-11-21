@@ -153,6 +153,39 @@ class BookingRepository {
     return [];
   }
 
+  /// Fetch ready physical units enriched with interval-overlap availability
+  /// (`is_available_for_window`, `conflict_reason`) for a specific [startAt, endAt) window.
+  Future<List<Map<String, dynamic>>> fetchAssetsForWindow({
+    required int branchId,
+    required DateTime startAt,
+    required DateTime endAt,
+  }) async {
+    final response = await _client.dio.get(
+      ApiConstants.assets,
+      queryParameters: {
+        'status': 'ready',
+        'branch_id': branchId.toString(),
+        'start_at': startAt.toUtc().toIso8601String(),
+        'end_at': endAt.toUtc().toIso8601String(),
+      },
+      options: Options(headers: {'X-Branch-Id': branchId.toString()}),
+    );
+    final rawData = response.data['data'];
+    if (rawData is List) {
+      return rawData
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    if (rawData is Map && rawData['data'] is List) {
+      return (rawData['data'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return [];
+  }
+
   Future<Map<String, dynamic>> createRental(
     Map<String, dynamic> payload, {
     String? idempotencyKey,

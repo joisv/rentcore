@@ -39,7 +39,14 @@ class _TransfersScreenState extends ConsumerState<TransfersScreen> {
     final currentUserId = authState.user?['id']?.toString();
 
     final bizState = ref.watch(businessProvider);
-    final currentBiz = bizState.businesses.where((b) => b['id'] == bizState.activeBusinessId).firstOrNull;
+    final currentBiz = bizState.businesses
+        .whereType<Map>()
+        .where(
+          (b) =>
+              normalizeEntityId(b['id']) ==
+              normalizeEntityId(bizState.activeBusinessId),
+        )
+        .firstOrNull;
     final userRole = currentBiz?['role']?.toString() ?? authState.user?['role']?.toString() ?? 'staff';
     final isOwner = userRole == 'owner';
 

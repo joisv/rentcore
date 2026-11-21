@@ -187,7 +187,6 @@ class _BusinessSetupWizardScreenState
     final success =
         await ref.read(businessProvider.notifier).registerNewBusiness(
               name: storeName,
-              city: 'Denpasar', // Sensible default domisili
               branchStructure: _branchStructure,
               businessCategories: _selectedCategories.isNotEmpty
                   ? _selectedCategories.toList()
@@ -476,7 +475,7 @@ class _BusinessSetupWizardScreenState
               border: InputBorder.none,
               contentPadding:
                   EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              hintText: 'Contoh: Skyrental Jember',
+              hintText: 'Contoh: Lensa Nusantara Jember',
               hintStyle: TextStyle(
                 fontSize: 14,
                 color: AppColors.textSecondary,

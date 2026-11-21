@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/legal_links.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../organization/presentation/widgets/staff_resignation_sheet.dart';
 import '../providers/auth_provider.dart';
@@ -130,7 +131,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
-    final userName = user?['name']?.toString() ?? 'Pengguna RentCore';
+    final userName = user?['name']?.toString() ?? 'Pengguna';
     final userEmail = user?['email']?.toString() ?? '-';
     final userRole = user?['role']?.toString().toUpperCase() ?? 'STAFF';
     final avatarUrl = user?['avatar_url']?.toString();
@@ -568,7 +569,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                               ),
                               Text(
-                                bState.activeBusinessName ?? 'Bisnis Rental',
+                                bState.resolvedStoreName.isNotEmpty
+                                    ? bState.resolvedStoreName
+                                    : 'Usaha Rental',
                                 style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                               ),
                             ],
@@ -579,7 +582,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                             StaffResignationSheet.show(
                               context,
                               businessId: bState.activeBusinessId!,
-                              businessName: bState.activeBusinessName ?? 'Bisnis Rental',
+                              businessName: bState.resolvedStoreName.isNotEmpty
+                                  ? bState.resolvedStoreName
+                                  : 'Usaha Rental',
                             );
                           },
                           style: OutlinedButton.styleFrom(
@@ -595,6 +600,66 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                 );
               },
             ),
+            const SizedBox(height: 16),
+            Material(
+              color: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
+                    child: Text(
+                      'PRIVASI & AKUN',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    key: const Key('profile_privacy_policy_tile'),
+                    leading: const Icon(Icons.privacy_tip_outlined, size: 20, color: AppColors.obsidian),
+                    title: const Text(
+                      'Kebijakan Privasi',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Penggunaan data, izin Bluetooth & isolasi tenant',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    trailing: const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.textMuted),
+                    onTap: () => LegalLinks.openExternal(context, LegalLinks.privacyPolicyUri),
+                  ),
+                  const Divider(height: 1, indent: 16, endIndent: 16, color: AppColors.border),
+                  ListTile(
+                    key: const Key('profile_account_deletion_tile'),
+                    leading: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.danger),
+                    title: const Text(
+                      'Hapus Akun',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Ajukan penonaktifan & penghapusan data akun',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    trailing: const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.textMuted),
+                    onTap: () => LegalLinks.openExternal(context, LegalLinks.accountDeletionUri),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

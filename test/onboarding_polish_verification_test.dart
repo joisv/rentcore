@@ -79,7 +79,7 @@ void main() {
         );
         expect(
           textField.decoration?.hintText,
-          'Contoh: Skyrental Jember',
+          'Contoh: Lensa Nusantara Jember',
         );
 
         // Disabled initially

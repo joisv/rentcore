@@ -149,20 +149,27 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Should show the Structured Onboarding Empty State for Units
-        expect(find.text('Mulai Catat Inventaris Rental Anda'), findsOneWidget);
-        expect(find.text('1. Model / Katalog'), findsOneWidget);
+        // Should show the ultra-clean Onboarding Empty State for Units with hidden search bar
+        expect(find.text('Belum Ada Inventaris'), findsOneWidget);
         expect(
-          find.textContaining('Tipe barang dan tarif sewanya'),
+          find.text('Buat model katalog terlebih dahulu sebelum mendaftarkan unit fisik.'),
           findsOneWidget,
         );
-        expect(find.text('2. Unit Fisik'), findsOneWidget);
+        expect(find.text('Model & Tarif'), findsOneWidget);
         expect(
-          find.textContaining('Barang nyata yang diserahkan ke pelanggan'),
+          find.textContaining('Tipe barang dan harga sewa'),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('inventory_empty_step_2_title')), findsOneWidget);
+        expect(
+          find.textContaining('Stok nyata siap sewa lengkap'),
           findsOneWidget,
         );
         expect(find.text('+ Buat Model Pertama'), findsOneWidget);
-        expect(find.text('Registrasi Unit Baru'), findsNothing);
+        expect(find.text('1. Model / Katalog'), findsNothing);
+        expect(find.text('2. Unit Fisik'), findsNothing);
+        expect(find.byKey(const Key('inventory_units_search_field')), findsNothing);
+        expect(find.byKey(const Key('inventory_units_filter_button')), findsNothing);
         expect(find.byKey(const Key('inventory_expandable_main_fab')), findsNothing);
       },
     );
@@ -291,10 +298,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Mulai Catat Inventaris Rental Anda'), findsOneWidget);
-        expect(find.text('1. Model / Katalog'), findsOneWidget);
-        expect(find.text('2. Unit Fisik'), findsOneWidget);
+        expect(find.text('Belum Ada Inventaris'), findsOneWidget);
+        expect(find.text('Model & Tarif'), findsOneWidget);
+        expect(find.byKey(const Key('inventory_empty_step_2_title')), findsOneWidget);
         expect(find.text('+ Buat Model Pertama'), findsOneWidget);
+        expect(find.byKey(const Key('inventory_catalog_search_field')), findsNothing);
+        expect(find.byKey(const Key('inventory_catalog_filter_button')), findsNothing);
       },
     );
 
