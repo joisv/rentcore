@@ -177,15 +177,15 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nama Penyewa *'),
+      find.byKey(const Key('step2_name_field')),
       'Siti Aminah',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nomor WhatsApp *'),
+      find.byKey(const Key('step2_phone_field')),
       '081234567899',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'),
+      find.byKey(const Key('step2_address_field')),
       'Jl. Sudirman No. 20',
     );
     await tester.pumpAndSettle();

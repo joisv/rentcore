@@ -169,11 +169,19 @@ void main() {
     expect(find.byKey(const Key('home_header_notification_button')), findsOneWidget);
     expect(find.byKey(const Key('home_header_search_button')), findsNothing);
 
-    // Search field & date chip exist inside Antrean Sewa Cabang
+    // Search field & compact date trigger exist inside Antrean Sewa Cabang
     expect(find.byKey(const Key('home_queue_search_field')), findsOneWidget);
     expect(find.text('Cari kode booking, penyewa, atau unit...'), findsOneWidget);
     expect(find.byKey(const Key('home_queue_date_filter_chip')), findsOneWidget);
-    expect(find.text('Semua Tanggal'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const Key('home_queue_date_filter_chip')),
+        matching: find.byWidgetPredicate(
+          (w) => w is Tooltip && w.message == 'Semua Tanggal',
+        ),
+      ),
+      findsOneWidget,
+    );
 
     // Default limit = 10 -> displays 10 of 12
     expect(find.text('Tampil: 10'), findsOneWidget);
@@ -232,7 +240,15 @@ void main() {
     // Tap Reset Tanggal -> restores all 12
     await tester.tap(find.byKey(const Key('home_queue_date_reset_button')));
     await tester.pumpAndSettle();
-    expect(find.text('Semua Tanggal'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const Key('home_queue_date_filter_chip')),
+        matching: find.byWidgetPredicate(
+          (w) => w is Tooltip && w.message == 'Semua Tanggal',
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Menampilkan 12 dari 12 antrean'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -385,7 +401,7 @@ void main() {
     final bookingThumbs = tester.widgetList<UnitThumbnail>(find.byType(UnitThumbnail)).toList();
     expect(bookingThumbs.length, 2);
     expect(bookingThumbs[0].imageUrl, 'http://127.0.0.1:9999/camera.jpg');
-    expect(bookingThumbs[0].size, 34);
+    expect(bookingThumbs[0].size, 40);
     expect(bookingThumbs[1].imageUrl, isNull);
     expect(find.byType(Image), findsOneWidget);
   });

@@ -12,10 +12,9 @@ import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../providers/cashier_provider.dart';
-import 'financial_activity_ledger_screen.dart';
-import 'pos_transaction_detail_sheet.dart';
 import 'widgets/add_branch_expense_modal.dart';
 import 'widgets/cash_drawer_shift_modal.dart';
+import 'widgets/report_shared_widgets.dart';
 
 class CashierScreen extends StatelessWidget {
   const CashierScreen({super.key});
@@ -23,9 +22,21 @@ class CashierScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Kasir & Shift'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'Kasir & Shift',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+            color: Color(0xFF0F172A),
+          ),
+        ),
       ),
       body: const CashierShiftView(),
     );
@@ -64,34 +75,58 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildBranchSelectorHeader(),
-        Container(
-          color: AppColors.surface,
-          child: TabBar(
-            controller: _tabController,
-            labelColor: AppColors.obsidian,
-            unselectedLabelColor: AppColors.textMuted,
-            indicatorColor: AppColors.obsidian,
-            indicatorWeight: 3,
-            labelStyle: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
+    return ColoredBox(
+      color: Colors.white,
+      child: Column(
+        children: [
+          _buildBranchSelectorHeader(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: const Color(0xFF0F172A),
+                unselectedLabelColor: const Color(0xFF64748B),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12.5,
+                ),
+                tabs: const [
+                  Tab(text: 'Shift Aktif'),
+                  Tab(text: 'Riwayat Shift'),
+                ],
+              ),
             ),
-            tabs: const [
-              Tab(text: 'Shift Aktif'),
-              Tab(text: 'Riwayat Shift'),
-            ],
           ),
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: [_buildActiveShiftTab(), _buildShiftHistoryTab()],
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [_buildActiveShiftTab(), _buildShiftHistoryTab()],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -133,100 +168,28 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
     } else {
       final effectiveId = posBranchFilter ?? bizState.activeBranchId;
       final match = branches.where((b) => b['id'] == effectiveId).firstOrNull;
-      branchLabel =
-          match?['name'] ??
-          (bizState.resolvedBranchName.isNotEmpty
-              ? bizState.resolvedBranchName
-              : 'Cabang Terpilih');
+      final rawName =
+          (match?['name'] ??
+                  (bizState.resolvedBranchName.isNotEmpty
+                      ? bizState.resolvedBranchName
+                      : 'Cabang Terpilih'))
+              .toString();
+      branchLabel = formatReportBranchName(rawName);
     }
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isConsolidated
-              ? AppColors.warning.withValues(alpha: 0.6)
-              : AppColors.border,
-          width: isConsolidated ? 1.5 : 1.0,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isConsolidated ? Icons.hub_rounded : Icons.storefront_rounded,
-            size: 20,
-            color: isConsolidated ? AppColors.warning : AppColors.obsidian,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Cakupan Kasir',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: isConsolidated
-                        ? AppColors.warning
-                        : AppColors.textMuted,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  branchLabel,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          if (isCentralUser && branches.isNotEmpty) ...[
-            TextButton.icon(
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-              label: const Text(
-                'Ganti',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-              onPressed: () => _showBranchFilterModal(
-                context,
-                branches,
-                isConsolidated,
-                posBranchFilter,
-              ),
-            ),
-          ] else ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                'Terkunci',
-                style: TextStyle(fontSize: 10, color: AppColors.textMuted),
-              ),
-            ),
-          ],
-        ],
-      ),
+    final switchable = isCentralUser && branches.length > 1;
+    return ReportBranchScopeBar(
+      branchLabel: branchLabel,
+      isConsolidated: isConsolidated,
+      switchable: switchable,
+      onTapSwitch: switchable
+          ? () => _showBranchFilterModal(
+              context,
+              branches,
+              isConsolidated,
+              posBranchFilter,
+            )
+          : null,
     );
   }
 
@@ -298,7 +261,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                 const Divider(indent: 20, endIndent: 20),
                 ...branches.map((b) {
                   final bId = b['id'] as int;
-                  final bName = b['name'] as String;
+                  final bName = formatReportBranchName((b['name'] ?? 'Cabang').toString());
                   final isCent = b['is_central'] == true;
                   final isSelected =
                       !isConsolidated &&
@@ -347,18 +310,6 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
           ),
         );
       },
-    );
-  }
-
-  void _openTransactionDetailSheet(
-    BuildContext context,
-    Map<String, dynamic> booking,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => PosTransactionDetailSheet(booking: booking),
     );
   }
 
@@ -422,21 +373,26 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
-          20,
+          0,
           16,
-          20,
+          0,
           104 + MediaQuery.paddingOf(context).bottom,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-              closingAsync.when(
-                loading: () => const ActiveShiftSkeleton(),
-                error: (e, _) => Container(
+            closingAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: ActiveShiftSkeleton(),
+              ),
+              error: (e, _) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: AppColors.dangerLight,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
                     children: [
@@ -457,1094 +413,615 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                     ],
                   ),
                 ),
-                data: (data) {
-                  final Map<String, dynamic> breakdown =
-                      data['breakdown_by_method'] is Map
-                      ? Map<String, dynamic>.from(
-                          data['breakdown_by_method'] as Map,
-                        )
-                      : {};
+              ),
+              data: (data) {
+                final Map<String, dynamic> breakdown =
+                    data['breakdown_by_method'] is Map
+                    ? Map<String, dynamic>.from(
+                        data['breakdown_by_method'] as Map,
+                      )
+                    : {};
 
-                  final cashTotal = _calcCashTotal(breakdown);
-                  final nonCashTotal = _calcNonCashTotal(breakdown);
+                final cashTotal = _calcCashTotal(breakdown);
+                final nonCashTotal = _calcNonCashTotal(breakdown);
 
-                  final recon = data['cash_reconciliation'] is Map
-                      ? (data['cash_reconciliation'] as Map)
-                      : {};
-                  final activeShift = recon['active_shift'] is Map
-                      ? Map<String, dynamic>.from(recon['active_shift'] as Map)
-                      : null;
-                  final shiftPayload = currentShiftAsync.asData?.value;
-                  final dynamic rawShift =
-                      shiftPayload?['shift'] ?? shiftPayload?['data']?['shift'];
-                  final currentShiftData = rawShift is Map
-                      ? Map<String, dynamic>.from(rawShift)
-                      : null;
-                  final effectiveShift = currentShiftData ?? activeShift;
-                  final hasActiveShift =
-                      effectiveShift != null &&
-                      effectiveShift['status'] == 'open';
+                final recon = data['cash_reconciliation'] is Map
+                    ? (data['cash_reconciliation'] as Map)
+                    : {};
+                final activeShift = recon['active_shift'] is Map
+                    ? Map<String, dynamic>.from(recon['active_shift'] as Map)
+                    : null;
+                final shiftPayload = currentShiftAsync.asData?.value;
+                final dynamic rawShift =
+                    shiftPayload?['shift'] ?? shiftPayload?['data']?['shift'];
+                final currentShiftData = rawShift is Map
+                    ? Map<String, dynamic>.from(rawShift)
+                    : null;
+                final effectiveShift = currentShiftData ?? activeShift;
+                final hasActiveShift =
+                    effectiveShift != null &&
+                    effectiveShift['status'] == 'open';
 
-                  final cashExp = CurrencyFormatter.parse(
-                    data['cash_drawer_expenses'],
+                final cashExp = CurrencyFormatter.parse(
+                  data['cash_drawer_expenses'],
+                );
+
+                final openingFloat = CurrencyFormatter.parse(
+                  effectiveShift?['opening_cash_float'] ??
+                      recon['opening_cash_float'],
+                );
+
+                final isBlindClose =
+                    hasActiveShift &&
+                    (effectiveShift['is_blind_close'] == true ||
+                        recon['is_blind_close'] == true ||
+                        data['is_blind_close'] == true ||
+                        (effectiveShift['expected_cash_now'] == null &&
+                            !recon.containsKey('expected_cash_in_drawer')));
+
+                final double expectedCash;
+                if (isBlindClose) {
+                  expectedCash = 0.0;
+                } else if (effectiveShift != null &&
+                    effectiveShift['expected_cash_now'] != null) {
+                  expectedCash = CurrencyFormatter.parse(
+                    effectiveShift['expected_cash_now'],
                   );
-
-                  final openingFloat = CurrencyFormatter.parse(
-                    effectiveShift?['opening_cash_float'] ??
-                        recon['opening_cash_float'],
+                } else if (recon.containsKey('expected_cash_in_drawer')) {
+                  expectedCash = CurrencyFormatter.parse(
+                    recon['expected_cash_in_drawer'],
                   );
+                } else {
+                  expectedCash =
+                      (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0) +
+                      openingFloat;
+                }
 
-                  final isBlindClose =
-                      hasActiveShift &&
-                      (effectiveShift['is_blind_close'] == true ||
-                          recon['is_blind_close'] == true ||
-                          data['is_blind_close'] == true ||
-                          (effectiveShift['expected_cash_now'] == null &&
-                              !recon.containsKey('expected_cash_in_drawer')));
+                final cashierName =
+                    effectiveShift?['cashier_name'] ??
+                    effectiveShift?['cashier']?['name'] ??
+                    authState.user?['name'] ??
+                    'Kasir Bertugas';
+                final rawBranchName =
+                    (effectiveShift?['branch_name'] ??
+                            effectiveShift?['affiliate']?['name'] ??
+                            (bizState.resolvedBranchName.isNotEmpty
+                                ? bizState.resolvedBranchName
+                                : 'Cabang'))
+                        .toString();
+                final branchName = formatReportBranchName(rawBranchName);
+                final openedAt =
+                    effectiveShift?['opened_at'] ??
+                    effectiveShift?['created_at'];
 
-                  final double expectedCash;
-                  if (isBlindClose) {
-                    expectedCash = 0.0;
-                  } else if (effectiveShift != null &&
-                      effectiveShift['expected_cash_now'] != null) {
-                    expectedCash = CurrencyFormatter.parse(
-                      effectiveShift['expected_cash_now'],
-                    );
-                  } else if (recon.containsKey('expected_cash_in_drawer')) {
-                    expectedCash = CurrencyFormatter.parse(
-                      recon['expected_cash_in_drawer'],
-                    );
-                  } else {
-                    expectedCash =
-                        (cashTotal - cashExp > 0 ? cashTotal - cashExp : 0.0) +
-                        openingFloat;
-                  }
-
-                  final cashierName =
-                      effectiveShift?['cashier_name'] ??
-                      effectiveShift?['cashier']?['name'] ??
-                      authState.user?['name'] ??
-                      'Kasir Bertugas';
-                  final branchName =
-                      effectiveShift?['branch_name'] ??
-                      effectiveShift?['affiliate']?['name'] ??
-                      (bizState.resolvedBranchName.isNotEmpty
-                          ? bizState.resolvedBranchName
-                          : 'Cabang');
-                  final openedAt =
-                      effectiveShift?['opened_at'] ??
-                      effectiveShift?['created_at'];
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 1. ACTIVE SESSION INFO CARD
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.badge_outlined,
-                                  size: 18,
-                                  color: AppColors.obsidian,
-                                ),
-                                const SizedBox(width: 8),
-                                const Expanded(
-                                  child: Text(
-                                    'Sesi Kasir Berjalan',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13,
-                                      color: AppColors.obsidian,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. ACTIVE SESSION INFO (Flat Hairline Section)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.badge_outlined,
+                            size: 20,
+                            color: Color(0xFF0F172A),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Sesi Kasir Berjalan',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: hasActiveShift
-                                    ? AppColors.successLight
-                                    : AppColors.surfaceMuted,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: hasActiveShift
-                                          ? AppColors.success
-                                          : AppColors.textMuted,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      hasActiveShift
-                                          ? 'Shift #${effectiveShift['shift_number'] ?? effectiveShift['id']} Aktif'
-                                          : 'Shift Ditutup',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: hasActiveShift
-                                            ? AppColors.success
-                                            : AppColors.textMuted,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: hasActiveShift
+                                ? const Color(0xFFECFDF5)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: hasActiveShift
+                                  ? const Color(0xFFA7F3D0)
+                                  : const Color(0xFFE2E8F0),
+                              width: 1,
                             ),
-                            const Divider(height: 18),
-                            if (hasActiveShift) ...[
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Kasir Bertugas',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      cashierName,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.obsidian,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Cabang Operasional',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      branchName,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.obsidian,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (openedAt != null) ...[
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Expanded(
-                                      child: Text(
-                                        'Waktu Buka Shift',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Flexible(
-                                      child: Text(
-                                        DateFormatter.formatFull(
-                                          DateTime.tryParse(
-                                            openedAt.toString(),
-                                          ),
-                                        ),
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.obsidian,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              if (!isBlindClose) ...[
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Expanded(
-                                      child: Text(
-                                        'Modal Kas Awal',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        CurrencyFormatter.format(openingFloat),
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w800,
-                                          color: AppColors.obsidian,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ] else ...[
-                              const Text(
-                                'Laci kasir belum memiliki sesi shift aktif. Buka shift kasir untuk memasukkan modal awal kas laci.',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textMuted,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: hasActiveShift
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFF94A3B8),
+                                  shape: BoxShape.circle,
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.obsidian,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 10,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
+                              const SizedBox(width: 7),
+                              Flexible(
+                                child: Text(
+                                  hasActiveShift
+                                      ? 'Shift #${effectiveShift['shift_number'] ?? effectiveShift['id']} • Aktif'
+                                      : 'Shift Ditutup',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: hasActiveShift
+                                        ? const Color(0xFF047857)
+                                        : const Color(0xFF64748B),
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
                                   ),
-                                  icon: const Icon(
-                                    Icons.meeting_room_rounded,
-                                    size: 16,
-                                  ),
-                                  label: const Text(
-                                    'Buka Shift Sekarang',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  onPressed: () => _openShiftModal(
-                                    context,
-                                    effectiveShift,
-                                    expectedCash,
-                                    effBranch,
-                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (hasActiveShift) ...[
+                      _buildKeyValueRow('Kasir Bertugas', cashierName),
+                      const Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 20,
+                        endIndent: 20,
+                        color: Color(0xFFF1F5F9),
+                      ),
+                      _buildKeyValueRow('Cabang Operasional', branchName),
+                      if (openedAt != null) ...[
+                        const Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 20,
+                          endIndent: 20,
+                          color: Color(0xFFF1F5F9),
+                        ),
+                        _buildKeyValueRow(
+                          'Waktu Buka Shift',
+                          DateFormatter.formatFull(
+                            DateTime.tryParse(openedAt.toString()),
+                          ),
+                        ),
+                      ],
+                      if (!isBlindClose) ...[
+                        const Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 20,
+                          endIndent: 20,
+                          color: Color(0xFFF1F5F9),
+                        ),
+                        _buildKeyValueRow(
+                          'Modal Kas Awal',
+                          CurrencyFormatter.format(openingFloat),
+                          isTabularAmount: true,
+                        ),
+                      ],
+                    ] else ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Laci kasir belum memiliki sesi shift aktif. Buka shift kasir untuk memasukkan modal awal kas laci.',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: Color(0xFF64748B),
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              height: 46,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0F172A),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.meeting_room_outlined,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Buka Shift Sekarang',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                onPressed: () => _openShiftModal(
+                                  context,
+                                  effectiveShift,
+                                  expectedCash,
+                                  effBranch,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 14),
+                    ],
+                    const SizedBox(height: 8),
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xFFF1F5F9),
+                    ),
 
-                      // 2. REAL-TIME CASH SUMMARY CARD
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Rekonsiliasi Kas Laci & Beban',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
+                    // 2. REAL-TIME CASH SUMMARY
+                    const ReportSectionHeader(
+                      title: 'Rekonsiliasi Kas Laci & Beban',
+                    ),
+
+                    if (isBlindClose) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                              width: 1,
                             ),
-                            const SizedBox(height: 14),
-
-                            if (isBlindClose) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceMuted,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.visibility_off_outlined,
+                                size: 20,
+                                color: Color(0xFF64748B),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(
-                                      Icons.visibility_off_rounded,
-                                      size: 18,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Total Kas Laci (Blind Close)',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w800,
-                                              color: AppColors.obsidian,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            'Shift #${effectiveShift['shift_number'] ?? effectiveShift['id']}${openedAt != null ? ' • Dibuka ${DateFormatter.formatFull(DateTime.tryParse(openedAt.toString()))}' : ''}',
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          const Text(
-                                            'Nominal kas laci disembunyikan hingga shift ditutup (Mode Blind Close).',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: AppColors.textMuted,
-                                              height: 1.35,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Total Non-Tunai (QRIS / Bank / EDC)',
+                                    const Text(
+                                      'Total Kas Laci (Blind Close)',
                                       style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    CurrencyFormatter.format(nonCashTotal),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                      color: AppColors.obsidian,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ] else ...[
-                              // Kas Masuk Tunai
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Kas Masuk Tunai',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          'Kas Masuk Bersih (Sistem)',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: AppColors.textMuted,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    CurrencyFormatter.format(cashTotal),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                      color: AppColors.success,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-
-                              // Total Non-Tunai
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Total Non-Tunai (QRIS / Bank / EDC)',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    CurrencyFormatter.format(nonCashTotal),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                      color: AppColors.obsidian,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-
-                              if (openingFloat > 0) ...[
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Expanded(
-                                      child: Text(
-                                        'Modal Awal Kas Laci',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(height: 3),
                                     Text(
-                                      CurrencyFormatter.format(openingFloat),
+                                      'Shift #${effectiveShift['shift_number'] ?? effectiveShift['id']}${openedAt != null ? ' • Dibuka ${DateFormatter.formatFull(DateTime.tryParse(openedAt.toString()))}' : ''}',
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF475569),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Nominal kas laci disembunyikan hingga shift ditutup (Mode Blind Close).',
+                                      style: TextStyle(
                                         fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                              ],
-
-                              // Pengeluaran Kasir Laci Tunai (hanya payment_source == 'cash_drawer')
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      cashExp > 0
-                                          ? 'Beban Pengeluaran Cabang (Kas Laci)'
-                                          : 'Beban Kas Keluar (Laci)',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    cashExp > 0
-                                        ? '-${CurrencyFormatter.format(cashExp)}'
-                                        : 'Rp 0',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                      color: cashExp > 0
-                                          ? AppColors.danger
-                                          : AppColors.textMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(height: 18),
-
-                              // Ekspektasi Uang Fisik di Laci
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceMuted,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Total Kas Wajib di Laci',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w800,
-                                              color: AppColors.obsidian,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          Text(
-                                            'Total Fisik Kas Wajib di Laci',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: AppColors.textMuted,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        CurrencyFormatter.format(
-                                          expectedCash,
-                                        ),
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w900,
-                                          color: AppColors.obsidian,
-                                        ),
+                                        color: Color(0xFF64748B),
+                                        height: 1.35,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _buildKeyValueRow(
+                        'Total Non-Tunai (QRIS / Bank / EDC)',
+                        CurrencyFormatter.format(nonCashTotal),
+                        isTabularAmount: true,
+                      ),
+                    ] else ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Kas Masuk Tunai',
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Kas Masuk Bersih (Sistem)',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              CurrencyFormatter.format(cashTotal),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14.5,
+                                color: Color(0xFF059669),
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      const Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 20,
+                        endIndent: 20,
+                        color: Color(0xFFF1F5F9),
+                      ),
+                      _buildKeyValueRow(
+                        'Total Non-Tunai (QRIS / Bank / EDC)',
+                        CurrencyFormatter.format(nonCashTotal),
+                        isTabularAmount: true,
+                      ),
+                      if (openingFloat > 0) ...[
+                        const Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 20,
+                          endIndent: 20,
+                          color: Color(0xFFF1F5F9),
+                        ),
+                        _buildKeyValueRow(
+                          'Modal Awal Kas Laci',
+                          CurrencyFormatter.format(openingFloat),
+                          isTabularAmount: true,
+                        ),
+                      ],
+                      const Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 20,
+                        endIndent: 20,
+                        color: Color(0xFFF1F5F9),
+                      ),
+                      _buildKeyValueRow(
+                        cashExp > 0
+                            ? 'Beban Pengeluaran Cabang (Kas Laci)'
+                            : 'Beban Kas Keluar (Laci)',
+                        cashExp > 0
+                            ? '-${CurrencyFormatter.format(cashExp)}'
+                            : 'Rp 0',
+                        valueColor: cashExp > 0
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF64748B),
+                        isTabularAmount: true,
+                      ),
+                      const SizedBox(height: 10),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Total Kas Wajib di Laci',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Total Fisik Kas Wajib di Laci',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  CurrencyFormatter.format(expectedCash),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
 
-                      // 3. QUICK ACTION BAR
-                      SizedBox(
+                    // 3. EXPENSE QUICK ACTION BUTTON
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: SizedBox(
+                        height: 44,
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0F172A),
+                            side: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                              width: 1,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            side: const BorderSide(color: AppColors.border),
-                            foregroundColor: AppColors.obsidian,
                           ),
                           icon: const Icon(
-                            Icons.add_shopping_cart_rounded,
-                            size: 16,
+                            Icons.add_shopping_cart_outlined,
+                            size: 18,
                           ),
                           label: const Text(
                             '+ Catat Beban Pengeluaran',
                             style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
                             ),
                           ),
                           onPressed: () =>
                               _openAddExpenseModal(context, effBranch),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                    ),
+                    const SizedBox(height: 8),
 
-                      // 7. PAYMENT METHOD BREAKDOWN
-                      Text(
-                        'Rincian Metode Pembayaran',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: AppColors.textMuted,
-                        ),
+                    // 4. PAYMENT METHOD BREAKDOWN
+                    ReportPaymentMethodList(
+                      breakdown: breakdown,
+                      isBlindClose: isBlindClose,
+                    ),
+
+                    // 5. RECENT COMPLETED TRANSACTIONS
+                    if (data['recent_transactions'] is List &&
+                        (data['recent_transactions'] as List).isNotEmpty)
+                      ReportRecentTransactionsList(
+                        transactions: data['recent_transactions'] as List,
+                        isConsolidated: posBranchFilter == -1,
                       ),
-                      const SizedBox(height: 10),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: breakdown.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.all(18),
-                                child: Center(
-                                  child: Text(
-                                    'Belum ada transaksi pembayaran di periode ini.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : Column(
-                                children: [
-                                  for (
-                                    int i = 0;
-                                    i < breakdown.entries.length;
-                                    i++
-                                  ) ...[
-                                    if (i > 0)
-                                      const Divider(
-                                        height: 1,
-                                        thickness: 1,
-                                        color: AppColors.surfaceMuted,
-                                      ),
-                                    Builder(
-                                      builder: (_) {
-                                        final entry = breakdown.entries
-                                            .elementAt(i);
-                                        final val = entry.value is Map
-                                            ? (entry.value as Map)
-                                            : {};
-                                        final total = CurrencyFormatter.parse(
-                                          val['total'],
-                                        );
-                                        final count = val['count'] ?? 0;
-                                        final kStr = entry.key
-                                            .toString()
-                                            .toLowerCase();
 
-                                        final IconData methodIcon;
-                                        if (kStr.contains('tunai') ||
-                                            kStr == 'cash') {
-                                          methodIcon = Icons.money_rounded;
-                                        } else if (kStr.contains('qris')) {
-                                          methodIcon =
-                                              Icons.qr_code_scanner_rounded;
-                                        } else if (kStr.contains('transfer') ||
-                                            kStr.contains('bank')) {
-                                          methodIcon =
-                                              Icons.account_balance_rounded;
-                                        } else if (kStr.contains('edc') ||
-                                            kStr.contains('card') ||
-                                            kStr.contains('kartu')) {
-                                          methodIcon =
-                                              Icons.credit_card_rounded;
-                                        } else {
-                                          methodIcon = Icons
-                                              .account_balance_wallet_outlined;
-                                        }
-
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 12,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                padding: const EdgeInsets.all(
-                                                  7,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.surfaceMuted,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Icon(
-                                                  methodIcon,
-                                                  size: 18,
-                                                  color: AppColors.obsidian,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      entry.key,
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        fontSize: 12,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                    const SizedBox(height: 2),
-                                                    Text(
-                                                      '$count Transaksi',
-                                                      style: const TextStyle(
-                                                        fontSize: 11,
-                                                        color:
-                                                            AppColors.textMuted,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                (isBlindClose &&
-                                                        (val['is_blind_close'] ==
-                                                                true ||
-                                                            val['total'] ==
-                                                                null ||
-                                                            kStr.contains(
-                                                              'tunai',
-                                                            ) ||
-                                                            kStr == 'cash'))
-                                                    ? 'Disembunyikan'
-                                                    : CurrencyFormatter.format(
-                                                        total,
-                                                      ),
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: (isBlindClose &&
-                                                          (val['is_blind_close'] ==
-                                                                  true ||
-                                                              val['total'] ==
-                                                                  null ||
-                                                              kStr.contains(
-                                                                'tunai',
-                                                              ) ||
-                                                              kStr == 'cash'))
-                                                      ? 11
-                                                      : 13,
-                                                  color: (isBlindClose &&
-                                                          (val['is_blind_close'] ==
-                                                                  true ||
-                                                              val['total'] ==
-                                                                  null ||
-                                                              kStr.contains(
-                                                                'tunai',
-                                                              ) ||
-                                                              kStr == 'cash'))
-                                                      ? AppColors.textMuted
-                                                      : null,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ],
-                              ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 8. RECENT COMPLETED TRANSACTIONS
-                      if (data['recent_transactions'] is List &&
-                          (data['recent_transactions'] as List).isNotEmpty) ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Transaksi Terbaru (Audit Rincian)',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.8,
-                                  color: AppColors.textMuted,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            TextButton.icon(
-                              style: TextButton.styleFrom(
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                              ),
-                              icon: const Icon(
-                                Icons.menu_book_rounded,
-                                size: 14,
-                              ),
-                              label: const Text(
-                                'Buku Kas Lengkap',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const FinancialActivityLedgerScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        ...(data['recent_transactions'] as List).map((txItem) {
-                          final tx = txItem is Map ? txItem : {};
-                          final txCode =
-                              tx['receipt_number'] ??
-                              tx['transaction_code'] ??
-                              'TX';
-                          final custName = tx['customer_name'] ?? 'Pelanggan';
-                          final brName = tx['branch_name'] ?? 'Cabang';
-                          final isCent = tx['is_central'] == true;
-                          final txAmt = CurrencyFormatter.parse(tx['amount']);
-                          final pMethod = tx['payment_method'] ?? 'Tunai';
-                          final cashier = tx['cashier_name'] ?? 'Kasir';
-                          final itemsSummary =
-                              tx['items_summary'] ?? 'Perangkat Apple';
-                          final txType = tx['type']?.toString().toLowerCase();
-                          final txTypeLabel =
-                              tx['type_label'] ??
-                              (txType == 'penalty'
-                                  ? 'Denda Keterlambatan'
-                                  : null);
-
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(10),
-                            onTap: () => _openTransactionDetailSheet(
-                              context,
-                              Map<String, dynamic>.from(tx),
-                            ),
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 5,
-                                                    vertical: 2,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: isCent
-                                                    ? AppColors.warningLight
-                                                    : AppColors.infoLight,
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                isCent ? 'Pusat' : brName,
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: isCent
-                                                      ? AppColors.warning
-                                                      : AppColors.info,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Flexible(
-                                              child: Text(
-                                                txCode,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 12,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            if (txType == 'penalty') ...[
-                                              const SizedBox(width: 6),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 5,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.deepOrange
-                                                      .withValues(alpha: 0.15),
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: const Text(
-                                                  'Denda',
-                                                  style: TextStyle(
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.deepOrange,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '$custName • $itemsSummary',
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          'Kasir: $cashier • $pMethod${txTypeLabel != null ? ' • $txTypeLabel' : ''}',
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: AppColors.textMuted,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        CurrencyFormatter.format(txAmt),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 13,
-                                          color: AppColors.obsidian,
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.chevron_right_rounded,
-                                        size: 18,
-                                        color: AppColors.textMuted,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                      const SizedBox(height: 20),
-                      _buildShiftClosingActionButtons(
-                        context: context,
-                        data: data,
-                        effectiveShift: effectiveShift,
-                        hasActiveShift: hasActiveShift,
-                        expectedCash: expectedCash,
-                        branchId: effBranch,
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
+                    const SizedBox(height: 16),
+                    _buildShiftClosingActionButtons(
+                      context: context,
+                      data: data,
+                      effectiveShift: effectiveShift,
+                      hasActiveShift: hasActiveShift,
+                      expectedCash: expectedCash,
+                      branchId: effBranch,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _buildKeyValueRow(
+    String label,
+    String value, {
+    Color? valueColor,
+    bool isTabularAmount = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF64748B),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: isTabularAmount ? 14 : 13,
+                fontWeight: FontWeight.w600,
+                color: valueColor ?? const Color(0xFF0F172A),
+                fontFeatures: isTabularAmount
+                    ? const [FontFeature.tabularFigures()]
+                    : null,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildShiftClosingActionButtons({
@@ -1555,76 +1032,90 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
     required double expectedCash,
     required int? branchId,
   }) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: SizedBox(
-            height: 44,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(0, 44),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 46),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: const BorderSide(
+                        color: Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                      foregroundColor: const Color(0xFF0F172A),
+                      backgroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.print_outlined, size: 18),
+                    label: const Text(
+                      'Cetak Struk',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                      ),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: () => _printClosingReceipt(context, ref, data),
+                  ),
                 ),
-                side: BorderSide(color: Colors.grey.shade300),
-                foregroundColor: AppColors.obsidian,
-                backgroundColor: AppColors.surface,
               ),
-              icon: const Icon(Icons.print_rounded, size: 17),
-              label: const Text(
-                'Cetak Struk',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onPressed: () => _printClosingReceipt(context, ref, data),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: SizedBox(
-            height: 44,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: hasActiveShift
-                    ? AppColors.obsidian
-                    : AppColors.info,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(0, 44),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: hasActiveShift
+                          ? const Color(0xFF0F172A)
+                          : AppColors.info,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 46),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    icon: Icon(
+                      hasActiveShift
+                          ? Icons.lock_clock_outlined
+                          : Icons.lock_open_outlined,
+                      size: 18,
+                    ),
+                    label: Text(
+                      hasActiveShift ? 'Tutup Shift' : 'Buka Shift',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                      ),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: () => _openShiftModal(
+                      context,
+                      effectiveShift,
+                      expectedCash,
+                      branchId,
+                    ),
+                  ),
                 ),
-                elevation: 0,
               ),
-              icon: Icon(
-                hasActiveShift
-                    ? Icons.lock_clock_rounded
-                    : Icons.lock_open_rounded,
-                size: 17,
-              ),
-              label: Text(
-                hasActiveShift ? 'Tutup Shift' : 'Buka Shift',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onPressed: () => _openShiftModal(
-                context,
-                effectiveShift,
-                expectedCash,
-                branchId,
-              ),
-            ),
+            ],
           ),
         ),
       ],
@@ -1644,9 +1135,9 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
-          20,
-          16,
-          20,
+          0,
+          14,
+          0,
           widget.embedded ? kDockHeight + 24 : 100,
         ),
         child: Column(
@@ -1654,62 +1145,71 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
           children: [
             // Date Filter Chips (Default: 7 Hari Terakhir)
             _buildShiftHistoryDateFilterChips(),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
             shiftHistoryAsync.when(
-              loading: () => const ShiftHistoryTabSkeleton(count: 4),
-              error: (e, _) => Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.dangerLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'Gagal memuat riwayat shift:\n$e',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.danger,
-                        fontSize: 12,
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: ShiftHistoryTabSkeleton(count: 4),
+              ),
+              error: (e, _) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Gagal memuat riwayat shift:\n$e',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.danger,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      icon: const Icon(Icons.refresh_rounded, size: 16),
-                      label: const Text('Coba Lagi'),
-                      onPressed: () => ref.refresh(shiftHistoryProvider),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: const Text('Coba Lagi'),
+                        onPressed: () => ref.refresh(shiftHistoryProvider),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               data: (shifts) {
                 if (shifts.isEmpty) {
-                  return Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: const Center(
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.history_rounded,
-                            size: 36,
-                            color: AppColors.textMuted,
-                          ),
-                          SizedBox(height: 10),
-                          Text(
-                            'Belum ada riwayat shift yang ditutup untuk rentang waktu ini.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.history_rounded,
+                              size: 36,
+                              color: Color(0xFF94A3B8),
                             ),
-                          ),
-                        ],
+                            SizedBox(height: 10),
+                            Text(
+                              'Belum ada riwayat shift yang ditutup untuk rentang waktu ini.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -1718,6 +1218,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                 return ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   itemCount: shifts.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
@@ -1746,13 +1247,16 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
         ? DateTime.tryParse(closedAtStr.toString())
         : null;
 
-    final durationStr = (openedAt != null && closedAt != null)
-        ? '${DateFormatter.formatTime(openedAt)} - ${DateFormatter.formatTime(closedAt)}'
-        : (openedAt != null ? DateFormatter.formatFull(openedAt) : '-');
-
-    final dateStr = openedAt != null
-        ? DateFormatter.formatShort(openedAt)
-        : 'Shift';
+    final String openedDateTimeStr;
+    if (openedAt != null && closedAt != null) {
+      openedDateTimeStr =
+          '${DateFormatter.formatShort(openedAt)}, ${DateFormatter.formatTime(openedAt)} - ${DateFormatter.formatTime(closedAt)}';
+    } else if (openedAt != null) {
+      openedDateTimeStr =
+          '${DateFormatter.formatShort(openedAt)}, ${DateFormatter.formatTime(openedAt)}';
+    } else {
+      openedDateTimeStr = '-';
+    }
 
     final openingFloat = CurrencyFormatter.parse(shift['opening_cash_float']);
     final totalSales = CurrencyFormatter.parse(
@@ -1772,31 +1276,35 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
     final String statusLabel;
     final Color statusColor;
     final Color statusBg;
+    final Color statusBorder;
     if (isSesuai) {
-      statusLabel = 'SESUAI';
-      statusColor = AppColors.success;
-      statusBg = AppColors.successLight;
+      statusLabel = 'Sesuai';
+      statusColor = const Color(0xFF047857);
+      statusBg = const Color(0xFFECFDF5);
+      statusBorder = const Color(0xFFA7F3D0);
     } else if (isKurang) {
-      statusLabel = 'KURANG: ${CurrencyFormatter.format(diff.abs())}';
-      statusColor = AppColors.danger;
-      statusBg = AppColors.dangerLight;
+      statusLabel = 'Kurang: ${CurrencyFormatter.format(diff.abs())}';
+      statusColor = const Color(0xFFB91C1C);
+      statusBg = const Color(0xFFFEF2F2);
+      statusBorder = const Color(0xFFFECACA);
     } else {
-      statusLabel = 'LEBIH: ${CurrencyFormatter.format(diff)}';
-      statusColor = Colors.deepOrange;
-      statusBg = Colors.deepOrange.withValues(alpha: 0.12);
+      statusLabel = 'Lebih: ${CurrencyFormatter.format(diff)}';
+      statusColor = const Color(0xFFC2410C);
+      statusBg = const Color(0xFFFFF7ED);
+      statusBorder = const Color(0xFFFED7AA);
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Shift Name / Date, Cashier Name, and Duration
+          // Header: Shift ID + Cashier & Date on clean stacked lines, Status pill on right
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1806,52 +1314,56 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Shift #$shiftNum • $dateStr',
+                      'Shift #$shiftNum',
                       style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        color: AppColors.obsidian,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Color(0xFF0F172A),
+                        fontFeatures: [FontFeature.tabularFigures()],
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
-                      'Kasir: $cashier • $durationStr',
+                      'Kasir: $cashier • $openedDateTimeStr',
                       style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              // Status Pill (no decorative icons)
+              const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusBg,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusBorder, width: 1),
                 ),
                 child: Text(
                   statusLabel,
                   style: TextStyle(
                     color: statusColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 10),
 
-          // Financial Breakdown: Modal Awal • Total Penjualan • Total Fisik Kas Terhitung • Selisih
+          // Financial Breakdown: Modal Awal • Penjualan • Kas Terhitung • Selisih
           Row(
             children: [
               Expanded(
@@ -1861,19 +1373,20 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                     const Text(
                       'Modal Awal',
                       style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textMuted,
+                        fontSize: 10.5,
+                        color: Color(0xFF64748B),
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
                         CurrencyFormatter.format(openingFloat),
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                          color: AppColors.obsidian,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.5,
+                          color: Color(0xFF0F172A),
+                          fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),
                     ),
@@ -1888,19 +1401,20 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                     const Text(
                       'Penjualan',
                       style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textMuted,
+                        fontSize: 10.5,
+                        color: Color(0xFF64748B),
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
                         CurrencyFormatter.format(totalSales),
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                          color: AppColors.obsidian,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.5,
+                          color: Color(0xFF0F172A),
+                          fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),
                     ),
@@ -1915,19 +1429,20 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                     const Text(
                       'Kas Terhitung',
                       style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textMuted,
+                        fontSize: 10.5,
+                        color: Color(0xFF64748B),
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
                         CurrencyFormatter.format(actual),
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                          color: AppColors.obsidian,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.5,
+                          color: Color(0xFF0F172A),
+                          fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),
                     ),
@@ -1942,23 +1457,24 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                     const Text(
                       'Selisih',
                       style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textMuted,
+                        fontSize: 10.5,
+                        color: Color(0xFF64748B),
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
                         CurrencyFormatter.format(diff),
                         style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                           color: isSesuai
-                              ? AppColors.success
+                              ? const Color(0xFF059669)
                               : (isKurang
-                                    ? AppColors.danger
-                                    : Colors.deepOrange),
+                                    ? const Color(0xFFDC2626)
+                                    : const Color(0xFFC2410C)),
                         ),
                       ),
                     ),
@@ -1967,30 +1483,40 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 10),
 
-          // Actions Row: "Lihat Rekap Lengkap" and "Cetak Ulang Struk (ESC/POS)"
+          // Actions Row: 40dp balanced buttons
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    minimumSize: Size.zero,
-                    foregroundColor: AppColors.obsidian,
-                    side: const BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  height: 40,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      minimumSize: const Size(0, 40),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF0F172A),
+                      side: const BorderSide(
+                        color: Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                  ),
-                  onPressed: () => _showShiftDetailModal(context, shift),
-                  child: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'Lihat Rekap Lengkap',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                    onPressed: () => _showShiftDetailModal(context, shift),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Lihat Rekap Lengkap',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -1998,28 +1524,37 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    minimumSize: Size.zero,
-                    foregroundColor: AppColors.obsidian,
-                    side: const BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.print_rounded, size: 14),
-                  label: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'Cetak Ulang Struk',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                child: SizedBox(
+                  height: 40,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      minimumSize: const Size(0, 40),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF0F172A),
+                      side: const BorderSide(
+                        color: Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
+                    icon: const Icon(Icons.print_outlined, size: 15),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Cetak Ulang Struk',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    onPressed: () =>
+                        _reprintShiftClosingReceipt(context, shift),
                   ),
-                  onPressed: () => _reprintShiftClosingReceipt(context, shift),
                 ),
               ),
             ],
@@ -2543,6 +2078,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         children: [
           _buildCompactFilterChip(
             '7 Hari Terakhir',
@@ -2563,7 +2099,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                   );
             },
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           _buildCompactFilterChip('Hari Ini', activeLabel == 'Hari Ini', () {
             final nowStr = DateTime.now().toIso8601String().substring(0, 10);
             ref
@@ -2574,7 +2110,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                   endDate: nowStr,
                 );
           }),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           _buildCompactFilterChip('Kemarin', activeLabel == 'Kemarin', () {
             final now = DateTime.now();
             final yesterday = DateTime(now.year, now.month, now.day - 1);
@@ -2583,7 +2119,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                 .read(shiftHistoryDateRangeProvider.notifier)
                 .setDateRange(label: 'Kemarin', startDate: yStr, endDate: yStr);
           }),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           _buildCompactFilterChip('Bulan Ini', activeLabel == 'Bulan Ini', () {
             final now = DateTime.now();
             final startOfMonth = DateTime(
@@ -2600,7 +2136,7 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
                   endDate: todayStr,
                 );
           }),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           _buildCustomShiftHistoryDateFilterChip(activeLabel),
         ],
       ),
@@ -2612,30 +2148,10 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
     bool isSelected,
     VoidCallback onTap,
   ) {
-    return FilterChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-          color: isSelected ? Colors.white : AppColors.textPrimary,
-        ),
-      ),
-      selected: isSelected,
-      showCheckmark: false,
-      selectedColor: AppColors.obsidian,
-      backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: isSelected ? AppColors.obsidian : AppColors.border,
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      onSelected: (_) => onTap(),
+    return ReportFilterPill(
+      label: label,
+      isSelected: isSelected,
+      onTap: onTap,
     );
   }
 
@@ -2645,32 +2161,11 @@ class _CashierShiftViewState extends ConsumerState<CashierShiftView>
         activeLabel != 'Hari Ini' &&
         activeLabel != 'Kemarin' &&
         activeLabel != 'Bulan Ini';
-    return ActionChip(
-      avatar: Icon(
-        Icons.date_range_rounded,
-        size: 14,
-        color: isCustom ? Colors.white : AppColors.textMuted,
-      ),
-      label: Text(
-        isCustom ? activeLabel : 'Rentang Kustom',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: isCustom ? FontWeight.w700 : FontWeight.w500,
-          color: isCustom ? Colors.white : AppColors.textPrimary,
-        ),
-      ),
-      backgroundColor: isCustom ? AppColors.obsidian : AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: isCustom ? AppColors.obsidian : AppColors.border,
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      onPressed: () async {
+    return ReportFilterPill(
+      label: isCustom ? activeLabel : 'Rentang Kustom',
+      isSelected: isCustom,
+      leadingIcon: Icons.date_range_outlined,
+      onTap: () async {
         final picked = await showDateRangePicker(
           context: context,
           firstDate: DateTime(2024),

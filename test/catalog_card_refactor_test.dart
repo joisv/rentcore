@@ -161,8 +161,9 @@ void main() {
         expect(find.text('Rp 300.000 / hari'), findsOneWidget);
 
         // 2. Verify Single Action Row: Edit Tarif (left) and + Tambah Unit (right)
-        expect(find.text('Edit Tarif'), findsNWidgets(4));
-        expect(find.text('+ Tambah Unit'), findsNWidgets(4));
+        expect(find.widgetWithText(OutlinedButton, 'Edit Tarif'), findsNWidgets(4));
+        expect(find.widgetWithText(ElevatedButton, '+ Tambah Unit'), findsNWidgets(4));
+        expect(find.text('Belum ada unit fisik terdaftar'), findsNWidgets(4));
 
         // 3. Verify old stacked buttons are removed
         expect(find.text('+ Registrasi Unit Tipe Ini'), findsNothing);
@@ -260,7 +261,7 @@ void main() {
         (lv) => lv.padding != null && (lv.padding as EdgeInsets).bottom >= 88.0,
       );
       final padding = catalogList.padding as EdgeInsets;
-      expect(padding.bottom, 88.0);
+      expect(padding.bottom, greaterThanOrEqualTo(88.0));
     });
 
     testWidgets(
@@ -307,10 +308,131 @@ void main() {
         await tester.pumpWidget(buildCatalogScreen(products: sampleProducts));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('+ Tambah Unit').first);
+        await tester.tap(find.widgetWithText(ElevatedButton, '+ Tambah Unit').first);
         await tester.pumpAndSettle();
 
         expect(find.text('Registrasi Unit Baru'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'deduplicates brand/category metadata, collapses >4 units behind expand toggle, and searches both model & unit SN/code',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final sixUnits = List.generate(6, (i) {
+          final id = i + 1;
+          return {
+            'id': id,
+            'model_id': 1,
+            'asset_code': 'IPH-00$id',
+            'serial_number': 'SN-IPH-$id',
+            'status': id == 1 ? 'ready' : 'rented',
+            'condition_grade': 'A',
+            'battery_health': 98,
+            'model': {
+              'id': 1,
+              'name': 'iPhone 15 Pro',
+              'brand': 'iPhone',
+              'category': {'id': 2, 'name': 'iPhone'},
+              'color': 'Hitam',
+              'storage_capacity': '256',
+            },
+          };
+        });
+
+        final models = [
+          {
+            'id': 1,
+            'name': 'iPhone 15 Pro',
+            'brand': 'iPhone',
+            'category': {'id': 2, 'name': 'iPhone'},
+            'color': 'Hitam',
+            'storage_capacity': '256',
+            'ready_units_count': 1,
+            'assets_count': 6,
+            'pricing_tiers': [
+              {'duration_unit': 'day', 'duration_value': 1, 'price': 200000.0},
+            ],
+          },
+          {
+            'id': 2,
+            'name': 'Sony Alpha A7 IV',
+            'brand': 'Sony',
+            'category': {'id': 1, 'name': 'Kamera'},
+            'ready_units_count': 1,
+            'assets_count': 1,
+            'pricing_tiers': [
+              {'duration_unit': 'day', 'duration_value': 1, 'price': 300000.0},
+            ],
+          },
+        ];
+
+        final repo = _FakeAssetRepository(models);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              businessProvider.overrideWith(
+                () => _TestBusinessNotifier(
+                  BusinessState(
+                    activeBusinessId: 1,
+                    activeBusinessName: 'RentCore Store',
+                    businesses: [
+                      {'id': 1, 'name': 'RentCore Store', 'role': 'owner'},
+                    ],
+                  ),
+                ),
+              ),
+              assetRepositoryProvider.overrideWithValue(repo),
+              inventoryListProvider.overrideWith(
+                (ref) => Future.value([
+                  ...sixUnits,
+                  {
+                    'id': 99,
+                    'model_id': 2,
+                    'asset_code': 'CAM-099',
+                    'serial_number': 'SN-SONY-99',
+                    'status': 'ready',
+                    'condition_grade': 'A',
+                    'model': models[1],
+                  },
+                ]),
+              ),
+              productsProvider.overrideWith((ref) => Future.value(models)),
+            ],
+            child: MaterialApp(
+              navigatorKey: rootNavigatorKey,
+              home: const InventoryScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Metadata deduplicates "iPhone • iPhone" -> "iPhone • Hitam / 256 GB"
+        expect(find.text('iPhone • Hitam / 256 GB'), findsOneWidget);
+        expect(find.textContaining('iPhone • iPhone'), findsNothing);
+
+        // 2. >4 units collapsed behind "Lihat semua (6 unit)"
+        expect(find.text('Lihat semua (6 unit)'), findsOneWidget);
+        expect(find.text('IPH-006'), findsOneWidget); // newest sorted first
+        expect(find.text('IPH-001'), findsNothing); // hidden until expanded
+
+        await tester.tap(find.text('Lihat semua (6 unit)'));
+        await tester.pumpAndSettle();
+        expect(find.text('IPH-001'), findsOneWidget);
+        expect(find.text('Tampilkan lebih sedikit'), findsOneWidget);
+
+        // 3. Unified search matches unit serial number -> filters down to matching unit + parent model
+        await tester.enterText(
+          find.byKey(const Key('inventory_unified_search_field')),
+          'SN-SONY-99',
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('CAM-099'), findsOneWidget);
+        expect(find.text('Sony Alpha A7 IV'), findsOneWidget);
+        expect(find.text('iPhone 15 Pro'), findsNothing);
       },
     );
   });

@@ -108,11 +108,11 @@ void main() {
         await tester.pumpWidget(createTestWidget(repo: repo));
         await tester.pumpAndSettle();
 
-        // 1. Segmented tabs & concise empty state copy (search bar hidden)
-        expect(find.byKey(const Key('inventory_tab_units')), findsOneWidget);
-        expect(find.byKey(const Key('inventory_tab_catalog')), findsOneWidget);
-        expect(find.byKey(const Key('inventory_units_search_field')), findsNothing);
-        expect(find.byKey(const Key('inventory_units_filter_button')), findsNothing);
+        // 1. Unified tab-free view & concise empty state copy (search bar hidden)
+        expect(find.byKey(const Key('inventory_tab_units')), findsNothing);
+        expect(find.byKey(const Key('inventory_tab_catalog')), findsNothing);
+        expect(find.byKey(const Key('inventory_unified_search_field')), findsNothing);
+        expect(find.byKey(const Key('inventory_filter_button')), findsNothing);
         expect(find.text('Belum Ada Inventaris'), findsOneWidget);
         expect(
           find.text('Buat model katalog terlebih dahulu sebelum mendaftarkan unit fisik.'),
@@ -149,7 +149,7 @@ void main() {
     );
 
     testWidgets(
-      'When models exist but physical units are empty: smart CTA switches to + Tambah Unit Fisik and opens unit registration sheet',
+      'When models exist but physical units are empty: renders model card with inline empty-unit strip and + Tambah Unit preselects model',
       (tester) async {
         final sampleProducts = [
           {
@@ -175,27 +175,19 @@ void main() {
         await tester.pumpWidget(createTestWidget(repo: repo));
         await tester.pumpAndSettle();
 
-        // 1. Concise empty state header + hidden search bar (no units yet)
-        expect(find.text('Belum Ada Inventaris'), findsOneWidget);
-        expect(
-          find.text('Buat model katalog terlebih dahulu sebelum mendaftarkan unit fisik.'),
-          findsOneWidget,
-        );
-        expect(find.byKey(const Key('inventory_units_search_field')), findsNothing);
+        // 1. Unified card shown with search bar and inline empty unit strip
+        expect(find.byKey(const Key('inventory_unified_search_field')), findsOneWidget);
+        expect(find.text('Sony Alpha A7 IV'), findsOneWidget);
+        expect(find.text('Belum ada unit fisik terdaftar'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, '+ Tambah Unit'), findsOneWidget);
+        expect(find.byKey(const Key('inventory_expandable_main_fab')), findsNothing);
 
-        // 2. Smart Primary CTA shows + Tambah Unit Fisik because models exist
-        expect(find.text('+ Tambah Unit Fisik'), findsOneWidget);
-        expect(find.text('+ Buat Model Pertama'), findsNothing);
-
-        // 3. Floating Action Button IS visible because models exist
-        expect(find.byKey(const Key('inventory_expandable_main_fab')), findsOneWidget);
-
-        // 4. Tapping + Tambah Unit Fisik opens unit registration sheet
-        await tester.tap(find.text('+ Tambah Unit Fisik'));
+        // 2. Tapping + Tambah Unit opens unit registration sheet with Sony Alpha A7 IV pre-selected
+        await tester.tap(find.widgetWithText(ElevatedButton, '+ Tambah Unit'));
         await tester.pumpAndSettle();
 
-        // Sheet title is 'Registrasi Unit Baru'
         expect(find.text('Registrasi Unit Baru'), findsOneWidget);
+        expect(find.textContaining('Sony Alpha A7 IV'), findsWidgets);
       },
     );
   });

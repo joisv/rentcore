@@ -225,11 +225,14 @@ void main() {
       expect(find.text('Kembali'), findsOneWidget);
       expect(find.text('Lanjut'), findsOneWidget);
 
-      // Verify customer form fields exist
-      expect(find.widgetWithText(TextFormField, 'Nama Penyewa *'), findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Nomor WhatsApp *'), findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'), findsOneWidget);
-      expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+      // Verify customer form fields & external labels exist
+      expect(find.text('Nama Penyewa *'), findsOneWidget);
+      expect(find.text('Nomor WhatsApp *'), findsOneWidget);
+      expect(find.text('Alamat (KTP/SIM) *'), findsOneWidget);
+      expect(find.byKey(const Key('step2_name_field')), findsOneWidget);
+      expect(find.byKey(const Key('step2_phone_field')), findsOneWidget);
+      expect(find.byKey(const Key('step2_address_field')), findsOneWidget);
+      expect(find.byKey(const Key('step2_collateral_dropdown')), findsOneWidget);
 
       // Advance to Step 3
       await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));

@@ -344,7 +344,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify amber badge and note requirement
-    expect(find.text('CATATAN TINDAK LANJUT KARANTINA (WAJIB)'), findsOneWidget);
+    expect(find.text('Karantina'), findsOneWidget);
+    expect(find.text('Catatan Staf (Wajib)'), findsOneWidget);
 
     // 2. Attempt submit without notes -> SnackBar warning
     final submitBtn = find.text('Selesaikan Pengembalian');

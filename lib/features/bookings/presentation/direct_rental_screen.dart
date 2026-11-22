@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
@@ -1699,18 +1698,32 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     }
   }
 
+  String _formatBranchTitle(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (trimmed != trimmed.toLowerCase()) return trimmed;
+    return trimmed
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+
   Widget _buildModalHeader({
     String? branchName,
     bool showSwitchBranch = false,
     List<Map<String, dynamic>> availableBranches = const [],
     int? currentBranchId,
   }) {
+    final formattedBranch = branchName != null && branchName.isNotEmpty
+        ? _formatBranchTitle(branchName)
+        : null;
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: Color(0xFFFFFFFF),
         border: Border(
-          bottom: BorderSide(color: AppColors.border, width: 1),
+          bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1),
         ),
       ),
       child: SafeArea(
@@ -1731,12 +1744,12 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                   ),
                   style: IconButton.styleFrom(
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   icon: const Icon(
                     Icons.close_rounded,
-                    color: AppColors.obsidian,
+                    color: Color(0xFF0F172A),
                     size: 22,
                   ),
                   tooltip: 'Tutup',
@@ -1751,18 +1764,23 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                   children: [
                     const Text(
                       'Sewa / Booking Baru',
-                      style: AppTextStyles.pageHeader,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                        color: Color(0xFF0F172A),
+                      ),
                     ),
-                    if (branchName != null && branchName.isNotEmpty)
+                    if (formattedBranch != null)
                       Text(
-                        'Cabang: $branchName',
+                        'Cabang: $formattedBranch',
                         key: const Key('booking_active_branch_subtitle'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF6B7280),
+                          color: Color(0xFF64748B),
                         ),
                       ),
                   ],
@@ -1776,10 +1794,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    foregroundColor: const Color(0xFF111111),
+                    foregroundColor: const Color(0xFF0F172A),
                   ),
                   icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-                  label: const Text('Ganti', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  label: const Text('Ganti', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                 ),
             ],
           ),
@@ -1832,7 +1850,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         _promptDiscardBooking();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFFFFF),
         appBar: widget.showAppBar
             ? RentCoreAppBar(
                 titleWidget: Column(
@@ -1843,20 +1861,25 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       _isScheduledBooking
                           ? 'Jadwalkan Booking Baru'
                           : 'Transaksi Sewa Baru di Meja Kasir',
-                      style: AppTextStyles.pageHeader,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                        color: Color(0xFF0F172A),
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (targetBranch.branchName != null && targetBranch.branchName!.isNotEmpty)
                       Text(
-                        'Cabang: ${targetBranch.branchName}',
+                        'Cabang: ${_formatBranchTitle(targetBranch.branchName!)}',
                         key: const Key('booking_active_branch_subtitle'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF6B7280),
+                          color: Color(0xFF64748B),
                         ),
                       ),
                   ],
@@ -1869,9 +1892,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         targetBranch.availableBranches,
                         targetBranch.branchId,
                       ),
-                      style: TextButton.styleFrom(foregroundColor: const Color(0xFF111111)),
+                      style: TextButton.styleFrom(foregroundColor: const Color(0xFF0F172A)),
                       icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-                      label: const Text('Ganti', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      label: const Text('Ganti', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                     ),
                 ],
               )
@@ -1885,16 +1908,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 availableBranches: targetBranch.availableBranches,
                 currentBranchId: targetBranch.branchId,
               ),
+            _buildStepperHeader(),
             Expanded(
               child: SingleChildScrollView(
                 controller: widget.scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // STEPPER PROGRESS HEADER
-                    _buildStepperHeader(),
-
                     // STEP BODY
                     if (_currentStep == 0)
                       _buildStep1UnitAndDuration(readyAssetsAsync, categoriesAsync, isUnitSelected)
@@ -1914,44 +1935,44 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   }
 
   Widget _buildStepperHeader() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Row(
-        children: [
-          Flexible(
-            flex: 3,
-            child: _buildStepItem(
-              step: 0,
-              label: '1. Unit',
-              icon: Icons.phone_iphone_rounded,
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            children: [
+              Flexible(
+                flex: 3,
+                child: _buildStepItem(
+                  step: 0,
+                  label: '1. Unit',
+                  icon: Icons.phone_iphone_rounded,
+                ),
+              ),
+              _buildStepDivider(0),
+              Flexible(
+                flex: 4,
+                child: _buildStepItem(
+                  step: 1,
+                  label: '2. Penyewa',
+                  icon: Icons.person_outline_rounded,
+                ),
+              ),
+              _buildStepDivider(1),
+              Flexible(
+                flex: 4,
+                child: _buildStepItem(
+                  step: 2,
+                  label: '3. Ringkasan',
+                  icon: Icons.receipt_long_outlined,
+                ),
+              ),
+            ],
           ),
-          _buildStepDivider(0),
-          Flexible(
-            flex: 4,
-            child: _buildStepItem(
-              step: 1,
-              label: '2. Penyewa',
-              icon: Icons.person_rounded,
-            ),
-          ),
-          _buildStepDivider(1),
-          Flexible(
-            flex: 4,
-            child: _buildStepItem(
-              step: 2,
-              label: '3. Ringkasan',
-              icon: Icons.assignment_turned_in_rounded,
-            ),
-          ),
-        ],
-      ),
+        ),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+      ],
     );
   }
 
@@ -1965,8 +1986,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final isClickable = isDone;
 
     final color = isActive
-        ? AppColors.obsidian
-        : (isDone ? AppColors.success : AppColors.textMuted);
+        ? const Color(0xFF0F172A)
+        : (isDone ? const Color(0xFF059669) : const Color(0xFF94A3B8));
 
     return InkWell(
       onTap: isClickable ? () => setState(() => _currentStep = step) : null,
@@ -1977,26 +1998,24 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 20,
-              height: 20,
+              width: 22,
+              height: 22,
               decoration: BoxDecoration(
                 color: isActive
-                    ? AppColors.obsidian
-                    : (isDone ? AppColors.successLight : AppColors.surfaceMuted),
+                    ? const Color(0xFF0F172A)
+                    : (isDone ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9)),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: isActive
-                      ? AppColors.obsidian
-                      : (isDone ? AppColors.success : AppColors.border),
-                ),
+                border: isDone
+                    ? Border.all(color: const Color(0xFFA7F3D0), width: 1)
+                    : null,
               ),
               child: Center(
                 child: isDone
-                    ? const Icon(Icons.check_rounded, size: 11, color: AppColors.success)
-                    : Icon(icon, size: 10, color: isActive ? Colors.white : AppColors.textMuted),
+                    ? const Icon(Icons.check_rounded, size: 13, color: Color(0xFF059669))
+                    : Icon(icon, size: 12, color: isActive ? const Color(0xFFFFFFFF) : const Color(0xFF94A3B8)),
               ),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 6),
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -2004,8 +2023,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 12,
+                    fontWeight: isActive
+                        ? FontWeight.w700
+                        : (isDone ? FontWeight.w600 : FontWeight.w500),
                     color: color,
                   ),
                 ),
@@ -2021,9 +2042,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final isDone = _currentStep > step;
     return Expanded(
       child: Container(
-        height: 2,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        color: isDone ? AppColors.success : AppColors.border,
+        height: 1.5,
+        margin: const EdgeInsets.symmetric(horizontal: 6),
+        color: isDone ? const Color(0xFFA7F3D0) : const Color(0xFFE2E8F0),
       ),
     );
   }
@@ -2037,87 +2058,105 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     required IconData fallbackIcon,
     required String title,
     required String subtitle,
-    Color subtitleColor = const Color(0xFF6B7280),
+    Color subtitleColor = const Color(0xFF64748B),
     FontWeight subtitleWeight = FontWeight.w400,
     required String rateLabel,
     required VoidCallback? onTap,
   }) {
-    return InkWell(
-      key: key,
-      onTap: onTap,
-      child: Opacity(
-        opacity: (isEnabled || isSelected) ? 1.0 : 0.55,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          color: isSelected ? const Color(0xFFF9FAFB) : Colors.white,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(
-                isSelected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_off,
-                size: 18,
-                color: isSelected
-                    ? (isAvailable ? const Color(0xFF111111) : AppColors.danger)
-                    : AppColors.textMuted,
-              ),
-              const SizedBox(width: 8),
-              UnitThumbnail(
-                imageUrl: imageUrl,
-                fallbackIcon: fallbackIcon,
-                size: 34,
-                iconSize: 16,
-                borderRadius: 8,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                        fontSize: 13.5,
-                        color: const Color(0xFF111111),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: subtitleWeight,
-                        color: subtitleColor,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width < 350 ? 84 : 120,
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    rateLabel,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      color: Color(0xFF111111),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: isSelected ? const Color(0xFFF8FAFC) : const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected
+              ? (isAvailable ? const Color(0xFF0F172A) : AppColors.danger)
+              : const Color(0xFFE2E8F0),
+          width: isSelected ? 1.5 : 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          key: key,
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Opacity(
+            opacity: (isEnabled || isSelected) ? 1.0 : 0.55,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off,
+                    size: 18,
+                    color: isSelected
+                        ? (isAvailable ? const Color(0xFF0F172A) : AppColors.danger)
+                        : const Color(0xFF94A3B8),
+                  ),
+                  const SizedBox(width: 8),
+                  UnitThumbnail(
+                    imageUrl: imageUrl,
+                    fallbackIcon: fallbackIcon,
+                    size: 40,
+                    iconSize: 18,
+                    borderRadius: 8,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14.5,
+                            color: Color(0xFF0F172A),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: subtitleWeight,
+                            color: subtitleColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.sizeOf(context).width < 350 ? 84 : 120,
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        rateLabel,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.5,
+                          color: Color(0xFF0F172A),
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -2228,16 +2267,17 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 _loadModelAvailability();
               }
             },
+            style: const TextStyle(fontSize: 13.5, color: Color(0xFF0F172A)),
             decoration: InputDecoration(
               hintText: showFloatingModels
                   ? 'Cari nama model atau merek...'
                   : 'Cari nama unit, merek, atau kode...',
-              hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-              prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textSecondary),
+              hintStyle: const TextStyle(fontSize: 13.5, color: Color(0xFF94A3B8)),
+              prefixIcon: const Icon(Icons.search_rounded, size: 19, color: Color(0xFF64748B)),
               suffixIcon: _unitSearchQuery.isNotEmpty
                   ? IconButton(
                       key: const Key('booking_unit_search_clear'),
-                      icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                      icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
                       onPressed: () {
                         _unitSearchController.clear();
                         setState(() {
@@ -2251,24 +2291,24 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     )
                   : null,
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               filled: true,
-              fillColor: const Color(0xFFF9FAFB),
+              fillColor: const Color(0xFFF8FAFC),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFF111111), width: 1.2),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
           // Category Filter Chips (Horizontally Scrollable)
           categoriesAsync.when(
@@ -2276,9 +2316,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             error: (e, s) => const SizedBox.shrink(),
             data: (categories) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 10),
                 child: SizedBox(
-                  height: 34,
+                  height: 36,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: categories.length + 1,
@@ -2289,7 +2329,17 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         return ChoiceChip(
                           label: const Text('Semua'),
                           selected: isSelected,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          checkmarkColor: const Color(0xFFFFFFFF),
+                          selectedColor: const Color(0xFF0F172A),
+                          backgroundColor: const Color(0xFFFFFFFF),
+                          side: BorderSide(
+                            color: isSelected
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFFE2E8F0),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           visualDensity: VisualDensity.compact,
                           onSelected: (_) {
                             setState(() {
@@ -2300,11 +2350,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                               _loadModelAvailability();
                             }
                           },
-                          selectedColor: const Color(0xFF111111),
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : const Color(0xFF111111),
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                            fontSize: 12,
+                            color: isSelected
+                                ? const Color(0xFFFFFFFF)
+                                : const Color(0xFF475569),
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontSize: 12.5,
                           ),
                         );
                       }
@@ -2313,7 +2365,17 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       return ChoiceChip(
                         label: Text(cat['name'] ?? ''),
                         selected: isSelected,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        checkmarkColor: const Color(0xFFFFFFFF),
+                        selectedColor: const Color(0xFF0F172A),
+                        backgroundColor: const Color(0xFFFFFFFF),
+                        side: BorderSide(
+                          color: isSelected
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         visualDensity: VisualDensity.compact,
                         onSelected: (_) {
                           setState(() {
@@ -2324,11 +2386,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                             _loadModelAvailability();
                           }
                         },
-                        selectedColor: const Color(0xFF111111),
                         labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : const Color(0xFF111111),
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                          fontSize: 12,
+                          color: isSelected
+                              ? const Color(0xFFFFFFFF)
+                              : const Color(0xFF475569),
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          fontSize: 12.5,
                         ),
                       );
                     },
@@ -2470,8 +2534,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 return Column(
                   children: [
                     for (int i = 0; i < displayedAssets.length; i++) ...[
-                      if (i > 0)
-                        const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
                       Builder(
                         builder: (context) {
                           final asset = displayedAssets[i];
@@ -2547,17 +2609,17 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
-            child: Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
           ),
 
           // DURATION & SCHEDULE SECTION
           const Text(
             'DURASI & JADWAL',
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.6,
-              color: Color(0xFF6B7280),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+              color: Color(0xFF94A3B8),
             ),
           ),
           const SizedBox(height: 10),
@@ -2625,13 +2687,25 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                               return ChoiceChip(
                                 label: Text(tier.label),
                                 selected: isSelected,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                checkmarkColor: const Color(0xFFFFFFFF),
+                                selectedColor: const Color(0xFF0F172A),
+                                backgroundColor: const Color(0xFFFFFFFF),
+                                disabledColor: const Color(0xFFF8FAFC),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFFE2E8F0),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 visualDensity: VisualDensity.compact,
                                 onSelected: isUnitSelected ? (_) => _onTierSelected(tier) : null,
-                                selectedColor: const Color(0xFF111111),
                                 labelStyle: TextStyle(
-                                  fontSize: 12,
-                                  color: isSelected ? Colors.white : const Color(0xFF111111),
+                                  fontSize: 12.5,
+                                  color: isSelected
+                                      ? const Color(0xFFFFFFFF)
+                                      : const Color(0xFF475569),
                                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                                 ),
                               );
@@ -2651,38 +2725,42 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                   },
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
 
                 // Voucher Input Field
                 Row(
                   children: [
                     Expanded(
                       child: SizedBox(
-                        height: 42,
+                        height: 44,
                         child: TextField(
                           controller: _voucherController,
                           enabled: isUnitSelected,
                           textCapitalization: TextCapitalization.characters,
-                          style: const TextStyle(fontSize: 13),
+                          style: const TextStyle(fontSize: 13.5, color: Color(0xFF0F172A)),
                           decoration: InputDecoration(
                             hintText: 'Kode voucher...',
-                            hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                            prefixIcon: const Icon(Icons.confirmation_number_outlined, size: 18),
+                            hintStyle: const TextStyle(fontSize: 13.5, color: Color(0xFF94A3B8)),
+                            prefixIcon: const Icon(Icons.confirmation_number_outlined, size: 18, color: Color(0xFF64748B)),
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: const Color(0xFFF8FAFC),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            disabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFF111111), width: 1.2),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
                             ),
                           ),
                         ),
@@ -2690,16 +2768,16 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     ),
                     const SizedBox(width: 8),
                     SizedBox(
-                      height: 42,
+                      height: 44,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF111111),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(84, 42),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: const Color(0xFFFFFFFF),
+                          minimumSize: const Size(88, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         onPressed: (isUnitSelected && !_isValidatingVoucher) ? _validateVoucher : null,
@@ -2709,7 +2787,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                                 width: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
-                            : const Text('Terapkan', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            : const Text('Terapkan', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ],
@@ -2814,8 +2892,6 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return Column(
       children: [
         for (int i = 0; i < filteredModels.length; i++) ...[
-          if (i > 0)
-            const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
           Builder(
             builder: (context) {
               final model = filteredModels[i];
@@ -2864,10 +2940,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Container(
+          height: 38,
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -2883,12 +2960,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     left: Radius.circular(9),
                   ),
                   child: SizedBox(
-                    width: 32,
-                    height: 32,
+                    width: 34,
+                    height: 36,
                     child: Icon(
                       Icons.remove_rounded,
                       size: 16,
-                      color: canDecrement ? AppColors.textPrimary : AppColors.textMuted,
+                      color: canDecrement
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFF94A3B8),
                     ),
                   ),
                 ),
@@ -2903,7 +2982,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: Color(0xFF0F172A),
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -2919,12 +2998,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     right: Radius.circular(9),
                   ),
                   child: SizedBox(
-                    width: 32,
-                    height: 32,
+                    width: 34,
+                    height: 36,
                     child: Icon(
                       Icons.add_rounded,
                       size: 16,
-                      color: canIncrement ? AppColors.textPrimary : AppColors.textMuted,
+                      color: canIncrement
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFF94A3B8),
                     ),
                   ),
                 ),
@@ -2937,9 +3018,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           '$totalHours Jam',
           key: const Key('booking_multiplier_total_hours'),
           style: const TextStyle(
-            fontSize: 10.5,
+            fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
+            color: Color(0xFF64748B),
             fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),
@@ -3000,55 +3081,59 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           children: [
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+              child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
             ),
             const Text(
               'ADD-ON (OPSIONAL)',
               style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.6,
-                color: Color(0xFF6B7280),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+                color: Color(0xFF94A3B8),
               ),
             ),
             const SizedBox(height: 10),
 
             // Real-Time Add-on Search Field
-            TextField(
-              key: const Key('booking_addon_search_field'),
-              controller: _addonSearchController,
-              onChanged: (value) => setState(() {
-                _addonSearchQuery = value.trim();
-              }),
-              decoration: InputDecoration(
-                hintText: 'Cari add-on...',
-                hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textSecondary),
-                suffixIcon: _addonSearchQuery.isNotEmpty
-                    ? IconButton(
-                        key: const Key('booking_addon_search_clear'),
-                        icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
-                        onPressed: () {
-                          _addonSearchController.clear();
-                          setState(() => _addonSearchQuery = '');
-                        },
-                      )
-                    : null,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                filled: true,
-                fillColor: const Color(0xFFF9FAFB),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFF111111), width: 1.2),
+            SizedBox(
+              height: 42,
+              child: TextField(
+                key: const Key('booking_addon_search_field'),
+                controller: _addonSearchController,
+                onChanged: (value) => setState(() {
+                  _addonSearchQuery = value.trim();
+                }),
+                style: const TextStyle(fontSize: 13.5, color: Color(0xFF0F172A)),
+                decoration: InputDecoration(
+                  hintText: 'Cari add-on...',
+                  hintStyle: const TextStyle(fontSize: 13.5, color: Color(0xFF94A3B8)),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                  suffixIcon: _addonSearchQuery.isNotEmpty
+                      ? IconButton(
+                          key: const Key('booking_addon_search_clear'),
+                          icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                          onPressed: () {
+                            _addonSearchController.clear();
+                            setState(() => _addonSearchQuery = '');
+                          },
+                        )
+                      : null,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+                  ),
                 ),
               ),
             ),
@@ -3060,22 +3145,21 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF9FAFB),
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Text(
                   _addonSearchQuery.isNotEmpty
                       ? 'Tidak ada add-on yang cocok dengan "$_addonSearchQuery".'
                       : 'Tidak ada add-on tersedia.',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                 ),
               )
             else
               Column(
                 children: [
                   for (int i = 0; i < filteredAddons.length; i++) ...[
-                    if (i > 0)
-                      const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
                     Builder(
                       builder: (context) {
                         final addon = filteredAddons[i];
@@ -3085,46 +3169,66 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         final price = _computeAddonPrice(addon);
                         final assetCode = addon['asset_code']?.toString() ?? '-';
 
-                        return InkWell(
-                          onTap: () => _toggleAddon(addon),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-                            color: isSelected ? const Color(0xFFF9FAFB) : Colors.white,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Checkbox(
-                                  value: isSelected,
-                                  activeColor: const Color(0xFF111111),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  onChanged: (_) => _toggleAddon(addon),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '$modelName • $assetCode',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 13.5,
-                                      color: Color(0xFF111111),
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFFF8FAFC)
+                                : const Color(0xFFFFFFFF),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFE2E8F0),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => _toggleAddon(addon),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Checkbox(
+                                      value: isSelected,
+                                      activeColor: const Color(0xFF0F172A),
+                                      visualDensity: VisualDensity.compact,
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      onChanged: (_) => _toggleAddon(addon),
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '$modelName • $assetCode',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 13.5,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '+ ${CurrencyFormatter.format(price)}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12.5,
+                                        fontFeatures: const [FontFeature.tabularFigures()],
+                                        color: isSelected
+                                            ? const Color(0xFF0F172A)
+                                            : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '+ ${CurrencyFormatter.format(price)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12.5,
-                                    color: isSelected
-                                        ? const Color(0xFF111111)
-                                        : const Color(0xFF6B7280),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         );
@@ -3135,7 +3239,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               ),
 
             if (_selectedAddons.isNotEmpty) ...[
-              const Divider(height: 16, thickness: 1, color: Color(0xFFF3F4F6)),
+              const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -3145,7 +3249,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
-                        color: Color(0xFF6B7280),
+                        color: Color(0xFF64748B),
                       ),
                     ),
                   ),
@@ -3155,7 +3259,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 13.5,
-                      color: Color(0xFF111111),
+                      color: Color(0xFF0F172A),
+                      fontFeatures: [FontFeature.tabularFigures()],
                     ),
                   ),
                 ],
@@ -3168,46 +3273,64 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   }
 
   Widget _buildStep2CustomerAndCollateral() {
-    InputDecoration compactFieldDecoration({
-      required String labelText,
+    InputDecoration unifiedFieldDecoration({
       String? hintText,
-      bool alignLabelWithHint = false,
       Widget? prefixIcon,
     }) {
       return InputDecoration(
-        labelText: labelText,
-        labelStyle: const TextStyle(
-          fontSize: 12,
-          color: Color(0xFF6B7280),
-        ),
         hintText: hintText,
         hintStyle: const TextStyle(
-          fontSize: 12,
-          color: AppColors.textMuted,
+          fontSize: 13.5,
+          color: Color(0xFF94A3B8),
         ),
-        alignLabelWithHint: alignLabelWithHint,
         prefixIcon: prefixIcon,
         isDense: true,
         filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF111111), width: 1.2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.danger),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.danger, width: 1.5),
         ),
       );
     }
 
+    Widget buildLabeledField({required String label, required Widget child}) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(height: 6),
+          child,
+        ],
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(top: 4),
       child: Form(
         key: _formKey,
         child: Column(
@@ -3220,10 +3343,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                   child: Text(
                     'DATA PENYEWA',
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.6,
-                      color: Color(0xFF6B7280),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF94A3B8),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -3242,134 +3365,170 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                             height: 12,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Color(0xFF111111),
+                              color: Color(0xFF0F172A),
                             ),
                           )
                         : const Text(
                             'Cari Pelanggan',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF111111),
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             // Customer Name
-            TextFormField(
-              controller: _nameController,
-              style: const TextStyle(fontSize: 13.5, color: Color(0xFF111111)),
-              decoration: compactFieldDecoration(
-                labelText: 'Nama Penyewa *',
-                prefixIcon: const Icon(Icons.person_outline_rounded, size: 18),
+            buildLabeledField(
+              label: 'Nama Penyewa *',
+              child: TextFormField(
+                key: const Key('step2_name_field'),
+                controller: _nameController,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
+                decoration: unifiedFieldDecoration(
+                  hintText: 'Masukkan nama lengkap penyewa',
+                  prefixIcon: const Icon(
+                    Icons.person_outline_rounded,
+                    size: 20,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().length < 3) {
+                    return 'Nama penyewa minimal 3 karakter';
+                  }
+                  return null;
+                },
               ),
-              validator: (v) {
-                if (v == null || v.trim().length < 3) {
-                  return 'Nama penyewa minimal 3 karakter';
-                }
-                return null;
-              },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             // WhatsApp Phone
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              style: const TextStyle(fontSize: 13.5, color: Color(0xFF111111)),
-              decoration: compactFieldDecoration(
-                labelText: 'Nomor WhatsApp *',
-                prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+            buildLabeledField(
+              label: 'Nomor WhatsApp *',
+              child: TextFormField(
+                key: const Key('step2_phone_field'),
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
+                decoration: unifiedFieldDecoration(
+                  hintText: 'Contoh: 081234567890',
+                  prefixIcon: const Icon(
+                    Icons.phone_outlined,
+                    size: 20,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().length < 8) {
+                    return 'Nomor WhatsApp wajib diisi minimal 8 digit';
+                  }
+                  return null;
+                },
               ),
-              validator: (v) {
-                if (v == null || v.trim().length < 8) {
-                  return 'Nomor WhatsApp wajib diisi minimal 8 digit';
-                }
-                return null;
-              },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             // Address
-            TextFormField(
-              controller: _addressController,
-              maxLines: 3,
-              minLines: 2,
-              style: const TextStyle(fontSize: 13.5, color: Color(0xFF111111)),
-              decoration: compactFieldDecoration(
-                labelText: 'Alamat (KTP/SIM) *',
-                hintText: 'Jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota',
-                alignLabelWithHint: true,
-                prefixIcon: const Padding(
-                  padding: EdgeInsets.only(top: 2, bottom: 18),
-                  child: Icon(Icons.home_outlined, size: 18),
-                ),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().length < 5) {
-                  return 'Alamat (KTP/SIM) wajib diisi lengkap';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-
-            // Collateral Safe Slot Dropdown
-            DropdownButtonFormField<String>(
-              initialValue: _safeSlots.contains(_selectedSafeSlot)
-                  ? _selectedSafeSlot
-                  : _safeSlots.first,
-              decoration: compactFieldDecoration(
-                labelText: _isScheduledBooking
-                    ? 'Slot Brankas Jaminan'
-                    : 'Slot Brankas Jaminan *',
-                prefixIcon: const Icon(Icons.shield_outlined, size: 18),
-              ),
-              isExpanded: true,
-              items: _safeSlots.map((slot) {
-                return DropdownMenuItem<String>(
-                  value: slot,
-                  child: Text(
-                    slot,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF111111),
+            buildLabeledField(
+              label: 'Alamat (KTP/SIM) *',
+              child: TextFormField(
+                key: const Key('step2_address_field'),
+                controller: _addressController,
+                maxLines: 3,
+                minLines: 2,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
+                decoration: unifiedFieldDecoration(
+                  hintText: 'Jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota',
+                  prefixIcon: const Padding(
+                    padding: EdgeInsets.only(top: 2, bottom: 18),
+                    child: Icon(
+                      Icons.home_outlined,
+                      size: 20,
+                      color: Color(0xFF64748B),
                     ),
                   ),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() {
-                    _selectedSafeSlot = val;
-                    _slotController.text = val;
-                  });
-                }
-              },
-              validator: (v) {
-                if (!_isScheduledBooking && (v == null || v.trim().isEmpty)) {
-                  return 'Slot brankas jaminan wajib dipilih';
-                }
-                return null;
-              },
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().length < 5) {
+                    return 'Alamat (KTP/SIM) wajib diisi lengkap';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Collateral Safe Slot Dropdown
+            buildLabeledField(
+              label: _isScheduledBooking
+                  ? 'Slot Brankas Jaminan'
+                  : 'Slot Brankas Jaminan *',
+              child: DropdownButtonFormField<String>(
+                key: const Key('step2_collateral_dropdown'),
+                initialValue: _safeSlots.contains(_selectedSafeSlot)
+                    ? _selectedSafeSlot
+                    : _safeSlots.first,
+                dropdownColor: const Color(0xFFFFFFFF),
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Color(0xFF64748B),
+                  size: 20,
+                ),
+                decoration: unifiedFieldDecoration(
+                  prefixIcon: const Icon(
+                    Icons.shield_outlined,
+                    size: 20,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                isExpanded: true,
+                items: _safeSlots.map((slot) {
+                  return DropdownMenuItem<String>(
+                    value: slot,
+                    child: Text(
+                      slot,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _selectedSafeSlot = val;
+                      _slotController.text = val;
+                    });
+                  }
+                },
+                validator: (v) {
+                  if (!_isScheduledBooking && (v == null || v.trim().isEmpty)) {
+                    return 'Slot brankas jaminan wajib dipilih';
+                  }
+                  return null;
+                },
+              ),
             ),
 
             // Customer Search Status Feedback
             if (_foundCustomer != null && _foundCustomer!['is_blacklisted'] == true)
               Container(
-                margin: const EdgeInsets.only(top: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.dangerLight,
+                  color: const Color(0xFFFEF2F2),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFECACA)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.block_rounded, color: AppColors.danger, size: 18),
+                    const Icon(Icons.block_rounded, color: Color(0xFFDC2626), size: 18),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -3378,16 +3537,16 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                           const Text(
                             'DAFTAR HITAM (BLACKLIST)',
                             style: TextStyle(
-                              color: AppColors.danger,
-                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w700,
                               fontSize: 12,
                             ),
                           ),
                           Text(
                             'Alasan: ${_foundCustomer!['blacklist_reason'] ?? 'Pelanggan bermasalah'}',
                             style: const TextStyle(
-                              color: AppColors.danger,
-                              fontSize: 11,
+                              color: Color(0xFFDC2626),
+                              fontSize: 11.5,
                             ),
                           ),
                         ],
@@ -3398,23 +3557,24 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               )
             else if (_foundCustomer != null)
               Container(
-                margin: const EdgeInsets.only(top: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 decoration: BoxDecoration(
-                  color: AppColors.successLight,
+                  color: const Color(0xFFECFDF5),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.verified_rounded, color: AppColors.success, size: 16),
+                    const Icon(Icons.verified_rounded, color: Color(0xFF047857), size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Pelanggan Terdaftar • ${_foundCustomer!['bookings_count'] ?? 0}x Sewa',
                         style: const TextStyle(
-                          color: AppColors.success,
+                          color: Color(0xFF047857),
                           fontWeight: FontWeight.w600,
-                          fontSize: 11.5,
+                          fontSize: 12.5,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -3425,17 +3585,18 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               )
             else if (_customerLookupMessage != null)
               Container(
-                margin: const EdgeInsets.only(top: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FA),
+                  color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Text(
                   _customerLookupMessage!,
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11.5,
+                    color: Color(0xFF64748B),
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -3455,8 +3616,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF6B7280),
+              fontSize: 13.5,
+              color: Color(0xFF64748B),
             ),
           ),
           const SizedBox(width: 12),
@@ -3465,9 +3626,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               value,
               textAlign: TextAlign.right,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w500,
-                color: Color(0xFF111111),
+                color: Color(0xFF0F172A),
               ),
             ),
           ),
@@ -3479,12 +3640,12 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   Widget _buildReceiptTotalRow(
     String label,
     String value, {
-    Color labelColor = const Color(0xFF6B7280),
-    Color valueColor = const Color(0xFF111111),
+    Color labelColor = const Color(0xFF64748B),
+    Color valueColor = const Color(0xFF0F172A),
     FontWeight labelWeight = FontWeight.w400,
-    FontWeight valueWeight = FontWeight.w500,
-    double labelSize = 13,
-    double valueSize = 13,
+    FontWeight valueWeight = FontWeight.w600,
+    double labelSize = 13.5,
+    double valueSize = 13.5,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -3510,6 +3671,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               fontSize: valueSize,
               fontWeight: valueWeight,
               color: valueColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],
@@ -3537,17 +3699,17 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     final collateralSlot = _slotController.text.trim();
 
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(top: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
             'RINGKASAN',
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.6,
-              color: Color(0xFF6B7280),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+              color: Color(0xFF94A3B8),
             ),
           ),
           const SizedBox(height: 12),
@@ -3565,15 +3727,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF111111),
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '$durationLabel • ${isFloating ? 'Floating Unit' : unitCode}',
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
+                        fontSize: 12.5,
+                        color: Color(0xFF64748B),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -3587,7 +3749,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF111111),
+                  color: Color(0xFF0F172A),
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
             ],
@@ -3624,7 +3787,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
-                                color: Color(0xFF111111),
+                                color: Color(0xFF0F172A),
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -3632,7 +3795,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                               subtitle,
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF6B7280),
+                                color: Color(0xFF64748B),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -3645,8 +3808,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         CurrencyFormatter.format(price),
                         style: const TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF111111),
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                          fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),
                     ],
@@ -3656,8 +3820,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             ],
 
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
           ),
 
           // Schedule & Customer Metadata Rows
@@ -3684,8 +3848,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             _buildReceiptMetaRow('Jaminan', collateralSlot),
 
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
           ),
 
           // Totals
@@ -3702,20 +3866,20 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             _buildReceiptTotalRow(
               'Diskon Voucher',
               '- ${CurrencyFormatter.format(_discountAmount)}',
-              labelColor: AppColors.success,
-              valueColor: AppColors.success,
+              labelColor: const Color(0xFF059669),
+              valueColor: const Color(0xFF059669),
               valueWeight: FontWeight.w600,
             ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           _buildReceiptTotalRow(
             'Total Tagihan',
             CurrencyFormatter.format(totalPayable),
-            labelColor: const Color(0xFF111111),
-            valueColor: const Color(0xFF111111),
+            labelColor: const Color(0xFF0F172A),
+            valueColor: const Color(0xFF0F172A),
             labelWeight: FontWeight.w700,
             valueWeight: FontWeight.w700,
             labelSize: 15,
-            valueSize: 17,
+            valueSize: 18,
           ),
 
           if (_isScheduledBooking) ...[
@@ -3728,8 +3892,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   }
 
   Widget _buildCompactScheduleAndReturnBlock(bool isUnitSelected) {
-    const ink = Color(0xFF111111);
-    const muted = Color(0xFF6B7280);
+    const ink = Color(0xFF0F172A);
+    const muted = Color(0xFF64748B);
     final showReturnRow = isUnitSelected && _selectedDuration != null;
 
     return Column(
@@ -3738,31 +3902,33 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         const Text(
           'WAKTU MULAI',
           style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
-            color: muted,
+            color: Color(0xFF94A3B8),
           ),
         ),
         const SizedBox(height: 6),
         Material(
-          color: Colors.white,
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
           child: InkWell(
             key: const Key('inline_start_time_row'),
             onTap: _pickScheduledDateTime,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: (!_isScheduledBooking || _scheduledStartAt == null)
                   ? Row(
                       children: [
                         const Icon(
                           Icons.access_time_rounded,
-                          size: 17,
+                          size: 18,
                           color: ink,
                         ),
                         const SizedBox(width: 8),
@@ -3770,7 +3936,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                           child: Text(
                             'Mulai Sekarang',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 13.5,
                               fontWeight: FontWeight.w600,
                               color: ink,
                             ),
@@ -3788,7 +3954,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                             child: Text(
                               'Jadwalkan ›',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 13.5,
                                 fontWeight: FontWeight.w600,
                                 color: ink,
                               ),
@@ -3801,7 +3967,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       children: [
                         const Icon(
                           Icons.event_rounded,
-                          size: 17,
+                          size: 18,
                           color: ink,
                         ),
                         const SizedBox(width: 8),
@@ -3812,7 +3978,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                               Text(
                                 DateFormatter.formatFull(_scheduledStartAt),
                                 style: const TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 13.5,
                                   fontWeight: FontWeight.w600,
                                   color: ink,
                                 ),
@@ -3820,7 +3986,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                               const Text(
                                 'Booking Terjadwal',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w500,
                                   color: muted,
                                 ),
@@ -3840,7 +4006,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                             child: Text(
                               'Sekarang',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
                                 color: muted,
                               ),
@@ -4069,14 +4235,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   Widget _buildStickyBottomNavigation(double totalPayable, bool isUnitSelected) {
     return Container(
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: Color(0xFFFFFFFF),
         border: Border(
-          top: BorderSide(color: AppColors.border, width: 1),
+          top: BorderSide(color: Color(0xFFF1F5F9), width: 1),
         ),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: _buildNavigationButtonRow(totalPayable, isUnitSelected),
         ),
       ),
@@ -4091,22 +4257,23 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
           _selectedDuration != null &&
           !_isSelectedUnavailableForSchedule(bizState);
       return SizedBox(
-        height: 46,
+        height: 48,
         width: double.infinity,
         child: ElevatedButton(
           onPressed: canAdvanceStep1 ? _onNextToCustomerStep : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF111111),
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: const Color(0xFF111111).withValues(alpha: 0.35),
-            disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
-            minimumSize: const Size.fromHeight(46),
+            backgroundColor: const Color(0xFF0F172A),
+            foregroundColor: const Color(0xFFFFFFFF),
+            disabledBackgroundColor: const Color(0xFF0F172A).withValues(alpha: 0.35),
+            disabledForegroundColor: const Color(0xFFFFFFFF).withValues(alpha: 0.7),
+            minimumSize: const Size.fromHeight(48),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: const Text(
             'Lanjut',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
         ),
       );
@@ -4115,37 +4282,41 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         children: [
           SizedBox(
             width: 108,
-            height: 46,
+            height: 48,
             child: OutlinedButton(
               onPressed: _onBackStep,
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 46),
+                backgroundColor: const Color(0xFFFFFFFF),
+                foregroundColor: const Color(0xFF0F172A),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                minimumSize: const Size(0, 48),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text(
                 'Kembali',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: SizedBox(
-              height: 46,
+              height: 48,
               child: ElevatedButton(
                 onPressed: _onNextToSummaryStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF111111),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(46),
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: const Color(0xFFFFFFFF),
+                  minimumSize: const Size.fromHeight(48),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text(
                   'Lanjut',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
               ),
             ),
@@ -4157,25 +4328,28 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         children: [
           SizedBox(
             width: 108,
-            height: 46,
+            height: 48,
             child: OutlinedButton(
               onPressed: _onBackStep,
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 46),
+                backgroundColor: const Color(0xFFFFFFFF),
+                foregroundColor: const Color(0xFF0F172A),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                minimumSize: const Size(0, 48),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text(
                 'Kembali',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: SizedBox(
-              height: 46,
+              height: 48,
               child: ElevatedButton(
                 onPressed: (!isUnitSelected || _isNavigatingToPayment || _isSubmittingScheduled)
                     ? null
@@ -4183,13 +4357,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                         ? _submitScheduledWithoutPayment
                         : _navigateToUnifiedPaymentPage),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF111111),
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: const Color(0xFF111111).withValues(alpha: 0.35),
-                  disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
-                  minimumSize: const Size.fromHeight(46),
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: const Color(0xFFFFFFFF),
+                  disabledBackgroundColor: const Color(0xFF0F172A).withValues(alpha: 0.35),
+                  disabledForegroundColor: const Color(0xFFFFFFFF).withValues(alpha: 0.7),
+                  minimumSize: const Size.fromHeight(48),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: (_isNavigatingToPayment || _isSubmittingScheduled)
                     ? const SizedBox(
@@ -4199,7 +4374,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       )
                     : Text(
                         _isScheduledBooking ? 'Simpan Booking' : 'Buat Sewa',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                       ),
               ),
             ),

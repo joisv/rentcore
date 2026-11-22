@@ -254,8 +254,8 @@ void main() {
           final voucherFieldFinder = find.widgetWithText(TextField, 'Kode voucher...');
           final applyBtnFinder = find.widgetWithText(ElevatedButton, 'Terapkan');
           await tester.ensureVisible(voucherFieldFinder);
-          expect(tester.getSize(voucherFieldFinder).height, 42.0);
-          expect(tester.getSize(applyBtnFinder).height, 42.0);
+          expect(tester.getSize(voucherFieldFinder).height, 44.0);
+          expect(tester.getSize(applyBtnFinder).height, 44.0);
 
           // 4. Add-ons section uses "ADD-ON (OPSIONAL)" micro-header without helper paragraph
           expect(find.text('ADD-ON (OPSIONAL)'), findsOneWidget);
@@ -293,8 +293,8 @@ void main() {
 
           final backBtnFinder = find.widgetWithText(OutlinedButton, 'Kembali');
           final saveBtnFinder = find.widgetWithText(ElevatedButton, 'Simpan Booking');
-          expect(tester.getSize(backBtnFinder).height, 46.0);
-          expect(tester.getSize(saveBtnFinder).height, 46.0);
+          expect(tester.getSize(backBtnFinder).height, 48.0);
+          expect(tester.getSize(saveBtnFinder).height, 48.0);
         } finally {
           FlutterError.onError = prevOnError;
         }

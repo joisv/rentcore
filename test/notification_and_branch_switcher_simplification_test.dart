@@ -245,7 +245,7 @@ void main() {
       expect(find.text('USAHA & CABANG'), findsNothing);
       expect(find.text('+ Tambah'), findsOneWidget);
       expect(find.text('Gwenn Rental Malang • 2 Cabang'), findsOneWidget);
-      expect(find.text('OWNER'), findsOneWidget);
+      expect(find.text('Owner'), findsOneWidget);
 
       // Consolidated & branch rows + preserved details
       expect(find.text('Semua Cabang (Konsolidasi)'), findsOneWidget);
@@ -256,9 +256,11 @@ void main() {
       );
       expect(find.text('Gwenn Rental Pusat'), findsOneWidget);
       expect(find.text('PUSAT'), findsOneWidget);
-      expect(find.text('GRM • Malang'), findsOneWidget);
-      expect(find.text('cabang 1'), findsOneWidget);
-      expect(find.text('CBG001 • banyuwangi'), findsOneWidget);
+      expect(find.text('GRM'), findsOneWidget);
+      expect(find.text('Malang'), findsOneWidget);
+      expect(find.text('Cabang 1'), findsOneWidget);
+      expect(find.text('CBG001'), findsOneWidget);
+      expect(find.text('Banyuwangi'), findsOneWidget);
       expect(find.byIcon(Icons.check_rounded), findsOneWidget);
 
       // Bottom footer link
@@ -266,7 +268,7 @@ void main() {
       expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
 
       // Switching branch works
-      await tester.tap(find.text('cabang 1'));
+      await tester.tap(find.text('Cabang 1'));
       await tester.pumpAndSettle();
       expect(fakeBusiness.lastSelectedBranch?['id'], 11);
 

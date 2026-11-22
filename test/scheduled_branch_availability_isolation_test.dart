@@ -284,7 +284,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Header subtitle, shift query, and floating models update to cabang 1 while clearing Pusat model
-      expect(find.text('Cabang: cabang 1'), findsOneWidget);
+      expect(find.text('Cabang: Cabang 1'), findsOneWidget);
       expect(repo.availabilityBranchCalls.last, 2);
       expect(cashierRepo.shiftBranchCalls, contains(2));
       expect(find.byKey(const Key('floating_model_card_60')), findsOneWidget);
@@ -304,15 +304,15 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nama Penyewa *'),
+        find.byKey(const Key('step2_name_field')),
         'Budi Cabang 1',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nomor WhatsApp *'),
+        find.byKey(const Key('step2_phone_field')),
         '081234567890',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'),
+        find.byKey(const Key('step2_address_field')),
         'Jl. Cabang Satu No. 1',
       );
       await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
@@ -375,7 +375,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Falls back to user's assigned branch (id: 2 -> cabang 1)
-      expect(find.text('Cabang: cabang 1'), findsOneWidget);
+      expect(find.text('Cabang: Cabang 1'), findsOneWidget);
       expect(find.byKey(const Key('consolidated_branch_fallback_banner')), findsOneWidget);
       expect(repo.readyAssetBranchCalls, contains(2));
       expect(find.textContaining('CB1-IP15-01'), findsOneWidget);

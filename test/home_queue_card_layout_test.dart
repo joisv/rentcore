@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/constants/app_colors.dart';
 import 'package:rentcore_mobile/core/theme/app_theme.dart';
 import 'package:rentcore_mobile/core/utils/date_formatter.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
@@ -141,14 +140,14 @@ void main() {
         await tester.pumpWidget(buildHome(bookings));
         await tester.pumpAndSettle();
 
-        // 1. Top Header Row: Unboxed Booking Code + soft blue remaining time badge
+        // 1. Top Header Row: Unboxed Booking Code + soft emerald remaining time badge
         expect(find.text('RC-261114-0001-O7Q'), findsOneWidget);
         final statusBadge = tester.widget<StatusBadge>(
           find.byType(StatusBadge).first,
         );
         expect(statusBadge.label, startsWith('Sisa '));
-        expect(statusBadge.textColor, AppColors.info);
-        expect(statusBadge.backgroundColor, AppColors.infoLight);
+        expect(statusBadge.textColor, const Color(0xFF047857));
+        expect(statusBadge.backgroundColor, const Color(0xFFECFDF5));
 
         // 2. Unified single-line schedule row: Kembali: <formatted>
         expect(
@@ -278,10 +277,15 @@ void main() {
         final badges = tester
             .widgetList<StatusBadge>(find.byType(StatusBadge))
             .toList();
-        expect(badges.any((b) => b.textColor == AppColors.danger), isTrue);
+        expect(
+          badges.any((b) => b.textColor == const Color(0xFFDC2626)),
+          isTrue,
+        );
         expect(
           badges.any(
-            (b) => b.label == 'Jatuh Tempo' && b.textColor == AppColors.warning,
+            (b) =>
+                b.label == 'Jatuh Tempo' &&
+                b.textColor == const Color(0xFFB45309),
           ),
           isTrue,
         );
@@ -328,7 +332,7 @@ void main() {
         expect(find.text('Booking'), findsWidgets);
         expect(
           find.text(
-            'Ambil: ${DateFormatter.formatFull(startAt)} (Batas ${DateFormatter.formatTime(graceAt)})',
+            'Ambil: ${DateFormatter.formatFull(startAt)} • Batas ${DateFormatter.formatTime(graceAt)}',
           ),
           findsOneWidget,
         );

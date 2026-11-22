@@ -148,16 +148,22 @@ void main() {
       // Check minimalist two-line header displays store name & consolidated branch selector
       expect(find.text('SkyRental Studio'), findsOneWidget);
       expect(find.text('Semua Cabang'), findsOneWidget);
-      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_header_branch_button')),
+          matching: find.byIcon(Icons.keyboard_arrow_down_rounded),
+        ),
+        findsOneWidget,
+      );
 
       // Check prominent consolidated banner
       expect(find.text('KONSOLIDASI'), findsOneWidget);
       expect(find.textContaining('Mode Konsolidasi'), findsOneWidget);
 
-      // Open left two-line menu sheet to check user profile & role badge
+      // Open left two-line menu sheet to check user profile & role label
       await tester.tap(find.byKey(const Key('home_header_menu_button')));
       await tester.pumpAndSettle();
-      expect(find.text('OWNER'), findsOneWidget);
+      expect(find.text('Owner'), findsOneWidget);
       expect(find.text('Alex Boss'), findsOneWidget);
     });
 
@@ -198,11 +204,17 @@ void main() {
 
       expect(find.text('SkyRental Studio'), findsOneWidget);
       expect(find.text('Cabang Utama Jakarta'), findsOneWidget);
-      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_header_branch_button')),
+          matching: find.byIcon(Icons.keyboard_arrow_down_rounded),
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const Key('home_header_menu_button')));
       await tester.pumpAndSettle();
-      expect(find.text('ADMIN'), findsOneWidget);
+      expect(find.text('Admin'), findsOneWidget);
       expect(find.text('Budi Manager'), findsOneWidget);
     });
 
@@ -243,11 +255,17 @@ void main() {
 
       expect(find.text('SkyRental Studio'), findsOneWidget);
       expect(find.text('Cabang Depok'), findsOneWidget);
-      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_header_branch_button')),
+          matching: find.byIcon(Icons.keyboard_arrow_down_rounded),
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const Key('home_header_menu_button')));
       await tester.pumpAndSettle();
-      expect(find.text('KASIR'), findsOneWidget);
+      expect(find.text('Kasir'), findsOneWidget);
       expect(find.text('Siti Staff'), findsOneWidget);
     });
 

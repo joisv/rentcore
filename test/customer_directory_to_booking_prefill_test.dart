@@ -114,10 +114,13 @@ void main() {
       expect(find.text('081298765432'), findsNothing);
       expect(find.textContaining('Jl. Raya Genteng'), findsNothing);
 
-      // Verify text form fields exist and have empty strings
-      final nameFieldFinder = find.widgetWithText(TextFormField, 'Nama Penyewa *');
-      final phoneFieldFinder = find.widgetWithText(TextFormField, 'Nomor WhatsApp *');
-      final addressFieldFinder = find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *');
+      // Verify external labels & text form fields exist and have empty strings
+      expect(find.text('Nama Penyewa *'), findsOneWidget);
+      expect(find.text('Nomor WhatsApp *'), findsOneWidget);
+      expect(find.text('Alamat (KTP/SIM) *'), findsOneWidget);
+      final nameFieldFinder = find.byKey(const Key('step2_name_field'));
+      final phoneFieldFinder = find.byKey(const Key('step2_phone_field'));
+      final addressFieldFinder = find.byKey(const Key('step2_address_field'));
 
       expect(nameFieldFinder, findsOneWidget);
       expect(phoneFieldFinder, findsOneWidget);
@@ -179,6 +182,12 @@ void main() {
             categoriesProvider.overrideWith((ref) => Future.value(mockCategories)),
             paymentMethodsProvider.overrideWith((ref) => Future.value(mockPaymentMethods)),
             paymentRepositoryProvider.overrideWithValue(mockRepo),
+            currentShiftProvider.overrideWith(
+              (ref) async => {'has_active_shift': true, 'shift_enforcement_enabled': false},
+            ),
+            currentShiftByBranchProvider.overrideWith(
+              (ref, branchId) async => {'has_active_shift': true, 'shift_enforcement_enabled': false},
+            ),
           ],
           child: MaterialApp(
             home: DirectRentalScreen(
@@ -205,7 +214,7 @@ void main() {
       expect(find.textContaining('Pelanggan Terdaftar • 5x Sewa'), findsOneWidget);
 
       // Cashier can edit customer fields if needed
-      final addressFieldFinder = find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *');
+      final addressFieldFinder = find.byKey(const Key('step2_address_field'));
       await tester.enterText(addressFieldFinder, 'Jl. Ahmad Yani No. 88 (Pindah Rumah), Banyuwangi');
       await tester.pumpAndSettle();
 

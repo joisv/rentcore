@@ -346,15 +346,15 @@ void main() {
 
       // Enter customer details without uploading any photo
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nama Penyewa *'),
+        find.byKey(const Key('step2_name_field')),
         'Raka Wijaya',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nomor WhatsApp *'),
+        find.byKey(const Key('step2_phone_field')),
         '081234567899',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'),
+        find.byKey(const Key('step2_address_field')),
         'Jl. Soekarno Hatta No. 10, Malang',
       );
       await tester.pumpAndSettle();

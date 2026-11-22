@@ -168,9 +168,10 @@ void main() {
         expect(find.text('+ Buat Model Pertama'), findsOneWidget);
         expect(find.text('1. Model / Katalog'), findsNothing);
         expect(find.text('2. Unit Fisik'), findsNothing);
-        expect(find.byKey(const Key('inventory_units_search_field')), findsNothing);
-        expect(find.byKey(const Key('inventory_units_filter_button')), findsNothing);
-        expect(find.byKey(const Key('inventory_expandable_main_fab')), findsNothing);
+        expect(find.byKey(const Key('inventory_unified_search_field')), findsNothing);
+        expect(find.byKey(const Key('inventory_filter_button')), findsNothing);
+        expect(find.byKey(const Key('inventory_tab_units')), findsNothing);
+        expect(find.byKey(const Key('inventory_tab_catalog')), findsNothing);
       },
     );
 
@@ -210,10 +211,10 @@ void main() {
         await tester.pumpAndSettle();
 
         // Now should show search empty state
-        expect(find.text('Tidak Ada Unit Ditemukan'), findsOneWidget);
+        expect(find.text('Tidak Ada Aset Ditemukan'), findsOneWidget);
         expect(
           find.textContaining(
-            'Tidak ada unit inventaris yang cocok dengan pencarian "NonExistentDevice"',
+            'Tidak ada model atau unit fisik yang cocok dengan pencarian "NonExistentDevice"',
           ),
           findsOneWidget,
         );
@@ -265,10 +266,10 @@ void main() {
         await tester.tap(find.text('Terapkan Filter'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Tidak Ada Unit Sesuai Filter'), findsOneWidget);
+        expect(find.text('Tidak Ada Aset Sesuai Filter'), findsOneWidget);
         expect(
           find.textContaining(
-            'Tidak ditemukan unit inventaris dengan status atau kategori yang dipilih',
+            'Tidak ditemukan model atau unit inventaris dengan status atau kategori yang dipilih',
           ),
           findsOneWidget,
         );
@@ -364,10 +365,11 @@ void main() {
 
         expect(find.text('PlayStation 5 Slim'), findsOneWidget);
         expect(find.text('0 Siap Sewa • 0 Total'), findsOneWidget);
-        expect(find.text('+ Tambah Unit'), findsOneWidget);
+        expect(find.text('Belum ada unit fisik terdaftar'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, '+ Tambah Unit'), findsOneWidget);
 
         // Tapping + Tambah Unit opens registration sheet with preselected model
-        await tester.tap(find.text('+ Tambah Unit'));
+        await tester.tap(find.widgetWithText(ElevatedButton, '+ Tambah Unit'));
         await tester.pumpAndSettle();
 
         expect(find.text('Registrasi Unit Baru'), findsOneWidget);
@@ -376,7 +378,7 @@ void main() {
     );
 
     testWidgets(
-      'Catalog tab search with no matching products displays search empty state and Reset button',
+      'Catalog search with no matching products displays search empty state and Reset button',
       (tester) async {
         final repo = _ConfigurableAssetRepository(
           productsToReturn: [
@@ -394,7 +396,7 @@ void main() {
         );
 
         await tester.pumpWidget(
-          createTestWidget(repo: repo, initialTabIndex: 1),
+          createTestWidget(repo: repo),
         );
         await tester.pumpAndSettle();
 
@@ -405,10 +407,10 @@ void main() {
         await tester.enterText(searchField, 'Drone4K');
         await tester.pumpAndSettle();
 
-        expect(find.text('Tidak Ada Katalog Ditemukan'), findsOneWidget);
+        expect(find.text('Tidak Ada Aset Ditemukan'), findsOneWidget);
         expect(
           find.textContaining(
-            'Tidak ada model produk yang cocok dengan pencarian "Drone4K"',
+            'Tidak ada model atau unit fisik yang cocok dengan pencarian "Drone4K"',
           ),
           findsOneWidget,
         );
@@ -423,7 +425,7 @@ void main() {
     );
 
     testWidgets(
-      'Catalog tab category filter with no products displays category empty state',
+      'Category filter with no products displays filter empty state',
       (tester) async {
         final repo = _ConfigurableAssetRepository(
           productsToReturn: [
@@ -444,34 +446,36 @@ void main() {
         );
 
         await tester.pumpWidget(
-          createTestWidget(repo: repo, initialTabIndex: 1),
+          createTestWidget(repo: repo),
         );
         await tester.pumpAndSettle();
 
         expect(find.text('MacBook Pro M3'), findsOneWidget);
 
-        // Open filter drawer and filter by Kamera (which has 0 products)
+        // Open filter modal and filter by Kamera (which has 0 products)
         await tester.tap(find.byIcon(Icons.tune_rounded).first);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Kamera'));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.text('Kamera'),
+          ),
+        );
         await tester.pumpAndSettle();
         await tester.tap(find.text('Terapkan Filter'));
         await tester.pumpAndSettle();
 
-        expect(
-          find.text('Tidak Ada Katalog Dalam Kategori Ini'),
-          findsOneWidget,
-        );
+        expect(find.text('Tidak Ada Aset Sesuai Filter'), findsOneWidget);
         expect(
           find.textContaining(
-            'Belum ada model produk terdaftar untuk kategori yang dipilih',
+            'Tidak ditemukan model atau unit inventaris dengan status atau kategori yang dipilih',
           ),
           findsOneWidget,
         );
-        expect(find.text('Tampilkan Semua Kategori'), findsOneWidget);
+        expect(find.text('Reset Semua Filter'), findsOneWidget);
 
-        // Tap Tampilkan Semua Kategori
-        await tester.tap(find.text('Tampilkan Semua Kategori'));
+        // Tap Reset Semua Filter
+        await tester.tap(find.text('Reset Semua Filter'));
         await tester.pumpAndSettle();
 
         expect(find.text('MacBook Pro M3'), findsOneWidget);

@@ -238,8 +238,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Aturan Booking & No-Show'), findsOneWidget);
-    await tester.tap(find.text('Aturan Booking & No-Show'));
+    expect(find.text('Kebijakan Booking & No-Show'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('menu_booking_policy')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('open_branch_booking_rules_link')));
     await tester.pumpAndSettle();
 
     expect(find.byType(BookingRulesSettingsScreen), findsOneWidget);
@@ -328,15 +331,15 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nama Penyewa *'),
+        find.byKey(const Key('step2_name_field')),
         'Budi Scheduled',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nomor WhatsApp *'),
+        find.byKey(const Key('step2_phone_field')),
         '081234567800',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Alamat (KTP/SIM) *'),
+        find.byKey(const Key('step2_address_field')),
         'Jl. Merdeka No. 10 Jakarta',
       );
       await tester.pumpAndSettle();

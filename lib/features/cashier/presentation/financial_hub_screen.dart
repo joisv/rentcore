@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_colors.dart';
-import '../../../core/theme/app_text_styles.dart';
 import 'cashier_screen.dart';
 import 'revenue_report_screen.dart';
 
@@ -45,58 +43,66 @@ class _FinancialHubScreenState extends ConsumerState<FinancialHubScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
         automaticallyImplyLeading: false,
-        title: const Text('Laporan', style: AppTextStyles.pageHeader),
+        titleSpacing: 20,
+        title: const Text(
+          'Laporan',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.4,
+            color: Color(0xFF0F172A),
+          ),
+        ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
+          preferredSize: const Size.fromHeight(57),
           child: Container(
             decoration: const BoxDecoration(
-              color: AppColors.surface,
+              color: Colors.white,
               border: Border(
-                bottom: BorderSide(color: AppColors.border, width: 1),
+                bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1),
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(
-              AppTextStyles.pageHeaderHorizontalPadding,
-              0,
-              AppTextStyles.pageHeaderHorizontalPadding,
-              12,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 12),
             child: Container(
+              height: 42,
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: TabBar(
                 controller: _tabController,
                 indicator: BoxDecoration(
-                  color: AppColors.obsidian,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
-                labelColor: Colors.white,
-                unselectedLabelColor: AppColors.textSecondary,
+                labelColor: const Color(0xFF0F172A),
+                unselectedLabelColor: const Color(0xFF64748B),
                 labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-                unselectedLabelStyle: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
                 tabs: const [
-                  Tab(height: 38, text: 'Pendapatan'),
-                  Tab(height: 38, text: 'Kasir & Shift'),
+                  Tab(text: 'Pendapatan'),
+                  Tab(text: 'Kasir & Shift'),
                 ],
               ),
             ),

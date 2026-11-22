@@ -561,9 +561,9 @@ class RentalQueueActions {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: const Color(0xFFFFFFFF),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => _CheckInHandoverSheet(
         booking: booking,
@@ -617,27 +617,28 @@ class RentalQueueActions {
   }) {
     final status = (booking['status'] ?? '').toString().toLowerCase();
     final isReturned = status == 'returned' || status == 'completed';
-    final isNoShow = status == 'no_show' || status == 'cancelled';
+    final isNoShow = status == 'no_show' || status == 'cancelled' || status == 'expired';
     final isAwaitingHandover = status == 'booked' ||
         status == 'reserved' ||
         status == 'confirmed' ||
-        status == 'waiting_handover';
+        status == 'waiting_handover' ||
+        status == 'late_pickup';
     final isActive = !isAwaitingHandover && !isReturned && !isNoShow;
     final bookingCode = booking['booking_code']?.toString() ?? 'Sewa';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: const Color(0xFFFFFFFF),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         final actionTiles = <Widget>[
           if (isAwaitingHandover) ...[
             _buildOverflowActionTile(
               key: const Key('overflow_reschedule_tile'),
-              icon: Icons.edit_calendar_rounded,
+              icon: Icons.edit_calendar_outlined,
               title: 'Ubah Jadwal',
               subtitle: 'Majukan atau geser tanggal & jam ambil',
               onTap: () {
@@ -651,12 +652,12 @@ class RentalQueueActions {
               },
             ),
             _buildOverflowActionTile(
-              icon: Icons.schedule_rounded,
+              icon: Icons.schedule_outlined,
               title: 'Perpanjang Batas Ambil (+30 mnt)',
               subtitle: 'Tambah toleransi sebelum No-Show',
               onTap: () async {
                 Navigator.pop(ctx);
-                await _handleExtendGracePeriod(
+                await extendPickupGrace(
                   context,
                   ref,
                   booking,
@@ -672,7 +673,7 @@ class RentalQueueActions {
               isDanger: true,
               onTap: () {
                 Navigator.pop(ctx);
-                _confirmMarkNoShow(
+                confirmMarkNoShow(
                   context,
                   ref,
                   booking,
@@ -698,7 +699,7 @@ class RentalQueueActions {
             ),
           ] else if (isActive) ...[
             _buildOverflowActionTile(
-              icon: Icons.more_time_rounded,
+              icon: Icons.more_time_outlined,
               title: 'Tambah Jam / Perpanjang',
               subtitle: 'Sesuaikan durasi sewa berjalan',
               onTap: () {
@@ -726,7 +727,7 @@ class RentalQueueActions {
               },
             ),
             _buildOverflowActionTile(
-              icon: Icons.print_rounded,
+              icon: Icons.print_outlined,
               title: 'Cetak Ulang Struk',
               subtitle: 'Cetak struk transaksi ke printer',
               onTap: () {
@@ -736,7 +737,7 @@ class RentalQueueActions {
             ),
           ] else ...[
             _buildOverflowActionTile(
-              icon: Icons.print_rounded,
+              icon: Icons.print_outlined,
               title: 'Cetak Ulang Struk',
               subtitle: 'Cetak struk transaksi ke printer',
               onTap: () {
@@ -755,7 +756,7 @@ class RentalQueueActions {
                 height: 1,
                 indent: 56,
                 endIndent: 20,
-                color: AppColors.border,
+                color: Color(0xFFF1F5F9),
               ),
             );
           }
@@ -769,43 +770,80 @@ class RentalQueueActions {
               maxHeight: MediaQuery.of(context).size.height * 0.8,
             ),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.only(top: 10, bottom: 16),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 4,
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 16, 14),
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            'Aksi Transaksi • $bookingCode',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.obsidian,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Aksi Transaksi',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A),
+                                  letterSpacing: -0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                bookingCode,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF64748B),
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 20,
-                            color: AppColors.textSecondary,
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () => Navigator.pop(ctx),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF1F5F9),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: Color(0xFF475569),
+                            ),
                           ),
-                          onPressed: () => Navigator.pop(ctx),
-                          visualDensity: VisualDensity.compact,
                         ),
                       ],
                     ),
                   ),
-                  const Divider(height: 1, color: AppColors.border),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 4),
                   ...dividedChildren,
                 ],
               ),
@@ -824,30 +862,20 @@ class RentalQueueActions {
     required VoidCallback onTap,
     bool isDanger = false,
   }) {
-    final iconColor = isDanger ? AppColors.danger : AppColors.obsidian;
-    final bgColor = isDanger
-        ? AppColors.dangerLight
-        : AppColors.obsidian.withValues(alpha: 0.08);
+    final color = isDanger ? const Color(0xFFDC2626) : const Color(0xFF0F172A);
     return ListTile(
       key: key,
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, size: 18, color: iconColor),
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      minLeadingWidth: 28,
+      leading: Icon(icon, size: 22, color: color),
       title: Text(
         title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 14,
-          color: isDanger ? AppColors.danger : AppColors.obsidian,
+          fontWeight: FontWeight.w600,
+          fontSize: 14.5,
+          color: color,
         ),
       ),
       subtitle: Text(
@@ -855,8 +883,8 @@ class RentalQueueActions {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
-          fontSize: 12,
-          color: AppColors.textSecondary,
+          fontSize: 12.5,
+          color: Color(0xFF64748B),
         ),
       ),
       onTap: onTap,
@@ -1095,10 +1123,11 @@ class RentalQueueActions {
     );
   }
 
-  static Future<void> _handleExtendGracePeriod(
+  static Future<void> extendPickupGrace(
     BuildContext context,
     WidgetRef ref,
     Map<String, dynamic> booking, {
+    int additionalMinutes = 30,
     VoidCallback? onRefresh,
   }) async {
     final bookingId = (booking['id'] as num?)?.toInt();
@@ -1107,12 +1136,13 @@ class RentalQueueActions {
     try {
       await ref
           .read(bookingRepositoryProvider)
-          .extendGracePeriod(bookingId, additionalMinutes: 30);
+          .extendGracePeriod(bookingId, additionalMinutes: additionalMinutes);
       _invalidateQueueProviders(ref);
+      ref.invalidate(bookingDetailProvider(bookingId));
       onRefresh?.call();
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Batas ambil diperpanjang +30 menit.'),
+        SnackBar(
+          content: Text('Batas ambil diperpanjang +$additionalMinutes menit.'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -1126,7 +1156,7 @@ class RentalQueueActions {
     }
   }
 
-  static void _confirmMarkNoShow(
+  static void confirmMarkNoShow(
     BuildContext context,
     WidgetRef ref,
     Map<String, dynamic> booking, {
@@ -1137,90 +1167,265 @@ class RentalQueueActions {
     final bookingCode = booking['booking_code']?.toString() ?? '#$bookingId';
     final paidAmount = CurrencyFormatter.parse(booking['paid_amount']);
     final reasonController = TextEditingController();
+    var dpDisposition = 'forfeited';
 
     showDialog(
       context: context,
-      builder: (dCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Row(
-          children: [
-            Icon(Icons.person_off_outlined, color: AppColors.danger, size: 22),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Tandai No-Show',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Booking $bookingCode akan ditandai No-Show dan slot unit akan dilepas kembali ke inventaris.'
-              '${paidAmount > 0 ? '\n\nDP / pembayaran sebesar ${CurrencyFormatter.format(paidAmount)} akan dicatat sebagai hangus.' : ''}',
-              style: const TextStyle(fontSize: 13, height: 1.4),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: InputDecoration(
-                hintText: 'Catatan alasan (opsional)',
-                isDense: true,
-                filled: true,
-                fillColor: AppColors.surfaceMuted,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx, setDialogState) => Dialog(
+          backgroundColor: const Color(0xFFFFFFFF),
+          surfaceTintColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.person_off_outlined,
+                      color: Color(0xFFDC2626),
+                      size: 22,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tandai No-Show',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 17,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 12),
+                Text(
+                  'Booking $bookingCode akan ditandai No-Show dan slot unit akan dilepas kembali ke inventaris.',
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.45,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+                if (paidAmount > 0) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Perlakuan DP (${CurrencyFormatter.format(paidAmount)}):',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () =>
+                                setDialogState(() => dpDisposition = 'forfeited'),
+                            child: Container(
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: dpDisposition == 'forfeited'
+                                    ? const Color(0xFF0F172A)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'Hanguskan DP',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: dpDisposition == 'forfeited'
+                                      ? const Color(0xFFFFFFFF)
+                                      : const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () =>
+                                setDialogState(() => dpDisposition = 'refunded'),
+                            child: Container(
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: dpDisposition == 'refunded'
+                                    ? const Color(0xFF0F172A)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'Refund DP',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: dpDisposition == 'refunded'
+                                      ? const Color(0xFFFFFFFF)
+                                      : const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                TextField(
+                  controller: reasonController,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    color: Color(0xFF0F172A),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Catatan alasan (opsional)',
+                    hintStyle: const TextStyle(
+                      fontSize: 13.5,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF0F172A),
+                        width: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFFFFF),
+                            foregroundColor: const Color(0xFF475569),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
+                          onPressed: () => Navigator.pop(dCtx),
+                          child: const Text(
+                            'Batal',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFDC2626),
+                            foregroundColor: const Color(0xFFFFFFFF),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: () async {
+                            final reason = reasonController.text.trim();
+                            Navigator.pop(dCtx);
+                            final messenger = ScaffoldMessenger.of(context);
+                            try {
+                              final repo = ref.read(bookingRepositoryProvider);
+                              if (dpDisposition == 'refunded') {
+                                await repo.markNoShowWithDisposition(
+                                  bookingId,
+                                  reason: reason,
+                                  dpDisposition: dpDisposition,
+                                );
+                              } else {
+                                await repo.markNoShow(
+                                  bookingId,
+                                  reason: reason,
+                                );
+                              }
+                              _invalidateQueueProviders(ref);
+                              ref.invalidate(bookingDetailProvider(bookingId));
+                              ref.invalidate(readyAssetsProvider);
+                              onRefresh?.call();
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Booking $bookingCode ditandai No-Show.',
+                                  ),
+                                  backgroundColor: const Color(0xFF0F172A),
+                                ),
+                              );
+                            } catch (e) {
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text('Gagal menandai No-Show: $e'),
+                                  backgroundColor: const Color(0xFFDC2626),
+                                ),
+                              );
+                            }
+                          },
+                          child: const Text(
+                            'Konfirmasi No-Show',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx),
-            child: const Text(
-              'Batal',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
-              elevation: 0,
-            ),
-            onPressed: () async {
-              final reason = reasonController.text.trim();
-              Navigator.pop(dCtx);
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                await ref
-                    .read(bookingRepositoryProvider)
-                    .markNoShow(bookingId, reason: reason);
-                _invalidateQueueProviders(ref);
-                onRefresh?.call();
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text('Booking $bookingCode ditandai No-Show.'),
-                    backgroundColor: AppColors.obsidian,
-                  ),
-                );
-              } catch (e) {
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text('Gagal menandai No-Show: $e'),
-                    backgroundColor: AppColors.danger,
-                  ),
-                );
-              }
-            },
-            child: const Text('Konfirmasi No-Show'),
-          ),
-        ],
       ),
     );
   }
@@ -2794,7 +2999,7 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      await ref.read(bookingRepositoryProvider).checkInBooking(
+      final res = await ref.read(bookingRepositoryProvider).checkInBooking(
             bookingId,
             assetUnitId: _selectedUnitId,
             collateralStorageSlot: _slotController.text.trim(),
@@ -2804,9 +3009,14 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
       if (!mounted) return;
       Navigator.pop(context);
       widget.onCompleted();
+      final notice = res['_notice']?.toString();
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Unit berhasil diserahkan dan sewa kini aktif.'),
+        SnackBar(
+          content: Text(
+            (notice != null && notice.isNotEmpty)
+                ? notice
+                : 'Unit berhasil diserahkan dan sewa kini aktif.',
+          ),
           backgroundColor: AppColors.success,
         ),
       );
@@ -2947,10 +3157,13 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
         (booking['asset_unit'] as Map?) ??
         (booking['active_asset'] as Map?);
 
-    final graceStr = booking['grace_expires_at']?.toString();
+    final graceStr = (booking['grace_extended_until'] ?? booking['grace_expires_at'])?.toString();
     final graceAt =
         graceStr != null ? DateTime.tryParse(graceStr)?.toLocal() : null;
+    final statusLower = (booking['status'] ?? '').toString().toLowerCase();
     final isOverduePickup =
+        statusLower == 'late_pickup' ||
+        booking['is_late_pickup'] == true ||
         booking['is_overdue_pickup'] == true ||
         (graceAt != null && graceAt.isBefore(DateTime.now()));
 
@@ -2973,28 +3186,60 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: const Color(0xFFCBD5E1),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              const Text(
-                'Serahkan Unit',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF111111),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '$customerName • $modelName • $bookingCode',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF6B7280),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Serahkan Unit',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$customerName • $modelName • $bookingCode',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF64748B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => Navigator.pop(context),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF1F5F9),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               if (_isEarlyPickup && _scheduledStartAt != null) ...[
                 const SizedBox(height: 16),
@@ -3035,18 +3280,18 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                 Container(
                   key: const Key('handover_grace_pill'),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
+                    horizontal: 12,
+                    vertical: 8,
                   ),
                   decoration: BoxDecoration(
                     color: isOverduePickup
-                        ? AppColors.dangerLight
-                        : AppColors.surfaceMuted,
+                        ? const Color(0xFFFEF2F2)
+                        : const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: isOverduePickup
-                          ? AppColors.danger.withValues(alpha: 0.3)
-                          : const Color(0xFFE5E7EB),
+                          ? const Color(0xFFFECACA)
+                          : const Color(0xFFE2E8F0),
                     ),
                   ),
                   child: Row(
@@ -3054,24 +3299,24 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                       Icon(
                         isOverduePickup
                             ? Icons.warning_amber_rounded
-                            : Icons.schedule_rounded,
+                            : Icons.schedule_outlined,
                         size: 15,
                         color: isOverduePickup
-                            ? AppColors.danger
-                            : const Color(0xFF111111),
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF0F172A),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           isOverduePickup
-                              ? 'Lewat Jadwal Ambil (Batas: ${DateFormatter.formatTime(graceAt)})'
+                              ? 'Terlambat Ambil (Batas: ${DateFormatter.formatTime(graceAt)})'
                               : 'Batas ambil: ${DateFormatter.formatTime(graceAt)}',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                             color: isOverduePickup
-                                ? AppColors.danger
-                                : const Color(0xFF111111),
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFF0F172A),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -3091,9 +3336,9 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                     const Text(
                       'UNIT FISIK',
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF6B7280),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF94A3B8),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -3110,14 +3355,14 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.dangerLight,
+                      color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       _unitsError!,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: AppColors.danger,
+                        color: Color(0xFFDC2626),
                       ),
                     ),
                   )
@@ -3125,7 +3370,7 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.warningLight,
+                      color: const Color(0xFFFFFBEB),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Text(
@@ -3133,7 +3378,7 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.warning,
+                        color: Color(0xFFB45309),
                       ),
                     ),
                   )
@@ -3143,7 +3388,7 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: _readyUnits.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 6),
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (_, idx) {
                         final unit = _readyUnits[idx];
                         final unitId = (unit['id'] as num?)?.toInt();
@@ -3153,20 +3398,22 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
 
                         return InkWell(
                           key: Key('checkin_unit_option_$unitId'),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                           onTap: () => setState(() => _selectedUnitId = unitId),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 14,
-                              vertical: 10,
+                              vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
+                              color: isSelected
+                                  ? const Color(0xFFF8FAFC)
+                                  : const Color(0xFFFFFFFF),
+                              borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: isSelected
-                                    ? const Color(0xFF111111)
-                                    : const Color(0xFFE5E7EB),
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFFE2E8F0),
                                 width: isSelected ? 1.5 : 1,
                               ),
                             ),
@@ -3178,8 +3425,8 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                                       : Icons.radio_button_off,
                                   size: 18,
                                   color: isSelected
-                                      ? const Color(0xFF111111)
-                                      : AppColors.textMuted,
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFF94A3B8),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
@@ -3190,9 +3437,9 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                                       Text(
                                         code,
                                         style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF111111),
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF0F172A),
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -3201,8 +3448,8 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                                         Text(
                                           specs,
                                           style: const TextStyle(
-                                            fontSize: 11.5,
-                                            color: Color(0xFF6B7280),
+                                            fontSize: 12,
+                                            color: Color(0xFF64748B),
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -3221,9 +3468,9 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                 const Text(
                   'UNIT FISIK',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF6B7280),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF94A3B8),
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -3231,19 +3478,19 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical: 10,
+                    vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Row(
                     children: [
                       const Icon(
                         Icons.lock_outline_rounded,
                         size: 16,
-                        color: Color(0xFF111111),
+                        color: Color(0xFF0F172A),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -3258,9 +3505,9 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                                 Text(
                                   code,
                                   style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF111111),
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -3269,8 +3516,8 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                                   Text(
                                     specs,
                                     style: const TextStyle(
-                                      fontSize: 11.5,
-                                      color: Color(0xFF6B7280),
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -3285,46 +3532,55 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                 ),
               ],
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
+              const Text(
+                'Slot Brankas Jaminan (KTP/SIM)',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF475569),
+                ),
+              ),
+              const SizedBox(height: 6),
               TextField(
                 key: const Key('handover_collateral_field'),
                 controller: _slotController,
                 style: const TextStyle(
                   fontSize: 13.5,
-                  color: Color(0xFF111111),
+                  color: Color(0xFF0F172A),
                 ),
                 decoration: InputDecoration(
-                  labelText: 'Slot Brankas Jaminan (KTP/SIM)',
-                  labelStyle: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
+                  hintText: 'Contoh: Brankas Utama, Slot 01',
+                  hintStyle: const TextStyle(
+                    fontSize: 13.5,
+                    color: Color(0xFF94A3B8),
                   ),
                   isDense: true,
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: const Color(0xFFF8FAFC),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
-                      color: Color(0xFFE5E7EB),
+                      color: Color(0xFFE2E8F0),
                       width: 1,
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
-                      color: Color(0xFFE5E7EB),
+                      color: Color(0xFFE2E8F0),
                       width: 1,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
-                      color: Color(0xFF111111),
-                      width: 1.2,
+                      color: Color(0xFF0F172A),
+                      width: 1.5,
                     ),
                   ),
                 ),
@@ -3339,7 +3595,11 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (needsSettlement) ...[
-                        const SizedBox(height: 16),
+                        const Divider(
+                          height: 28,
+                          thickness: 1,
+                          color: Color(0xFFF1F5F9),
+                        ),
                         Row(
                           key: const Key('handover_remaining_balance_row'),
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3347,9 +3607,9 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                             const Text(
                               'Sisa Tagihan',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 13.5,
                                 fontWeight: FontWeight.w500,
-                                color: Color(0xFF6B7280),
+                                color: Color(0xFF64748B),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -3357,9 +3617,10 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                               child: Text(
                                 CurrencyFormatter.format(remainingAmount),
                                 style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF111111),
+                                  color: Color(0xFF0F172A),
+                                  fontFeatures: [FontFeature.tabularFigures()],
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -3372,8 +3633,8 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                           Text(
                             'Termasuk selisih jadwal (${totals.estimatedHours} jam): +${CurrencyFormatter.format(totals.extraFee)}',
                             style: const TextStyle(
-                              fontSize: 11.5,
-                              color: Color(0xFF6B7280),
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
                             ),
                           ),
                         ],
@@ -3384,10 +3645,10 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                           key: const Key('handover_submit_error_banner'),
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppColors.dangerLight,
+                            color: const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: AppColors.danger.withValues(alpha: 0.35),
+                              color: const Color(0xFFFECACA),
                             ),
                           ),
                           child: Text(
@@ -3395,7 +3656,7 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.danger,
+                              color: Color(0xFFDC2626),
                             ),
                           ),
                         ),
@@ -3403,14 +3664,14 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
+                        height: 48,
                         child: ElevatedButton(
                           key: const Key('confirm_checkin_button'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF111111),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: const Color(0xFF0F172A),
+                            foregroundColor: const Color(0xFFFFFFFF),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             elevation: 0,
                           ),

@@ -5,12 +5,11 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
+import '../../../shared/widgets/dock_aware_scaffold.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../providers/cashier_provider.dart';
-import 'financial_activity_ledger_screen.dart';
-import 'pos_transaction_detail_sheet.dart';
-import '../../../shared/widgets/dock_aware_scaffold.dart';
+import 'widgets/report_shared_widgets.dart';
 
 /// Dedicated Revenue Report Screen (`RevenueReportScreen`) & embeddable `RevenueReportView`
 ///
@@ -27,9 +26,21 @@ class RevenueReportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Laporan Pendapatan'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'Laporan Pendapatan',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+            color: Color(0xFF0F172A),
+          ),
+        ),
       ),
       body: const RevenueReportView(),
     );
@@ -74,77 +85,86 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
     final bool isConsolidated = posBranchFilter == -1 ||
         (posBranchFilter == null && bizState.activeBranchId == null);
 
-    return Column(
-      children: [
-        // Branch Selector Header (if central / multi-branch user)
-        _buildBranchSelectorHeader(
-          branches: branches,
-          isCentralUser: isCentralUser,
-          isConsolidated: isConsolidated,
-          bizState: bizState,
-          posBranchFilter: posBranchFilter,
-        ),
+    return ColoredBox(
+      color: Colors.white,
+      child: Column(
+        children: [
+          // Branch Selector Header (if central / multi-branch user)
+          _buildBranchSelectorHeader(
+            branches: branches,
+            isCentralUser: isCentralUser,
+            isConsolidated: isConsolidated,
+            bizState: bizState,
+            posBranchFilter: posBranchFilter,
+          ),
 
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(closingSummaryProvider);
-            },
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                20,
-                14,
-                20,
-                widget.embedded ? kDockHeight + 24 : 80,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 1. TOP HORIZONTAL FILTER BAR (Concise labels, never truncates)
-                  _buildTopFilterBar(),
-                  const SizedBox(height: 16),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(closingSummaryProvider);
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  0,
+                  4,
+                  0,
+                  widget.embedded ? kDockHeight + 24 : 80,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. TOP HORIZONTAL FILTER BAR (Concise labels, never truncates)
+                    _buildTopFilterBar(),
+                    const SizedBox(height: 16),
 
-                  // 2. MAIN CONTENT
-                  closingAsync.when(
-                    loading: () => const CatalogTabSkeleton(count: 4),
-                    error: (e, _) => Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.dangerLight,
-                        borderRadius: BorderRadius.circular(10),
+                    // 2. MAIN CONTENT
+                    closingAsync.when(
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: CatalogTabSkeleton(count: 4),
                       ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Gagal memuat laporan pendapatan:\n$e',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.danger,
-                              fontSize: 12,
-                            ),
+                      error: (e, _) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.dangerLight,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            icon: const Icon(Icons.refresh_rounded, size: 16),
-                            label: const Text('Coba Lagi'),
-                            onPressed: () => ref.refresh(closingSummaryProvider),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Gagal memuat laporan pendapatan:\n$e',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.danger,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextButton.icon(
+                                icon: const Icon(Icons.refresh_rounded, size: 16),
+                                label: const Text('Coba Lagi'),
+                                onPressed: () => ref.refresh(closingSummaryProvider),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
+                      ),
+                      data: (data) => _buildRevenueContent(
+                        data: data,
+                        branches: branches,
+                        isConsolidated: isConsolidated,
                       ),
                     ),
-                    data: (data) => _buildRevenueContent(
-                      data: data,
-                      branches: branches,
-                      isConsolidated: isConsolidated,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -164,83 +184,22 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
     } else {
       final effectiveId = posBranchFilter ?? bizState.activeBranchId;
       final match = branches.where((b) => b['id'] == effectiveId).firstOrNull;
-      branchLabel = match?['name'] ??
-          (bizState.resolvedBranchName.isNotEmpty
-              ? bizState.resolvedBranchName
-              : 'Cabang Terpilih');
+      final rawName = (match?['name'] ??
+              (bizState.resolvedBranchName.isNotEmpty
+                  ? bizState.resolvedBranchName
+                  : 'Cabang Terpilih'))
+          .toString();
+      branchLabel = formatReportBranchName(rawName);
     }
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isConsolidated ? AppColors.warning.withValues(alpha: 0.6) : AppColors.border,
-          width: isConsolidated ? 1.5 : 1.0,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isConsolidated ? Icons.hub_rounded : Icons.storefront_rounded,
-            size: 20,
-            color: isConsolidated ? AppColors.warning : AppColors.obsidian,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Cakupan Kasir',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: isConsolidated ? AppColors.warning : AppColors.textMuted,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  branchLabel,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: AppColors.obsidian,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          if (isCentralUser && branches.length > 1) ...[
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: () => _showBranchFilterModal(context, branches, isConsolidated),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: isConsolidated ? AppColors.warning : AppColors.obsidian,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Ganti',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: isConsolidated ? Colors.black : Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
+    final switchable = isCentralUser && branches.length > 1;
+    return ReportBranchScopeBar(
+      branchLabel: branchLabel,
+      isConsolidated: isConsolidated,
+      switchable: switchable,
+      onTapSwitch: switchable
+          ? () => _showBranchFilterModal(context, branches, isConsolidated)
+          : null,
     );
   }
 
@@ -317,7 +276,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
               // Opsi 2: Per Cabang
               ...branches.map((b) {
                 final bId = b['id'] as int?;
-                final bName = b['name'] ?? 'Cabang';
+                final bName = formatReportBranchName((b['name'] ?? 'Cabang').toString());
                 final isCent = b['is_central'] == true;
                 final bool isSelected = !isCurrentlyConsolidated &&
                     ((currentPosFilter != null && currentPosFilter == bId) ||
@@ -372,6 +331,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
       height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         children: [
           _buildCompactFilterChip('Hari Ini', activeLabel == 'Hari Ini', () {
             final nowStr = DateTime.now().toIso8601String().substring(0, 10);
@@ -381,7 +341,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
                   endDate: nowStr,
                 );
           }),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           _buildCompactFilterChip('Minggu Ini', activeLabel == 'Minggu Ini', () {
             final now = DateTime.now();
             final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
@@ -393,7 +353,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
                   endDate: eStr,
                 );
           }),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           _buildCompactFilterChip('Bulan Ini', activeLabel == 'Bulan Ini', () {
             final now = DateTime.now();
             final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
@@ -404,7 +364,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
                   endDate: todayStr,
                 );
           }),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           _buildCompactFilterChip('Bulan Lalu', activeLabel == 'Bulan Lalu', () {
             final now = DateTime.now();
             final firstOfLastMonth = DateTime(now.year, now.month - 1, 1);
@@ -415,7 +375,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
                   endDate: lastOfLastMonth.toIso8601String().substring(0, 10),
                 );
           }),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           _buildCustomDateFilterChip(activeLabel),
         ],
       ),
@@ -423,30 +383,10 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
   }
 
   Widget _buildCompactFilterChip(String label, bool isSelected, VoidCallback onTap) {
-    return FilterChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-          color: isSelected ? Colors.white : AppColors.textPrimary,
-        ),
-      ),
-      selected: isSelected,
-      showCheckmark: false,
-      selectedColor: AppColors.obsidian,
-      backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: isSelected ? AppColors.obsidian : AppColors.border,
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      onSelected: (_) => onTap(),
+    return ReportFilterPill(
+      label: label,
+      isSelected: isSelected,
+      onTap: onTap,
     );
   }
 
@@ -456,32 +396,11 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
         activeLabel != 'Bulan Ini' &&
         activeLabel != 'Bulan Lalu';
 
-    return ActionChip(
-      avatar: Icon(
-        Icons.date_range_rounded,
-        size: 14,
-        color: isCustom ? Colors.white : AppColors.textMuted,
-      ),
-      label: Text(
-        isCustom ? activeLabel : 'Kustom',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: isCustom ? FontWeight.w700 : FontWeight.w500,
-          color: isCustom ? Colors.white : AppColors.textPrimary,
-        ),
-      ),
-      backgroundColor: isCustom ? AppColors.obsidian : AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: isCustom ? AppColors.obsidian : AppColors.border,
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      onPressed: () async {
+    return ReportFilterPill(
+      label: isCustom ? activeLabel : 'Kustom',
+      isSelected: isCustom,
+      leadingIcon: Icons.date_range_outlined,
+      onTap: () async {
         final now = DateTime.now();
         final picked = await showDateRangePicker(
           context: context,
@@ -495,10 +414,10 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
             return Theme(
               data: Theme.of(context).copyWith(
                 colorScheme: const ColorScheme.light(
-                  primary: AppColors.obsidian,
+                  primary: Color(0xFF0F172A),
                   onPrimary: Colors.white,
                   surface: Colors.white,
-                  onSurface: AppColors.obsidian,
+                  onSurface: Color(0xFF0F172A),
                 ),
               ),
               child: child!,
@@ -544,7 +463,7 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 1. HERO REVENUE CARD (Black Card)
+        // 1. HERO REVENUE CARD (Obsidian Card)
         _buildHeroRevenueCard(
           totalRev: totalRev,
           totalTx: totalTx,
@@ -553,35 +472,29 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
           dateLabel: dateLabel,
           isConsolidated: isConsolidated,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
 
-        // 2. SUMBER PENDAPATAN CARD (Clean Indonesian labels without English debug text)
-        if (data['breakdown_by_type'] is Map) ...[
+        // 2. SUMBER PENDAPATAN (Flat hairline list)
+        if (data['breakdown_by_type'] is Map)
           _buildIncomeTypeBreakdown(data['breakdown_by_type'] as Map),
-          const SizedBox(height: 16),
-        ],
 
         // 3. KONTRIBUSI OMSET PER CABANG (Only rendered when > 1 branch & viewing "Semua Cabang")
         if (hasMultipleBranches &&
             isConsolidated &&
             data['breakdown_by_branch'] is List &&
-            (data['breakdown_by_branch'] as List).isNotEmpty) ...[
+            (data['breakdown_by_branch'] as List).isNotEmpty)
           _buildBranchContributionBreakdown(data['breakdown_by_branch'] as List),
-          const SizedBox(height: 16),
-        ],
 
-        // 4. RINCIAN METODE PEMBAYARAN
-        _buildPaymentMethodBreakdown(breakdown),
-        const SizedBox(height: 16),
+        // 4. RINCIAN METODE PEMBAYARAN (Flat hairline list)
+        ReportPaymentMethodList(breakdown: breakdown),
 
-        // 5. AUDIT RINCIAN TRANSAKSI (Clean rows, no repetitive branch pills when filtered)
+        // 5. TRANSAKSI TERBARU (Flat hairline list)
         if (data['recent_transactions'] is List &&
-            (data['recent_transactions'] as List).isNotEmpty) ...[
-          _buildRecentTransactionsAudit(
+            (data['recent_transactions'] as List).isNotEmpty)
+          ReportRecentTransactionsList(
             transactions: data['recent_transactions'] as List,
             isConsolidated: isConsolidated,
           ),
-        ],
       ],
     );
   }
@@ -595,158 +508,183 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
     required String dateLabel,
     required bool isConsolidated,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.obsidian,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Total Omset ($dateLabel)',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isConsolidated) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'Konsolidasi',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Total Omset ($dateLabel)',
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isConsolidated) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning,
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: const Text(
+                            'Konsolidasi',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.payments_outlined,
+                  color: Color(0xFF94A3B8),
+                  size: 19,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              CurrencyFormatter.format(totalRev),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$totalTx transaksi berhasil diselesaikan',
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 12.5,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Divider(color: Colors.white12, height: 1, thickness: 1),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.payments_outlined,
+                        size: 16,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Tunai (Cash)',
+                              style: TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              CurrencyFormatter.format(cashTotal),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.payments_rounded, color: Colors.white70, size: 20),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            CurrencyFormatter.format(totalRev),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
+                Container(width: 1, height: 28, color: Colors.white12),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.credit_card_outlined,
+                        size: 16,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Non-Tunai',
+                              style: TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              CurrencyFormatter.format(nonCashTotal),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$totalTx transaksi berhasil diselesaikan',
-            style: const TextStyle(color: Colors.white60, fontSize: 13),
-          ),
-          const SizedBox(height: 14),
-          const Divider(color: Colors.white24, height: 1),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(Icons.money_rounded, size: 16, color: Colors.white70),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Tunai (Cash)',
-                            style: TextStyle(color: Colors.white60, fontSize: 10),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            CurrencyFormatter.format(cashTotal),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(width: 1, height: 28, color: Colors.white24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(Icons.credit_card_rounded, size: 16, color: Colors.white70),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Non-Tunai',
-                            style: TextStyle(color: Colors.white60, fontSize: 10),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            CurrencyFormatter.format(nonCashTotal),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // --- Sumber Pendapatan Card (Clean Indonesian Labels) ---
+  // --- Sumber Pendapatan (Flat Hairline Breakdown) ---
   Widget _buildIncomeTypeBreakdown(Map typeMap) {
     final types = [
       'rental',
@@ -763,574 +701,248 @@ class _RevenueReportViewState extends ConsumerState<RevenueReportView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Sumber Pendapatan',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: AppColors.textMuted,
-              ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            children: [
-              for (int i = 0; i < types.length; i++) ...[
-                if (i > 0)
-                  const Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: AppColors.surfaceMuted,
-                  ),
-                Builder(
-                  builder: (_) {
-                    final key = types[i];
-                    final info = typeMap[key] is Map ? (typeMap[key] as Map) : {};
-                    // Clean Indonesian labels: strictly strip any english debug text like (Late Penalty)
-                    final String cleanLabel;
-                    if (key == 'penalty') {
-                      cleanLabel = 'Denda Keterlambatan';
-                    } else if (key == 'extension') {
-                      cleanLabel = 'Perpanjangan Sewa';
-                    } else if (key == 'refund') {
-                      cleanLabel = 'Pengembalian Deposit (Refund)';
-                    } else {
-                      cleanLabel = 'Sewa Kontrak Pokok';
-                    }
+        const ReportSectionHeader(title: 'Sumber Pendapatan'),
+        for (int i = 0; i < types.length; i++) ...[
+          if (i > 0)
+            const Divider(
+              height: 1,
+              thickness: 1,
+              indent: 20,
+              endIndent: 20,
+              color: Color(0xFFF1F5F9),
+            ),
+          Builder(
+            builder: (_) {
+              final key = types[i];
+              final info = typeMap[key] is Map ? (typeMap[key] as Map) : {};
+              // Clean Indonesian labels: strictly strip any english debug text like (Late Penalty)
+              final String cleanLabel;
+              final IconData icon;
+              if (key == 'penalty') {
+                cleanLabel = 'Denda Keterlambatan';
+                icon = Icons.warning_amber_rounded;
+              } else if (key == 'extension') {
+                cleanLabel = 'Perpanjangan Sewa';
+                icon = Icons.update_rounded;
+              } else if (key == 'refund') {
+                cleanLabel = 'Pengembalian Deposit (Refund)';
+                icon = Icons.currency_exchange_rounded;
+              } else {
+                cleanLabel = 'Sewa Kontrak Pokok';
+                icon = Icons.vpn_key_outlined;
+              }
 
-                    final total = CurrencyFormatter.parse(info['total']);
-                    final count = info['count'] ?? 0;
-                    final isPenalty = key == 'penalty';
-                    final isExtension = key == 'extension';
+              final total = CurrencyFormatter.parse(info['total']);
+              final count = info['count'] ?? 0;
 
-                    final icon = isPenalty
-                        ? Icons.warning_amber_rounded
-                        : (isExtension ? Icons.update_rounded : Icons.vpn_key_outlined);
-                    final iconColor = isPenalty
-                        ? Colors.deepOrange
-                        : (isExtension ? AppColors.info : AppColors.obsidian);
-                    final iconBg = isPenalty
-                        ? Colors.deepOrange.withValues(alpha: 0.1)
-                        : (isExtension ? AppColors.infoLight : AppColors.surfaceMuted);
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      icon,
+                      size: 20,
+                      color: const Color(0xFF0F172A),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(7),
-                            decoration: BoxDecoration(
-                              color: iconBg,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(icon, size: 18, color: iconColor),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  cleanLabel,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                    color: isPenalty && total > 0
-                                        ? Colors.deepOrange.shade800
-                                        : AppColors.textPrimary,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '$count Transaksi',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textMuted,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           Text(
-                            CurrencyFormatter.format(total),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              color: isPenalty && total > 0
-                                  ? Colors.deepOrange
-                                  : AppColors.obsidian,
+                            cleanLabel,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13.5,
+                              color: Color(0xFF0F172A),
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$count Transaksi',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      CurrencyFormatter.format(total),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.5,
+                        color: Color(0xFF0F172A),
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ],
+              );
+            },
           ),
-        ),
+        ],
       ],
     );
   }
 
-  // --- Branch Contribution Breakdown ---
+  // --- Branch Contribution Breakdown (Flat Hairline Rows) ---
   Widget _buildBranchContributionBreakdown(List branchDataList) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Expanded(
-              child: Text(
-                'Kontribusi Omset per Cabang',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                  color: AppColors.textMuted,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Expanded(
+                child: Text(
+                  'Kontribusi Omset per Cabang',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.4,
+                    color: Color(0xFF64748B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${branchDataList.length} Cabang Terdata',
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ...branchDataList.map((bItem) {
-          final b = bItem is Map ? bItem : {};
-          final bName = b['branch_name'] ?? 'Cabang';
-          final isCent = b['is_central'] == true;
-          final bRev = CurrencyFormatter.parse(b['total_revenue']);
-          final bCash = CurrencyFormatter.parse(b['cash_revenue']);
-          final bNonCash = CurrencyFormatter.parse(b['non_cash_revenue']);
-          final bTxCount = b['transaction_count'] ?? 0;
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isCent ? AppColors.warningLight : AppColors.infoLight,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              isCent ? 'Pusat' : 'Cabang',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: isCent ? AppColors.warning : AppColors.info,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              bName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      CurrencyFormatter.format(bRev),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        color: AppColors.obsidian,
-                      ),
-                    ),
-                  ],
+              const SizedBox(width: 8),
+              Text(
+                '${branchDataList.length} Cabang Terdata',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: Color(0xFF64748B),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '$bTxCount Transaksi',
-                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Tunai: ${CurrencyFormatter.format(bCash)} • Non-Tunai: ${CurrencyFormatter.format(bNonCash)}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  // --- Payment Method Breakdown ---
-  Widget _buildPaymentMethodBreakdown(Map<String, dynamic> breakdown) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Rincian Metode Pembayaran',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: AppColors.textMuted,
               ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
+            ],
           ),
-          child: breakdown.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(18),
-                  child: Center(
-                    child: Text(
-                      'Belum ada transaksi pembayaran di periode ini.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                    ),
-                  ),
-                )
-              : Column(
-                  children: [
-                    for (int i = 0; i < breakdown.entries.length; i++) ...[
-                      if (i > 0)
-                        const Divider(
-                          height: 1,
-                          thickness: 1,
-                          color: AppColors.surfaceMuted,
-                        ),
-                      Builder(
-                        builder: (_) {
-                          final entry = breakdown.entries.elementAt(i);
-                          final val = entry.value is Map ? (entry.value as Map) : {};
-                          final total = CurrencyFormatter.parse(val['total']);
-                          final count = val['count'] ?? 0;
-                          final kStr = entry.key.toString().toLowerCase();
-
-                          final IconData methodIcon;
-                          if (kStr.contains('tunai') || kStr == 'cash') {
-                            methodIcon = Icons.money_rounded;
-                          } else if (kStr.contains('qris')) {
-                            methodIcon = Icons.qr_code_scanner_rounded;
-                          } else if (kStr.contains('transfer') || kStr.contains('bank')) {
-                            methodIcon = Icons.account_balance_rounded;
-                          } else if (kStr.contains('edc') ||
-                              kStr.contains('card') ||
-                              kStr.contains('kartu')) {
-                            methodIcon = Icons.credit_card_rounded;
-                          } else {
-                            methodIcon = Icons.account_balance_wallet_outlined;
-                          }
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceMuted,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(methodIcon, size: 18, color: AppColors.obsidian),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        entry.key,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 12,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '$count Transaksi',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textMuted,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  CurrencyFormatter.format(total),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ],
-                ),
         ),
-      ],
-    );
-  }
-
-  // --- Audit Rincian Transaksi (Clean Subtitles & No Redundant Branch Pill) ---
-  Widget _buildRecentTransactionsAudit({
-    required List transactions,
-    required bool isConsolidated,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Expanded(
-              child: Text(
-                'Transaksi Terbaru (Audit Rincian)',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                  color: AppColors.textMuted,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+        for (int i = 0; i < branchDataList.length; i++) ...[
+          if (i > 0)
+            const Divider(
+              height: 1,
+              thickness: 1,
+              indent: 20,
+              endIndent: 20,
+              color: Color(0xFFF1F5F9),
             ),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              ),
-              icon: const Icon(Icons.menu_book_rounded, size: 14),
-              label: const Text(
-                'Buku Kas Lengkap',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const FinancialActivityLedgerScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ...transactions.map((txItem) {
-          final tx = txItem is Map ? txItem : {};
-          final txCode = tx['receipt_number'] ?? tx['transaction_code'] ?? 'TX';
-          final custName = tx['customer_name'] ?? 'Pelanggan';
-          final brName = tx['branch_name'] ?? 'Cabang';
-          final isCent = tx['is_central'] == true;
-          final txAmt = CurrencyFormatter.parse(tx['amount']);
-          final pMethod = tx['payment_method'] ?? 'Tunai';
-          final itemsSummary = tx['items_summary'] ?? 'Perangkat Apple';
-          final txType = tx['type']?.toString().toLowerCase();
-
-          final String categoryLabel;
-          if (txType == 'penalty') {
-            categoryLabel = 'Denda';
-          } else if (txType == 'extension') {
-            categoryLabel = 'Perpanjangan';
-          } else {
-            categoryLabel = 'Sewa';
-          }
-
-          return InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => PosTransactionDetailSheet(
-                  booking: Map<String, dynamic>.from(tx),
-                ),
+          Builder(
+            builder: (_) {
+              final bItem = branchDataList[i];
+              final b = bItem is Map ? bItem : {};
+              final bName = formatReportBranchName(
+                (b['branch_name'] ?? 'Cabang').toString(),
               );
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              final isCent = b['is_central'] == true;
+              final bRev = CurrencyFormatter.parse(b['total_revenue']);
+              final bCash = CurrencyFormatter.parse(b['cash_revenue']);
+              final bNonCash = CurrencyFormatter.parse(b['non_cash_revenue']);
+              final bTxCount = b['transaction_count'] ?? 0;
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            // Only render branch pill tag when viewing "Semua Cabang"
-                            if (isConsolidated) ...[
+                        Expanded(
+                          child: Row(
+                            children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: isCent ? AppColors.warningLight : AppColors.infoLight,
-                                  borderRadius: BorderRadius.circular(4),
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(5),
                                 ),
                                 child: Text(
-                                  isCent ? 'Pusat' : brName,
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: isCent ? AppColors.warning : AppColors.info,
+                                  isCent ? 'Pusat' : 'Cabang',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  bName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                    color: Color(0xFF0F172A),
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 6),
                             ],
-                            Flexible(
-                              child: Text(
-                                txCode,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (txType == 'penalty') ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.deepOrange.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  'Denda',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.deepOrange,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        // Line 1: Customer Name • Unit Model
-                        Text(
-                          '$custName • $itemsSummary',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
-                        // Line 2: Payment Method • Category (Sewa/Denda)
+                        const SizedBox(width: 10),
                         Text(
-                          '$pMethod • $categoryLabel',
+                          CurrencyFormatter.format(bRev),
                           style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14.5,
+                            color: Color(0xFF0F172A),
+                            fontFeatures: [FontFeature.tabularFigures()],
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        CurrencyFormatter.format(txAmt),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: AppColors.obsidian,
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '$bTxCount Transaksi',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                          ),
                         ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 18,
-                        color: AppColors.textMuted,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Tunai: ${CurrencyFormatter.format(bCash)} • Non-Tunai: ${CurrencyFormatter.format(bNonCash)}',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF64748B),
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ],
     );
   }

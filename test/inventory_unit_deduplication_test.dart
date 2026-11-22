@@ -184,8 +184,8 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Verify Tab 0 is selected
-    expect(find.text('Unit Fisik'), findsOneWidget);
+    // Verify unified Daftar Aset screen is rendered
+    expect(find.text('Daftar Aset'), findsOneWidget);
     expect(find.text('Unit Fisik (Inventaris)'), findsNothing);
 
     // Verify unit 101 (IP15P-MTR-001) is rendered EXACTLY once, not duplicated

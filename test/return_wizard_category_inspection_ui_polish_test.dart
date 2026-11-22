@@ -100,9 +100,13 @@ void main() {
     await tester.pumpWidget(buildScreen(appleBooking));
     await tester.pumpAndSettle();
 
-    // 1. Collateral copy & no user icon
-    expect(find.text('Jaminan: KTP (Brankas A, Slot 05)'), findsOneWidget);
+    // 1. Pure white canvas, crisp title & Collateral copy without user icon
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(scaffold.backgroundColor, Colors.white);
+    expect(find.text('Pengembalian • RC-IPH-001'), findsOneWidget);
+    expect(find.text('Jaminan: KTP • Brankas A, Slot 05'), findsOneWidget);
     expect(find.byIcon(Icons.person_outline_rounded), findsNothing);
+    expect(find.text('Wajib'), findsOneWidget);
 
     // 2. Overdue formatted as '24j 43m' instead of '1483 mnt'
     expect(find.textContaining('24j 43m'), findsWidgets);
@@ -139,12 +143,14 @@ void main() {
 
     // 8. Submit button label and subtitle reminder
     expect(find.text('Selesaikan Pengembalian'), findsOneWidget);
-    expect(find.text('Kembalikan jaminan fisik (Brankas A, Slot 05) ke pelanggan'), findsOneWidget);
+    expect(find.text('Jaminan fisik: Brankas A, Slot 05'), findsOneWidget);
 
     // 9. Verify iPhone return payload strictly includes iCloud and excludes Google FRP
     final icloudSwitch = find.byType(Switch).first;
     await tester.tap(icloudSwitch);
     await tester.pumpAndSettle();
+    expect(find.text('Terverifikasi'), findsOneWidget);
+    expect(find.text('Wajib'), findsNothing);
 
     final payLaterFinder = find.text('Bayar Nanti (Catat ke Tagihan)');
     await tester.ensureVisible(payLaterFinder);
@@ -164,7 +170,14 @@ void main() {
     expect(results.containsKey('google_account_removed'), isFalse);
     expect(results['screen_ok'], isTrue);
     expect(results['camera_ok'], isTrue);
-    expect(find.text('Unit Berhasil Kembali!'), findsOneWidget);
+    expect(find.text('Unit Berhasil Kembali'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('return_success_squircle_badge'))),
+      const Size(52, 52),
+    );
+    expect(find.text('Kembalikan jaminan: Brankas A, Slot 05'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Cetak Bukti'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Selesai'), findsOneWidget);
   });
 
   testWidgets('Outdoor gear booking (Tenda 001) hides iCloud card, renders tent checklist, and returns successfully', (tester) async {
@@ -223,7 +236,14 @@ void main() {
     expect(results['tent_fabric'], isTrue);
     expect(results['carry_bag'], isTrue);
     expect(results.containsKey('icloud_removed'), isFalse);
-    expect(find.text('Unit Berhasil Kembali!'), findsOneWidget);
+    expect(find.text('Unit Berhasil Kembali'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('return_success_squircle_badge'))),
+      const Size(52, 52),
+    );
+    expect(find.text('Kembalikan jaminan: Rak Outdoor B-03'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Cetak Bukti'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Selesai'), findsOneWidget);
   });
 
   testWidgets('PlayStation console booking renders console checklist and hides iCloud card', (tester) async {
@@ -383,6 +403,13 @@ void main() {
     final results = fakeBookingRepo.submittedPayload!['checklist_results'] as Map;
     expect(results.containsKey('icloud_removed'), isFalse);
     expect(results['unit_operational'], isTrue);
-    expect(find.text('Unit Berhasil Kembali!'), findsOneWidget);
+    expect(find.text('Unit Berhasil Kembali'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('return_success_squircle_badge'))),
+      const Size(52, 52),
+    );
+    expect(find.text('Kembalikan jaminan: Laci Aksesoris A-1'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Cetak Bukti'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Selesai'), findsOneWidget);
   });
 }

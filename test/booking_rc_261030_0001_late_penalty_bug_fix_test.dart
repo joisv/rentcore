@@ -235,7 +235,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify return completed dialog
-      expect(find.text('Unit Berhasil Kembali!'), findsOneWidget);
+      expect(find.text('Unit Berhasil Kembali'), findsOneWidget);
+      expect(find.text('Kembalikan jaminan: Brankas A, Slot 05'), findsOneWidget);
       expect(find.textContaining('Denda keterlambatan berhasil dibayar & tercatat di revenue'), findsOneWidget);
     });
 

@@ -155,10 +155,10 @@ void main() {
       expect(tester.takeException(), isNull);
 
       // 1. Verify Sentence Case Section Headers
-      expect(find.text('Cakupan Kasir'), findsOneWidget);
+      expect(find.text('Cakupan:'), findsOneWidget);
       expect(find.text('Rekonsiliasi Kas Laci & Beban'), findsOneWidget);
       expect(find.text('Rincian Metode Pembayaran'), findsOneWidget);
-      expect(find.text('Transaksi Terbaru (Audit Rincian)'), findsOneWidget);
+      expect(find.text('Transaksi Terbaru'), findsOneWidget);
 
       // Verify all-caps old labels are NOT present
       expect(find.text('CAKUPAN POS & REKAP KASIR'), findsNothing);
@@ -168,7 +168,7 @@ void main() {
       expect(find.text('TRANSAKSI TERBARU (AUDIT RINCIAN)'), findsNothing);
 
       // 2. Verify Shift badge is displayed
-      expect(find.textContaining('Shift #SHF-20261030-99999-EXTRALONG-IDENTIFIER Aktif'), findsOneWidget);
+      expect(find.textContaining('Shift #SHF-20261030-99999-EXTRALONG-IDENTIFIER • Aktif'), findsOneWidget);
 
       // 3. Verify Cash Drawer Reconciliation structure & "+ Catat Beban Pengeluaran" button
       expect(find.text('Kas Masuk Bersih (Sistem)'), findsOneWidget);

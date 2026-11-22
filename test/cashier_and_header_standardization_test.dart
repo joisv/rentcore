@@ -286,10 +286,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final homeTitleText = tester.widget<Text>(
-        find.text('RentCore Store • Cabang Pusat'),
-      );
-      expectMatchesBaselineHeaderStyle(homeTitleText.style);
+      final homeTitleText = tester.widget<Text>(find.text('RentCore Store'));
+      expect(homeTitleText.style?.fontSize, 17.0);
+      expect(homeTitleText.style?.fontWeight, FontWeight.w700);
+      expect(homeTitleText.style?.letterSpacing, -0.3);
+      expect(homeTitleText.style?.color, const Color(0xFF0F172A));
+      expect(find.text('Cabang Pusat'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -312,7 +314,10 @@ void main() {
       final laporanFinder = find.text('Laporan');
       expect(laporanFinder, findsOneWidget);
       final laporanText = tester.widget<Text>(laporanFinder);
-      expectMatchesBaselineHeaderStyle(laporanText.style);
+      expect(laporanText.style?.fontSize, 22.0);
+      expect(laporanText.style?.fontWeight, FontWeight.w700);
+      expect(laporanText.style?.letterSpacing, -0.4);
+      expect(laporanText.style?.color, const Color(0xFF0F172A));
       final laporanAppBarBox = tester.getSize(find.byType(AppBar));
       expect(laporanAppBarBox.height, greaterThanOrEqualTo(kToolbarHeight));
       expect(tester.takeException(), isNull);

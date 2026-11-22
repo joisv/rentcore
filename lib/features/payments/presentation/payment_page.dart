@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -10,7 +11,6 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/cash_suggestion_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/idempotency_helper.dart';
-import '../../../core/widgets/animated_success_checkmark.dart';
 import '../../../shared/widgets/authenticated_network_image.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -332,17 +332,25 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
 
     if (_completedResult != null) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFFFFF),
         appBar: AppBar(
-          backgroundColor: AppColors.surface,
+          backgroundColor: const Color(0xFFFFFFFF),
           elevation: 0,
           scrolledUnderElevation: 0,
           surfaceTintColor: Colors.transparent,
           leading: IconButton(
-            icon: const Icon(Icons.close_rounded, color: AppColors.obsidian),
+            icon: const Icon(Icons.close_rounded, color: Color(0xFF0F172A)),
             onPressed: () => Navigator.pop(context, _completedResult),
           ),
-          title: const Text('Pembayaran Sukses'),
+          title: const Text(
+            'Pembayaran Sukses',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+              color: Color(0xFF0F172A),
+            ),
+          ),
         ),
         body: _buildSuccessView(context, _completedResult!),
       );
@@ -2246,6 +2254,7 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
   @override
   void initState() {
     super.initState();
+    HapticFeedback.mediumImpact();
     _entranceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: _totalDurationMs),
@@ -2302,8 +2311,28 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Center(child: AnimatedSuccessCheckmark(size: 88)),
-          const SizedBox(height: 16),
+          Center(
+            child: Container(
+              key: const Key('payment_success_squircle_badge'),
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFA7F3D0),
+                  width: 1,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.check_rounded,
+                size: 32,
+                color: Color(0xFF059669),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
           _buildStaggeredItem(
             track: _headerTrack,
             child: Column(
@@ -2315,9 +2344,10 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                       : 'Pembayaran Berhasil Dicatat!',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     fontSize: 18,
-                    color: AppColors.obsidian,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -2329,8 +2359,8 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                           : 'Pembayaran sewa unit berhasil diselesaikan.'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
                   ),
                 ),
               ],
@@ -2340,11 +2370,11 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
           _buildStaggeredItem(
             track: _cardTrack,
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2356,8 +2386,8 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                         const Text(
                           'No. Struk',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -2367,14 +2397,16 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                             textAlign: TextAlign.end,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                              fontFeatures: [FontFeature.tabularFigures()],
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const Divider(height: 16),
+                    const Divider(height: 20, color: Color(0xFFE2E8F0)),
                   ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2382,8 +2414,8 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                       const Text(
                         'Metode Pembayaran',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -2393,128 +2425,139 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                           textAlign: TextAlign.end,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
                         'Total Dibayar',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
                         ),
                       ),
                       Text(
                         CurrencyFormatter.format(result.amountPaid),
                         style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.obsidian,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                          fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),
                     ],
                   ),
                   if (widget.isDownPayment) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           'Total Sewa',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                         Text(
                           CurrencyFormatter.format(widget.contractTotalAmount),
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                            fontFeatures: [FontFeature.tabularFigures()],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           'Sisa Tagihan (Saat Ambil Unit)',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                         Text(
                           CurrencyFormatter.format(widget.remainingBalance),
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.obsidian,
+                            color: Color(0xFF0F172A),
+                            fontFeatures: [FontFeature.tabularFigures()],
                           ),
                         ),
                       ],
                     ),
                   ],
                   if (widget.isCash) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           'Tunai Diterima',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                         Text(
                           CurrencyFormatter.format(result.cashReceived),
-                          style: const TextStyle(fontSize: 12),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           'Kembalian',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.success,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF059669),
                           ),
                         ),
                         Text(
                           CurrencyFormatter.format(result.cashChange),
                           style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.success,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF059669),
+                            fontFeatures: [FontFeature.tabularFigures()],
                           ),
                         ),
                       ],
                     ),
                   ],
                   if (!widget.isCash || widget.isDownPayment || widget.isHandoverSettlement) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           widget.isHandoverSettlement ? 'Status Sewa' : 'Status',
                           style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                         Container(
@@ -2523,10 +2566,9 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: (widget.isDownPayment
-                                    ? AppColors.warning
-                                    : AppColors.success)
-                                .withValues(alpha: 0.12),
+                            color: widget.isDownPayment
+                                ? const Color(0xFFFFFBEB)
+                                : const Color(0xFFECFDF5),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -2537,10 +2579,10 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
                                     : 'LUNAS OTOMATIS'),
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
                               color: widget.isDownPayment
-                                  ? AppColors.warning
-                                  : AppColors.success,
+                                  ? const Color(0xFFB45309)
+                                  : const Color(0xFF047857),
                               letterSpacing: 0.3,
                             ),
                           ),
@@ -2558,69 +2600,75 @@ class _PaymentSuccessViewState extends State<_PaymentSuccessView>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ElevatedButton.icon(
-                  key: const Key('print_payment_receipt_button'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.obsidian,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                  ),
-                  icon: const Icon(Icons.print_rounded, size: 18),
-                  label: const Text(
-                    'Cetak Struk Transaksi (ESC/POS)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  onPressed: widget.onPrintReceipt,
-                ),
-                if (widget.onShareReceipt != null) ...[
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    key: const Key('share_payment_receipt_button'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.obsidian,
-                      backgroundColor: Colors.white,
-                      side: const BorderSide(
-                        color: AppColors.border,
-                        width: 1.5,
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    key: const Key('print_payment_receipt_button'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F172A),
+                      foregroundColor: const Color(0xFFFFFFFF),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 0,
                     ),
-                    icon: const Icon(Icons.share_rounded, size: 18),
+                    icon: const Icon(Icons.print_outlined, size: 18),
                     label: const Text(
-                      'Bagikan Struk',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      'Cetak Struk Transaksi',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                     ),
-                    onPressed: widget.onShareReceipt,
+                    onPressed: widget.onPrintReceipt,
+                  ),
+                ),
+                if (widget.onShareReceipt != null) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      key: const Key('share_payment_receipt_button'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F172A),
+                        backgroundColor: const Color(0xFFFFFFFF),
+                        side: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.share_outlined, size: 18),
+                      label: const Text(
+                        'Bagikan Struk',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                      onPressed: widget.onShareReceipt,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 10),
-                OutlinedButton(
-                  key: const Key('payment_success_done_button'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF18181B),
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(
-                      color: Color(0xFFCBD5E1),
-                      width: 1.5,
+                SizedBox(
+                  height: 48,
+                  child: OutlinedButton(
+                    key: const Key('payment_success_done_button'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF475569),
+                      backgroundColor: const Color(0xFFF8FAFC),
+                      side: const BorderSide(
+                        color: Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    onPressed: widget.onDone,
+                    child: const Text(
+                      'Selesai',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                     ),
-                    elevation: 0,
-                  ),
-                  onPressed: widget.onDone,
-                  child: const Text(
-                    'Selesai',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ),
               ],

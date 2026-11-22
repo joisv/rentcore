@@ -140,7 +140,7 @@ void main() {
 
   group('Inventory Unit & Catalog Editing Tests', () {
     testWidgets(
-      'InventoryScreen renders TabBar with Unit Fisik and Katalog & Tarif tabs',
+      'InventoryScreen renders unified tab-free Daftar Aset with inline unit rows under model card',
       (tester) async {
         final repo = _TrackingAssetRepository();
 
@@ -164,16 +164,19 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Daftar Aset'), findsOneWidget);
-        expect(find.text('Unit Fisik'), findsOneWidget);
-        expect(find.text('Unit Fisik (Inventaris)'), findsNothing);
-        expect(find.text('Katalog & Tarif'), findsOneWidget);
+        expect(find.byKey(const Key('inventory_tab_units')), findsNothing);
+        expect(find.byKey(const Key('inventory_tab_catalog')), findsNothing);
+        expect(find.byKey(const Key('inventory_add_model_button')), findsOneWidget);
+        expect(find.text('Sony Alpha A7 IV'), findsOneWidget);
+        expect(find.text('Edit Tarif'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, '+ Tambah Unit'), findsOneWidget);
         expect(find.text('CAM-001'), findsOneWidget);
-        expect(find.text('Edit Unit'), findsOneWidget);
+        expect(find.byKey(const Key('edit_unit_btn_101')), findsOneWidget);
       },
     );
 
     testWidgets(
-      'Tapping drawer button opens filter drawer with Category and Status filters',
+      'Tapping filter button opens Filter Aset bottom sheet with Reset, Category, and Status filters',
       (tester) async {
         final repo = _TrackingAssetRepository();
 
@@ -199,17 +202,17 @@ void main() {
         expect(find.text('Daftar Aset'), findsOneWidget);
         expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
 
-        // Open drawer
-        await tester.tap(find.byIcon(Icons.tune_rounded));
+        // Open filter bottom sheet
+        await tester.tap(find.byKey(const Key('inventory_filter_button')));
         await tester.pumpAndSettle();
 
-        // Drawer contents
+        // Modal contents
         expect(find.text('Filter Aset'), findsOneWidget);
         expect(find.text('Status Unit'), findsOneWidget);
         expect(find.text('Kategori'), findsOneWidget);
         expect(
           find.descendant(
-            of: find.byType(Drawer),
+            of: find.byType(BottomSheet),
             matching: find.text('Siap Sewa'),
           ),
           findsOneWidget,
@@ -218,7 +221,7 @@ void main() {
         expect(find.text('Perawatan'), findsOneWidget);
         expect(find.text('Terapkan Filter'), findsOneWidget);
 
-        // Close drawer
+        // Close modal
         await tester.tap(find.text('Terapkan Filter'));
         await tester.pumpAndSettle();
 
@@ -228,7 +231,7 @@ void main() {
     );
 
     testWidgets(
-      'Tapping Edit Unit opens _EditAssetSheet with prefilled values and submits updates',
+      'Tapping edit unit icon opens _EditAssetSheet with prefilled values and submits updates',
       (tester) async {
         tester.view.physicalSize = const Size(800, 1400);
         tester.view.devicePixelRatio = 1.0;
@@ -255,8 +258,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Tap the prominent Edit Unit button
-        await tester.tap(find.text('Edit Unit'));
+        // Tap the unit edit icon button
+        await tester.tap(find.byKey(const Key('edit_unit_btn_101')));
         await tester.pumpAndSettle();
 
         // Verify fields prefilled
@@ -277,7 +280,7 @@ void main() {
     );
 
     testWidgets(
-      'Switching to Katalog & Tarif tab displays products with Edit Model & Tarif action',
+      'Unified model card displays Edit Tarif action and opens prefilled AddProductSheet',
       (tester) async {
         tester.view.physicalSize = const Size(800, 1600);
         tester.view.devicePixelRatio = 1.0;
@@ -298,17 +301,17 @@ void main() {
             ],
             child: MaterialApp(
               navigatorKey: rootNavigatorKey,
-              home: const InventoryScreen(initialTabIndex: 1),
+              home: const InventoryScreen(),
             ),
           ),
         );
         await tester.pumpAndSettle();
 
-        // Verify product card in catalog tab
+        // Verify product card on unified screen
         expect(find.text('Sony Alpha A7 IV'), findsOneWidget);
         expect(find.text('3 Siap Sewa • 5 Total'), findsOneWidget);
         expect(find.text('Edit Tarif'), findsOneWidget);
-        expect(find.text('+ Tambah Unit'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, '+ Tambah Unit'), findsOneWidget);
         expect(find.text('Rp 300.000 / hari'), findsOneWidget);
 
         // Tap Edit Tarif to open prefilled AddProductSheet
@@ -366,7 +369,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Edit Unit'));
+        await tester.tap(find.byKey(const Key('edit_unit_btn_101')));
         await tester.pumpAndSettle();
 
         expect(find.text('Sedang Disewa (Terkunci)'), findsOneWidget);

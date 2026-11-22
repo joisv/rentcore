@@ -195,6 +195,36 @@ void main() {
       // Verify InkWell and Material presence for tactile touch feedback
       expect(find.byType(InkWell), findsWidgets);
       expect(find.byType(Material), findsWidgets);
+
+      // Verify unified 2x2 KPI matrix container and internal #F1F5F9 hairline dividers
+      final matrixContainer = tester.widget<Container>(
+        find.byKey(const Key('home_kpi_matrix_container')),
+      );
+      final matrixDecoration = matrixContainer.decoration as BoxDecoration;
+      expect(matrixDecoration.color, const Color(0xFFFFFFFF));
+      expect(matrixDecoration.borderRadius, BorderRadius.circular(16));
+      expect(
+        matrixDecoration.border,
+        Border.all(color: const Color(0xFFE2E8F0)),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_kpi_matrix_container')),
+          matching: find.byWidgetPredicate(
+            (w) => w is VerticalDivider && w.color == const Color(0xFFF1F5F9),
+          ),
+        ),
+        findsNWidgets(2),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_kpi_matrix_container')),
+          matching: find.byWidgetPredicate(
+            (w) => w is Divider && w.color == const Color(0xFFF1F5F9),
+          ),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('2. Card 1 (Pendapatan) navigates to Laporan tab (index 1)', (tester) async {

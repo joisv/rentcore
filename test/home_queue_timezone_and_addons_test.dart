@@ -199,7 +199,7 @@ void main() {
 
       // Both cards display 18 Nov 2026, 23:00 (booked) and 19 Nov 2026, 23:00 (active) — zero +7h shift
       expect(
-        find.text('Ambil: 18 Nov 2026, 23:00 (Batas 00:00)'),
+        find.text('Ambil: 18 Nov 2026, 23:00 • Batas 00:00'),
         findsOneWidget,
       );
       expect(find.text('Kembali: 19 Nov 2026, 23:00'), findsOneWidget);

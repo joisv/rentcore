@@ -298,7 +298,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFFFFFFF),
       drawer: _buildAccountDrawer(
         context,
         user: user,
@@ -453,10 +453,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                 Text(
                                   storeTitle,
                                   style: const TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 17,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF111111),
-                                    letterSpacing: -0.2,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: -0.3,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -470,11 +470,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                     children: [
                                       Flexible(
                                         child: Text(
-                                          activeBranchLabel,
+                                          _formatBranchLabel(activeBranchLabel),
                                           style: const TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w500,
-                                            color: Color(0xFF6B7280),
+                                            color: Color(0xFF64748B),
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -484,7 +484,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                       const Icon(
                                         Icons.keyboard_arrow_down_rounded,
                                         size: 16,
-                                        color: Color(0xFF6B7280),
+                                        color: Color(0xFF64748B),
                                       ),
                                     ],
                                   ),
@@ -574,12 +574,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         businessState.currentBusiness?['role']?.toString() ??
         user?['role']?.toString() ??
         'staff';
+    final roleSubtitle = _formatRoleLabel(activeRole, isSuperAdmin);
+    final branchSubtitle = businessState.resolvedStoreName.isNotEmpty
+        ? (businessState.resolvedBranchName.isNotEmpty
+              ? '${businessState.resolvedStoreName} • ${_formatBranchLabel(businessState.resolvedBranchName)}'
+              : businessState.resolvedStoreName)
+        : null;
 
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.78,
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFFFFF),
+      surfaceTintColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(14)),
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(16)),
       ),
       child: SafeArea(
         child: Consumer(
@@ -611,17 +618,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             Container(
                               width: 44,
                               height: 44,
-                              decoration: BoxDecoration(
-                                color: AppColors.obsidian,
-                                borderRadius: BorderRadius.circular(8),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF0F172A),
+                                shape: BoxShape.circle,
                               ),
                               alignment: Alignment.center,
                               child: Text(
                                 _getInitials(userName),
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: Color(0xFFFFFFFF),
                                   fontSize: 15,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
@@ -633,47 +640,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                   Text(
                                     userName,
                                     style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.obsidian,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(height: 4),
-                                  _buildRoleBadge(activeRole, isSuperAdmin),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    roleSubtitle,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ],
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 16),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: hasActiveShift
-                                ? AppColors.successLight
-                                : const Color(0xFFFFFBEB),
-                            borderRadius: BorderRadius.circular(8),
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: hasActiveShift
-                                  ? AppColors.success.withValues(alpha: 0.25)
-                                  : const Color(0xFFFDE68A),
+                              color: const Color(0xFFE2E8F0),
                             ),
                           ),
                           child: Row(
                             children: [
-                              Icon(
-                                hasActiveShift
-                                    ? Icons.check_circle_rounded
-                                    : Icons.info_outline_rounded,
-                                size: 18,
-                                color: hasActiveShift
-                                    ? AppColors.success
-                                    : const Color(0xFFB45309),
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: hasActiveShift
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFF59E0B),
+                                  shape: BoxShape.circle,
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -687,8 +700,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
                                     color: hasActiveShift
-                                        ? AppColors.success
-                                        : const Color(0xFF92400E),
+                                        ? const Color(0xFF0F172A)
+                                        : const Color(0xFF475569),
                                   ),
                                 ),
                               ),
@@ -696,36 +709,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
                         const SizedBox(height: 8),
                         ListTile(
                           contentPadding:
                               const EdgeInsets.symmetric(horizontal: 4),
                           leading: const Icon(
                             Icons.storefront_outlined,
-                            color: AppColors.obsidian,
+                            size: 20,
+                            color: Color(0xFF0F172A),
                           ),
                           title: const Text(
                             'Ganti Usaha / Cabang',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
-                          subtitle: businessState.resolvedStoreName.isNotEmpty
+                          subtitle: branchSubtitle != null
                               ? Text(
-                                  businessState.resolvedBranchName.isNotEmpty
-                                      ? '${businessState.resolvedStoreName} • ${businessState.resolvedBranchName}'
-                                      : businessState.resolvedStoreName,
+                                  branchSubtitle,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
+                                    fontSize: 12.5,
+                                    color: Color(0xFF64748B),
                                   ),
                                 )
                               : null,
-                          trailing: const Icon(Icons.chevron_right_rounded),
+                          trailing: const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                            color: Color(0xFF94A3B8),
+                          ),
                           onTap: () {
                             Navigator.pop(drawerContext);
                             BusinessSelectorSheet.show(context);
@@ -736,16 +753,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               const EdgeInsets.symmetric(horizontal: 4),
                           leading: const Icon(
                             Icons.person_outline_rounded,
-                            color: AppColors.obsidian,
+                            size: 20,
+                            color: Color(0xFF0F172A),
                           ),
                           title: const Text(
                             'Profil Pengguna',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
-                          trailing: const Icon(Icons.chevron_right_rounded),
+                          trailing: const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                            color: Color(0xFF94A3B8),
+                          ),
                           onTap: () {
                             Navigator.pop(drawerContext);
                             Navigator.push(
@@ -760,13 +783,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ),
                   ),
                 ),
-                const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                     leading: const Icon(
                       Icons.logout_rounded,
+                      size: 20,
                       color: Color(0xFFDC2626),
                     ),
                     title: const Text(
@@ -840,54 +864,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  // --- Role Badge Helper ---
-  Widget _buildRoleBadge(String role, bool isSuperAdmin) {
-    Color bg;
-    Color fg;
-    String label;
-
-    if (isSuperAdmin) {
-      bg = AppColors.infoLight;
-      fg = AppColors.info;
-      label = 'SUPER ADMIN';
-    } else {
-      switch (role.toLowerCase()) {
-        case 'owner':
-          bg = const Color(0xFFFEF3C7);
-          fg = const Color(0xFFD97706);
-          label = 'OWNER';
-          break;
-        case 'admin':
-          bg = const Color(0xFFEEF2FF);
-          fg = const Color(0xFF4F46E5);
-          label = 'ADMIN';
-          break;
-        case 'staff':
-        case 'cashier':
-        default:
-          bg = AppColors.successLight;
-          fg = AppColors.success;
-          label = 'KASIR';
-          break;
-      }
+  String _formatRoleLabel(String role, bool isSuperAdmin) {
+    if (isSuperAdmin) return 'Super Admin';
+    switch (role.toLowerCase()) {
+      case 'owner':
+        return 'Owner';
+      case 'admin':
+        return 'Admin';
+      case 'staff':
+      case 'cashier':
+      default:
+        return 'Kasir';
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          color: fg,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
   }
 
   // =========================================================================
@@ -975,6 +963,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // =========================================================================
   // 4. DAILY OPERATIONS SUMMARY (GRID 2x2)
   // =========================================================================
+  String _formatBranchLabel(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (trimmed != trimmed.toLowerCase()) return trimmed;
+    return trimmed
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+
   Widget _buildDailyOperationsGrid(
     BuildContext context, {
     required WidgetRef ref,
@@ -987,75 +986,103 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     required int unitsReady,
     required int totalUnits,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildOperationCard(
-                label: 'Pendapatan',
-                value: CurrencyFormatter.format(todayRevenue),
-                subtext: 'Hari ini • $todayTxCount transaksi',
-                valueColor: AppColors.obsidian,
-                onTap: () => widget.onNavigateTab(1),
-              ),
+    return Container(
+      key: const Key('home_kpi_matrix_container'),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _buildOperationCard(
+                    label: 'Pendapatan',
+                    value: CurrencyFormatter.format(todayRevenue),
+                    subtext: 'Hari ini • $todayTxCount transaksi',
+                    valueColor: const Color(0xFF0F172A),
+                    onTap: () => widget.onNavigateTab(1),
+                  ),
+                ),
+                const VerticalDivider(
+                  width: 1,
+                  thickness: 1,
+                  color: Color(0xFFF1F5F9),
+                ),
+                Expanded(
+                  child: _buildOperationCard(
+                    label: 'Sewa Aktif',
+                    value: '$activeRentals Unit',
+                    subtext: pendingPickupCount > 0
+                        ? '$pendingPickupCount menunggu diambil'
+                        : 'Berjalan saat ini',
+                    valueColor: const Color(0xFF0F172A),
+                    onTap: () => _scrollToQueue('Semua'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildOperationCard(
-                label: 'Sewa Aktif',
-                value: '$activeRentals Unit',
-                subtext: pendingPickupCount > 0
-                    ? '$pendingPickupCount menunggu diambil'
-                    : 'Berjalan saat ini',
-                valueColor: AppColors.obsidian,
-                onTap: () => _scrollToQueue('Semua'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _buildOperationCard(
-                label: 'Pengembalian',
-                value: '$dueToday Unit',
-                subtext: overdueCount > 0
-                    ? '$overdueCount terlambat • $dueToday hari ini'
-                    : '$dueToday hari ini',
-                subtextColor: overdueCount > 0
-                    ? const Color(0xFFDC2626)
-                    : const Color(0xFF64748B),
-                valueColor: dueToday > 0
-                    ? AppColors.warning
-                    : AppColors.obsidian,
-                onTap: () =>
-                    _scrollToQueue(overdueCount > 0 ? 'Terlambat' : 'Hari Ini'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildOperationCard(
-                label: 'Unit Tersedia',
-                value: '$unitsReady Unit Siap',
-                subtext: 'Dari total $totalUnits unit',
-                valueColor: AppColors.obsidian,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const InventoryScreen(initialStatusFilter: 'ready'),
+          ),
+          const Divider(
+            height: 1,
+            thickness: 1,
+            color: Color(0xFFF1F5F9),
+          ),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _buildOperationCard(
+                    label: 'Pengembalian',
+                    value: '$dueToday Unit',
+                    subtext: overdueCount > 0
+                        ? '$overdueCount terlambat • $dueToday hari ini'
+                        : '$dueToday hari ini',
+                    subtextColor: overdueCount > 0
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF94A3B8),
+                    valueColor: dueToday > 0
+                        ? AppColors.warning
+                        : const Color(0xFF0F172A),
+                    onTap: () => _scrollToQueue(
+                      overdueCount > 0 ? 'Terlambat' : 'Hari Ini',
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+                const VerticalDivider(
+                  width: 1,
+                  thickness: 1,
+                  color: Color(0xFFF1F5F9),
+                ),
+                Expanded(
+                  child: _buildOperationCard(
+                    label: 'Unit Tersedia',
+                    value: '$unitsReady Unit Siap',
+                    subtext: 'Dari total $totalUnits unit',
+                    valueColor: const Color(0xFF0F172A),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const InventoryScreen(initialStatusFilter: 'ready'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1064,26 +1091,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     required String value,
     required String subtext,
     Color? subtextColor,
-    Color valueColor = AppColors.obsidian,
+    Color valueColor = const Color(0xFF0F172A),
     required VoidCallback onTap,
   }) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header Row: Label + Subtle Chevron affordance
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1091,10 +1111,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: Text(
                       label,
                       style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
                         color: Color(0xFF64748B),
-                        letterSpacing: 0.3,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1103,35 +1122,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   const SizedBox(width: 4),
                   const Icon(
                     Icons.chevron_right_rounded,
-                    size: 16,
+                    size: 15,
                     color: Color(0xFF94A3B8),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
-              // Primary Metric Value with Tabular Numeral formatting
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
                   value,
                   style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                     color: valueColor,
-                    letterSpacing: -0.3,
+                    letterSpacing: -0.4,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ),
               const SizedBox(height: 4),
-              // Contextual 1-line Subtext
               Text(
                 subtext,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w500,
-                  color: subtextColor ?? const Color(0xFF64748B),
+                  color: subtextColor ?? const Color(0xFF94A3B8),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1147,169 +1164,217 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // 5. EMBEDDED BRANCH RENTAL QUEUE WITH ACTION-PRIORITY SORTING
   // =========================================================================
   Widget _buildQueueSearchField() {
-    return TextField(
-      key: const Key('home_queue_search_field'),
-      controller: _searchController,
-      style: const TextStyle(
-        fontSize: 13,
-        color: AppColors.obsidian,
+    return SizedBox(
+      height: 42,
+      child: TextField(
+        key: const Key('home_queue_search_field'),
+        controller: _searchController,
+        style: const TextStyle(
+          fontSize: 13.5,
+          color: Color(0xFF0F172A),
+        ),
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Cari kode booking, penyewa, atau unit...',
+          hintStyle: const TextStyle(
+            fontSize: 13.5,
+            color: Color(0xFF94A3B8),
+            fontWeight: FontWeight.w400,
+          ),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            size: 18,
+            color: Color(0xFF64748B),
+          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  key: const Key('home_queue_search_clear_button'),
+                  tooltip: 'Hapus Pencarian',
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: Color(0xFF64748B),
+                  ),
+                  onPressed: _clearSearch,
+                )
+              : null,
+          filled: true,
+          fillColor: const Color(0xFFF8FAFC),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.2),
+          ),
+        ),
+        onChanged: _onSearchChanged,
       ),
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
-        hintText: 'Cari kode booking, penyewa, atau unit...',
-        hintStyle: const TextStyle(
-          fontSize: 12.5,
-          color: Color(0xFF94A3B8),
-          fontWeight: FontWeight.w400,
-        ),
-        prefixIcon: const Icon(
-          Icons.search_rounded,
-          size: 18,
-          color: Color(0xFF6B7280),
-        ),
-        suffixIcon: _searchController.text.isNotEmpty
-            ? IconButton(
-                key: const Key('home_queue_search_clear_button'),
-                tooltip: 'Hapus Pencarian',
-                icon: const Icon(
-                  Icons.close_rounded,
-                  size: 18,
-                  color: Color(0xFF64748B),
-                ),
-                onPressed: _clearSearch,
-              )
-            : null,
-        filled: true,
-        fillColor: AppColors.surface,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.obsidian, width: 1.2),
-        ),
-      ),
-      onChanged: _onSearchChanged,
     );
   }
 
-  Widget _buildQueueFilterBar() {
+  Widget _buildQueueSearchAndDateRow() {
     final hasDateRange = _selectedDateRange != null;
     final dateLabel = hasDateRange
         ? '${DateFormatter.formatDayMonth(_selectedDateRange!.start)} - ${DateFormatter.formatDayMonth(_selectedDateRange!.end)}'
         : 'Semua Tanggal';
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    return Row(
       children: [
-        ..._queueFilters.map((filter) {
-          final isSelected = _selectedQueueFilter == filter;
-          return GestureDetector(
-            onTap: () {
-              if (_selectedQueueFilter != filter) {
-                setState(() => _selectedQueueFilter = filter);
-              }
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        Expanded(child: _buildQueueSearchField()),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: dateLabel,
+          child: GestureDetector(
+            key: const Key('home_queue_date_filter_chip'),
+            onTap: () => _pickDateRange(context),
+            child: Container(
+              height: 42,
+              width: hasDateRange ? null : 42,
+              padding: hasDateRange
+                  ? const EdgeInsets.symmetric(horizontal: 12)
+                  : EdgeInsets.zero,
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.obsidian : AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
+                color: hasDateRange
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected ? AppColors.obsidian : AppColors.border,
+                  color: hasDateRange
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFFE2E8F0),
                 ),
               ),
-              child: Text(
-                filter,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  color: isSelected ? Colors.white : AppColors.textSecondary,
-                ),
-              ),
-            ),
-          );
-        }),
-        GestureDetector(
-          key: const Key('home_queue_date_filter_chip'),
-          onTap: () => _pickDateRange(context),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: hasDateRange ? AppColors.obsidian : AppColors.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: hasDateRange ? AppColors.obsidian : AppColors.border,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.calendar_today_outlined,
-                  size: 14,
-                  color: hasDateRange ? Colors.white : AppColors.textSecondary,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  dateLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: hasDateRange ? FontWeight.w700 : FontWeight.w600,
-                    color: hasDateRange ? Colors.white : AppColors.textSecondary,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.calendar_today_outlined,
+                    size: 17,
+                    color: hasDateRange
+                        ? const Color(0xFFFFFFFF)
+                        : const Color(0xFF475569),
                   ),
-                ),
-              ],
+                  if (hasDateRange) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      dateLabel,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFFFFFFF),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
-        if (hasDateRange)
+        if (hasDateRange) ...[
+          const SizedBox(width: 6),
           GestureDetector(
             key: const Key('home_queue_date_reset_button'),
             onTap: () => setState(() => _selectedDateRange = null),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.close_rounded,
-                    size: 13,
-                    color: AppColors.obsidian,
+                    size: 14,
+                    color: Color(0xFF0F172A),
                   ),
                   SizedBox(width: 4),
                   Text(
                     'Reset Tanggal',
                     style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.obsidian,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
                 ],
               ),
             ),
           ),
+        ],
       ],
+    );
+  }
+
+  Widget _buildQueueFilterBar() {
+    return SizedBox(
+      height: 34,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var i = 0; i < _queueFilters.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Builder(
+                builder: (context) {
+                  final filter = _queueFilters[i];
+                  final isSelected = _selectedQueueFilter == filter;
+                  return GestureDetector(
+                    onTap: () {
+                      if (_selectedQueueFilter != filter) {
+                        setState(() => _selectedQueueFilter = filter);
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      height: 34,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFFFFFFFF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Text(
+                        filter,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color: isSelected
+                              ? const Color(0xFFFFFFFF)
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -1351,9 +1416,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: Text(
                 'Antrean Sewa Cabang',
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.obsidian,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.2,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1363,30 +1429,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             InkWell(
               key: const Key('home_queue_limit_selector'),
               onTap: () => _showQueueLimitSheet(context),
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       'Tampil: $limitLabel',
                       style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.obsidian,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
                       ),
                     ),
                     const SizedBox(width: 2),
                     const Icon(
                       Icons.keyboard_arrow_down_rounded,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: Color(0xFF64748B),
                     ),
                   ],
                 ),
@@ -1407,8 +1468,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   'Tampilkan Semua',
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.obsidian,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A),
                   ),
                 ),
               ),
@@ -1416,10 +1477,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ],
         const SizedBox(height: 10),
-        _buildQueueSearchField(),
+        _buildQueueSearchAndDateRow(),
         const SizedBox(height: 10),
         _buildQueueFilterBar(),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
 
         queueAsync.when(
           loading: () => const SkeletonPulseWrapper(
@@ -1801,7 +1862,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     final endAt = DateFormatter.parseLocal(booking['end_at']);
     final startAt = DateFormatter.parseLocal(booking['start_at']);
-    final graceAt = DateFormatter.parseLocal(booking['grace_expires_at']);
+    final graceAt = DateFormatter.parseLocal(
+      booking['grace_extended_until'] ?? booking['grace_expires_at'],
+    );
     final addonSummaries = _extractAddonSummaries(booking);
     final nowLocal = DateTime.now();
 
@@ -1809,11 +1872,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final isBookedStatus = statusLower == 'booked' ||
         statusLower == 'reserved' ||
         statusLower == 'confirmed' ||
-        statusLower == 'waiting_handover';
-    final isNoShow = statusLower == 'no_show';
+        statusLower == 'waiting_handover' ||
+        statusLower == 'late_pickup';
+    final isNoShow = statusLower == 'no_show' || statusLower == 'expired';
+    final effectiveDeadline =
+        graceAt ?? startAt?.add(const Duration(minutes: 60));
     final isOverduePickup = isBookedStatus &&
-        (booking['is_overdue_pickup'] == true ||
-            (graceAt != null && graceAt.isBefore(nowLocal)));
+        (statusLower == 'late_pickup' ||
+            booking['is_late_pickup'] == true ||
+            booking['is_overdue_pickup'] == true ||
+            (effectiveDeadline != null &&
+                effectiveDeadline.isBefore(nowLocal)));
+    final latePickupMinutes = (isOverduePickup && effectiveDeadline != null)
+        ? nowLocal.difference(effectiveDeadline).inMinutes.clamp(1, 99999)
+        : 0;
 
     final totalBill = CurrencyFormatter.parse(
       booking['total_bill'] ??
@@ -1848,36 +1920,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final Color pillFg;
     if (isReturned) {
       pillText = hasUnpaidPenalty ? 'SELESAI (DENDA BELUM LUNAS)' : 'SELESAI';
-      pillBg = hasUnpaidPenalty ? AppColors.warningLight : AppColors.surfaceMuted;
-      pillFg = hasUnpaidPenalty ? AppColors.warning : AppColors.textSecondary;
+      pillBg = hasUnpaidPenalty
+          ? const Color(0xFFFFFBEB)
+          : const Color(0xFFF1F5F9);
+      pillFg = hasUnpaidPenalty
+          ? const Color(0xFFB45309)
+          : const Color(0xFF475569);
+    } else if (statusLower == 'expired') {
+      pillText = 'KEDALUWARSA';
+      pillBg = const Color(0xFFFEF2F2);
+      pillFg = const Color(0xFFDC2626);
     } else if (isNoShow) {
       pillText = 'NO-SHOW';
-      pillBg = AppColors.dangerLight;
-      pillFg = AppColors.danger;
+      pillBg = const Color(0xFFFEF2F2);
+      pillFg = const Color(0xFFDC2626);
     } else if (isOverduePickup) {
-      pillText = 'Lewat Jadwal Ambil';
-      pillBg = AppColors.dangerLight;
-      pillFg = AppColors.danger;
+      pillText = latePickupMinutes >= 60
+          ? 'Terlambat Ambil (+${latePickupMinutes ~/ 60}j ${latePickupMinutes % 60}m)'
+          : (latePickupMinutes > 0
+              ? 'Terlambat Ambil (+${latePickupMinutes}m)'
+              : 'Terlambat Ambil');
+      pillBg = const Color(0xFFFEF2F2);
+      pillFg = const Color(0xFFDC2626);
     } else if (isBookedStatus) {
       pillText = 'Booking';
-      pillBg = AppColors.infoLight;
-      pillFg = AppColors.info;
+      pillBg = const Color(0xFFFFFBEB);
+      pillFg = const Color(0xFFB45309);
     } else if (isOverdue) {
       pillText = endAt != null
           ? DateFormatter.formatRelative(endAt)
           : 'Terlambat';
-      pillBg = AppColors.dangerLight;
-      pillFg = AppColors.danger;
+      pillBg = const Color(0xFFFEF2F2);
+      pillFg = const Color(0xFFDC2626);
     } else if (priority == 2) {
       pillText = 'Jatuh Tempo';
-      pillBg = AppColors.warningLight;
-      pillFg = AppColors.warning;
+      pillBg = const Color(0xFFFFFBEB);
+      pillFg = const Color(0xFFB45309);
     } else {
-      pillText = endAt != null
-          ? DateFormatter.formatRelative(endAt)
-          : 'Sedang Disewa';
-      pillBg = AppColors.infoLight;
-      pillFg = AppColors.info;
+      pillText = endAt != null ? DateFormatter.formatRelative(endAt) : 'Aktif';
+      pillBg = const Color(0xFFECFDF5);
+      pillFg = const Color(0xFF047857);
     }
 
     final categoryIcon = RentalQueueActions.getItemCategoryIcon(
@@ -1892,22 +1974,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         : categoryIcon;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isOverdue
-              ? AppColors.danger.withValues(alpha: 0.3)
-              : AppColors.border,
-          width: isOverdue ? 1.5 : 1.0,
+              ? const Color(0xFFFCA5A5)
+              : const Color(0xFFE2E8F0),
+          width: 1.0,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Top Header Row: Unboxed Booking Code & Crisp Status Badge
+          // 1. Top Header Row: Tabular Monospace Booking Code & Soft Status Badge
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1915,11 +1997,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Text(
                   bookingCode,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     fontFamily: 'monospace',
                     fontFeatures: [FontFeature.tabularFigures()],
-                    color: Color(0xFF6B7280),
+                    color: Color(0xFF475569),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1932,7 +2014,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   label: pillText,
                   textColor: pillFg,
                   backgroundColor: pillBg,
-                  borderRadius: 6,
+                  borderRadius: 8,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 4,
@@ -1942,25 +2024,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
 
-          // 2. Unified Single-Line Schedule Row (left-aligned directly under code)
+          // 2. Single-Line Schedule Row
           if (isBookedStatus && startAt != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
             Text(
-              'Ambil: ${DateFormatter.formatFull(startAt)}${graceAt != null ? ' (Batas ${DateFormatter.formatTime(graceAt)})' : ''}',
+              'Ambil: ${DateFormatter.formatFull(startAt)}${graceAt != null ? ' • Batas ${DateFormatter.formatTime(graceAt)}' : ''}',
               style: const TextStyle(
                 fontSize: 12,
-                color: Color(0xFF4B5563),
+                color: Color(0xFF64748B),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ] else if (endAt != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
             Text(
               'Kembali: ${DateFormatter.formatFull(endAt)}',
               style: const TextStyle(
                 fontSize: 12,
-                color: Color(0xFF4B5563),
+                color: Color(0xFF64748B),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1968,41 +2050,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
           const SizedBox(height: 12),
 
-          // 3. Unit & Customer Info Block
+          // 3. Asset & Customer Info Block
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              UnitThumbnail(
-                imageUrl: extractUnitImageUrl(
-                  model: model,
-                  asset: activeAsset,
-                  primaryItem: primaryItem,
-                  booking: booking,
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                fallbackIcon: thumbnailFallbackIcon,
+                child: UnitThumbnail(
+                  imageUrl: extractUnitImageUrl(
+                    model: model,
+                    asset: activeAsset,
+                    primaryItem: primaryItem,
+                    booking: booking,
+                  ),
+                  fallbackIcon: thumbnailFallbackIcon,
+                ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      unitName,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.obsidian,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            unitName,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isFloatingUnit) ...[
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Floating Unit',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    if (assetIdentifierText.isNotEmpty) ...[
+                    if (!isFloatingUnit && assetIdentifierText.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         assetIdentifierText,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF6B7280),
+                          color: Color(0xFF64748B),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -2012,8 +2117,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     Text(
                       customerInfoText,
                       style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF4B5563),
+                        fontSize: 12.5,
+                        color: Color(0xFF64748B),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2022,8 +2127,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     Text(
                       'Jaminan: $collateralSlot',
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
+                        fontSize: 12.5,
+                        color: Color(0xFF64748B),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2034,8 +2139,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
 
-          // 4. Flat Total Row (No grey box wrapper, no duplicate "Total:")
-          const SizedBox(height: 12),
+          const Divider(height: 24, thickness: 1, color: Color(0xFFF1F5F9)),
+
+          // 4. Flat Total Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -2043,7 +2149,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 'Total Tagihan',
                 style: TextStyle(
                   fontSize: 13,
-                  color: Color(0xFF6B7280),
+                  color: Color(0xFF64748B),
                 ),
               ),
               const SizedBox(width: 8),
@@ -2064,15 +2170,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.warningLight,
+                              color: const Color(0xFFFFFBEB),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Text(
                               'DP',
                               style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.warning,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFB45309),
                               ),
                             ),
                           ),
@@ -2082,7 +2188,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF111111),
+                            color: Color(0xFF0F172A),
                             letterSpacing: -0.2,
                             fontFeatures: [FontFeature.tabularFigures()],
                           ),
@@ -2102,7 +2208,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               key: const Key('queue_card_addons_summary'),
               style: const TextStyle(
                 fontSize: 12,
-                color: Color(0xFF4B5563),
+                color: Color(0xFF64748B),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -2110,7 +2216,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ] else
             const SizedBox.shrink(),
 
-          const Divider(height: 16, thickness: 1, color: Color(0xFFF3F4F6)),
+          const SizedBox(height: 12),
 
           // Unified 3-element Action Row: [ Rincian ] [ Primary Action ] [ ⋮ ]
           Builder(
@@ -2118,7 +2224,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               final statusStr = (booking['status'] ?? '')
                   .toString()
                   .toLowerCase();
-              final isCompleted = isReturned || statusStr == 'completed' || statusStr == 'no_show';
+              final isCompleted =
+                  isReturned || statusStr == 'completed' || statusStr == 'no_show';
               final isAwaitingHandover =
                   statusStr == 'pending' ||
                   statusStr == 'confirmed' ||
@@ -2132,17 +2239,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
               if (statusStr == 'no_show') {
                 primaryLabel = 'Rincian No-Show';
-                primaryColor = AppColors.obsidian;
-                onPrimaryTap = () =>
-                    RentalQueueActions.openTransactionDetail(context, ref, booking);
+                primaryColor = const Color(0xFF0F172A);
+                onPrimaryTap = () => RentalQueueActions.openTransactionDetail(
+                  context,
+                  ref,
+                  booking,
+                );
               } else if (isCompleted) {
                 primaryLabel = 'Cetak Struk';
-                primaryColor = AppColors.obsidian;
-                onPrimaryTap = () =>
-                    RentalQueueActions.printBookingReceipt(context, ref, booking);
+                primaryColor = const Color(0xFF0F172A);
+                onPrimaryTap = () => RentalQueueActions.printBookingReceipt(
+                  context,
+                  ref,
+                  booking,
+                );
               } else if (isAwaitingHandover) {
                 primaryLabel = 'Serahkan Unit';
-                primaryColor = AppColors.obsidian;
+                primaryColor = const Color(0xFF0F172A);
                 onPrimaryTap = () => RentalQueueActions.handleHandoverUnit(
                   context,
                   ref,
@@ -2150,7 +2263,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 );
               } else {
                 primaryLabel = 'Kembalikan';
-                primaryColor = isOverdue ? AppColors.danger : AppColors.obsidian;
+                primaryColor =
+                    isOverdue ? AppColors.danger : const Color(0xFF0F172A);
                 onPrimaryTap = () => RentalQueueActions.openReturnWizard(
                   context,
                   ref,
@@ -2162,30 +2276,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 children: [
                   Expanded(
                     flex: 4,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.obsidian,
-                        side: const BorderSide(color: AppColors.border),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 9,
+                    child: SizedBox(
+                      height: 40,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFFFFF),
+                          foregroundColor: const Color(0xFF0F172A),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: () => RentalQueueActions.openTransactionDetail(
-                        context,
-                        ref,
-                        booking,
-                      ),
-                      child: const Text(
-                        'Rincian',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                        onPressed: () =>
+                            RentalQueueActions.openTransactionDetail(
+                              context,
+                              ref,
+                              booking,
+                            ),
+                        child: const Text(
+                          'Rincian',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -2193,41 +2309,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     flex: 6,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 9,
+                    child: SizedBox(
+                      height: 40,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: const Color(0xFFFFFFFF),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
                         ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: onPrimaryTap,
-                      child: Text(
-                        primaryLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                        onPressed: onPrimaryTap,
+                        child: Text(
+                          primaryLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
-                    width: 36,
-                    height: 34,
+                    width: 40,
+                    height: 40,
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.obsidian,
-                        side: const BorderSide(color: AppColors.border),
+                        backgroundColor: const Color(0xFFFFFFFF),
+                        foregroundColor: const Color(0xFF475569),
+                        side: const BorderSide(color: Color(0xFFE2E8F0)),
                         padding: EdgeInsets.zero,
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

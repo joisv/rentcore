@@ -138,7 +138,7 @@ void main() {
       expect(find.text('STATUS INVENTARIS CABANG'), findsOneWidget);
       expect(find.text('RINGKASAN OPERASIONAL & KASIR HARI INI'), findsOneWidget);
       expect(find.text('1 Unit Terlambat'), findsOneWidget);
-      expect(find.textContaining('Lihat Semua'), findsOneWidget);
+      expect(find.textContaining('Detail'), findsOneWidget);
       expect(find.textContaining('Budi Siregar'), findsOneWidget);
     });
 

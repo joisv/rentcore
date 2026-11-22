@@ -241,7 +241,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 1. Verify branch selector header displays consolidated scope
-      expect(find.text('Cakupan Kasir'), findsOneWidget);
+      expect(find.text('Cakupan:'), findsOneWidget);
       expect(find.text('Semua Cabang (Konsolidasi)'), findsOneWidget);
       expect(find.text('Ganti'), findsOneWidget);
 
@@ -269,7 +269,7 @@ void main() {
       expect(find.text('Rp 5.000.000'), findsOneWidget);
 
       // 7. Verify Recent Completed Transactions audit list
-      expect(find.text('Transaksi Terbaru (Audit Rincian)'), findsOneWidget);
+      expect(find.text('Transaksi Terbaru'), findsOneWidget);
       expect(find.text('REC-PST-0001'), findsOneWidget);
       expect(find.text('REC-BRT-0001'), findsOneWidget);
     });

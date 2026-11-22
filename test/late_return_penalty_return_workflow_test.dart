@@ -205,7 +205,7 @@ void main() {
 
       // 3. User remains on ReturnWizardScreen (unit is still rented in backend)
       expect(find.byType(ReturnWizardScreen), findsOneWidget);
-      expect(find.text('Unit Berhasil Kembali!'), findsNothing);
+      expect(find.text('Unit Berhasil Kembali'), findsNothing);
     });
 
     testWidgets('Completing payment on PaymentPage atomically records penalty and completes unit return', (tester) async {
@@ -262,7 +262,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // ReturnWizardScreen displays success dialog with paid penalty message
-      expect(find.text('Unit Berhasil Kembali!'), findsOneWidget);
+      expect(find.text('Unit Berhasil Kembali'), findsOneWidget);
       expect(find.textContaining('Denda keterlambatan berhasil dibayar & tercatat di revenue'), findsOneWidget);
     });
 
@@ -299,7 +299,7 @@ void main() {
       expect(fakeBookingRepo.processReturnPayload!.containsKey('penalty_payment_method_id'), isFalse);
 
       // Verify success dialog reports penalty deferred to cashier
-      expect(find.text('Unit Berhasil Kembali!'), findsOneWidget);
+      expect(find.text('Unit Berhasil Kembali'), findsOneWidget);
       expect(find.textContaining('Denda keterlambatan dicatat ke kasir (belum lunas)'), findsOneWidget);
     });
   });

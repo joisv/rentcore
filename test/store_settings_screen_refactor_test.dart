@@ -13,6 +13,7 @@ import 'package:rentcore_mobile/features/organization/presentation/store_setting
 import 'package:rentcore_mobile/features/printer/presentation/printer_settings_screen.dart';
 import 'package:rentcore_mobile/features/transfers/presentation/transfers_screen.dart';
 import 'package:rentcore_mobile/features/vouchers/presentation/voucher_screen.dart';
+import 'package:rentcore_mobile/shared/widgets/business_selector_sheet.dart';
 
 class _MockAuthNotifier extends AuthNotifier {
   final AuthState _initial;
@@ -28,6 +29,9 @@ class _MockBusinessNotifier extends BusinessNotifier {
 
   @override
   BusinessState build() => _initial;
+
+  @override
+  Future<void> refreshSilently() async {}
 }
 
 void main() {
@@ -54,8 +58,17 @@ void main() {
             BusinessState(
               activeBusinessId: 1,
               activeBusinessName: 'RentCore Pusat',
+              activeBranchId: 10,
+              activeBranchName: 'Cabang Utama',
               businesses: [
-                {'id': 1, 'name': 'RentCore Pusat', 'role': role},
+                {
+                  'id': 1,
+                  'name': 'RentCore Pusat',
+                  'role': role,
+                  'branches': [
+                    {'id': 10, 'name': 'Cabang Utama', 'is_central': true},
+                  ],
+                },
               ],
             ),
           ),
@@ -65,8 +78,8 @@ void main() {
     );
   }
 
-  group('StoreSettingsScreen Refactor Layout & Typography Tests', () {
-    testWidgets('renders all 4 groups with polished subtitles and chevrons', (
+  group('StoreSettingsScreen Airy Minimalist Layout & Typography Tests', () {
+    testWidgets('renders pure white borderless list, bare icons, compact header, and clean titles', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(1080, 2400);
@@ -76,52 +89,84 @@ void main() {
       await tester.pumpWidget(buildSettingsWidget());
       await tester.pumpAndSettle();
 
-      // 1. Group 1: AKUN & TOKO
+      // White canvas & minimalist header
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      expect(scaffold.backgroundColor, const Color(0xFFFFFFFF));
+
+      final headerText = tester.widget<Text>(find.text('Pengaturan'));
+      expect(headerText.style?.fontSize, 22);
+      expect(headerText.style?.fontWeight, FontWeight.w700);
+      expect(headerText.style?.color, const Color(0xFF0F172A));
+
+      // Top account & active store header
+      expect(find.byKey(const Key('settings_account_header')), findsOneWidget);
+      expect(find.text('Hadi Pratama'), findsOneWidget);
+      expect(find.text('hadi@rentcore.id • Owner'), findsOneWidget);
+      expect(find.text('RentCore Pusat • Cabang Utama'), findsOneWidget);
+
+      // Section headers & untrimmed single-line titles
       expect(find.text('AKUN & TOKO'), findsOneWidget);
       expect(find.text('Profil Pengguna'), findsOneWidget);
-      expect(find.text('Keamanan & data pribadi'), findsOneWidget);
       expect(find.text('Profil Usaha & Cabang'), findsOneWidget);
-      expect(find.text('RentCore Pusat'), findsWidgets);
 
-      // 2. Group 2: OPERASIONAL KASIR
       expect(find.text('OPERASIONAL KASIR'), findsOneWidget);
       expect(find.text('Metode Pembayaran'), findsOneWidget);
       expect(find.text('QRIS, Tunai, Bank & E-Wallet'), findsOneWidget);
       expect(find.text('Jam Operasional Shift'), findsOneWidget);
-      expect(find.text('Atur jam buka, tutup & toleransi cabang'), findsOneWidget);
-      expect(find.text('Shift Kasir & Jam Operasional'), findsNothing);
-      expect(find.text('Kasir & Tutup Buku Shift'), findsNothing);
+      expect(find.text('Kebijakan Booking & No-Show'), findsOneWidget);
+      expect(find.text('Aturan Denda Keterlambatan'), findsOneWidget);
       expect(find.text('Voucher & Promo'), findsOneWidget);
-      expect(find.text('Manajemen diskon & voucher sewa'), findsOneWidget);
       expect(find.text('Printer Thermal'), findsOneWidget);
-      expect(find.text('Koneksi Bluetooth ESC/POS'), findsOneWidget);
 
-      // 3. Group 3: INVENTARIS & PELANGGAN
       expect(find.text('INVENTARIS & PELANGGAN'), findsOneWidget);
       expect(find.text('Direktori Pelanggan & Blacklist'), findsOneWidget);
-      expect(find.text('Data pelanggan & verifikasi KTP'), findsOneWidget);
       expect(find.text('Mutasi Unit'), findsOneWidget);
-      expect(find.text('Transfer unit antar-cabang'), findsOneWidget);
-      expect(find.text('Kelola Tim & Staf Cabang'), findsOneWidget);
-      expect(find.text('Anggota tim & hak akses'), findsOneWidget);
+      expect(find.text('Kelola Tim & Staf'), findsOneWidget);
 
-      // 4. Group 4: SESI AKUN
-      expect(find.text('SESI AKUN'), findsOneWidget);
+      expect(find.text('PRIVASI & LEGAL'), findsOneWidget);
+      expect(find.text('Kebijakan Privasi'), findsOneWidget);
+      expect(find.text('Hapus Akun'), findsOneWidget);
+
+      // Inline policy cards were moved out of main scroll body into progressive sub-sheets
+      expect(find.byKey(const Key('late_pickup_policy_card')), findsNothing);
+      expect(find.byKey(const Key('late_fee_policy_card')), findsNothing);
+
+      // Clean footer actions
+      expect(find.text('Ganti Usaha / Cabang'), findsOneWidget);
       expect(find.text('Keluar Akun'), findsOneWidget);
-      expect(find.text('Akhiri sesi pada perangkat ini'), findsOneWidget);
+      expect(find.text('Rentcore • Versi 1.0.0+1'), findsOneWidget);
 
-      // 5. Verify chevron icons are used
-      expect(find.byIcon(Icons.chevron_right), findsWidgets);
-      expect(find.byIcon(Icons.arrow_forward_ios_rounded), findsNothing);
+      // Chevrons & ListView clearance
+      expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
+      final listView = tester.widget<ListView>(find.byType(ListView));
+      expect(listView.padding, const EdgeInsets.only(top: 4, bottom: 100));
+    });
 
-      // 6. Verify ListView has bottom padding 100 for safe area
-      final listViewFinder = find.byType(ListView);
-      expect(listViewFinder, findsOneWidget);
-      final listView = tester.widget<ListView>(listViewFinder);
-      expect(
-        listView.padding,
-        const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
+    testWidgets('staff role renders muted caption text instead of yellow pills and single-line Status Kepegawaian', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(buildSettingsWidget(role: 'staff'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('hadi@rentcore.id • Staff'), findsOneWidget);
+      expect(find.text('Status Kepegawaian'), findsOneWidget);
+      expect(find.text('Kebijakan Booking & No-Show'), findsOneWidget);
+      expect(find.text('Lihat saja'), findsWidgets);
+      await tester.scrollUntilVisible(
+        find.text('Kelola Tim & Staf'),
+        200,
+        scrollable: find.byType(Scrollable).first,
       );
+      expect(find.text('Kelola Tim & Staf'), findsOneWidget);
+      expect(find.text('Owner / Admin'), findsOneWidget);
+      // Old loud pills removed
+      expect(find.text('Lihat Saja'), findsNothing);
+      expect(find.text('Kepegawaian'), findsNothing);
     });
 
     testWidgets(
@@ -131,7 +176,7 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.resetPhysicalSize);
 
-        await tester.pumpWidget(buildSettingsWidget());
+        await tester.pumpWidget(buildSettingsWidget(role: 'staff'));
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
@@ -157,6 +202,22 @@ void main() {
       },
     );
 
+    testWidgets('tapping footer Ganti Usaha / Cabang opens BusinessSelectorSheet', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(buildSettingsWidget());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('footer_switch_business_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BusinessSelectorSheet), findsOneWidget);
+    });
+
     testWidgets('tapping Keluar Akun opens confirmation dialog', (
       tester,
     ) async {
@@ -167,7 +228,7 @@ void main() {
       await tester.pumpWidget(buildSettingsWidget());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Keluar Akun'));
+      await tester.tap(find.byKey(const Key('footer_logout_button')));
       await tester.pumpAndSettle();
 
       expect(
@@ -185,8 +246,8 @@ void main() {
     });
   });
 
-  group('StoreSettingsScreen Navigation Targets Verification Tests', () {
-    testWidgets('navigates to UserProfileScreen when tapping Profil Pengguna', (
+  group('StoreSettingsScreen Navigation Targets & Sub-Sheets Tests', () {
+    testWidgets('navigates to UserProfileScreen from account header and Profil Pengguna', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(1080, 2400);
@@ -310,7 +371,7 @@ void main() {
     });
 
     testWidgets(
-      'navigates to ManageOrganizationScreen when tapping Kelola Tim & Staf Cabang',
+      'navigates to ManageOrganizationScreen when tapping Kelola Tim & Staf',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -319,7 +380,7 @@ void main() {
         await tester.pumpWidget(buildSettingsWidget());
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Kelola Tim & Staf Cabang'));
+        await tester.tap(find.text('Kelola Tim & Staf'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 

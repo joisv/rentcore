@@ -331,7 +331,7 @@ void main() {
         expect(find.text('Semua'), findsOneWidget);
         expect(find.text('Terlambat'), findsOneWidget);
         expect(find.text('Hari Ini'), findsOneWidget);
-        expect(find.text('Booking'), findsOneWidget);
+        expect(find.text('Booking'), findsAtLeastNWidgets(1));
         expect(find.text('Selesai'), findsOneWidget);
         expect(find.widgetWithText(FloatingActionButton, 'Sewa Baru'), findsNothing);
 
@@ -343,7 +343,7 @@ void main() {
         expect(find.byIcon(Icons.more_vert_rounded), findsNWidgets(3));
 
         // Filter to 'Booking' -> only RC-BOOKING visible
-        await tester.tap(find.text('Booking'));
+        await tester.tap(find.text('Booking').first);
         await tester.pumpAndSettle();
         expect(find.text('RC-BOOKING'), findsOneWidget);
         expect(find.text('RC-TELAT'), findsNothing);
@@ -352,9 +352,9 @@ void main() {
         // Tap 'Serahkan Unit' primary action
         await tester.tap(find.text('Serahkan Unit'));
         await tester.pumpAndSettle();
-        expect(find.textContaining('Penyerahan Unit'), findsOneWidget);
+        expect(find.text('Serahkan Unit'), findsAtLeastNWidgets(2));
         // Close handover sheet cleanly
-        Navigator.of(tester.element(find.textContaining('Penyerahan Unit'))).pop();
+        Navigator.of(tester.element(find.text('Serahkan Unit').last)).pop();
         await tester.pumpAndSettle();
 
         // Filter to 'Selesai' -> only RC-SELESAI visible

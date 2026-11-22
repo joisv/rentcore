@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/constants/app_colors.dart';
 import 'package:rentcore_mobile/core/theme/app_theme.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
@@ -196,24 +195,24 @@ void main() {
         final scrollPadding = scrollWidget.padding! as EdgeInsets;
         expect(scrollPadding.bottom, greaterThanOrEqualTo(104.0));
 
-        // Verify sleek 44dp height, balanced 50%/50% width, and 10dp horizontal gap
+        // Verify sleek 46dp height, balanced 50%/50% width, and 10dp horizontal gap
         final printRect = tester.getRect(printBtnFinder);
         final closeRect = tester.getRect(closeBtnFinder);
-        expect(printRect.height, 44.0);
-        expect(closeRect.height, 44.0);
+        expect(printRect.height, 46.0);
+        expect(closeRect.height, 46.0);
         expect(printRect.width, closeTo(closeRect.width, 0.5));
         expect(closeRect.left - printRect.right, closeTo(10.0, 0.5));
 
-        // Verify OutlinedButton subtle border (Colors.grey.shade300) and dark fill on ElevatedButton
+        // Verify OutlinedButton subtle border (#E2E8F0) and dark fill (#0F172A) on ElevatedButton
         final outlinedBtn = tester.widget<OutlinedButton>(printBtnFinder);
         expect(
           outlinedBtn.style?.side?.resolve({})?.color,
-          Colors.grey.shade300,
+          const Color(0xFFE2E8F0),
         );
         final elevatedBtn = tester.widget<ElevatedButton>(closeBtnFinder);
         expect(
           elevatedBtn.style?.backgroundColor?.resolve({}),
-          AppColors.obsidian,
+          const Color(0xFF0F172A),
         );
 
         // Verify no text wrapping (TextPainter single-line height check)

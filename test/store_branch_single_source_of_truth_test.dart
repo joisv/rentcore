@@ -428,8 +428,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Pilih Cabang'), findsOneWidget);
-        expect(find.text('awansky'), findsWidgets);
-        expect(find.textContaining('awansky • 1 Cabang'), findsOneWidget);
+        expect(find.text('awansky • 1 Cabang'), findsOneWidget);
         expect(find.text('awanrental'), findsNothing);
         expect(find.textContaining('Denpasar'), findsNothing);
       },
@@ -596,7 +595,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('AwanRentalSky'), findsWidgets);
+        expect(find.text('Pilih Cabang'), findsOneWidget);
         expect(find.text('AwanRentalSky • 1 Cabang'), findsOneWidget);
         expect(find.text('AwanRentalSky Pusat'), findsOneWidget);
         expect(find.text('SKY'), findsOneWidget);
@@ -615,7 +614,8 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Cabang Surabaya'), findsOneWidget);
-        expect(find.text('SBY • Surabaya'), findsOneWidget);
+        expect(find.text('SBY'), findsOneWidget);
+        expect(find.text('Surabaya'), findsOneWidget);
       },
     );
   });

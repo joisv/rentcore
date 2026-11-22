@@ -156,13 +156,13 @@ void main() {
         expect(hapticCalls.length, 1);
         expect(hapticCalls.first.arguments, 'HapticFeedbackType.mediumImpact');
 
-        final badgeFinder = find.byType(AnimatedSuccessCheckmark);
+        final badgeFinder = find.byKey(const Key('payment_success_squircle_badge'));
         expect(badgeFinder, findsOneWidget);
-        expect(tester.getSize(badgeFinder), const Size(88, 88));
-        expect(
-          tester.widget<AnimatedSuccessCheckmark>(badgeFinder).haloColor,
-          const Color(0xFFE8F7F0),
-        );
+        expect(tester.getSize(badgeFinder), const Size(64, 64));
+        final badgeDecoration =
+            tester.widget<Container>(badgeFinder).decoration as BoxDecoration;
+        expect(badgeDecoration.color, const Color(0xFFECFDF5));
+        expect(badgeDecoration.borderRadius, BorderRadius.circular(20));
 
         FadeTransition fadeOfText(String text) => tester.widget<FadeTransition>(
               find.ancestor(
@@ -182,13 +182,13 @@ void main() {
         expect(fadeOfText('Pembayaran Berhasil Dicatat!').opacity.value, 0.0);
         expect(slideOfText('Pembayaran Berhasil Dicatat!').position.value, const Offset(0, 0.06));
         expect(fadeOfText('No. Struk').opacity.value, 0.0);
-        expect(fadeOfText('Cetak Struk Transaksi (ESC/POS)').opacity.value, 0.0);
+        expect(fadeOfText('Cetak Struk Transaksi').opacity.value, 0.0);
 
         // At t = 400ms, header is already fading in ahead of card & action buttons
         await tester.pump(const Duration(milliseconds: 400));
         final headerOpacity400 = fadeOfText('Pembayaran Berhasil Dicatat!').opacity.value;
         final cardOpacity400 = fadeOfText('No. Struk').opacity.value;
-        final actionsOpacity400 = fadeOfText('Cetak Struk Transaksi (ESC/POS)').opacity.value;
+        final actionsOpacity400 = fadeOfText('Cetak Struk Transaksi').opacity.value;
         expect(headerOpacity400, greaterThan(cardOpacity400));
         expect(cardOpacity400, greaterThanOrEqualTo(actionsOpacity400));
 
@@ -198,11 +198,11 @@ void main() {
         expect(slideOfText('Pembayaran Berhasil Dicatat!').position.value, Offset.zero);
         expect(fadeOfText('No. Struk').opacity.value, 1.0);
         expect(slideOfText('No. Struk').position.value, Offset.zero);
-        expect(fadeOfText('Cetak Struk Transaksi (ESC/POS)').opacity.value, 1.0);
-        expect(slideOfText('Cetak Struk Transaksi (ESC/POS)').position.value, Offset.zero);
+        expect(fadeOfText('Cetak Struk Transaksi').opacity.value, 1.0);
+        expect(slideOfText('Cetak Struk Transaksi').position.value, Offset.zero);
 
         expect(find.text('LUNAS OTOMATIS'), findsOneWidget);
-        expect(tester.getSize(badgeFinder), const Size(88, 88));
+        expect(tester.getSize(badgeFinder), const Size(64, 64));
         expect(tester.takeException(), isNull);
       },
     );

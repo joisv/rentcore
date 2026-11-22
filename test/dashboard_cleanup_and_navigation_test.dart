@@ -268,10 +268,10 @@ void main() {
           findsOneWidget,
         );
 
-        // Tap left two-line menu button -> opens account menu bottom sheet
+        // Tap left two-line menu button -> opens account drawer
         await tester.tap(find.byKey(const Key('home_header_menu_button')));
         await tester.pumpAndSettle();
-        expect(find.text('Kasir'), findsOneWidget);
+        expect(find.text('Kasir'), findsNWidgets(2));
         expect(find.text('Ganti Usaha / Cabang'), findsOneWidget);
         expect(find.text('Profil Pengguna'), findsOneWidget);
         expect(find.text('Keluar Akun'), findsOneWidget);
@@ -317,9 +317,9 @@ void main() {
         expect(find.text('INVENTARIS & PELANGGAN'), findsOneWidget);
         expect(find.text('Direktori Pelanggan & Blacklist'), findsOneWidget);
         expect(find.text('Mutasi Unit'), findsOneWidget);
-        expect(find.text('Kelola Tim & Staf Cabang'), findsOneWidget);
+        expect(find.text('Kelola Tim & Staf'), findsOneWidget);
 
-        expect(find.text('SESI AKUN'), findsOneWidget);
+        expect(find.text('Ganti Usaha / Cabang'), findsOneWidget);
         expect(find.text('Keluar Akun'), findsOneWidget);
 
         // Tap Keluar Akun and verify confirmation dialog appears

@@ -531,7 +531,11 @@ void main() {
 
         // Verify safe area bottom padding is 24
         final scrollView = tester.widget<SingleChildScrollView>(
-          find.byType(SingleChildScrollView),
+          find.byWidgetPredicate(
+            (w) =>
+                w is SingleChildScrollView &&
+                w.scrollDirection == Axis.vertical,
+          ),
         );
         expect(
           scrollView.padding,

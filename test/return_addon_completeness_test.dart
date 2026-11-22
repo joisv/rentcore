@@ -121,7 +121,7 @@ void main() {
       expect(find.text('Charger 20W • 1x'), findsOneWidget);
       expect(find.text('Power Bank Anker • 2x'), findsOneWidget);
       expect(
-        find.text('Pastikan semua add-on dikembalikan lengkap'),
+        find.text('Centang kelengkapan add-on untuk melanjutkan'),
         findsOneWidget,
       );
 

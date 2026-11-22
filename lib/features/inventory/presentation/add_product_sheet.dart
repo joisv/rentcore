@@ -56,6 +56,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
   final _storageController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _accessoriesController = TextEditingController();
+  final _hourlyLateFeeController = TextEditingController();
   bool _hasSerialNumber = true;
   bool _requiresFrpCheck = false;
   bool _isAddon = false;
@@ -79,6 +80,12 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       _colorController.text = p['color']?.toString() ?? '';
       _storageController.text = p['storage_capacity']?.toString() ?? '';
       _descriptionController.text = p['description']?.toString() ?? '';
+      final rawHourlyLateFee = p['hourly_late_fee'];
+      if (rawHourlyLateFee != null && rawHourlyLateFee.toString().trim().isNotEmpty) {
+        final parsed = double.tryParse(rawHourlyLateFee.toString());
+        _hourlyLateFeeController.text =
+            parsed != null ? parsed.toInt().toString() : rawHourlyLateFee.toString();
+      }
       _hasSerialNumber = p['has_serial_number'] != false;
       _requiresFrpCheck = p['requires_frp_check'] == true;
       _isAddon = p['is_addon'] == true || p['is_addon'] == 1;
@@ -126,6 +133,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
     _storageController.dispose();
     _descriptionController.dispose();
     _accessoriesController.dispose();
+    _hourlyLateFeeController.dispose();
     for (final r in _rates) {
       r.dispose();
     }
@@ -472,6 +480,10 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       Map<String, dynamic> resultModel;
 
       if (_pickedImageBytes != null || _removeImage) {
+        final rawModelLateFee = _hourlyLateFeeController.text.trim();
+        final double? parsedModelLateFee = rawModelLateFee.isNotEmpty
+            ? CurrencyFormatter.parse(rawModelLateFee)
+            : null;
         final formMap = <String, dynamic>{
           'category_id': _selectedCategoryId,
           'brand': _brandController.text.trim(),
@@ -485,6 +497,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
           'has_serial_number': _hasSerialNumber ? 1 : 0,
           'requires_frp_check': _requiresFrpCheck ? 1 : 0,
           'is_addon': _isAddon ? 1 : 0,
+          'hourly_late_fee': ?parsedModelLateFee,
           if (_isEditing) '_method': 'PUT',
           if (_removeImage) 'remove_image': 1,
         };
@@ -512,6 +525,10 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
               )
             : await repo.createProductMultipart(formData);
       } else {
+        final rawModelLateFee = _hourlyLateFeeController.text.trim();
+        final double? parsedModelLateFee = rawModelLateFee.isNotEmpty
+            ? CurrencyFormatter.parse(rawModelLateFee)
+            : null;
         final payload = <String, dynamic>{
           'category_id': _selectedCategoryId,
           'brand': _brandController.text.trim(),
@@ -527,6 +544,8 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
           'has_serial_number': _hasSerialNumber,
           'requires_frp_check': _requiresFrpCheck,
           'is_addon': _isAddon,
+          if (parsedModelLateFee != null || _isEditing)
+            'hourly_late_fee': parsedModelLateFee,
           'rates': formattedRates,
         };
         resultModel = _isEditing
@@ -811,24 +830,24 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       hintText: hintText,
       hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.normal),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: const Color(0xFFF8FAFC),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       prefixIcon: prefixIcon,
       prefixIconConstraints: prefixIconConstraints,
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFFF43F5E)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFF43F5E), width: 1),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFFF43F5E), width: 1.5),
       ),
     );
@@ -855,47 +874,73 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Full-Screen Clean Header with X Close Button
+                // Full-Screen Clean Header with Drag Handle & Circular Close Button
                 Container(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+                  padding: const EdgeInsets.fromLTRB(20, 10, 16, 14),
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _isEditing ? 'Edit Model & Tarif Sewa' : 'Tambah Model & Tarif Sewa',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                                color: Color(0xFF0F172A),
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              _isEditing
-                                  ? 'Perbarui informasi katalog & konfigurasi paket harga'
-                                  : 'Katalog produk baru & konfigurasi paket harga sewa',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                            ),
-                          ],
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFCBD5E1),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
                       ),
-                      IconButton(
-                        key: const Key('add_product_sheet_close_button'),
-                        style: IconButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          foregroundColor: const Color(0xFF475569),
-                        ),
-                        icon: const Icon(Icons.close_rounded, size: 22),
-                        onPressed: () => Navigator.pop(context),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _isEditing ? 'Edit Model & Tarif Sewa' : 'Tambah Model & Tarif Sewa',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _isEditing
+                                      ? 'Perbarui informasi katalog & konfigurasi paket harga'
+                                      : 'Katalog produk baru & konfigurasi paket harga sewa',
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          InkWell(
+                            key: const Key('add_product_sheet_close_button'),
+                            onTap: () => Navigator.pop(context),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -904,9 +949,9 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
             // Scrollable Form Body
             Expanded(
               child: Container(
-                color: const Color(0xFFF8FAFC),
+                color: Colors.white,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -1168,6 +1213,91 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+
+                      // Denda Keterlambatan / Jam (Model-level default)
+                      Builder(
+                        builder: (context) {
+                          final biz = ref.watch(businessProvider).activeBusiness;
+                          final defaultBizRate = double.tryParse(
+                                biz?['default_hourly_late_fee']?.toString() ?? '',
+                              ) ??
+                              0.0;
+                          final helperText = defaultBizRate > 0
+                              ? 'Kosongkan untuk mengikuti tarif default toko (${CurrencyFormatter.format(defaultBizRate)}/jam)'
+                              : 'Tarif standar denda keterlambatan per jam untuk semua unit model ini';
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      'Denda Keterlambatan / Jam',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF334155),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Opsional',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                helperText,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                key: const Key('model_hourly_late_fee_input'),
+                                controller: _hourlyLateFeeController,
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                                decoration: _inputDecoration(
+                                  hintText: defaultBizRate > 0
+                                      ? defaultBizRate.toInt().toString()
+                                      : 'Misal: 25000',
+                                ).copyWith(
+                                  prefixIcon: const Padding(
+                                    padding: EdgeInsets.only(left: 14, right: 8),
+                                    child: Text(
+                                      'Rp',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF64748B),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  prefixIconConstraints: const BoxConstraints(
+                                    minWidth: 0,
+                                    minHeight: 0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                       const SizedBox(height: 20),
 
                       // SECTION 2: PROTEKSI & TIPE UNIT
@@ -1332,31 +1462,26 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                       const SizedBox(height: 20),
 
                       // SECTION 3: PAKET TARIF SEWA *
-                      Row(
+                      const Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.sell_outlined, size: 14, color: Colors.white),
+                          Padding(
+                            padding: EdgeInsets.only(top: 1),
+                            child: Icon(Icons.sell_outlined, size: 20, color: Color(0xFF0F172A)),
                           ),
-                          const SizedBox(width: 10),
-                          const Expanded(
+                          SizedBox(width: 10),
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   'Paket Tarif Sewa *',
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                                 ),
                                 SizedBox(height: 2),
                                 Text(
                                   'Tentukan harga sewa per jam, hari, minggu, atau bulan. Minimal 1 paket wajib aktif.',
-                                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                  style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                                 ),
                               ],
                             ),
@@ -1375,11 +1500,8 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFCBD5E1), width: 1.2),
-                            boxShadow: const [
-                              BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
-                            ],
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1388,24 +1510,31 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF0F172A),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.sell_outlined, size: 12, color: Colors.white),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Paket #${idx + 1}: ${rate.valueController.text.isEmpty ? "1" : rate.valueController.text} ${_formatUnitName(rate.unit)}',
-                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: Colors.white),
-                                        ),
-                                      ],
+                                  Flexible(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.sell_outlined, size: 12, color: Color(0xFF0F172A)),
+                                          const SizedBox(width: 6),
+                                          Flexible(
+                                            child: Text(
+                                              'Paket #${idx + 1}: ${rate.valueController.text.isEmpty ? "1" : rate.valueController.text} ${_formatUnitName(rate.unit)}',
+                                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: Color(0xFF0F172A)),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -1500,21 +1629,21 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                                           // ignore: deprecated_member_use
                                           value: rate.unit,
                                           isExpanded: true,
-                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
                                           decoration: InputDecoration(
                                             filled: true,
-                                            fillColor: Colors.white,
+                                            fillColor: const Color(0xFFF8FAFC),
                                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                                             enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
                                             ),
                                             focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 2),
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
                                             ),
                                           ),
-                                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF0F172A)),
+                                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
                                           items: const [
                                             DropdownMenuItem(value: 'day', child: Text('Hari (day)')),
                                             DropdownMenuItem(value: 'hour', child: Text('Jam (hour)')),
@@ -1577,10 +1706,14 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                                   const Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(
-                                        'Denda / Overtime per Jam',
-                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                                      Flexible(
+                                        child: Text(
+                                          'Denda / Overtime per Jam',
+                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
+                                      SizedBox(width: 4),
                                       Text(
                                         'Opsional',
                                         style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
@@ -1666,34 +1799,28 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
 
             // Sticky Footer Action Bar
             Container(
-              padding: EdgeInsets.fromLTRB(18, 12, 18, bottomInset > 0 ? bottomInset + 12 : 16),
+              padding: EdgeInsets.fromLTRB(20, 12, 20, bottomInset > 0 ? bottomInset + 12 : 16),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x0A0F172A),
-                    blurRadius: 10,
-                    offset: Offset(0, -4),
-                  ),
-                ],
               ),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 2,
-                  shadowColor: const Color(0x330F172A),
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  onPressed: _isLoading ? null : _submitProduct,
+                  child: _isLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text(
+                          _isEditing ? 'Simpan Perubahan Katalog' : 'Simpan Produk & Tarif ke Katalog',
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        ),
                 ),
-                onPressed: _isLoading ? null : _submitProduct,
-                child: _isLoading
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : Text(
-                        _isEditing ? 'Simpan Perubahan Katalog' : 'Simpan Produk & Tarif ke Katalog',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                      ),
               ),
             ),
               ],

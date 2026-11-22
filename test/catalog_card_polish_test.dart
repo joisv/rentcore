@@ -5,7 +5,6 @@ import 'package:rentcore_mobile/core/constants/navigation_keys.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
 import 'package:rentcore_mobile/features/inventory/presentation/inventory_screen.dart';
-import 'package:rentcore_mobile/features/inventory/presentation/widgets/expandable_inventory_fab.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
 
 class _FakeAssetRepositoryForPolish extends AssetRepository {
@@ -120,7 +119,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // Verify primary button label is "+ Tambah Unit"
-        expect(find.text('+ Tambah Unit'), findsNWidgets(2));
+        expect(find.widgetWithText(ElevatedButton, '+ Tambah Unit'), findsNWidgets(2));
         expect(find.text('+ + Unit Baru'), findsNothing);
         expect(find.text('+ Unit Baru'), findsNothing);
 
@@ -152,7 +151,7 @@ void main() {
     );
 
     testWidgets(
-      '3. Search field placeholder is normalized to "Cari model, merk, tipe..."',
+      '3. Search field placeholder is normalized to "Cari model, kode unit, atau serial number..."',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -161,9 +160,8 @@ void main() {
         await tester.pumpWidget(buildTestApp());
         await tester.pumpAndSettle();
 
-        // Verify shortened hint text
-        expect(find.text('Cari model, merk, tipe...'), findsOneWidget);
-        expect(find.text('Cari model, merk, atau spesifikasi...'), findsNothing);
+        // Verify unified search hint text
+        expect(find.text('Cari model, kode unit, atau serial number...'), findsOneWidget);
       },
     );
 
@@ -188,7 +186,7 @@ void main() {
     );
 
     testWidgets(
-      '5. FAB (+) has heroTag and tooltip "Buat Model Baru", and catalog ListView has bottom: 96.0 padding',
+      '5. Header has "+ Model Baru" button without FAB, and unified ListView has bottom: 96.0 padding',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -197,14 +195,10 @@ void main() {
         await tester.pumpWidget(buildTestApp());
         await tester.pumpAndSettle();
 
-        // Verify Tooltip on FAB
-        expect(find.byTooltip('Buat Model Baru'), findsOneWidget);
-
-        // Verify Hero tag on FAB
-        final heroFinder = find.byWidgetPredicate(
-          (widget) => widget is Hero && widget.tag == 'Buat Model Baru',
-        );
-        expect(heroFinder, findsOneWidget);
+        // Verify Header "+ Model Baru" button and zero floating FAB
+        expect(find.byKey(const Key('inventory_add_model_button')), findsOneWidget);
+        expect(find.text('+ Model Baru'), findsOneWidget);
+        expect(find.byKey(const Key('inventory_expandable_main_fab')), findsNothing);
 
         // Verify ListView bottom padding clearance (96.0)
         final listViewFinder = find.byWidgetPredicate((widget) {

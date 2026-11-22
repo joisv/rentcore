@@ -263,7 +263,7 @@ void main() {
         // Active Session Info
         expect(find.text('Sesi Kasir Berjalan'), findsOneWidget);
         expect(
-          find.textContaining('Shift #SHF-20261104-001 Aktif'),
+          find.textContaining('Shift #SHF-20261104-001 • Aktif'),
           findsOneWidget,
         );
         expect(find.text('Kasir Bertugas'), findsOneWidget);
@@ -369,13 +369,13 @@ void main() {
         expect(find.text('7 Hari Terakhir'), findsOneWidget);
 
         // Verify Status Pills for each historical shift
-        expect(find.text('SESUAI'), findsOneWidget); // Shift 98 variance == 0
+        expect(find.text('Sesuai'), findsOneWidget); // Shift 98 variance == 0
         expect(
-          find.text('KURANG: Rp 20.000'),
+          find.text('Kurang: Rp 20.000'),
           findsOneWidget,
         ); // Shift 97 variance < 0
         expect(
-          find.text('LEBIH: Rp 15.000'),
+          find.text('Lebih: Rp 15.000'),
           findsOneWidget,
         ); // Shift 96 variance > 0
 
@@ -390,12 +390,14 @@ void main() {
         expect(find.text('Cetak Ulang Struk'), findsNWidgets(3));
 
         // Tap 'Lihat Rekap Lengkap' on the second card (Shift 97 with discrepancy)
-        await tester.tap(find.text('Lihat Rekap Lengkap').at(1));
+        final rekapBtn = find.text('Lihat Rekap Lengkap').at(1);
+        await tester.ensureVisible(rekapBtn);
+        await tester.tap(rekapBtn);
         await tester.pumpAndSettle();
 
-        // Verify detailed shift modal
+        // Verify detailed shift modal (both card header & audit modal display Shift #SHF-20261102-001)
         expect(find.text('AUDIT REKAP SHIFT'), findsOneWidget);
-        expect(find.text('Shift #SHF-20261102-001'), findsOneWidget);
+        expect(find.text('Shift #SHF-20261102-001'), findsNWidgets(2));
         expect(find.text('Alasan Selisih Kas:'), findsOneWidget);
         expect(find.text('Selisih kembalian receh'), findsOneWidget);
 
@@ -404,7 +406,10 @@ void main() {
         await tester.pumpAndSettle();
 
         // Tap 'Cetak Ulang Struk' on the first card
-        await tester.tap(find.text('Cetak Ulang Struk').first);
+        final reprintBtn = find.text('Cetak Ulang Struk').first;
+        await tester.ensureVisible(reprintBtn);
+        await tester.pumpAndSettle();
+        await tester.tap(reprintBtn);
         await tester.pumpAndSettle();
 
         // Verify ThermalReceiptPreviewDialog is opened
@@ -696,7 +701,7 @@ void main() {
 
         // Verify historical shift card was updated and now visible in Riwayat Shift
         expect(find.textContaining('Shift #SHF-20261104-001'), findsOneWidget);
-        expect(find.text('SESUAI'), findsOneWidget);
+        expect(find.text('Sesuai'), findsOneWidget);
       },
     );
   });

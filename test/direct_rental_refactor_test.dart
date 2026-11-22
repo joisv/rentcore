@@ -214,6 +214,12 @@ void main() {
             categoriesProvider.overrideWith((ref) => Future.value(mockCategories)),
             paymentMethodsProvider.overrideWith((ref) => Future.value(mockPaymentMethods)),
             paymentRepositoryProvider.overrideWithValue(mockRepo),
+            currentShiftProvider.overrideWith(
+              (ref) async => {'has_active_shift': true, 'shift_enforcement_enabled': false},
+            ),
+            currentShiftByBranchProvider.overrideWith(
+              (ref, branchId) async => {'has_active_shift': true, 'shift_enforcement_enabled': false},
+            ),
           ],
           child: const MaterialApp(
             home: DirectRentalScreen(
@@ -239,7 +245,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Step 2: Advance to Step 3
-      final step2Cta = find.text('Lanjut: Ringkasan Biaya');
+      final step2Cta = find.widgetWithText(ElevatedButton, 'Lanjut');
       await tester.ensureVisible(step2Cta);
       await tester.tap(step2Cta);
       await tester.pumpAndSettle();

@@ -158,7 +158,7 @@ void main() {
         expect(find.text('LUNAS OTOMATIS'), findsNothing);
 
         // 4. Verify button hierarchy
-        expect(find.widgetWithText(ElevatedButton, 'Cetak Struk Transaksi (ESC/POS)'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, 'Cetak Struk Transaksi'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, 'Selesai'), findsOneWidget);
       },
     );
@@ -217,7 +217,7 @@ void main() {
         expect(find.text('LUNAS OTOMATIS'), findsOneWidget);
 
         // 5. Verify action button hierarchy
-        expect(find.widgetWithText(ElevatedButton, 'Cetak Struk Transaksi (ESC/POS)'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, 'Cetak Struk Transaksi'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, 'Selesai'), findsOneWidget);
       },
     );
@@ -272,7 +272,7 @@ void main() {
         expect(find.text('LUNAS OTOMATIS'), findsOneWidget);
 
         // 4. Verify action button hierarchy
-        expect(find.widgetWithText(ElevatedButton, 'Cetak Struk Transaksi (ESC/POS)'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, 'Cetak Struk Transaksi'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, 'Selesai'), findsOneWidget);
       },
     );

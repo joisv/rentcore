@@ -17,6 +17,11 @@ class _FakeCashierRepo extends CashierRepository {
   double? lastCashReceived;
 
   @override
+  Future<Map<String, dynamic>> fetchCurrentShift({int? branchId}) async {
+    return {'has_active_shift': true, 'shift_enforcement_enabled': false};
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> fetchPaymentMethods({
     int? branchId,
   }) async {
@@ -315,7 +320,7 @@ void main() {
 
         // Verify Success Screen displayed
         expect(find.text('Pembayaran Berhasil Dicatat!'), findsOneWidget);
-        expect(find.text('Cetak Struk Transaksi (ESC/POS)'), findsOneWidget);
+        expect(find.text('Cetak Struk Transaksi'), findsOneWidget);
         expect(find.text('Selesai'), findsOneWidget);
       },
     );

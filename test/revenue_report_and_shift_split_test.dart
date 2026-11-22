@@ -5,6 +5,7 @@ import 'package:rentcore_mobile/core/theme/app_theme.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
 import 'package:rentcore_mobile/features/cashier/presentation/cashier_screen.dart';
+import 'package:rentcore_mobile/features/cashier/presentation/financial_hub_screen.dart';
 import 'package:rentcore_mobile/features/cashier/presentation/pos_transaction_detail_sheet.dart';
 import 'package:rentcore_mobile/features/cashier/presentation/revenue_report_screen.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
@@ -481,6 +482,78 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(navigatedTab, 1);
+    });
+  });
+
+  group('Airy Minimalist Reports Redesign Verification', () {
+    testWidgets('FinancialHubScreen uses pure white canvas, segmented pill switchers, title-cased branch scope, and non-clipped filter pills', (tester) async {
+      final fakeRepo = _FakeRevenueRepo();
+      final singleBranchLowercaseState = BusinessState(
+        activeBusinessId: 1,
+        activeBusinessName: 'RentCore',
+        activeBranchId: 1,
+        activeBranchName: 'siliragung',
+        businesses: [
+          {
+            'id': 1,
+            'name': 'RentCore',
+            'membership': {'role': 'staff'},
+            'branches': [
+              {'id': 1, 'name': 'siliragung', 'is_central': false},
+            ],
+          },
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            cashierRepositoryProvider.overrideWithValue(fakeRepo),
+            businessProvider.overrideWith(
+              () => _TestBusinessNotifier(singleBranchLowercaseState),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const FinancialHubScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Pure #FFFFFF canvas & 22sp Laporan title
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+      expect(scaffold.backgroundColor, Colors.white);
+      final titleText = tester.widget<Text>(find.text('Laporan'));
+      expect(titleText.style?.fontSize, 22.0);
+      expect(titleText.style?.fontWeight, FontWeight.w700);
+      expect(titleText.style?.color, const Color(0xFF0F172A));
+
+      // Title-cased branch name + Cakupan: + Terkunci
+      expect(find.text('Cakupan:'), findsOneWidget);
+      expect(find.text('Siliragung'), findsOneWidget);
+      expect(find.text('siliragung'), findsNothing);
+      expect(find.text('Terkunci'), findsOneWidget);
+
+      // Hari Ini pill starts cleanly at 20dp left edge (never clipped)
+      final hariIniRect = tester.getRect(find.text('Hari Ini'));
+      expect(hariIniRect.left, greaterThanOrEqualTo(20.0));
+
+      // Transaksi Terbaru & Buku Kas Lengkap link
+      expect(find.text('Transaksi Terbaru'), findsOneWidget);
+      expect(find.text('Buku Kas Lengkap'), findsOneWidget);
+
+      // Switch to Kasir & Shift and verify secondary segmented pill tabs
+      await tester.tap(find.text('Kasir & Shift'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Shift Aktif'), findsOneWidget);
+      expect(find.text('Riwayat Shift'), findsOneWidget);
+      expect(
+        find.textContaining('Shift #SHF-20261112-001 • Aktif'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     });
   });
 }

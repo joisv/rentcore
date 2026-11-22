@@ -8,11 +8,11 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../auth/providers/business_provider.dart';
+import '../../cashier/presentation/widgets/report_shared_widgets.dart'
+    show formatReportBranchName;
 import '../../home/providers/dashboard_provider.dart';
 import '../providers/asset_provider.dart';
 import 'add_product_sheet.dart';
-import 'widgets/expandable_inventory_fab.dart';
-import 'widgets/tarif_sewa_sheet.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   final String? initialStatusFilter;
@@ -160,18 +160,11 @@ class InventoryScreen extends ConsumerStatefulWidget {
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends ConsumerState<InventoryScreen>
-    with SingleTickerProviderStateMixin {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  late TabController _tabController;
-  final TextEditingController _unitsSearchController = TextEditingController();
-  final TextEditingController _catalogSearchController =
-      TextEditingController();
-  final ScrollController _unitsScrollController = ScrollController();
-  final GlobalKey<ExpandableInventoryFabState> _fabKey = GlobalKey();
-  bool _isFabExpanded = false;
-  Timer? _unitsSearchDebounceTimer;
-  Timer? _catalogSearchDebounceTimer;
+class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final Set<String> _expandedModelKeys = <String>{};
+  String _searchQuery = '';
 
   final List<Map<String, dynamic>> _extraAssets = [];
   int _currentAssetPage = 1;
@@ -185,24 +178,23 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     _isLoadingMoreAssets = false;
   }
 
-  void _onUnitsScroll() async {
-    if (!_unitsScrollController.hasClients ||
+  Future<void> _onAssetsScroll() async {
+    if (!_scrollController.hasClients ||
         _isLoadingMoreAssets ||
         !_hasMoreAssets) {
       return;
     }
-    // Prevent immediate trigger upon initial load when list is short or scroll offset is zero
-    if (_unitsScrollController.position.maxScrollExtent <= 0 ||
-        _unitsScrollController.position.pixels <= 0) {
+    if (_scrollController.position.maxScrollExtent <= 0 ||
+        _scrollController.position.pixels <= 0) {
       return;
     }
-    if (_unitsScrollController.position.pixels >=
-        _unitsScrollController.position.maxScrollExtent - 250) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 250) {
       final bizState = ref.read(businessProvider);
       final repo = ref.read(assetRepositoryProvider);
       final status = ref.read(selectedAssetStatusFilterProvider);
       final categoryId = ref.read(selectedAssetCategoryFilterProvider);
-      final search = ref.read(assetSearchQueryProvider);
+      final search = _searchQuery.trim();
 
       setState(() => _isLoadingMoreAssets = true);
       try {
@@ -240,7 +232,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
             _isLoadingMoreAssets = false;
           });
         }
-      } catch (e) {
+      } catch (_) {
         if (mounted) setState(() => _isLoadingMoreAssets = false);
       }
     }
@@ -249,21 +241,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: 2,
-      vsync: this,
-      initialIndex: widget.initialTabIndex.clamp(0, 1),
-    );
-
-    _tabController.addListener(() {
-      if (_isFabExpanded) {
-        _collapseFab();
-      }
-      _unitsSearchDebounceTimer?.cancel();
-      _catalogSearchDebounceTimer?.cancel();
-    });
-
-    _unitsScrollController.addListener(_onUnitsScroll);
+    _scrollController.addListener(_onAssetsScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialStatusFilter != null) {
@@ -278,38 +256,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
   @override
   void dispose() {
-    _unitsSearchDebounceTimer?.cancel();
-    _catalogSearchDebounceTimer?.cancel();
-    _unitsScrollController.dispose();
-    _tabController.dispose();
-    _unitsSearchController.dispose();
-    _catalogSearchController.dispose();
+    _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
-  }
-
-  void _collapseFab() {
-    _fabKey.currentState?.collapse();
-  }
-
-  void _openTarifSewaFlow(BuildContext context) {
-    if (_tabController.index != 1) {
-      _tabController.animateTo(1);
-    }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => TarifSewaSheet(
-        onSelectProduct: (product) {
-          Navigator.pop(ctx);
-          _openEditProductSheet(context, product);
-        },
-        onAddNewModel: () {
-          Navigator.pop(ctx);
-          _openAddProductSheet(context);
-        },
-      ),
-    );
   }
 
   void _refreshAll() {
@@ -322,6 +271,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     ref.invalidate(dashboardKpiProvider);
   }
 
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _searchQuery = '');
+    ref.read(assetSearchQueryProvider.notifier).setSearch('');
+    ref.read(catalogSearchQueryProvider.notifier).setSearch('');
+  }
+
+  void _resetAllFilters() {
+    ref.read(selectedAssetStatusFilterProvider.notifier).setFilter(null);
+    ref.read(selectedAssetCategoryFilterProvider.notifier).setFilter(null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final bizState = ref.watch(businessProvider);
@@ -329,8 +290,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
     final statusFilter = ref.watch(selectedAssetStatusFilterProvider);
     final categoryFilter = ref.watch(selectedAssetCategoryFilterProvider);
-    final unitSearchQuery = ref.watch(assetSearchQueryProvider);
-    final catalogSearchQuery = ref.watch(catalogSearchQueryProvider);
 
     final categoriesAsync = ref.watch(categoriesProvider);
     final assetsAsync = ref.watch(inventoryListProvider);
@@ -345,231 +304,110 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       },
     );
 
-    final products = productsAsync.value ?? [];
-    final assets = assetsAsync.value ?? [];
-    final hasAnyInventory = products.isNotEmpty || assets.isNotEmpty;
-    final showFab = hasBusiness && hasAnyInventory;
-
-    return PopScope(
-      canPop: !_isFabExpanded,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _isFabExpanded) {
-          _collapseFab();
-        }
-      },
-      child: Scaffold(
-        key: _scaffoldKey,
-        backgroundColor: AppColors.background,
-        drawer: hasBusiness
-            ? _buildFilterDrawer(
-                context,
-                ref,
-                categoriesAsync,
-                categoryFilter,
-                statusFilter,
-              )
-            : null,
-        appBar: hasBusiness
-            ? AppBar(
-                backgroundColor: Colors.white,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-                surfaceTintColor: Colors.transparent,
-                centerTitle: false,
-                automaticallyImplyLeading: false,
-                title: const Text(
-                  'Daftar Aset',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 20,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.4,
-                  ),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: hasBusiness
+          ? AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              surfaceTintColor: Colors.transparent,
+              centerTitle: false,
+              automaticallyImplyLeading: false,
+              titleSpacing: 20,
+              toolbarHeight: 62,
+              title: const Text(
+                'Daftar Aset',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.4,
                 ),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(56),
-                  child: _buildSegmentedTabSwitcher(),
-                ),
-              )
-            : null,
-        floatingActionButton: showFab
-            ? ExpandableInventoryFab(
-                key: _fabKey,
-                heroTag: 'Buat Model Baru',
-                tooltip: 'Buat Model Baru',
-                onExpansionChanged: (expanded) {
-                  if (mounted && _isFabExpanded != expanded) {
-                    setState(() => _isFabExpanded = expanded);
-                  }
-                },
-                onRegisterUnit: () => _openAddAssetSheet(context),
-                onAddModel: () => _openAddProductSheet(context),
-              )
-            : null,
-        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-        body: !hasBusiness
-            ? _buildNoBusinessView(context)
-            : Stack(
-                children: [
-                  Column(
-                    children: [
-                      if (bizState.isConsolidated)
-                        _buildBranchBar(context, bizState),
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            // TAB 0: UNIT FISIK
-                            _buildUnitsView(
-                              context,
-                              bizState,
-                              statusFilter,
-                              categoryFilter,
-                              unitSearchQuery,
-                              categoriesAsync,
-                              assetsAsync,
-                              productsAsync,
-                            ),
-                            // TAB 1: KATALOG & TARIF
-                            _buildCatalogView(
-                              context,
-                              categoryFilter,
-                              catalogSearchQuery,
-                              categoriesAsync,
-                              productsAsync,
-                            ),
-                          ],
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 20),
+                  child: Center(
+                    child: SizedBox(
+                      height: 38,
+                      child: ElevatedButton(
+                        key: const Key('inventory_add_model_button'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  if (_isFabExpanded)
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: _collapseFab,
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.28),
+                        onPressed: () => _openAddProductSheet(context),
+                        child: const Text(
+                          '+ Model Baru',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
-                ],
-              ),
-      ),
-    );
-  }
-
-  Widget _buildSegmentedTabSwitcher() {
-    return Container(
-      width: double.infinity,
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
-      child: AnimatedBuilder(
-        animation: _tabController,
-        builder: (context, _) {
-          final currentIndex = _tabController.index;
-          return Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                _buildSegmentedTabPill(
-                  key: const Key('inventory_tab_units'),
-                  label: 'Unit Fisik',
-                  isActive: currentIndex == 0,
-                  onTap: () => _tabController.animateTo(0),
+                  ),
                 ),
-                _buildSegmentedTabPill(
-                  key: const Key('inventory_tab_catalog'),
-                  label: 'Katalog & Tarif',
-                  isActive: currentIndex == 1,
-                  onTap: () => _tabController.animateTo(1),
+              ],
+            )
+          : null,
+      body: !hasBusiness
+          ? _buildNoBusinessView(context)
+          : Column(
+              children: [
+                if (bizState.isConsolidated) _buildBranchBar(context, bizState),
+                Expanded(
+                  child: _buildUnifiedBody(
+                    context: context,
+                    bizState: bizState,
+                    statusFilter: statusFilter,
+                    categoryFilter: categoryFilter,
+                    categoriesAsync: categoriesAsync,
+                    assetsAsync: assetsAsync,
+                    productsAsync: productsAsync,
+                  ),
                 ),
               ],
             ),
-          );
-        },
-      ),
     );
   }
 
-  Widget _buildSegmentedTabPill({
-    required Key key,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        key: key,
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          decoration: BoxDecoration(
-            color: isActive ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-            border: isActive
-                ? Border.all(color: const Color(0xFFE2E8F0), width: 1)
-                : null,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-              color: isActive
-                  ? const Color(0xFF0F172A)
-                  : const Color(0xFF64748B),
-              letterSpacing: -0.1,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==========================================
-  // BRANCH CONTEXT HEADER
-  // ==========================================
   Widget _buildBranchBar(BuildContext context, BusinessState bizState) {
     final isConsolidated = bizState.isConsolidated;
     final branchName = isConsolidated
         ? 'Semua Cabang (Konsolidasi)'
         : (bizState.resolvedBranchName.isNotEmpty
-            ? bizState.resolvedBranchName
+            ? formatReportBranchName(bizState.resolvedBranchName)
             : 'Pilih Cabang');
     final isCentral = !isConsolidated && bizState.isCentralBranch;
 
     return Container(
       width: double.infinity,
-      color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Row(
           children: [
             Icon(
               isConsolidated
-                  ? Icons.hub_rounded
+                  ? Icons.hub_outlined
                   : (isCentral
-                        ? Icons.store_rounded
+                        ? Icons.store_outlined
                         : Icons.storefront_outlined),
               size: 16,
-              color: AppColors.obsidian,
+              color: const Color(0xFF0F172A),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -578,14 +416,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   text: 'Cabang: ',
                   style: const TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: Color(0xFF64748B),
                   ),
                   children: [
                     TextSpan(
                       text: branchName,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     if (isCentral)
@@ -615,7 +453,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       'Ganti',
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         color: AppColors.info,
                       ),
                     ),
@@ -635,1197 +473,340 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     );
   }
 
-  // ==========================================
-  // TAB 0: PHYSICAL UNITS (INVENTARIS)
-  // ==========================================
-  Widget _buildUnitsView(
-    BuildContext context,
-    BusinessState bizState,
-    String? statusFilter,
-    int? categoryFilter,
-    String searchQuery,
-    AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
-    AsyncValue<List<Map<String, dynamic>>> assetsAsync,
-    AsyncValue<List<Map<String, dynamic>>> productsAsync,
-  ) {
-    final hasActiveSearchOrFilter =
-        searchQuery.trim().isNotEmpty ||
+  Widget _buildUnifiedBody({
+    required BuildContext context,
+    required BusinessState bizState,
+    required String? statusFilter,
+    required int? categoryFilter,
+    required AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
+    required AsyncValue<List<Map<String, dynamic>>> assetsAsync,
+    required AsyncValue<List<Map<String, dynamic>>> productsAsync,
+  }) {
+    final bool isInitialLoading =
+        (assetsAsync.isLoading && !assetsAsync.hasValue) &&
+        (productsAsync.isLoading && !productsAsync.hasValue);
+    if (isInitialLoading) {
+      return const PhysicalUnitsTabSkeleton(count: 5);
+    }
+
+    final products = productsAsync.value ?? const <Map<String, dynamic>>[];
+    final rawAssets = assetsAsync.value ?? const <Map<String, dynamic>>[];
+
+    if (assetsAsync.hasError &&
+        products.isEmpty &&
+        rawAssets.isEmpty &&
+        !assetsAsync.isLoading) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 48,
+                color: AppColors.danger,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Gagal memuat inventaris: ${assetsAsync.error}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF475569)),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: _refreshAll,
+                child: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final deduplicatedAssets = _deduplicateAssets([
+      ...rawAssets,
+      ..._extraAssets,
+    ]);
+    final allGroups = _buildModelAssetGroups(products, deduplicatedAssets);
+    final hasAnySearchOrFilter =
+        _searchQuery.trim().isNotEmpty ||
         statusFilter != null ||
         categoryFilter != null;
-    final loadedAssets = assetsAsync.value;
-    final showSearchBar =
-        hasActiveSearchOrFilter ||
-        (loadedAssets != null && loadedAssets.isNotEmpty);
+
+    if (allGroups.isEmpty && !hasAnySearchOrFilter) {
+      return _buildInventoryOnboardingEmptyState(
+        context: context,
+        hasModels: false,
+        onCreateModel: () => _openAddProductSheet(context),
+        onRefresh: () async => _refreshAll(),
+      );
+    }
+
+    final filteredGroups = _filterModelAssetGroups(
+      allGroups,
+      searchQuery: _searchQuery,
+      statusFilter: statusFilter,
+      categoryFilter: categoryFilter,
+    );
+
+    final categories = _resolveCategories(categoriesAsync, allGroups);
 
     return Column(
       children: [
-        if (showSearchBar)
-          _buildSearchAndFilterBar(
-            searchKey: const Key('inventory_units_search_field'),
-            filterKey: const Key('inventory_units_filter_button'),
-            controller: _unitsSearchController,
-            hintText: 'Cari kode unit, serial number, atau nama tipe...',
-            hasActiveFilter: statusFilter != null || categoryFilter != null,
-            onClear: () {
-              _unitsSearchController.clear();
-              setState(() {});
-              ref.read(assetSearchQueryProvider.notifier).setSearch('');
-            },
-            onChanged: (val) {
-              setState(() {});
-              _unitsSearchDebounceTimer?.cancel();
-              final isTesting = WidgetsBinding.instance.runtimeType
-                  .toString()
-                  .contains('Test');
-              if (isTesting) {
-                ref.read(assetSearchQueryProvider.notifier).setSearch(val.trim());
-              } else {
-                _unitsSearchDebounceTimer = Timer(
-                  const Duration(milliseconds: 300),
-                  () {
-                    if (mounted) {
-                      ref
-                          .read(assetSearchQueryProvider.notifier)
-                          .setSearch(val.trim());
-                    }
-                  },
-                );
-              }
-            },
-          ),
-
-        // List Area
+        _buildSearchAndFilterBar(
+          hasActiveFilter: statusFilter != null || categoryFilter != null,
+          categoriesAsync: categoriesAsync,
+          categoryFilter: categoryFilter,
+          statusFilter: statusFilter,
+        ),
+        if (categories.isNotEmpty)
+          _buildCategoryQuickFilterStrip(categories, categoryFilter),
         Expanded(
-          child: assetsAsync.when(
-            loading: () => const PhysicalUnitsTabSkeleton(count: 5),
-            error: (err, st) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        size: 48,
-                        color: AppColors.danger,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Gagal memuat inventaris: $err',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () => ref.invalidate(inventoryListProvider),
-                        child: const Text('Coba Lagi'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-            data: (assets) {
-              if (assets.isEmpty) {
-                final hasSearch = searchQuery.isNotEmpty;
-                final hasFilter =
-                    statusFilter != null || categoryFilter != null;
-
-                if (hasSearch) {
-                  return RefreshIndicator(
-                    onRefresh: () async =>
-                        ref.invalidate(inventoryListProvider),
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      children: [
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceMuted,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: const Icon(
-                              Icons.search_off_rounded,
-                              size: 36,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Tidak Ada Unit Ditemukan',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Tidak ada unit inventaris yang cocok dengan pencarian "$searchQuery"',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Center(
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.obsidian,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            icon: const Icon(Icons.clear_rounded, size: 16),
-                            label: const Text('Reset Pencarian'),
-                            onPressed: () {
-                              _unitsSearchController.clear();
-                              setState(() {});
-                              ref
-                                  .read(assetSearchQueryProvider.notifier)
-                                  .setSearch('');
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (hasFilter) {
-                  return RefreshIndicator(
-                    onRefresh: () async =>
-                        ref.invalidate(inventoryListProvider),
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      children: [
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceMuted,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: const Icon(
-                              Icons.filter_alt_off_rounded,
-                              size: 36,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Tidak Ada Unit Sesuai Filter',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Tidak ditemukan unit inventaris dengan status atau kategori yang dipilih',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Center(
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.obsidian,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            icon: const Icon(Icons.clear_rounded, size: 16),
-                            label: const Text('Reset Semua Filter'),
-                            onPressed: () {
-                              ref
-                                  .read(
-                                    selectedAssetStatusFilterProvider.notifier,
-                                  )
-                                  .setFilter(null);
-                              ref
-                                  .read(
-                                    selectedAssetCategoryFilterProvider
-                                        .notifier,
-                                  )
-                                  .setFilter(null);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                final products = productsAsync.value ?? [];
-                final hasModels = products.isNotEmpty;
-
-                return _buildInventoryOnboardingEmptyState(
-                  context: context,
-                  hasModels: hasModels,
-                  onCreateModel: () => _openAddProductSheet(context),
-                  onRegisterUnit:
-                      hasModels ? () => _openAddAssetSheet(context) : null,
-                  onRefresh: () async => ref.invalidate(inventoryListProvider),
-                );
-              }
-
-              final seenIds = <dynamic>{};
-              final combinedAssets = <Map<String, dynamic>>[];
-              for (final asset in [...assets, ..._extraAssets]) {
-                final id = asset['id'];
-                if (id == null || seenIds.add(id)) {
-                  combinedAssets.add(asset);
-                }
-              }
-              final sortedAssets = sortAssetsNewestFirst(combinedAssets);
-
-              return RefreshIndicator(
-                onRefresh: () async {
-                  _resetAssetPagination();
-                  ref.invalidate(inventoryListProvider);
-                },
-                child: ListView.separated(
-                  controller: _unitsScrollController,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-                  itemCount:
-                      sortedAssets.length + (_isLoadingMoreAssets ? 1 : 0),
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    if (index >= sortedAssets.length) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      );
-                    }
-                    final asset = sortedAssets[index];
-                    return _buildAssetCard(context, asset);
-                  },
-                ),
-              );
-            },
+          child: _buildGroupsContent(
+            context: context,
+            bizState: bizState,
+            filteredGroups: filteredGroups,
+            hasSearch: _searchQuery.trim().isNotEmpty,
+            hasFilter: statusFilter != null || categoryFilter != null,
+            hasActiveStatusOrSearch:
+                _searchQuery.trim().isNotEmpty || statusFilter != null,
           ),
         ),
       ],
     );
   }
 
-  // ==========================================
-  // ASSET CARD
-  // ==========================================
-  Widget _buildAssetCard(BuildContext context, Map<String, dynamic> asset) {
-    final rawModel = asset['model'];
-    final model = rawModel is Map ? Map<String, dynamic>.from(rawModel) : null;
-    final rawCat = model?['category'];
-    final category = rawCat is Map ? Map<String, dynamic>.from(rawCat) : null;
-    final catName = category?['name']?.toString() ?? 'Gadget';
-
-    final assetCode = asset['asset_code']?.toString() ?? '-';
-    final rawSn = asset['serial_number']?.toString();
-    final serialNum = (rawSn != null && rawSn.trim().isNotEmpty)
-        ? rawSn.trim()
-        : '-';
-    final modelName = model?['name']?.toString() ?? 'Item Rental';
-    final modelImageUrl = _extractModelImageUrl(model);
-    final status = asset['status']?.toString() ?? 'ready';
-    final grade = asset['condition_grade']?.toString() ?? 'A';
-    final battery = asset['battery_health'] != null
-        ? int.tryParse(asset['battery_health'].toString())
-        : null;
-
-    final rawAff = asset['affiliate'];
-    final affiliate = rawAff is Map ? Map<String, dynamic>.from(rawAff) : null;
-    final branchName = affiliate?['name']?.toString();
-
-    final specs = <String>[
-      catName,
-      if (model?['color'] != null && model!['color'].toString().isNotEmpty)
-        _toTitleCase(model['color'].toString()),
-      if (model?['storage_capacity'] != null &&
-          model!['storage_capacity'].toString().isNotEmpty)
-        _formatSpecification(model!['storage_capacity'].toString()),
-      if (branchName != null && branchName.isNotEmpty) branchName,
-    ];
-
-    return InkWell(
-      onTap: () => _openEditAssetSheet(context, asset),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x06000000),
-              blurRadius: 6,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Row: Optional Model Thumbnail + Title & Specs + Status Pill
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (modelImageUrl != null && modelImageUrl.trim().isNotEmpty) ...[
-                  _buildProductThumbnail(modelName, catName, modelImageUrl),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        modelName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        specs.join(' • '),
-                        style: const TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w400,
-                          height: 1.35,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _buildStatusPill(status),
-              ],
-            ),
-            const SizedBox(height: 14),
-            // Specs Row: Kode Unit, Serial Number, Grade Badge, Battery Badge
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Kode Unit',
-                        style: TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        assetCode,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: Color(0xFF0F172A),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Serial Number',
-                        style: TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        serialNum,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: Color(0xFF0F172A),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                if (grade.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Text(
-                      'Grade $grade',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF475569),
-                      ),
-                    ),
-                  ),
-                if (battery != null && battery > 0) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDF4),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFF86EFAC)),
-                    ),
-                    child: Text(
-                      '$battery%',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF16A34A),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
-            const SizedBox(height: 12),
-            // Action Buttons: Square outline trash & edit buttons aligned to right
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                InkWell(
-                  onTap: () => _confirmDeleteFromCard(context, asset),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFFFECDD3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        const Icon(
-                          Icons.delete_outline_rounded,
-                          size: 18,
-                          color: Color(0xFFEF4444),
-                        ),
-                        Opacity(
-                          opacity: 0,
-                          child: SizedBox(
-                            width: 32,
-                            height: 32,
-                            child: Center(
-                              child: Text(
-                                'Hapus',
-                                style: const TextStyle(fontSize: 1),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                InkWell(
-                  onTap: () => _openEditAssetSheet(context, asset),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFFE2E8F0),
-                        width: 1,
-                      ),
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        const Icon(
-                          Icons.edit_outlined,
-                          size: 18,
-                          color: Color(0xFF334155),
-                        ),
-                        Opacity(
-                          opacity: 0,
-                          child: SizedBox(
-                            width: 32,
-                            height: 32,
-                            child: Center(
-                              child: Text(
-                                'Edit Unit',
-                                style: const TextStyle(fontSize: 1),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ==========================================
-  // TAB 1: PRODUCT CATALOG & RATES
-  // ==========================================
-  Widget _buildCatalogView(
-    BuildContext context,
-    int? categoryFilter,
-    String searchQuery,
-    AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
-    AsyncValue<List<Map<String, dynamic>>> productsAsync,
+  List<Map<String, dynamic>> _deduplicateAssets(
+    List<Map<String, dynamic>> source,
   ) {
-    final hasActiveSearchOrFilter =
-        searchQuery.trim().isNotEmpty || categoryFilter != null;
-    final loadedProducts = productsAsync.value;
-    final showSearchBar =
-        hasActiveSearchOrFilter ||
-        (loadedProducts != null && loadedProducts.isNotEmpty);
-
-    return Column(
-      children: [
-        if (showSearchBar)
-          _buildSearchAndFilterBar(
-            searchKey: const Key('inventory_catalog_search_field'),
-            filterKey: const Key('inventory_catalog_filter_button'),
-            controller: _catalogSearchController,
-            hintText: 'Cari model, merk, tipe...',
-            hasActiveFilter: categoryFilter != null,
-            onClear: () {
-              _catalogSearchController.clear();
-              setState(() {});
-              ref.read(catalogSearchQueryProvider.notifier).setSearch('');
-            },
-            onChanged: (val) {
-              setState(() {});
-              _catalogSearchDebounceTimer?.cancel();
-              final isTesting = WidgetsBinding.instance.runtimeType
-                  .toString()
-                  .contains('Test');
-              if (isTesting) {
-                ref
-                    .read(catalogSearchQueryProvider.notifier)
-                    .setSearch(val.trim());
-              } else {
-                _catalogSearchDebounceTimer = Timer(
-                  const Duration(milliseconds: 300),
-                  () {
-                    if (mounted) {
-                      ref
-                          .read(catalogSearchQueryProvider.notifier)
-                          .setSearch(val.trim());
-                    }
-                  },
-                );
-              }
-            },
-          ),
-
-        Expanded(
-          child: productsAsync.when(
-            loading: () => const CatalogTabSkeleton(count: 4),
-            error: (err, _) => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline_rounded,
-                      size: 48,
-                      color: AppColors.danger,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Gagal memuat katalog: $err',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => ref.invalidate(productsProvider),
-                      child: const Text('Coba Lagi'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            data: (products) {
-              if (products.isEmpty) {
-                final hasSearch = searchQuery.isNotEmpty;
-                final hasCategory = categoryFilter != null;
-
-                if (hasSearch) {
-                  return RefreshIndicator(
-                    onRefresh: () async => ref.invalidate(productsProvider),
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(32),
-                      children: [
-                        const SizedBox(height: 32),
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceMuted,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: const Icon(
-                              Icons.search_off_rounded,
-                              size: 44,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Tidak Ada Katalog Ditemukan',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tidak ada model produk yang cocok dengan pencarian "$searchQuery"',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Center(
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.obsidian,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            icon: const Icon(Icons.clear_rounded, size: 16),
-                            label: const Text('Reset Pencarian'),
-                            onPressed: () {
-                              _catalogSearchController.clear();
-                              setState(() {});
-                              ref
-                                  .read(catalogSearchQueryProvider.notifier)
-                                  .setSearch('');
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (hasCategory) {
-                  return RefreshIndicator(
-                    onRefresh: () async => ref.invalidate(productsProvider),
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(32),
-                      children: [
-                        const SizedBox(height: 32),
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceMuted,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: const Icon(
-                              Icons.filter_alt_off_rounded,
-                              size: 44,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Tidak Ada Katalog Dalam Kategori Ini',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Belum ada model produk terdaftar untuk kategori yang dipilih.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Center(
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.obsidian,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            icon: const Icon(Icons.clear_rounded, size: 16),
-                            label: const Text('Tampilkan Semua Kategori'),
-                            onPressed: () {
-                              ref
-                                  .read(
-                                    selectedAssetCategoryFilterProvider
-                                        .notifier,
-                                  )
-                                  .setFilter(null);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return _buildInventoryOnboardingEmptyState(
-                  context: context,
-                  onCreateModel: () => _openAddProductSheet(context),
-                  onRefresh: () async => ref.invalidate(productsProvider),
-                );
-              }
-
-              return RefreshIndicator(
-                onRefresh: () async => ref.invalidate(productsProvider),
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-                  itemCount: products.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return _buildProductCard(context, product);
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ==========================================
-  // SPECIFICATION & RATE FORMATTING HELPERS
-  // ==========================================
-  String _toTitleCase(String text) {
-    final trimmed = text.trim();
-    if (trimmed.isEmpty) return '';
-    return trimmed.split(RegExp(r'\s+')).map((word) {
-      if (word.isEmpty) return word;
-      return word[0].toUpperCase() + word.substring(1).toLowerCase();
-    }).join(' ');
-  }
-
-  String _formatSpecification(String raw) {
-    var s = raw.trim();
-    if (s.isEmpty) return '';
-
-    // Remove erroneously appended "GB" if string already contains "mah" (e.g. "10000 MahGB")
-    if (RegExp(r'mah\s*gb$', caseSensitive: false).hasMatch(s)) {
-      s = s.replaceAll(RegExp(r'gb$', caseSensitive: false), '').trim();
-    }
-
-    // Match numbers with mAh
-    final mahMatch = RegExp(
-      r'^(\d+)\s*mah$',
-      caseSensitive: false,
-    ).firstMatch(s);
-    if (mahMatch != null) {
-      final numVal = int.tryParse(mahMatch.group(1)!) ?? 0;
-      final formattedNum = numVal >= 1000
-          ? numVal.toString().replaceAllMapped(
-              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-              (m) => '${m[1]}.',
-            )
-          : numVal.toString();
-      return '$formattedNum mAh';
-    }
-
-    // Match TB
-    final tbMatch = RegExp(r'^(\d+)\s*tb$', caseSensitive: false).firstMatch(s);
-    if (tbMatch != null) {
-      return '${tbMatch.group(1)} TB';
-    }
-
-    // Match GB
-    final gbMatch = RegExp(r'^(\d+)\s*gb$', caseSensitive: false).firstMatch(s);
-    if (gbMatch != null) {
-      return '${gbMatch.group(1)} GB';
-    }
-
-    // Numeric only
-    final numOnly = int.tryParse(s);
-    if (numOnly != null) {
-      if (numOnly >= 1000) {
-        final formattedNum = numOnly.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]}.',
-        );
-        return '$formattedNum mAh';
-      } else {
-        return '$numOnly GB';
+    final seenIds = <dynamic>{};
+    final result = <Map<String, dynamic>>[];
+    for (final asset in source) {
+      final id = asset['id'];
+      if (id == null || seenIds.add(id)) {
+        result.add(asset);
       }
     }
-
-    return _toTitleCase(s);
+    return result;
   }
 
-  String? _extractDailyRate(
-    Map<String, dynamic> product,
-    List<Map<String, dynamic>> tiers,
-  ) => _extractModelPrimaryRate(product, tiersOverride: tiers);
+  List<_ModelAssetGroup> _buildModelAssetGroups(
+    List<Map<String, dynamic>> products,
+    List<Map<String, dynamic>> assets,
+  ) {
+    final Map<String, Map<String, dynamic>> modelByKey = {};
+    final Map<String, List<Map<String, dynamic>>> unitsByKey = {};
+    final List<String> orderedKeys = [];
 
-  Widget _buildProductThumbnail(
-    String name,
-    String? catName,
-    String? imageUrl,
-  ) => _buildModelThumbnailWidget(name, imageUrl);
+    String keyForModelId(dynamic id, [String? fallbackName]) {
+      if (id != null) return 'model_$id';
+      return 'orphan_${(fallbackName ?? 'item').trim().toLowerCase()}';
+    }
 
-  Widget _buildStockPill(int readyCount, int totalCount) {
-    final isNone = totalCount == 0;
-    final hasReady = readyCount > 0;
+    final sortedAssets = sortAssetsNewestFirst(assets);
+    for (final asset in sortedAssets) {
+      final rawModel = asset['model'];
+      final embeddedModel = rawModel is Map
+          ? Map<String, dynamic>.from(rawModel)
+          : null;
+      final modelId = asset['model_id'] ?? embeddedModel?['id'];
+      final key = keyForModelId(
+        modelId,
+        embeddedModel?['name']?.toString() ?? asset['asset_code']?.toString(),
+      );
 
-    final bgColor = isNone
-        ? AppColors.warning.withValues(alpha: 0.1)
-        : (hasReady
-              ? AppColors.success.withValues(alpha: 0.1)
-              : AppColors.surfaceMuted);
+      if (!modelByKey.containsKey(key)) {
+        orderedKeys.add(key);
+        modelByKey[key] = embeddedModel ??
+            <String, dynamic>{
+              'id': modelId,
+              'name': asset['model_name']?.toString() ?? 'Model Perangkat',
+            };
+      }
+      unitsByKey.putIfAbsent(key, () => []).add(asset);
+    }
 
-    final textColor = isNone
-        ? AppColors.warning
-        : (hasReady ? AppColors.success : AppColors.textSecondary);
+    for (final product in products) {
+      final key = keyForModelId(product['id'], product['name']?.toString());
+      if (!modelByKey.containsKey(key)) {
+        orderedKeys.add(key);
+      }
+      modelByKey[key] = Map<String, dynamic>.from(product);
+      unitsByKey.putIfAbsent(key, () => []);
+    }
 
-    final borderColor = isNone
-        ? AppColors.warning.withValues(alpha: 0.25)
-        : (hasReady
-              ? AppColors.success.withValues(alpha: 0.25)
-              : AppColors.border);
+    return orderedKeys.map((key) {
+      final model = modelByKey[key]!;
+      final units = unitsByKey[key] ?? const <Map<String, dynamic>>[];
+      final computedReady = units
+          .where((u) => (u['status']?.toString().toLowerCase() ?? '') == 'ready')
+          .length;
+      final rawTotal =
+          num.tryParse('${model['assets_count'] ?? ''}')?.toInt();
+      final rawReady =
+          num.tryParse('${model['ready_units_count'] ?? ''}')?.toInt();
 
-    final text = isNone
-        ? '0 Siap Sewa • 0 Total'
-        : '$readyCount Siap Sewa • $totalCount Total';
+      final totalCount = units.isNotEmpty
+          ? (rawTotal != null && rawTotal >= units.length
+                ? rawTotal
+                : units.length)
+          : (rawTotal ?? 0);
+      final readyCount = units.isNotEmpty
+          ? (rawTotal != null && rawTotal >= units.length && rawReady != null
+                ? rawReady
+                : computedReady)
+          : (rawReady ?? 0);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: borderColor),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: textColor,
-        ),
-      ),
-    );
+      return _ModelAssetGroup(
+        groupKey: key,
+        model: model,
+        allUnits: units,
+        visibleUnits: units,
+        readyCount: readyCount,
+        totalCount: totalCount,
+      );
+    }).toList();
   }
 
-  // ==========================================
-  // PRODUCT CARD
-  // ==========================================
-  Widget _buildProductCard(BuildContext context, Map<String, dynamic> product) {
-    final rawCat = product['category'];
-    final category = rawCat is Map ? Map<String, dynamic>.from(rawCat) : null;
-    final catName = category?['name']?.toString() ?? 'Gadget';
+  List<_ModelAssetGroup> _filterModelAssetGroups(
+    List<_ModelAssetGroup> groups, {
+    required String searchQuery,
+    required String? statusFilter,
+    required int? categoryFilter,
+  }) {
+    final q = searchQuery.trim().toLowerCase();
 
-    final name = product['name']?.toString() ?? '-';
-    final brand = product['brand']?.toString() ?? '';
-    final color = _toTitleCase(product['color']?.toString() ?? '');
-    final storage = product['storage_capacity']?.toString() ?? '';
-    final imageUrl =
-        (product['image_url'] ??
-                product['image'] ??
-                product['photo_url'] ??
-                product['thumbnail'])
-            ?.toString();
+    return groups.map((group) {
+      final model = group.model;
+      final rawCat = model['category'];
+      final catId = rawCat is Map
+          ? int.tryParse('${rawCat['id'] ?? ''}')
+          : int.tryParse('${model['category_id'] ?? ''}');
 
-    final readyUnitsCount = product['ready_units_count'] ?? 0;
-    final totalUnitsCount = product['assets_count'] ?? 0;
+      final matchesCategory = categoryFilter == null ||
+          catId == categoryFilter ||
+          group.allUnits.any((u) {
+            final uModel = u['model'];
+            final uCat = uModel is Map ? uModel['category'] : null;
+            final uCatId = uCat is Map ? int.tryParse('${uCat['id'] ?? ''}') : null;
+            return uCatId == categoryFilter;
+          });
+      if (!matchesCategory) return null;
 
-    final rawTiers = product['pricing_tiers'] ?? product['pricingTiers'];
-    final tiers = rawTiers is List
-        ? rawTiers
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList()
-        : <Map<String, dynamic>>[];
+      final bool modelMatchesQuery = q.isEmpty || _modelMatchesQuery(model, q);
 
-    final formattedSpec = _formatSpecification(storage);
-    final colorSpecParts = <String>[
-      if (color.isNotEmpty) color,
-      if (formattedSpec.isNotEmpty) formattedSpec,
-    ];
-    final colorSpec = colorSpecParts.join(' / ');
+      final List<Map<String, dynamic>> filteredUnits = group.allUnits.where((u) {
+        if (statusFilter != null &&
+            (u['status']?.toString().toLowerCase() ?? '') !=
+                statusFilter.toLowerCase()) {
+          return false;
+        }
+        if (q.isNotEmpty && !modelMatchesQuery && !_unitMatchesQuery(u, q)) {
+          return false;
+        }
+        return true;
+      }).toList();
 
-    final desc = <String>[
-      if (brand.isNotEmpty) brand,
+      if (statusFilter != null && filteredUnits.isEmpty) {
+        return null;
+      }
+      if (q.isNotEmpty && !modelMatchesQuery && filteredUnits.isEmpty) {
+        return null;
+      }
+
+      return _ModelAssetGroup(
+        groupKey: group.groupKey,
+        model: group.model,
+        allUnits: group.allUnits,
+        visibleUnits: filteredUnits,
+        readyCount: group.readyCount,
+        totalCount: group.totalCount,
+      );
+    }).whereType<_ModelAssetGroup>().toList();
+  }
+
+  bool _modelMatchesQuery(Map<String, dynamic> model, String q) {
+    final rawCat = model['category'];
+    final catName = rawCat is Map ? (rawCat['name']?.toString() ?? '') : '';
+    final fields = [
+      model['name']?.toString() ?? '',
+      model['brand']?.toString() ?? '',
       catName,
-      if (colorSpec.isNotEmpty) colorSpec,
-    ].join(' • ');
-
-    final dailyRateText = _extractDailyRate(product, tiers);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildProductThumbnail(name, catName, imageUrl),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14.5,
-                              color: AppColors.textPrimary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (dailyRateText != null) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              dailyRateText,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                                color: AppColors.obsidian,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.end,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      desc,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    _buildStockPill(readyUnitsCount, totalUnitsCount),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Divider(height: 1, color: AppColors.borderSubtle),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                    visualDensity: VisualDensity.compact,
-                    foregroundColor: AppColors.obsidian,
-                    side: const BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                  ),
-                  onPressed: () => _openEditProductSheet(context, product),
-                  child: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'Edit Tarif',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                    visualDensity: VisualDensity.compact,
-                    backgroundColor: AppColors.obsidian,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    elevation: 0,
-                  ),
-                  onPressed: () => _openAddAssetSheet(
-                    context,
-                    initialModelId: int.tryParse(
-                      product['id']?.toString() ?? '',
-                    ),
-                  ),
-                  child: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      '+ Tambah Unit',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+      model['color']?.toString() ?? '',
+      model['storage_capacity']?.toString() ?? '',
+    ];
+    return fields.any((f) => f.toLowerCase().contains(q));
   }
 
-  // ==========================================
-  // HELPERS & SHEETS
-  // ==========================================
+  bool _unitMatchesQuery(Map<String, dynamic> unit, String q) {
+    final rawAff = unit['affiliate'] ?? unit['branch'];
+    final branchName = rawAff is Map ? (rawAff['name']?.toString() ?? '') : '';
+    final fields = [
+      unit['asset_code']?.toString() ?? '',
+      unit['serial_number']?.toString() ?? '',
+      unit['imei_1']?.toString() ?? '',
+      unit['notes']?.toString() ?? '',
+      unit['status']?.toString() ?? '',
+      branchName,
+    ];
+    return fields.any((f) => f.toLowerCase().contains(q));
+  }
+
+  List<Map<String, dynamic>> _resolveCategories(
+    AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
+    List<_ModelAssetGroup> groups,
+  ) {
+    final fromProvider = categoriesAsync.value;
+    if (fromProvider != null && fromProvider.isNotEmpty) {
+      return fromProvider;
+    }
+    final seen = <int>{};
+    final derived = <Map<String, dynamic>>[];
+    for (final group in groups) {
+      final rawCat = group.model['category'];
+      if (rawCat is Map) {
+        final id = int.tryParse('${rawCat['id'] ?? ''}');
+        final name = rawCat['name']?.toString().trim() ?? '';
+        if (id != null && name.isNotEmpty && seen.add(id)) {
+          derived.add({'id': id, 'name': name});
+        }
+      }
+    }
+    return derived;
+  }
+
   Widget _buildSearchAndFilterBar({
-    required Key searchKey,
-    required Key filterKey,
-    required TextEditingController controller,
-    required String hintText,
     required bool hasActiveFilter,
-    required VoidCallback onClear,
-    required ValueChanged<String> onChanged,
+    required AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
+    required int? categoryFilter,
+    required String? statusFilter,
   }) {
     return Container(
-      color: const Color(0xFFF8FAFC),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
       child: Row(
         children: [
-          _buildDrawerButton(key: filterKey, hasActiveFilter: hasActiveFilter),
-          const SizedBox(width: 10),
           Expanded(
             child: SizedBox(
               height: 44,
               child: TextField(
-                key: searchKey,
-                controller: controller,
+                key: const Key('inventory_unified_search_field'),
+                controller: _searchController,
                 style: const TextStyle(
                   fontSize: 13.5,
                   color: Color(0xFF0F172A),
                 ),
                 decoration: InputDecoration(
-                  hintText: hintText,
+                  hintText: 'Cari model, kode unit, atau serial number...',
                   hintStyle: const TextStyle(
                     fontSize: 13,
                     color: Color(0xFF94A3B8),
@@ -1833,21 +814,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   ),
                   prefixIcon: const Icon(
                     Icons.search_rounded,
-                    size: 19,
+                    size: 20,
                     color: Color(0xFF94A3B8),
                   ),
-                  suffixIcon: controller.text.isNotEmpty
+                  suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(
                             Icons.clear_rounded,
                             size: 18,
                             color: Color(0xFF64748B),
                           ),
-                          onPressed: onClear,
+                          onPressed: _clearSearch,
                         )
                       : null,
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: const Color(0xFFF8FAFC),
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -1864,7 +845,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
                       color: Color(0xFF0F172A),
-                      width: 1.2,
+                      width: 1.4,
                     ),
                   ),
                   border: OutlineInputBorder(
@@ -1875,21 +856,29 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                     ),
                   ),
                 ),
-                onChanged: onChanged,
+                onChanged: (val) => setState(() => _searchQuery = val),
               ),
             ),
+          ),
+          const SizedBox(width: 10),
+          _buildFilterButton(
+            hasActiveFilter: hasActiveFilter,
+            onTap: () => _openFilterModal(context),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDrawerButton({Key? key, required bool hasActiveFilter}) {
+  Widget _buildFilterButton({
+    required bool hasActiveFilter,
+    required VoidCallback onTap,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        key: key,
-        onTap: () => _scaffoldKey.currentState?.openDrawer(),
+        key: const Key('inventory_filter_button'),
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 44,
@@ -1920,8 +909,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   right: 8,
                   child: Container(
                     key: const Key('inventory_filter_active_dot'),
-                    width: 7,
-                    height: 7,
+                    width: 8,
+                    height: 8,
                     decoration: const BoxDecoration(
                       color: Color(0xFF10B981),
                       shape: BoxShape.circle,
@@ -1935,333 +924,64 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     );
   }
 
-  Widget _buildFilterDrawer(
-    BuildContext context,
-    WidgetRef ref,
-    AsyncValue<List<Map<String, dynamic>>> categoriesAsync,
-    int? categoryFilter,
-    String? statusFilter,
+  Widget _buildCategoryQuickFilterStrip(
+    List<Map<String, dynamic>> categories,
+    int? activeCategoryId,
   ) {
-    final hasActiveFilter = categoryFilter != null || statusFilter != null;
-
-    return Drawer(
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
           children: [
-            // Drawer Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons.tune_rounded,
-                        size: 20,
-                        color: Color(0xFF0F172A),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Filter Aset',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      size: 22,
-                      color: Color(0xFF64748B),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
+            _buildQuickCategoryPill(
+              label: 'Semua',
+              selected: activeCategoryId == null,
+              onTap: () => ref
+                  .read(selectedAssetCategoryFilterProvider.notifier)
+                  .setFilter(null),
             ),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
-
-            // Scrollable Filter Sections
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                children: [
-                  // Section 1: Status Unit
-                  const Text(
-                    'Status Unit',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildChip(
-                        selected: statusFilter == null,
-                        label: 'Semua Status',
-                        onTap: () {
-                          ref
-                              .read(selectedAssetStatusFilterProvider.notifier)
-                              .setFilter(null);
-                        },
-                      ),
-                      _buildChip(
-                        selected: statusFilter == 'ready',
-                        label: 'Siap Sewa',
-                        onTap: () {
-                          ref
-                              .read(selectedAssetStatusFilterProvider.notifier)
-                              .setFilter('ready');
-                        },
-                      ),
-                      _buildChip(
-                        selected: statusFilter == 'rented',
-                        label: 'Sedang Sewa',
-                        onTap: () {
-                          ref
-                              .read(selectedAssetStatusFilterProvider.notifier)
-                              .setFilter('rented');
-                        },
-                      ),
-                      _buildChip(
-                        selected: statusFilter == 'maintenance',
-                        label: 'Perawatan',
-                        onTap: () {
-                          ref
-                              .read(selectedAssetStatusFilterProvider.notifier)
-                              .setFilter('maintenance');
-                        },
-                      ),
-                      _buildChip(
-                        selected: statusFilter == 'in_transit',
-                        label: 'Dalam Mutasi',
-                        onTap: () {
-                          ref
-                              .read(selectedAssetStatusFilterProvider.notifier)
-                              .setFilter('in_transit');
-                        },
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                  const SizedBox(height: 20),
-
-                  // Section 2: Kategori
-                  const Text(
-                    'Kategori',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  categoriesAsync.when(
-                    data: (categories) => Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildChip(
-                          selected: categoryFilter == null,
-                          label: 'Semua Kategori',
-                          onTap: () {
-                            ref
-                                .read(
-                                  selectedAssetCategoryFilterProvider.notifier,
-                                )
-                                .setFilter(null);
-                          },
-                        ),
-                        ...categories.map((cat) {
-                          final catId = cat['id'] as int?;
-                          final catName = cat['name']?.toString() ?? '';
-                          return _buildChip(
-                            selected: categoryFilter == catId,
-                            label: catName,
-                            onTap: () {
-                              ref
-                                  .read(
-                                    selectedAssetCategoryFilterProvider
-                                        .notifier,
-                                  )
-                                  .setFilter(catId);
-                            },
-                          );
-                        }),
-                      ],
-                    ),
-                    loading: () => const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                    error: (_, _) => const Text(
-                      'Gagal memuat kategori',
-                      style: TextStyle(fontSize: 12, color: AppColors.danger),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Footer Actions
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            ...categories.map((cat) {
+              final catId = int.tryParse('${cat['id'] ?? ''}');
+              final catName = cat['name']?.toString() ?? '';
+              if (catId == null || catName.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: _buildQuickCategoryPill(
+                  label: catName,
+                  selected: activeCategoryId == catId,
+                  onTap: () => ref
+                      .read(selectedAssetCategoryFilterProvider.notifier)
+                      .setFilter(activeCategoryId == catId ? null : catId),
                 ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (hasActiveFilter) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF64748B),
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: () {
-                          ref
-                              .read(
-                                selectedAssetCategoryFilterProvider.notifier,
-                              )
-                              .setFilter(null);
-                          ref
-                              .read(selectedAssetStatusFilterProvider.notifier)
-                              .setFilter(null);
-                        },
-                        child: const Text(
-                          'Reset Filter',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        elevation: 0,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Terapkan Filter',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+              );
+            }),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatusPill(String status) {
-    final (String label, Color bg, Color border, Color text) = switch (status
-        .toLowerCase()) {
-      'ready' || 'siap sewa' => (
-        'Siap Sewa',
-        const Color(0xFFF0FDF4),
-        const Color(0xFFBBF7D0),
-        const Color(0xFF15803D),
-      ),
-      'maintenance' || 'perawatan' => (
-        'Perawatan',
-        const Color(0xFFFEF2F2),
-        const Color(0xFFFECDD3),
-        const Color(0xFFDC2626),
-      ),
-      'rented' || 'sedang sewa' => (
-        'Sedang Sewa',
-        const Color(0xFFEFF6FF),
-        const Color(0xFFBFDBFE),
-        const Color(0xFF2563EB),
-      ),
-      'in_transit' || 'dalam mutasi' => (
-        'Dalam Mutasi',
-        const Color(0xFFFAF5FF),
-        const Color(0xFFE9D5FF),
-        const Color(0xFF9333EA),
-      ),
-      _ => (
-        status,
-        const Color(0xFFF1F5F9),
-        const Color(0xFFE2E8F0),
-        const Color(0xFF475569),
-      ),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: border, width: 1),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: text,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChip({
-    required bool selected,
+  Widget _buildQuickCategoryPill({
     required String label,
+    required bool selected,
     required VoidCallback onTap,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected ? const Color(0xFF0F172A) : Colors.white,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: selected
                   ? const Color(0xFF0F172A)
@@ -2272,13 +992,762 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : const Color(0xFF334155),
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               fontSize: 12.5,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? Colors.white : const Color(0xFF475569),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildGroupsContent({
+    required BuildContext context,
+    required BusinessState bizState,
+    required List<_ModelAssetGroup> filteredGroups,
+    required bool hasSearch,
+    required bool hasFilter,
+    required bool hasActiveStatusOrSearch,
+  }) {
+    if (filteredGroups.isEmpty) {
+      if (hasSearch) {
+        return _buildSearchEmptyState();
+      }
+      if (hasFilter) {
+        return _buildFilterEmptyState();
+      }
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async => _refreshAll(),
+      child: ListView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 96),
+        itemCount: filteredGroups.length + (_isLoadingMoreAssets ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index >= filteredGroups.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
+          return _buildUnifiedModelCard(
+            context,
+            bizState,
+            filteredGroups[index],
+            forceExpandAll: hasActiveStatusOrSearch,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSearchEmptyState() {
+    return RefreshIndicator(
+      onRefresh: () async => _refreshAll(),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+        children: [
+          Center(
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Icon(
+                Icons.search_off_rounded,
+                size: 26,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Tidak Ada Aset Ditemukan',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Tidak ada model atau unit fisik yang cocok dengan pencarian "$_searchQuery".',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.clear_rounded, size: 16),
+                label: const Text(
+                  'Reset Pencarian',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                ),
+                onPressed: _clearSearch,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterEmptyState() {
+    return RefreshIndicator(
+      onRefresh: () async => _refreshAll(),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+        children: [
+          Center(
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Icon(
+                Icons.filter_alt_off_outlined,
+                size: 26,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Tidak Ada Aset Sesuai Filter',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Tidak ditemukan model atau unit inventaris dengan status atau kategori yang dipilih.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.clear_rounded, size: 16),
+                label: const Text(
+                  'Reset Semua Filter',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                ),
+                onPressed: _resetAllFilters,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // UNIFIED MODEL + PHYSICAL UNITS CARD
+  // ==========================================
+  Widget _buildUnifiedModelCard(
+    BuildContext context,
+    BusinessState bizState,
+    _ModelAssetGroup group, {
+    required bool forceExpandAll,
+  }) {
+    final product = group.model;
+    final name = product['name']?.toString() ?? '-';
+    final imageUrl = _extractModelImageUrl(product);
+    final rawTiers = product['pricing_tiers'] ?? product['pricingTiers'];
+    final tiers = rawTiers is List
+        ? rawTiers
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList()
+        : <Map<String, dynamic>>[];
+
+    final dailyRateText = _extractModelPrimaryRate(product, tiersOverride: tiers);
+    final metadataText = _buildModelMetadata(product);
+    final modelId = int.tryParse(product['id']?.toString() ?? '');
+
+    final visibleUnits = group.visibleUnits;
+    final bool isExpanded =
+        forceExpandAll || _expandedModelKeys.contains(group.groupKey);
+    final bool hasCollapseToggle = !forceExpandAll && visibleUnits.length > 4;
+    final displayedUnits = (!isExpanded && hasCollapseToggle)
+        ? visibleUnits.take(4).toList()
+        : visibleUnits;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Top Model Header + Action Row
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildModelThumbnailWidget(name, imageUrl, size: 44),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15.5,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: -0.2,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (dailyRateText != null) ...[
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    dailyRateText,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: Color(0xFF0F172A),
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.end,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          if (metadataText.isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              metadataText,
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          _buildStockPill(group.readyCount, group.totalCount),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 34,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0F172A),
+                            side: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                              width: 1,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          onPressed: () =>
+                              _openEditProductSheet(context, product),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Edit Tarif',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SizedBox(
+                        height: 34,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F172A),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          onPressed: () => _openAddAssetSheet(
+                            context,
+                            initialModelId: modelId,
+                          ),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              '+ Tambah Unit',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Hairline Divider + Bottom Physical Units Section
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          if (displayedUnits.isEmpty)
+            Container(
+              color: const Color(0xFFF8FAFC),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Belum ada unit fisik terdaftar',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () =>
+                        _openAddAssetSheet(context, initialModelId: modelId),
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Text(
+                        '+ Tambah Unit',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            for (var i = 0; i < displayedUnits.length; i++) ...[
+              if (i > 0)
+                const Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Color(0xFFF1F5F9),
+                ),
+              _buildPhysicalUnitRow(context, bizState, displayedUnits[i]),
+            ],
+            if (hasCollapseToggle) ...[
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+              InkWell(
+                key: Key('inventory_expand_units_${group.groupKey}'),
+                onTap: () => setState(() {
+                  if (isExpanded) {
+                    _expandedModelKeys.remove(group.groupKey);
+                  } else {
+                    _expandedModelKeys.add(group.groupKey);
+                  }
+                }),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 11,
+                  ),
+                  child: Text(
+                    isExpanded
+                        ? 'Tampilkan lebih sedikit'
+                        : 'Lihat semua (${visibleUnits.length} unit)',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhysicalUnitRow(
+    BuildContext context,
+    BusinessState bizState,
+    Map<String, dynamic> unit,
+  ) {
+    final assetCode = unit['asset_code']?.toString() ?? '-';
+    final rawSn = unit['serial_number']?.toString().trim() ?? '';
+    final grade = unit['condition_grade']?.toString().trim() ?? '';
+    final battery = unit['battery_health'] != null
+        ? int.tryParse(unit['battery_health'].toString())
+        : null;
+    final status = unit['status']?.toString() ?? 'ready';
+    final rawAff = unit['affiliate'] ?? unit['branch'];
+    final rawBranch =
+        rawAff is Map ? (rawAff['name']?.toString().trim() ?? '') : '';
+    final bizBranches =
+        (bizState.currentBusiness?['branches'] as List<dynamic>?) ?? const [];
+    final showBranch = bizState.isConsolidated || bizBranches.length > 1;
+    final formattedBranch = (showBranch && rawBranch.isNotEmpty)
+        ? formatReportBranchName(rawBranch)
+        : '';
+
+    final specParts = <String>[
+      if (rawSn.isNotEmpty) 'SN: $rawSn',
+      if (grade.isNotEmpty) 'Grade $grade',
+      if (battery != null && battery > 0) 'BH $battery%',
+      if (formattedBranch.isNotEmpty) formattedBranch,
+    ];
+
+    return InkWell(
+      onTap: () => _openEditAssetSheet(context, unit),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    assetCode,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (specParts.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      specParts.join(' • '),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildStatusPill(status),
+            const SizedBox(width: 4),
+            Tooltip(
+              message: 'Edit Unit',
+              child: InkWell(
+                key: Key('edit_unit_btn_${unit['id']}'),
+                onTap: () => _openEditAssetSheet(context, unit),
+                borderRadius: BorderRadius.circular(8),
+                child: const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Icon(
+                    Icons.edit_outlined,
+                    size: 17,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ),
+            Tooltip(
+              message: 'Hapus Unit',
+              child: InkWell(
+                key: Key('delete_unit_btn_${unit['id']}'),
+                onTap: () => _confirmDeleteFromCard(context, unit),
+                borderRadius: BorderRadius.circular(8),
+                child: const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 17,
+                    color: Color(0xFFDC2626),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _toTitleCase(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed.split(RegExp(r'\s+')).map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
+  String _buildModelMetadata(Map<String, dynamic> model) {
+    final rawCat = model['category'];
+    final category = rawCat is Map ? Map<String, dynamic>.from(rawCat) : null;
+    final catName = category?['name']?.toString().trim() ?? '';
+    final brand = model['brand']?.toString().trim() ?? '';
+    final color = _toTitleCase(model['color']?.toString() ?? '');
+    final formattedSpec = _formatSpecification(
+      model['storage_capacity']?.toString() ?? '',
+    );
+
+    final colorSpecParts = <String>[
+      if (color.isNotEmpty) color,
+      if (formattedSpec.isNotEmpty) formattedSpec,
+    ];
+    final colorSpec = colorSpecParts.join(' / ');
+
+    final segments = <String>[];
+    final seen = <String>{};
+    void addUnique(String value) {
+      final cleaned = value.trim();
+      if (cleaned.isEmpty) return;
+      if (seen.add(cleaned.toLowerCase())) {
+        segments.add(cleaned);
+      }
+    }
+
+    addUnique(brand);
+    if (catName.isNotEmpty) {
+      addUnique(catName);
+    } else if (brand.isEmpty) {
+      addUnique('Gadget');
+    }
+    addUnique(colorSpec);
+
+    return segments.join(' • ');
+  }
+
+  String _formatSpecification(String raw) {
+    var s = raw.trim();
+    if (s.isEmpty) return '';
+
+    if (RegExp(r'mah\s*gb$', caseSensitive: false).hasMatch(s)) {
+      s = s.replaceAll(RegExp(r'gb$', caseSensitive: false), '').trim();
+    }
+
+    final mahMatch = RegExp(
+      r'^(\d+)\s*mah$',
+      caseSensitive: false,
+    ).firstMatch(s);
+    if (mahMatch != null) {
+      final numVal = int.tryParse(mahMatch.group(1)!) ?? 0;
+      final formattedNum = numVal >= 1000
+          ? numVal.toString().replaceAllMapped(
+              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+              (m) => '${m[1]}.',
+            )
+          : numVal.toString();
+      return '$formattedNum mAh';
+    }
+
+    final tbMatch = RegExp(r'^(\d+)\s*tb$', caseSensitive: false).firstMatch(s);
+    if (tbMatch != null) {
+      return '${tbMatch.group(1)} TB';
+    }
+
+    final gbMatch = RegExp(r'^(\d+)\s*gb$', caseSensitive: false).firstMatch(s);
+    if (gbMatch != null) {
+      return '${gbMatch.group(1)} GB';
+    }
+
+    final numOnly = int.tryParse(s);
+    if (numOnly != null) {
+      if (numOnly >= 1000) {
+        final formattedNum = numOnly.toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]}.',
+        );
+        return '$formattedNum mAh';
+      } else {
+        return '$numOnly GB';
+      }
+    }
+
+    return _toTitleCase(s);
+  }
+
+  Widget _buildStockPill(int readyCount, int totalCount) {
+    final hasReady = readyCount > 0;
+    final bgColor = hasReady ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9);
+    final textColor =
+        hasReady ? const Color(0xFF047857) : const Color(0xFF64748B);
+    final text = '$readyCount Siap Sewa • $totalCount Total';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusPill(String status) {
+    final (String label, Color bg, Color text) = switch (status
+        .toLowerCase()) {
+      'ready' || 'siap sewa' => (
+        'Siap Sewa',
+        const Color(0xFFECFDF5),
+        const Color(0xFF047857),
+      ),
+      'rented' || 'sedang sewa' => (
+        'Sedang Sewa',
+        const Color(0xFFEFF6FF),
+        const Color(0xFF1D4ED8),
+      ),
+      'maintenance' || 'perawatan' => (
+        'Perawatan',
+        const Color(0xFFFFFBEB),
+        const Color(0xFFB45309),
+      ),
+      'in_transit' || 'dalam mutasi' => (
+        'Dalam Mutasi',
+        const Color(0xFFFAF5FF),
+        const Color(0xFF7E22CE),
+      ),
+      _ => (
+        status,
+        const Color(0xFFF1F5F9),
+        const Color(0xFF475569),
+      ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: text,
+        ),
+      ),
+    );
+  }
+
+  void _openFilterModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => const _FilterAsetBottomSheet(),
     );
   }
 
@@ -2290,23 +1759,35 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(
-              Icons.storefront_rounded,
+              Icons.storefront_outlined,
               size: 48,
-              color: AppColors.textSecondary,
+              color: Color(0xFF64748B),
             ),
             const SizedBox(height: 16),
             const Text(
               'Belum Ada Bisnis Rental',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: Color(0xFF0F172A),
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
               'Silakan pilih atau daftarkan bisnis rental Anda untuk mengelola inventaris.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F172A),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
               onPressed: () => BusinessSelectorSheet.show(context),
               child: const Text('Pilih Bisnis Rental'),
             ),
@@ -2622,9 +2103,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => _AddAssetSheet(
         initialModelId: initialModelId,
@@ -2637,9 +2118,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => _EditAssetSheet(asset: asset, onSuccess: _refreshAll),
     );
@@ -2936,6 +2417,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
   final _serialNumberController = TextEditingController();
   final _imei1Controller = TextEditingController();
   final _batteryHealthController = TextEditingController();
+  final _hourlyLateFeeController = TextEditingController();
   final _notesController = TextEditingController();
   String _grade = 'A';
   bool _isLoading = false;
@@ -2954,6 +2436,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
     _serialNumberController.dispose();
     _imei1Controller.dispose();
     _batteryHealthController.dispose();
+    _hourlyLateFeeController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -2981,7 +2464,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
         left: 20,
         right: 20,
-        top: 20,
+        top: 10,
       ),
       child: Form(
         key: _formKey,
@@ -2990,26 +2473,15 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Registrasi Unit Baru',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+              _buildAiryModalHeader(
+                context,
+                title: 'Registrasi Unit Baru',
               ),
               const SizedBox(height: 16),
               // Searchable Model Selector
               const Text(
                 'Model / Tipe Perangkat',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 6),
               modelsAsync.when(
@@ -3035,7 +2507,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                         children: [
                           InkWell(
                             key: const Key('register_unit_model_selector'),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                             onTap: () async {
                               final pickedId =
                                   await showModalBottomSheet<int>(
@@ -3045,7 +2517,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                 backgroundColor: Colors.white,
                                 shape: const RoundedRectangleBorder(
                                   borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(14),
+                                    top: Radius.circular(20),
                                   ),
                                 ),
                                 builder: (ctx) => _ModelPickerBottomSheet(
@@ -3064,16 +2536,17 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
+                                horizontal: 14,
+                                vertical: 11,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.surfaceMuted,
-                                borderRadius: BorderRadius.circular(8),
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: field.hasError
                                       ? AppColors.danger
-                                      : AppColors.border,
+                                      : const Color(0xFFE2E8F0),
+                                  width: 1,
                                 ),
                               ),
                               child: Row(
@@ -3093,9 +2566,9 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                           Text(
                                             modelTitle,
                                             style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
+                                              fontWeight: FontWeight.w600,
                                               fontSize: 13.5,
-                                              color: AppColors.textPrimary,
+                                              color: Color(0xFF0F172A),
                                             ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
@@ -3108,7 +2581,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                             ].join(' • '),
                                             style: const TextStyle(
                                               fontSize: 11.5,
-                                              color: AppColors.textSecondary,
+                                              color: Color(0xFF64748B),
                                             ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
@@ -3126,7 +2599,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                           'Pilih Model Katalog',
                                           style: TextStyle(
                                             fontSize: 13.5,
-                                            color: AppColors.textSecondary,
+                                            color: Color(0xFF94A3B8),
                                           ),
                                         ),
                                       ),
@@ -3134,7 +2607,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                   const SizedBox(width: 8),
                                   const Icon(
                                     Icons.keyboard_arrow_down_rounded,
-                                    color: AppColors.textSecondary,
+                                    color: Color(0xFF64748B),
                                   ),
                                 ],
                               ),
@@ -3164,57 +2637,37 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                   style: const TextStyle(color: AppColors.danger),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               // Asset Code
               const Text(
                 'Kode Unit / Barcode',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _assetCodeController,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                ),
+                decoration: _airyAssetInputDecoration(),
                 validator: (val) => (val == null || val.trim().isEmpty)
                     ? 'Kode unit wajib diisi'
                     : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               // Serial Number (Adaptive)
               Text(
                 hasSerial ? 'Serial Number *' : 'Serial Number (Opsional)',
                 style: const TextStyle(
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   fontSize: 13,
+                  color: Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _serialNumberController,
-                decoration: InputDecoration(
+                decoration: _airyAssetInputDecoration(
                   hintText: hasSerial
                       ? 'Nomor seri pabrik (SN)'
                       : 'Kosongkan jika barang tanpa SN fisik',
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
                 ),
                 validator: hasSerial
                     ? (val) => (val == null || val.trim().isEmpty)
@@ -3224,30 +2677,18 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
               ),
               // IMEI 1 (Adaptive)
               if (isImeiApplicable) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 const Text(
                   'IMEI 1 (Opsional untuk Smartphone)',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _imei1Controller,
-                  decoration: InputDecoration(
-                    hintText: '15 digit IMEI',
-                    filled: true,
-                    fillColor: AppColors.surfaceMuted,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                  ),
+                  decoration: _airyAssetInputDecoration(hintText: '15 digit IMEI'),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               // Grade & Battery (Adaptive)
               if (isBatteryApplicable) ...[
                 Row(
@@ -3259,25 +2700,15 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                           const Text(
                             'Kondisi Fisik',
                             style: TextStyle(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                               fontSize: 13,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
                             initialValue: _grade,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: AppColors.surfaceMuted,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                            ),
+                            decoration: _airyAssetInputDecoration(),
                             items: ['A', 'B', 'C']
                                 .map(
                                   (g) => DropdownMenuItem(
@@ -3300,27 +2731,16 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                           const Text(
                             'Battery Health (%)',
                             style: TextStyle(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                               fontSize: 13,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _batteryHealthController,
                             keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: 'Misal: 100',
-                              filled: true,
-                              fillColor: AppColors.surfaceMuted,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                            ),
+                            decoration: _airyAssetInputDecoration(hintText: 'Misal: 100'),
                           ),
                         ],
                       ),
@@ -3334,25 +2754,15 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                     const Text(
                       'Kondisi Fisik',
                       style: TextStyle(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         fontSize: 13,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: _grade,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: AppColors.surfaceMuted,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                      ),
+                      decoration: _airyAssetInputDecoration(),
                       items: ['A', 'B', 'C']
                           .map(
                             (g) => DropdownMenuItem(
@@ -3366,41 +2776,80 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                   ],
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+              // Denda / Jam (Opsional - inherits model/business)
+              Builder(
+                builder: (context) {
+                  final modelRate = double.tryParse(
+                    selectedModel?['hourly_late_fee']?.toString() ?? '',
+                  );
+                  final bizDefaultRate = double.tryParse(
+                    bizState.activeBusiness?['default_hourly_late_fee']
+                            ?.toString() ??
+                        '',
+                  );
+                  final inheritedRate = modelRate ?? bizDefaultRate ?? 0.0;
+                  final helper = modelRate != null
+                      ? 'Kosongkan untuk mengikuti tarif model: ${CurrencyFormatter.format(modelRate)}/jam'
+                      : (bizDefaultRate != null && bizDefaultRate > 0
+                            ? 'Kosongkan untuk mengikuti tarif default toko: ${CurrencyFormatter.format(bizDefaultRate)}/jam'
+                            : 'Kosongkan untuk mengikuti tarif default model/toko');
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Denda / Jam (Opsional)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        key: const Key('add_unit_hourly_late_fee_input'),
+                        controller: _hourlyLateFeeController,
+                        keyboardType: TextInputType.number,
+                        decoration: _airyAssetInputDecoration(
+                          prefixText: 'Rp ',
+                          hintText: inheritedRate > 0
+                              ? inheritedRate.toInt().toString()
+                              : 'Otomatis sesuai model',
+                          helperText: helper,
+                          helperMaxLines: 2,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
               // Notes
               const Text(
                 'Catatan Tambahan',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _notesController,
                 maxLines: 2,
-                decoration: InputDecoration(
+                decoration: _airyAssetInputDecoration(
                   hintText: 'Kondisi fisik, kelengkapan, nomor segel...',
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
                 ),
               ),
               const SizedBox(height: 20),
               // Submit Button
               SizedBox(
                 width: double.infinity,
+                height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.obsidian,
+                    backgroundColor: const Color(0xFF0F172A),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   onPressed: _isLoading
@@ -3417,6 +2866,13 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                             final imei = _imei1Controller.text.trim();
                             final bh = _batteryHealthController.text.trim();
 
+                            final rawHourlyLateFee =
+                                _hourlyLateFeeController.text.trim();
+                            final double? parsedHourlyLateFee =
+                                rawHourlyLateFee.isNotEmpty
+                                ? CurrencyFormatter.parse(rawHourlyLateFee)
+                                : null;
+
                             final payload = <String, dynamic>{
                               'model_id': _selectedModelId,
                               'asset_code': _assetCodeController.text.trim(),
@@ -3426,6 +2882,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                               'condition_grade': _grade,
                               if (bh.isNotEmpty)
                                 'battery_health': int.tryParse(bh),
+                              'hourly_late_fee': ?parsedHourlyLateFee,
                               if (_notesController.text.trim().isNotEmpty)
                                 'notes': _notesController.text.trim(),
                               if (bizState.activeBranchId != null)
@@ -3797,6 +3254,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
   late final TextEditingController _serialNumberController;
   late final TextEditingController _imei1Controller;
   late final TextEditingController _batteryHealthController;
+  late final TextEditingController _hourlyLateFeeController;
   late final TextEditingController _notesController;
   late String _status;
   late String _grade;
@@ -3817,6 +3275,13 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
     _batteryHealthController = TextEditingController(
       text: widget.asset['battery_health']?.toString() ?? '',
     );
+    final rawLateFee = widget.asset['hourly_late_fee'];
+    final parsedLateFee = rawLateFee != null
+        ? double.tryParse(rawLateFee.toString())
+        : null;
+    _hourlyLateFeeController = TextEditingController(
+      text: parsedLateFee != null ? parsedLateFee.toInt().toString() : '',
+    );
     _notesController = TextEditingController(
       text: widget.asset['notes']?.toString() ?? '',
     );
@@ -3830,6 +3295,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
     _serialNumberController.dispose();
     _imei1Controller.dispose();
     _batteryHealthController.dispose();
+    _hourlyLateFeeController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -3855,7 +3321,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
         left: 20,
         right: 20,
-        top: 20,
+        top: 10,
       ),
       child: Form(
         key: _formKey,
@@ -3864,57 +3330,21 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Edit Unit Inventaris',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 17,
-                        ),
-                      ),
-                      Text(
-                        modelName,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+              _buildAiryModalHeader(
+                context,
+                title: 'Edit Unit Inventaris',
+                subtitle: modelName,
               ),
               const SizedBox(height: 16),
               // Status Dropdown
               const Text(
                 'Status Operasional Unit',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: _status,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: isLocked
-                      ? AppColors.surfaceMuted
-                      : AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                ),
+                decoration: _airyAssetInputDecoration(),
                 items: [
                   const DropdownMenuItem(
                     value: 'ready',
@@ -4038,57 +3468,37 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               // Kode Unit
               const Text(
                 'Kode Unit',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _assetCodeController,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                ),
+                decoration: _airyAssetInputDecoration(),
                 validator: (val) => (val == null || val.trim().isEmpty)
                     ? 'Kode unit wajib diisi'
                     : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               // Serial Number (Adaptive)
               Text(
                 hasSerial ? 'Serial Number *' : 'Serial Number (Opsional)',
                 style: const TextStyle(
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   fontSize: 13,
+                  color: Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _serialNumberController,
-                decoration: InputDecoration(
+                decoration: _airyAssetInputDecoration(
                   hintText: hasSerial
                       ? 'Nomor seri pabrik (SN)'
                       : 'Kosongkan jika barang tanpa SN fisik',
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
                 ),
                 validator: hasSerial
                     ? (val) => (val == null || val.trim().isEmpty)
@@ -4098,29 +3508,18 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
               ),
               // IMEI 1 (Adaptive)
               if (isImeiApplicable) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 const Text(
                   'IMEI 1',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _imei1Controller,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppColors.surfaceMuted,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                  ),
+                  decoration: _airyAssetInputDecoration(),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               // Grade & Battery (Adaptive)
               if (isBatteryApplicable) ...[
                 Row(
@@ -4132,25 +3531,15 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                           const Text(
                             'Kondisi Fisik',
                             style: TextStyle(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                               fontSize: 13,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
                             initialValue: _grade,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: AppColors.surfaceMuted,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                            ),
+                            decoration: _airyAssetInputDecoration(),
                             items: ['A', 'B', 'C']
                                 .map(
                                   (g) => DropdownMenuItem(
@@ -4173,27 +3562,16 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                           const Text(
                             'Battery Health (%)',
                             style: TextStyle(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                               fontSize: 13,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _batteryHealthController,
                             keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: 'Misal: 100',
-                              filled: true,
-                              fillColor: AppColors.surfaceMuted,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                            ),
+                            decoration: _airyAssetInputDecoration(hintText: 'Misal: 100'),
                           ),
                         ],
                       ),
@@ -4207,25 +3585,15 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                     const Text(
                       'Kondisi Fisik',
                       style: TextStyle(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         fontSize: 13,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: _grade,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: AppColors.surfaceMuted,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                      ),
+                      decoration: _airyAssetInputDecoration(),
                       items: ['A', 'B', 'C']
                           .map(
                             (g) => DropdownMenuItem(
@@ -4239,40 +3607,78 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                   ],
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+              // Denda / Jam (Opsional - inherits model/business)
+              Builder(
+                builder: (context) {
+                  final modelRate = double.tryParse(
+                    model?['hourly_late_fee']?.toString() ?? '',
+                  );
+                  final bizDefaultRate = double.tryParse(
+                    bizState.activeBusiness?['default_hourly_late_fee']
+                            ?.toString() ??
+                        '',
+                  );
+                  final inheritedRate = modelRate ?? bizDefaultRate ?? 0.0;
+                  final helper = modelRate != null
+                      ? 'Kosongkan untuk mengikuti tarif model: ${CurrencyFormatter.format(modelRate)}/jam'
+                      : (bizDefaultRate != null && bizDefaultRate > 0
+                            ? 'Kosongkan untuk mengikuti tarif default toko: ${CurrencyFormatter.format(bizDefaultRate)}/jam'
+                            : 'Kosongkan untuk mengikuti tarif default model/toko');
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Denda / Jam (Opsional)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        key: const Key('edit_unit_hourly_late_fee_input'),
+                        controller: _hourlyLateFeeController,
+                        keyboardType: TextInputType.number,
+                        decoration: _airyAssetInputDecoration(
+                          prefixText: 'Rp ',
+                          hintText: inheritedRate > 0
+                              ? inheritedRate.toInt().toString()
+                              : 'Otomatis sesuai model',
+                          helperText: helper,
+                          helperMaxLines: 2,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
               // Notes
               const Text(
                 'Catatan Perangkat',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _notesController,
                 maxLines: 2,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.surfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                ),
+                decoration: _airyAssetInputDecoration(),
               ),
               const SizedBox(height: 20),
               // Save Button
               SizedBox(
                 width: double.infinity,
+                height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.obsidian,
+                    backgroundColor: const Color(0xFF0F172A),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   onPressed: _isLoading
@@ -4290,6 +3696,13 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                             final imei = _imei1Controller.text.trim();
                             final bh = _batteryHealthController.text.trim();
 
+                            final rawHourlyLateFee =
+                                _hourlyLateFeeController.text.trim();
+                            final double? parsedHourlyLateFee =
+                                rawHourlyLateFee.isNotEmpty
+                                ? CurrencyFormatter.parse(rawHourlyLateFee)
+                                : null;
+
                             final payload = <String, dynamic>{
                               'asset_code': _assetCodeController.text.trim(),
                               'serial_number': sn.isNotEmpty ? sn : null,
@@ -4299,6 +3712,7 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                               'battery_health': bh.isNotEmpty
                                   ? int.tryParse(bh)
                                   : null,
+                              'hourly_late_fee': parsedHourlyLateFee,
                               'notes': _notesController.text.trim(),
                             };
 
@@ -4441,6 +3855,382 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
             child: const Text('Ya, Hapus'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ModelAssetGroup {
+  final String groupKey;
+  final Map<String, dynamic> model;
+  final List<Map<String, dynamic>> allUnits;
+  final List<Map<String, dynamic>> visibleUnits;
+  final int readyCount;
+  final int totalCount;
+
+  const _ModelAssetGroup({
+    required this.groupKey,
+    required this.model,
+    required this.allUnits,
+    required this.visibleUnits,
+    required this.readyCount,
+    required this.totalCount,
+  });
+}
+
+// ==========================================
+// AIRY MODAL SHARED HELPERS & FILTER SHEET
+// ==========================================
+Widget _buildAiryModalHeader(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  Widget? trailingAction,
+  Key? closeKey,
+}) {
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Center(
+        child: Container(
+          width: 36,
+          height: 4,
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFCBD5E1),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (trailingAction != null) ...[
+            trailingAction,
+            const SizedBox(width: 8),
+          ],
+          InkWell(
+            key: closeKey,
+            onTap: () => Navigator.pop(context),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: Color(0xFF475569),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+InputDecoration _airyAssetInputDecoration({
+  String? hintText,
+  String? prefixText,
+  String? helperText,
+  int? helperMaxLines,
+}) {
+  return InputDecoration(
+    hintText: hintText,
+    hintStyle: const TextStyle(fontSize: 13.5, color: Color(0xFF94A3B8)),
+    prefixText: prefixText,
+    helperText: helperText,
+    helperMaxLines: helperMaxLines,
+    helperStyle: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+    filled: true,
+    fillColor: const Color(0xFFF8FAFC),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.danger, width: 1),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.danger, width: 1.5),
+    ),
+  );
+}
+
+class _FilterAsetBottomSheet extends ConsumerWidget {
+  const _FilterAsetBottomSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statusFilter = ref.watch(selectedAssetStatusFilterProvider);
+    final categoryFilter = ref.watch(selectedAssetCategoryFilterProvider);
+    final categoriesAsync = ref.watch(categoriesProvider);
+    final hasActiveFilter = statusFilter != null || categoryFilter != null;
+
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+              child: _buildAiryModalHeader(
+                context,
+                title: 'Filter Aset',
+                trailingAction: hasActiveFilter
+                    ? TextButton(
+                        key: const Key('inventory_filter_reset_text_button'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF64748B),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () {
+                          ref
+                              .read(selectedAssetCategoryFilterProvider.notifier)
+                              .setFilter(null);
+                          ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter(null);
+                        },
+                        child: const Text(
+                          'Reset',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Status Unit',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildPill(
+                          selected: statusFilter == null,
+                          label: 'Semua Status',
+                          onTap: () => ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter(null),
+                        ),
+                        _buildPill(
+                          selected: statusFilter == 'ready',
+                          label: 'Siap Sewa',
+                          onTap: () => ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('ready'),
+                        ),
+                        _buildPill(
+                          selected: statusFilter == 'rented',
+                          label: 'Sedang Sewa',
+                          onTap: () => ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('rented'),
+                        ),
+                        _buildPill(
+                          selected: statusFilter == 'maintenance',
+                          label: 'Perawatan',
+                          onTap: () => ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('maintenance'),
+                        ),
+                        _buildPill(
+                          selected: statusFilter == 'in_transit',
+                          label: 'Dalam Mutasi',
+                          onTap: () => ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('in_transit'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xFFF1F5F9),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Kategori',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    categoriesAsync.when(
+                      data: (categories) => Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildPill(
+                            selected: categoryFilter == null,
+                            label: 'Semua Kategori',
+                            onTap: () => ref
+                                .read(
+                                  selectedAssetCategoryFilterProvider.notifier,
+                                )
+                                .setFilter(null),
+                          ),
+                          ...categories.map((cat) {
+                            final catId = cat['id'] as int?;
+                            final catName = cat['name']?.toString() ?? '';
+                            return _buildPill(
+                              selected: categoryFilter == catId,
+                              label: catName,
+                              onTap: () => ref
+                                  .read(
+                                    selectedAssetCategoryFilterProvider.notifier,
+                                  )
+                                  .setFilter(catId),
+                            );
+                          }),
+                        ],
+                      ),
+                      loading: () => const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      error: (_, _) => const Text(
+                        'Gagal memuat kategori',
+                        style: TextStyle(fontSize: 12, color: AppColors.danger),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  top: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+                ),
+              ),
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Terapkan Filter',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPill({
+    required bool selected,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF0F172A) : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFE2E8F0),
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : const Color(0xFF475569),
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              fontSize: 12.5,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
 import 'package:rentcore_mobile/features/bookings/presentation/rental_queue_actions.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
+import 'package:rentcore_mobile/features/cashier/presentation/pos_transaction_detail_sheet.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
 import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
 import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
@@ -157,7 +158,7 @@ void main() {
 
         expect(find.text('HP'), findsOneWidget);
         expect(find.text('Hadi Purwanto'), findsOneWidget);
-        expect(find.text('OWNER'), findsOneWidget);
+        expect(find.text('Owner'), findsOneWidget);
         expect(find.text('Shift Aktif • SHF-09'), findsOneWidget);
         expect(find.text('Ganti Usaha / Cabang'), findsOneWidget);
         expect(find.text('Profil Pengguna'), findsOneWidget);
@@ -217,7 +218,8 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
-        expect(find.text('Aksi Transaksi • RC-261118-0007-OYS'), findsOneWidget);
+        expect(find.text('Aksi Transaksi'), findsOneWidget);
+        expect(find.text('RC-261118-0007-OYS'), findsOneWidget);
 
         // Booked actions visible
         expect(find.text('Ubah Jadwal'), findsOneWidget);
@@ -333,6 +335,122 @@ void main() {
         expect(find.text('Ubah Jadwal'), findsNothing);
         expect(find.text('Tandai No-Show'), findsNothing);
         expect(find.text('Batalkan Booking'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'confirmMarkNoShow renders 2-segment DP toggle and aligned side-by-side Batal & Konfirmasi No-Show buttons',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 720);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final fakeRepo = _FakeOverlayBookingRepo();
+        final booking = <String, dynamic>{
+          'id': 123,
+          'booking_code': 'RC-261121-0001-AMD',
+          'status': 'late_pickup',
+          'paid_amount': 50000,
+        };
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              bookingRepositoryProvider.overrideWithValue(fakeRepo),
+            ],
+            child: MaterialApp(
+              home: Consumer(
+                builder: (context, ref, _) => Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      onPressed: () => RentalQueueActions.confirmMarkNoShow(
+                        context,
+                        ref,
+                        booking,
+                      ),
+                      child: const Text('Open No-Show'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open No-Show'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Tandai No-Show'), findsOneWidget);
+        expect(find.text('Hanguskan DP'), findsOneWidget);
+        expect(find.text('Refund DP'), findsOneWidget);
+        expect(find.text('Batal'), findsOneWidget);
+        expect(find.text('Konfirmasi No-Show'), findsOneWidget);
+
+        // Verify side-by-side alignment (identical Y coordinates & non-overlapping X)
+        final cancelRect = tester.getRect(find.text('Batal'));
+        final confirmRect = tester.getRect(find.text('Konfirmasi No-Show'));
+        expect((cancelRect.center.dy - confirmRect.center.dy).abs(), lessThan(2.0));
+        expect(confirmRect.left, greaterThan(cancelRect.right));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'PosTransactionDetailSheet renders open hairline layout, full code, Cabang Siliragung, and sticky footer',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 780);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final booking = <String, dynamic>{
+          'id': 404,
+          'booking_code': 'RC-261121-0001-AMD',
+          'status': 'late_pickup',
+          'payment_status': 'partial',
+          'total_bill': 50000,
+          'subtotal_amount': 50000,
+          'discount_amount': 0,
+          'paid_amount': 33000,
+          'start_at': DateTime.now()
+              .subtract(const Duration(hours: 2))
+              .toIso8601String(),
+          'end_at': DateTime.now()
+              .add(const Duration(hours: 22))
+              .toIso8601String(),
+          'affiliate': {'name': 'siliragung', 'is_central': false},
+          'customer': {'name': 'Andi', 'phone': '081234567890'},
+          'creator': {'name': 'Staff'},
+          'items': [],
+          'payments': [
+            {'id': 1, 'type': 'dp', 'amount': 33000, 'payment_method': 'Tunai'},
+          ],
+        };
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              bookingDetailProvider(404).overrideWith((ref) => Future.value(booking)),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: PosTransactionDetailSheet(booking: booking),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Rincian Transaksi'), findsOneWidget);
+        expect(find.text('RC-261121-0001-AMD'), findsOneWidget);
+        expect(find.text('Sebagian'), findsOneWidget);
+        expect(find.byKey(const Key('detail_late_pickup_badge')), findsOneWidget);
+        expect(find.text('Cabang Siliragung'), findsOneWidget);
+        expect(find.text('CABANG'), findsNothing);
+        expect(find.byKey(const Key('detail_handover_button')), findsOneWidget);
+        expect(find.text('Perpanjang (+30m)'), findsOneWidget);
+        expect(find.byKey(const Key('detail_mark_noshow_button')), findsOneWidget);
+        expect(find.byKey(const Key('reprint_receipt_button')), findsOneWidget);
+        expect(tester.takeException(), isNull);
       },
     );
   });

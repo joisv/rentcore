@@ -77,14 +77,11 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
     final activeBizId = parseEntityIntId(activeBiz?['id']);
     final canAddBranch = activeBizId != null &&
         (activeRole == 'owner' || activeRole == 'admin');
-    final activeStoreName = businessState.resolvedStoreName.isNotEmpty
-        ? businessState.resolvedStoreName
-        : (activeBiz?['name']?.toString().trim() ?? '');
 
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        color: Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
         top: false,
@@ -106,10 +103,10 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                 // Drag handle
                 Center(
                   child: Container(
-                    width: 40,
+                    width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: const Color(0xFFCBD5E1),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -118,35 +115,17 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
 
                 Row(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Pilih Cabang',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF111111),
-                            ),
-                          ),
-                          if (activeStoreName.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              activeStoreName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF6B7280),
-                              ),
-                            ),
-                          ],
-                        ],
+                    const Expanded(
+                      child: Text(
+                        'Pilih Cabang',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.3,
+                        ),
                       ),
                     ),
                     if (canAddBranch || businesses.isEmpty) ...[
@@ -159,15 +138,18 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                             _openOnboardingDialog();
                           }
                         },
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(8),
                         child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 4,
+                          ),
                           child: Text(
                             '+ Tambah',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 13.5,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF111111),
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                         ),
@@ -175,7 +157,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                     ],
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
 
                 // Error alert
                 if (businessState.error != null) ...[
@@ -270,7 +252,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                       itemCount: businesses.length,
                       separatorBuilder: (_, _) => const Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),
-                        child: Divider(height: 1, color: Color(0xFFF3F4F6)),
+                        child: Divider(height: 1, color: Color(0xFFF1F5F9)),
                       ),
                       itemBuilder: (context, index) {
                         final biz = businesses[index] as Map<String, dynamic>;
@@ -283,30 +265,30 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   const SizedBox(height: 4),
                   InkWell(
                     onTap: _openOnboardingDialog,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                     child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 10),
+                      padding: EdgeInsets.symmetric(vertical: 12),
                       child: Row(
                         children: [
                           Icon(
-                            Icons.add_business_outlined,
-                            size: 18,
-                            color: Color(0xFF4B5563),
+                            Icons.add_rounded,
+                            size: 20,
+                            color: Color(0xFF0F172A),
                           ),
-                          SizedBox(width: 8),
+                          SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Buat Usaha / Bisnis Baru',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 13.5,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF374151),
+                                color: Color(0xFF0F172A),
                               ),
                             ),
                           ),
@@ -321,6 +303,28 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
         ),
       ),
     );
+  }
+
+  String _formatTitleCase(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (trimmed != trimmed.toLowerCase()) return trimmed;
+    return trimmed
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+
+  String _formatWorkspaceRole(String role) {
+    switch (role.toLowerCase()) {
+      case 'owner':
+        return 'Owner';
+      case 'admin':
+        return 'Admin';
+      default:
+        return 'Staff';
+    }
   }
 
   Widget _buildWorkspaceSection(
@@ -349,21 +353,28 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF111111),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            _buildMonochromePill(role.toUpperCase()),
+            Text(
+              _formatWorkspaceRole(role),
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF64748B),
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
 
         if (role == 'owner' && branches.length > 1)
           _buildBranchRow(
-            icon: Icons.corporate_fare_rounded,
+            icon: Icons.corporate_fare_outlined,
             title: 'Semua Cabang (Konsolidasi)',
             tag: 'SEMUA',
             subtitle: 'Laporan & analitik gabungan seluruh cabang',
@@ -390,16 +401,16 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
           final city = branchMap['city']?.toString().trim() ?? '';
           final address = branchMap['address']?.toString().trim() ?? '';
           final location = city.isNotEmpty ? city : address;
-          final subtitle = [
-            if (code.isNotEmpty) code,
-            if (location.isNotEmpty) location,
-          ].join(' • ');
+          final formattedBranchName = _formatTitleCase(
+            branchMap['name']?.toString() ?? '',
+          );
 
           return _buildBranchRow(
-            icon: isCentral ? Icons.hub_rounded : Icons.store_rounded,
-            title: branchMap['name']?.toString() ?? '',
+            icon: isCentral ? Icons.hub_outlined : Icons.store_outlined,
+            title: formattedBranchName,
+            code: code.isNotEmpty ? code : null,
             tag: isCentral ? 'PUSAT' : null,
-            subtitle: subtitle.isNotEmpty ? subtitle : null,
+            subtitle: location.isNotEmpty ? _formatTitleCase(location) : null,
             isActive: isBranchActive,
             onTap: () async {
               final bizNotifier = ref.read(businessProvider.notifier);
@@ -414,7 +425,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
 
         if (canManageOrg) ...[
           const SizedBox(height: 6),
-          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
           InkWell(
             onTap: () {
               final targetBizId = parseEntityIntId(biz['id']) ?? 0;
@@ -442,14 +453,14 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                       style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF111111),
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                   ),
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 20,
-                    color: Color(0xFF6B7280),
+                    color: Color(0xFF94A3B8),
                   ),
                 ],
               ),
@@ -464,7 +475,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
+        color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
@@ -472,7 +483,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
         style: const TextStyle(
           fontSize: 9.5,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF4B5563),
+          color: Color(0xFF475569),
           letterSpacing: 0.3,
         ),
       ),
@@ -482,6 +493,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
   Widget _buildBranchRow({
     required IconData icon,
     required String title,
+    String? code,
     String? tag,
     String? subtitle,
     required bool isActive,
@@ -489,25 +501,24 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: isActive
-                    ? const Color(0xFF111111)
-                    : const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(8),
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               alignment: Alignment.center,
               child: Icon(
                 icon,
                 size: 18,
-                color: isActive ? Colors.white : const Color(0xFF6B7280),
+                color: const Color(0xFF0F172A),
               ),
             ),
             const SizedBox(width: 12),
@@ -522,18 +533,26 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                           title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight:
-                                isActive ? FontWeight.w700 : FontWeight.w500,
-                            color: isActive
-                                ? const Color(0xFF111111)
-                                : const Color(0xFF374151),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
                           ),
                         ),
                       ),
+                      if (code != null && code.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          code,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
                       if (tag != null) ...[
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         _buildMonochromePill(tag),
                       ],
                     ],
@@ -546,7 +565,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF6B7280),
+                        color: Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -558,7 +577,7 @@ class _BusinessSelectorSheetState extends ConsumerState<BusinessSelectorSheet> {
               const Icon(
                 Icons.check_rounded,
                 size: 20,
-                color: Color(0xFF111111),
+                color: Color(0xFF0F172A),
               ),
             ],
           ],

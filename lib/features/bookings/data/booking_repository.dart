@@ -396,8 +396,13 @@ class BookingRepository {
       ApiConstants.checkInBooking(bookingId),
       data: payload,
     );
-    final data = response.data['data'];
-    return data is Map ? Map<String, dynamic>.from(data) : {};
+    final raw = response.data;
+    final data = raw is Map ? raw['data'] : null;
+    final result = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+    if (raw is Map && raw['notice'] != null) {
+      result['_notice'] = raw['notice'].toString();
+    }
+    return result;
   }
 
   Future<Map<String, dynamic>> rescheduleBooking(
@@ -430,6 +435,22 @@ class BookingRepository {
     return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
+  Future<Map<String, dynamic>> markNoShowWithDisposition(
+    dynamic bookingId, {
+    String? reason,
+    required String dpDisposition,
+  }) async {
+    final response = await _client.dio.post(
+      ApiConstants.markBookingNoShow(bookingId),
+      data: {
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+        'dp_disposition': dpDisposition,
+      },
+    );
+    final data = response.data['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
   Future<Map<String, dynamic>> cancelBooking(
     dynamic bookingId, {
     String? reason,
@@ -449,7 +470,7 @@ class BookingRepository {
     int additionalMinutes = 30,
   }) async {
     final response = await _client.dio.post(
-      ApiConstants.extendBookingGrace(bookingId),
+      ApiConstants.extendBookingPickup(bookingId),
       data: {'additional_minutes': additionalMinutes},
     );
     final data = response.data['data'];

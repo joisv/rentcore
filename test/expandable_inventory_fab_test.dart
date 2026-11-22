@@ -13,7 +13,6 @@ import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
 import 'package:rentcore_mobile/features/inventory/presentation/inventory_screen.dart';
 import 'package:rentcore_mobile/features/inventory/presentation/widgets/expandable_inventory_fab.dart';
-import 'package:rentcore_mobile/features/inventory/presentation/widgets/tarif_sewa_sheet.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
 import 'package:rentcore_mobile/shared/widgets/floating_capsule_dock.dart';
 
@@ -283,31 +282,15 @@ void main() {
     });
   });
 
-  group('InventoryScreen Integration with Expandable FAB', () {
-    testWidgets('InventoryScreen presents Expandable FAB above dock and expands smoothly with 2 actions', (tester) async {
+  group('InventoryScreen Unified Header Replacement Tests', () {
+    testWidgets('InventoryScreen shows + Model Baru button in header without Expandable FAB', (tester) async {
       await tester.pumpWidget(createTestWidget(child: const InventoryScreen()));
       await tester.pumpAndSettle();
 
-      // Main FAB is present
-      final fabFinder = find.byKey(const Key('inventory_expandable_main_fab'));
-      expect(fabFinder, findsOneWidget);
-
-      // Tap FAB to expand
-      await tester.tap(fabFinder);
-      await tester.pumpAndSettle();
-
-      // Verify exactly 2 actions visible and Tarif Sewa removed
-      expect(find.text('Registrasi Unit'), findsOneWidget);
-      expect(find.text('Tambah Model'), findsOneWidget);
-      expect(find.text('Tarif Sewa'), findsNothing);
-
-      // Verify backdrop scrim dismisses menu when tapped
-      await tester.tapAt(const Offset(50, 200));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Registrasi Unit'), findsNothing);
-      expect(find.text('Tambah Model'), findsNothing);
-      expect(find.text('Tarif Sewa'), findsNothing);
+      // Unified header CTA is present and old expandable FAB is removed
+      expect(find.byKey(const Key('inventory_add_model_button')), findsOneWidget);
+      expect(find.text('+ Model Baru'), findsOneWidget);
+      expect(find.byKey(const Key('inventory_expandable_main_fab')), findsNothing);
     });
   });
 }

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
@@ -59,6 +60,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   String _conditionGrade = 'A';
   bool _isSubmitting = false;
   bool _payPenaltyNow = true;
+  bool _enableWaiver = false;
+  final _waiverAmountController = TextEditingController();
+  final _waiverReasonController = TextEditingController();
 
   late final RentalDeviceCategory _category;
   late final List<ChecklistItemDef> _checklistDefs;
@@ -178,6 +182,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   @override
   void dispose() {
     _staffNotesController.dispose();
+    _waiverAmountController.dispose();
+    _waiverReasonController.dispose();
     super.dispose();
   }
 
@@ -363,31 +369,105 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     final customer = booking['customer'] ?? {};
     final endAt = booking['end_at'] != null ? DateTime.tryParse(booking['end_at']) : null;
     final now = DateTime.now();
+    final activeBusiness = ref.watch(businessProvider).activeBusiness;
 
-    // Calculate late penalty (60-minute grace period formula with dynamic hourly rate)
+    // Resolve cascading late-fee policy (contract snapshot -> unit -> model -> business)
     int lateMinutes = 0;
-    int billableHours = 0;
+    double billableHours = 0.0;
     double hourlyLateRate = 15000.0;
-    double penaltyAmount = 0.0;
+    double calculatedPenalty = 0.0;
+    int gracePeriodMinutes = 60;
+    String roundingMode = 'hourly_ceil';
+    double? dailyRateCap;
+    bool wasCapped = false;
 
-    // Resolve dynamic hourly late rate from booking / model pricing tier
-    final activeItem = booking['active_item'];
-    if (activeItem != null && activeItem['rate_snapshot'] != null && activeItem['rate_snapshot']['extension_hourly_rate'] != null) {
-      hourlyLateRate = double.tryParse(activeItem['rate_snapshot']['extension_hourly_rate'].toString()) ?? 15000.0;
+    final activeItem = booking['active_item'] as Map?;
+    final items = (booking['items'] as List?) ?? const [];
+    final Map? primaryItem = activeItem ??
+        items.cast<Map?>().firstWhere(
+          (it) =>
+              it != null &&
+              (it['item_type'] == 'primary' || it['item_type'] == null) &&
+              (it['status'] == 'active' || it['status'] == null),
+          orElse: () => items.isNotEmpty && items.first is Map ? items.first as Map : null,
+        );
+
+    final rateSnap = (primaryItem?['rate_snapshot'] as Map?) ??
+        (activeItem?['rate_snapshot'] as Map?);
+    final assetMap = primaryItem?['asset'] as Map?;
+    final modelMap = (assetMap?['model'] as Map?) ??
+        (primaryItem?['asset_model'] as Map?) ??
+        (booking['asset_model'] as Map?);
+
+    // 1. Grace period
+    final rawAppliedGrace = primaryItem?['applied_grace_period_minutes'] ??
+        rateSnap?['applied_grace_period_minutes'];
+    if (rawAppliedGrace != null) {
+      gracePeriodMinutes = int.tryParse(rawAppliedGrace.toString()) ?? 15;
+    } else if (activeBusiness != null &&
+        activeBusiness.containsKey('return_grace_period_minutes') &&
+        activeBusiness['return_grace_period_minutes'] != null) {
+      gracePeriodMinutes =
+          int.tryParse(activeBusiness['return_grace_period_minutes'].toString()) ?? 15;
+    }
+
+    // 2. Rounding mode
+    final rawRoundingMode = (primaryItem?['applied_late_fee_rounding_mode'] ??
+            rateSnap?['applied_late_fee_rounding_mode'] ??
+            activeBusiness?['late_fee_rounding_mode'])
+        ?.toString();
+    if (rawRoundingMode == 'half_hourly_ceil' || rawRoundingMode == 'hourly_ceil') {
+      roundingMode = rawRoundingMode!;
+    }
+
+    // 3. Hourly late rate (applied snapshot -> unit -> model -> business -> legacy tier rate)
+    final rawAppliedRate = primaryItem?['applied_hourly_late_fee'] ??
+        rateSnap?['applied_hourly_late_fee'];
+    if (rawAppliedRate != null) {
+      hourlyLateRate = double.tryParse(rawAppliedRate.toString()) ?? 0.0;
+    } else if (assetMap != null && assetMap['hourly_late_fee'] != null) {
+      hourlyLateRate = double.tryParse(assetMap['hourly_late_fee'].toString()) ?? 0.0;
+    } else if (modelMap != null && modelMap['hourly_late_fee'] != null) {
+      hourlyLateRate = double.tryParse(modelMap['hourly_late_fee'].toString()) ?? 0.0;
+    } else if (activeBusiness != null &&
+        activeBusiness['default_hourly_late_fee'] != null) {
+      hourlyLateRate =
+          double.tryParse(activeBusiness['default_hourly_late_fee'].toString()) ?? 0.0;
+    } else if (rateSnap != null && rateSnap['extension_hourly_rate'] != null) {
+      hourlyLateRate =
+          double.tryParse(rateSnap['extension_hourly_rate'].toString()) ?? 15000.0;
     } else {
-      final items = (booking['items'] as List?) ?? [];
-      for (final it in items) {
-        final rateSnap = it['rate_snapshot'];
-        if (rateSnap != null && rateSnap['extension_hourly_rate'] != null) {
-          hourlyLateRate = double.tryParse(rateSnap['extension_hourly_rate'].toString()) ?? hourlyLateRate;
-          break;
+      final tiers = modelMap?['pricing_tiers'] as List?;
+      if (tiers != null && tiers.isNotEmpty && tiers.first is Map) {
+        final firstTier = tiers.first as Map;
+        if (firstTier['extension_hourly_rate'] != null) {
+          hourlyLateRate =
+              double.tryParse(firstTier['extension_hourly_rate'].toString()) ?? 15000.0;
         }
-        final tiers = it['asset']?['model']?['pricing_tiers'] as List?;
-        if (tiers != null && tiers.isNotEmpty) {
-          final firstTier = tiers.first;
-          if (firstTier['extension_hourly_rate'] != null) {
-            hourlyLateRate = double.tryParse(firstTier['extension_hourly_rate'].toString()) ?? hourlyLateRate;
-            break;
+      }
+    }
+
+    // 4. Daily rate cap
+    final hasSnapshotCapKey =
+        (primaryItem != null && primaryItem.containsKey('applied_daily_rate_cap')) ||
+        (rateSnap != null && rateSnap.containsKey('applied_daily_rate_cap'));
+    if (hasSnapshotCapKey) {
+      final rawCap = primaryItem?['applied_daily_rate_cap'] ??
+          rateSnap?['applied_daily_rate_cap'];
+      dailyRateCap = rawCap != null ? double.tryParse(rawCap.toString()) : null;
+    } else if (activeBusiness?['cap_late_fee_at_daily_rate'] == true) {
+      final tiers = modelMap?['pricing_tiers'] as List?;
+      if (tiers != null) {
+        for (final t in tiers.whereType<Map>()) {
+          final isOneDay = (t['duration_unit'] == 'day' &&
+                  int.tryParse(t['duration_value']?.toString() ?? '') == 1) ||
+              int.tryParse(t['duration_hours']?.toString() ?? '') == 24;
+          if (isOneDay && t['price'] != null) {
+            final parsedDaily = double.tryParse(t['price'].toString());
+            if (parsedDaily != null && parsedDaily > 0) {
+              dailyRateCap = parsedDaily;
+              break;
+            }
           }
         }
       }
@@ -395,71 +475,188 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
 
     if (endAt != null && now.isAfter(endAt)) {
       lateMinutes = now.difference(endAt).inMinutes;
-      if (lateMinutes > 60) {
-        billableHours = ((lateMinutes - 60) / 60).ceil();
-        penaltyAmount = billableHours * hourlyLateRate;
+      if (lateMinutes > gracePeriodMinutes) {
+        final chargeableMinutes = lateMinutes - gracePeriodMinutes;
+        if (roundingMode == 'half_hourly_ceil') {
+          billableHours = (chargeableMinutes / 30).ceil() * 0.5;
+        } else {
+          billableHours = (chargeableMinutes / 60).ceil().toDouble();
+        }
+        calculatedPenalty = billableHours * hourlyLateRate;
+
+        if (dailyRateCap != null && dailyRateCap > 0 && calculatedPenalty > 0) {
+          final fullCycles = billableHours ~/ 24;
+          final remHours = math.max(0.0, billableHours - (fullCycles * 24));
+          final fullCycleCost = math.min(24 * hourlyLateRate, dailyRateCap);
+          final remCycleCost = math.min(remHours * hourlyLateRate, dailyRateCap);
+          final cappedPenalty = (fullCycles * fullCycleCost) + remCycleCost;
+          if (cappedPenalty < calculatedPenalty) {
+            calculatedPenalty = cappedPenalty;
+            wasCapped = true;
+          }
+        }
       }
     }
+
+    final rawWaivedAmount = _enableWaiver
+        ? CurrencyFormatter.parse(_waiverAmountController.text.trim())
+        : 0.0;
+    final double waivedAmount =
+        math.max(0.0, math.min(calculatedPenalty, rawWaivedAmount));
+    final double penaltyAmount = math.max(0.0, calculatedPenalty - waivedAmount);
+    final String billableHoursLabel = billableHours % 1 == 0
+        ? billableHours.toInt().toString()
+        : billableHours.toStringAsFixed(1);
+    final bool isLateBeyondGrace = lateMinutes > gracePeriodMinutes;
 
     final collateralSlot = booking['collateral_storage_slot'] ?? 'Brankas Cabang';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: RentCoreAppBar(
-        title: 'Pengembalian: ${booking['booking_code']}',
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: false,
+        leading: const RentCoreBackButton(),
+        titleSpacing: 0,
+        title: Text(
+          'Pengembalian • ${booking['booking_code'] ?? ''}',
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+            color: Color(0xFF0F172A),
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: Color(0xFFF1F5F9),
+          ),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.only(bottom: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Customer & Slot Header
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
+            // Streamlined Customer & Collateral Summary
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    customer['name'] ?? 'Pelanggan',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  const Text(
+                    'RINGKASAN PENYEWA & JAMINAN',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF94A3B8),
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Jaminan: KTP ($collateralSlot)',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Penyewa',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          customer['name'] ?? 'Pelanggan',
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                          ),
+                          textAlign: TextAlign.end,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Jaminan',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          'Jaminan: KTP • $collateralSlot',
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF0F172A),
+                          ),
+                          textAlign: TextAlign.end,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
 
-            // Overtime Status Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: lateMinutes > 60 ? AppColors.dangerLight : AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: lateMinutes > 60 ? AppColors.danger.withValues(alpha: 0.3) : AppColors.border,
-                ),
-              ),
+            // Return Timestamps & Overtime Summary
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text(
+                    'WAKTU PENGEMBALIAN',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Jadwal Selesai Sewa:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const Text(
+                        'Jadwal Selesai Sewa',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Flexible(
                         child: Text(
                           DateFormatter.formatFull(endAt),
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13.5,
+                            color: Color(0xFF0F172A),
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
                           textAlign: TextAlign.end,
                         ),
                       ),
@@ -469,31 +666,44 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Waktu Fisik Kembali:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const Text(
+                        'Waktu Fisik Kembali',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Flexible(
                         child: Text(
                           DateFormatter.formatFull(now),
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13.5,
+                            color: Color(0xFF0F172A),
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
                           textAlign: TextAlign.end,
                         ),
                       ),
                     ],
                   ),
                   if (lateMinutes > 0) ...[
-                    const Divider(height: 16),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
                           child: Text(
-                            lateMinutes <= 60
-                                ? 'Terlambat (Grace Period Bebas Denda):'
-                                : 'Denda Keterlambatan (${_formatOverdueDuration(lateMinutes)}):',
+                            !isLateBeyondGrace
+                                ? 'Terlambat (Grace Period Bebas Denda)'
+                                : 'Denda Keterlambatan (${_formatOverdueDuration(lateMinutes)})',
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: lateMinutes > 60 ? AppColors.danger : AppColors.warning,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isLateBeyondGrace
+                                  ? const Color(0xFFDC2626)
+                                  : const Color(0xFFB45309),
                             ),
                           ),
                         ),
@@ -502,8 +712,11 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                           CurrencyFormatter.format(penaltyAmount),
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: lateMinutes > 60 ? AppColors.danger : AppColors.success,
+                            fontWeight: FontWeight.w700,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                            color: isLateBeyondGrace
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFF059669),
                           ),
                         ),
                       ],
@@ -512,24 +725,12 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
 
-            // Conditional Account Clearance Check Card (Rendered ONLY for smartphones: iOS & Android)
+            // Conditional Account Clearance Section (Rendered ONLY for smartphones: iOS & Android)
             if (_isSmartphone) ...[
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: _accountCleared
-                      ? AppColors.successLight
-                      : (_isQuarantined ? Colors.amber.withValues(alpha: 0.15) : AppColors.dangerLight),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _accountCleared
-                        ? AppColors.success
-                        : (_isQuarantined ? Colors.amber.shade700 : AppColors.danger),
-                    width: 1.5,
-                  ),
-                ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -540,35 +741,46 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                           child: Text(
                             'Pemeriksaan Akun Perangkat',
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: _accountCleared
-                                ? AppColors.success.withValues(alpha: 0.15)
-                                : (_isQuarantined ? Colors.amber.shade100 : AppColors.danger.withValues(alpha: 0.15)),
-                            borderRadius: BorderRadius.circular(6),
+                                ? const Color(0xFFECFDF5)
+                                : (_isQuarantined
+                                    ? const Color(0xFFFFFBEB)
+                                    : const Color(0xFFFEF2F2)),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: _accountCleared
-                                  ? AppColors.success
-                                  : (_isQuarantined ? Colors.amber.shade700 : AppColors.danger),
+                                  ? const Color(0xFFA7F3D0)
+                                  : (_isQuarantined
+                                      ? const Color(0xFFFDE68A)
+                                      : const Color(0xFFFECACA)),
                               width: 1,
                             ),
                           ),
                           child: Text(
-                            _accountCleared ? 'Selesai' : (_isQuarantined ? 'Karantina' : 'Wajib'),
+                            _accountCleared
+                                ? 'Terverifikasi'
+                                : (_isQuarantined ? 'Karantina' : 'Wajib'),
                             style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
                               color: _accountCleared
-                                  ? AppColors.success
-                                  : (_isQuarantined ? Colors.amber.shade900 : AppColors.danger),
+                                  ? const Color(0xFF047857)
+                                  : (_isQuarantined
+                                      ? const Color(0xFFB45309)
+                                      : const Color(0xFFDC2626)),
                             ),
                           ),
                         ),
@@ -579,13 +791,25 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       type: MaterialType.transparency,
                       child: SwitchListTile(
                         contentPadding: EdgeInsets.zero,
+                        activeThumbColor: Colors.white,
+                        activeTrackColor: const Color(0xFF059669),
                         title: const Text(
                           'Akun Perangkat (iCloud / Google / FRP) Sudah Dikeluarkan',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                          ),
                         ),
-                        subtitle: const Text(
-                          'Wajib dipastikan sebelum unit diterima kembali',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        subtitle: const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Text(
+                            'Wajib dipastikan sebelum unit diterima kembali',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
                         ),
                         value: _accountCleared,
                         onChanged: (val) => setState(() {
@@ -594,9 +818,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                         }),
                       ),
                     ),
-                    const Divider(height: 16),
+                    const SizedBox(height: 12),
                     InkWell(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                       onTap: () {
                         setState(() {
                           _isQuarantined = !_isQuarantined;
@@ -604,22 +828,34 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                         });
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          color: _isQuarantined ? Colors.amber.withValues(alpha: 0.25) : AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(10),
+                          color: _isQuarantined
+                              ? const Color(0xFFFFFBEB)
+                              : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: _isQuarantined ? Colors.amber.shade700 : AppColors.border,
+                            color: _isQuarantined
+                                ? const Color(0xFFFDE68A)
+                                : const Color(0xFFE2E8F0),
+                            width: 1,
                           ),
                         ),
                         child: Row(
                           children: [
                             Icon(
-                              _isQuarantined ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                              _isQuarantined
+                                  ? Icons.check_box_rounded
+                                  : Icons.check_box_outline_blank_rounded,
                               size: 20,
-                              color: _isQuarantined ? Colors.amber.shade900 : AppColors.textSecondary,
+                              color: _isQuarantined
+                                  ? const Color(0xFFB45309)
+                                  : const Color(0xFF64748B),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,15 +863,22 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                                   Text(
                                     'Unit Terkunci / Lupa Sandi (Masuk Karantina)',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: _isQuarantined ? Colors.amber.shade900 : AppColors.obsidian,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: _isQuarantined
+                                          ? const Color(0xFF92400E)
+                                          : const Color(0xFF0F172A),
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  const Text(
+                                  Text(
                                     'Unit akan dialihkan ke status Maintenance. Wajib mengisi catatan staf di bawah.',
-                                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: _isQuarantined
+                                          ? const Color(0xFFB45309)
+                                          : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -647,95 +890,131 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
             ],
 
-            // Physical Condition Checklist
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
+            // Physical Condition Checklist & Grade Selector
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
+                    'KONDISI & KELENGKAPAN',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
                     'Kondisi & Kelengkapan',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                      color: AppColors.textMuted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: ['A', 'B', 'C'].map((grade) {
-                      final isSel = _conditionGrade == grade;
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                  Container(
+                    height: 40,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: ['A', 'B', 'C'].map((grade) {
+                        final isSel = _conditionGrade == grade;
+                        return Expanded(
                           child: InkWell(
                             onTap: () => setState(() => _conditionGrade = grade),
-                            borderRadius: BorderRadius.circular(10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: isSel ? AppColors.obsidian : AppColors.surfaceMuted,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: isSel ? AppColors.obsidian : AppColors.border,
-                                  width: isSel ? 1.5 : 1,
-                                ),
-                              ),
+                            borderRadius: BorderRadius.circular(8),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
                               alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSel ? Colors.white : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: isSel
+                                    ? Border.all(
+                                        color: const Color(0xFFE2E8F0),
+                                        width: 1,
+                                      )
+                                    : null,
+                              ),
                               child: Text(
                                 'Grade $grade',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: isSel ? Colors.white : AppColors.textPrimary,
+                                  fontWeight:
+                                      isSel ? FontWeight.w600 : FontWeight.w500,
+                                  color: isSel
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFF64748B),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 10),
-                  Material(
-                    type: MaterialType.transparency,
-                    child: Column(
-                      children: _checklistDefs.map((item) {
-                        return CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(item.label, style: const TextStyle(fontSize: 13)),
-                          value: _checklistStates[item.key] ?? false,
-                          onChanged: (v) => setState(() => _checklistStates[item.key] = v ?? false),
                         );
                       }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      checkboxTheme: CheckboxThemeData(
+                        fillColor: WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.selected)) {
+                            return const Color(0xFF0F172A);
+                          }
+                          return Colors.transparent;
+                        }),
+                        checkColor: WidgetStateProperty.all(Colors.white),
+                        side: const BorderSide(
+                          color: Color(0xFFCBD5E1),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Column(
+                        children: _checklistDefs.map((item) {
+                          return CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: Text(
+                              item.label,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                color: Color(0xFF0F172A),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            value: _checklistStates[item.key] ?? false,
+                            onChanged: (v) => setState(
+                              () => _checklistStates[item.key] = v ?? false,
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
 
             if (_hasAddons) ...[
-              Container(
+              Padding(
                 key: const Key('addon_checklist_card'),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _allAddonsChecked ? AppColors.border : const Color(0xFF111111),
-                    width: _allAddonsChecked ? 1 : 1.5,
-                  ),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -747,51 +1026,56 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                             'Kelengkapan Add-on (${_checkedAddonKeys.length}/${_addonItems.length})',
                             key: const Key('addon_checklist_header'),
                             style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF111111),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                         ),
                         if (!_allAddonsChecked)
-                          TextButton(
+                          InkWell(
                             key: const Key('addon_check_all_button'),
-                            onPressed: () {
+                            onTap: () {
                               setState(() {
-                                _checkedAddonKeys.addAll(_addonItems.map((a) => a.key));
+                                _checkedAddonKeys
+                                    .addAll(_addonItems.map((a) => a.key));
                               });
                             },
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFF111111),
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text(
-                              'Centang Semua',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF111111),
+                            borderRadius: BorderRadius.circular(8),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 4,
+                              ),
+                              child: Text(
+                                'Centang Semua',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F172A),
+                                ),
                               ),
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Theme(
                       data: Theme.of(context).copyWith(
                         checkboxTheme: CheckboxThemeData(
                           fillColor: WidgetStateProperty.resolveWith((states) {
                             if (states.contains(WidgetState.selected)) {
-                              return const Color(0xFF111111);
+                              return const Color(0xFF0F172A);
                             }
                             return Colors.transparent;
                           }),
                           checkColor: WidgetStateProperty.all(Colors.white),
-                          side: const BorderSide(color: Color(0xFF111111), width: 1.5),
+                          side: const BorderSide(
+                            color: Color(0xFFCBD5E1),
+                            width: 1.5,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                         ),
                       ),
@@ -799,7 +1083,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                         type: MaterialType.transparency,
                         child: Column(
                           children: _addonItems.map((addon) {
-                            final isChecked = _checkedAddonKeys.contains(addon.key);
+                            final isChecked =
+                                _checkedAddonKeys.contains(addon.key);
                             return CheckboxListTile(
                               key: Key('addon_checkbox_${addon.key}'),
                               contentPadding: EdgeInsets.zero,
@@ -808,9 +1093,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                               title: Text(
                                 '${addon.name} • ${addon.quantity}x',
                                 style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF111111),
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF0F172A),
                                 ),
                               ),
                               value: isChecked,
@@ -831,57 +1116,74 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
             ],
 
-            // Staff Notes / Quarantine Follow-Up
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _isQuarantined ? Colors.amber.shade700 : AppColors.border),
-              ),
+            // Staff Notes / Quarantine Follow-Up (Flat #F8FAFC Input + External Label)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _isQuarantined ? 'CATATAN TINDAK LANJUT KARANTINA (WAJIB)' : 'Catatan Staf (Opsional)',
+                    _isQuarantined
+                        ? 'Catatan Staf (Wajib)'
+                        : 'Catatan Staf (Opsional)',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                      color: _isQuarantined ? Colors.amber.shade800 : AppColors.textMuted,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: _isQuarantined
+                          ? const Color(0xFFB45309)
+                          : const Color(0xFF475569),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _staffNotesController,
-                    maxLines: 2,
+                    maxLines: 3,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF0F172A),
+                    ),
                     decoration: InputDecoration(
                       hintText: _isQuarantined
                           ? 'Wajib: Catat alasan karantina, kontak pelanggan, dan batas waktu tindak lanjut akun...'
                           : 'Catatan kondisi tambahan atau pesan pengembalian...',
+                      hintStyle: const TextStyle(
+                        fontSize: 13.5,
+                        color: Color(0xFF94A3B8),
+                      ),
                       filled: true,
-                      fillColor: AppColors.surface,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF0F172A),
+                          width: 1.5,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
 
-            // Penalty Payment Section (Rendered when penalty > 0)
-            if (penaltyAmount > 0) ...[
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.5), width: 1.5),
-                ),
+            // Penalty Payment Section (Rendered when calculatedPenalty > 0)
+            if (calculatedPenalty > 0) ...[
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -892,10 +1194,9 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                           child: Text(
                             'Penyelesaian Denda',
                             style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                              color: AppColors.danger,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                         ),
@@ -903,34 +1204,60 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                         Text(
                           CurrencyFormatter.format(penaltyAmount),
                           style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.danger,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                            fontFeatures: [FontFeature.tabularFigures()],
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.dangerLight,
-                        borderRadius: BorderRadius.circular(10),
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFFFECACA),
+                          width: 1,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text(
+                            'Telat $lateMinutes menit - Toleransi $gracePeriodMinutes menit = $billableHoursLabel jam × ${CurrencyFormatter.format(hourlyLateRate)}',
+                            key: const Key('late_fee_breakdown_formula'),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Keterlambatan:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                              const SizedBox(width: 8),
-                              Flexible(
+                              const Expanded(
                                 child: Text(
-                                  '${_formatOverdueDuration(lateMinutes)} ($billableHours jam tagih)',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                  textAlign: TextAlign.end,
+                                  'Denda Hitungan Sistem',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF64748B),
+                                  ),
                                 ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                CurrencyFormatter.format(calculatedPenalty),
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F172A),
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                                textAlign: TextAlign.end,
                               ),
                             ],
                           ),
@@ -938,64 +1265,118 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Tarif per jam:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              const Expanded(
+                                child: Text(
+                                  'Grace period',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
                               const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  '${CurrencyFormatter.format(hourlyLateRate)} / jam',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                  textAlign: TextAlign.end,
+                              Text(
+                                '$gracePeriodMinutes menit bebas biaya',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: Color(0xFF64748B),
                                 ),
+                                textAlign: TextAlign.end,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          const Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Grace period:', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                              SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  '60 menit bebas biaya',
-                                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          if (wasCapped && dailyRateCap != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Batas Maksimal Harian',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Dibatasi ${CurrencyFormatter.format(dailyRateCap)}/hari',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFFB45309),
+                                  ),
                                   textAlign: TextAlign.end,
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
+                          ],
+                          if (_enableWaiver && waivedAmount > 0) ...[
+                            const Divider(
+                              height: 14,
+                              color: Color(0xFFFECACA),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Keringanan / Diskon',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF047857),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '- ${CurrencyFormatter.format(waivedAmount)}',
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: Color(0xFF047857),
+                                    fontWeight: FontWeight.w700,
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    // Stacked vertical options with clear radio/tap affordance
+                    const SizedBox(height: 10),
                     InkWell(
-                      onTap: () => setState(() => _payPenaltyNow = true),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                        decoration: BoxDecoration(
-                          color: _payPenaltyNow ? AppColors.obsidian : AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: _payPenaltyNow ? AppColors.obsidian : AppColors.border,
-                          ),
-                        ),
+                      key: const Key('waiver_toggle'),
+                      onTap: () => setState(() {
+                        _enableWaiver = !_enableWaiver;
+                        if (!_enableWaiver) {
+                          _waiverAmountController.clear();
+                          _waiverReasonController.clear();
+                        }
+                      }),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
                           children: [
                             Icon(
-                              _payPenaltyNow ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                              color: _payPenaltyNow ? Colors.white : AppColors.textSecondary,
-                              size: 18,
+                              _enableWaiver
+                                  ? Icons.check_box_rounded
+                                  : Icons.check_box_outline_blank_rounded,
+                              size: 20,
+                              color: _enableWaiver
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFF64748B),
                             ),
                             const SizedBox(width: 8),
-                            Expanded(
+                            const Expanded(
                               child: Text(
-                                'Bayar Sekarang',
+                                'Beri Keringanan / Bebaskan Denda',
                                 style: TextStyle(
-                                  color: _payPenaltyNow ? Colors.white : AppColors.textPrimary,
-                                  fontWeight: FontWeight.bold,
                                   fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F172A),
                                 ),
                               ),
                             ),
@@ -1003,100 +1384,306 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () => setState(() => _payPenaltyNow = false),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                        decoration: BoxDecoration(
-                          color: !_payPenaltyNow ? AppColors.obsidian : AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: !_payPenaltyNow ? AppColors.obsidian : AppColors.border,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              !_payPenaltyNow ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                              color: !_payPenaltyNow ? Colors.white : AppColors.textSecondary,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Bayar Nanti (Catat ke Tagihan)',
-                                style: TextStyle(
-                                  color: !_payPenaltyNow ? Colors.white : AppColors.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
+                    if (_enableWaiver) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              key: const Key('waiver_amount_input'),
+                              controller: _waiverAmountController,
+                              keyboardType: TextInputType.number,
+                              onChanged: (_) => setState(() {}),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF0F172A),
+                              ),
+                              decoration: InputDecoration(
+                                labelText: 'Nominal Keringanan',
+                                prefixText: 'Rp ',
+                                isDense: true,
+                                filled: true,
+                                fillColor: const Color(0xFFF8FAFC),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF0F172A),
+                                    width: 1.5,
+                                  ),
                                 ),
                               ),
                             ),
-                          ],
+                          ),
+                          const SizedBox(width: 8),
+                          ActionChip(
+                            key: const Key('waiver_full_chip'),
+                            backgroundColor: const Color(0xFFF8FAFC),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            label: const Text(
+                              'Bebaskan 100%',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _waiverAmountController.text =
+                                    calculatedPenalty.toInt().toString();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        key: const Key('waiver_reason_input'),
+                        controller: _waiverReasonController,
+                        maxLines: 2,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF0F172A),
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Alasan Keringanan / Pembebasan (Wajib) *',
+                          hintText:
+                              'Contoh: Pelanggan konfirmasi macet via admin',
+                          isDense: true,
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF0F172A),
+                              width: 1.5,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
+                    if (penaltyAmount > 0) ...[
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () => setState(() => _payPenaltyNow = true),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _payPenaltyNow
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _payPenaltyNow
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _payPenaltyNow
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_unchecked,
+                                color: _payPenaltyNow
+                                    ? Colors.white
+                                    : const Color(0xFF64748B),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Bayar Sekarang',
+                                  style: TextStyle(
+                                    color: _payPenaltyNow
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () => setState(() => _payPenaltyNow = false),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: !_payPenaltyNow
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: !_payPenaltyNow
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                !_payPenaltyNow
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_unchecked,
+                                color: !_payPenaltyNow
+                                    ? Colors.white
+                                    : const Color(0xFF64748B),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Bayar Nanti (Catat ke Tagihan)',
+                                  style: TextStyle(
+                                    color: !_payPenaltyNow
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
             ],
-
-            // Submit Return
-            ElevatedButton(
-              onPressed: (_isSubmitting || !_canSubmitReturn)
-                  ? null
-                  : () => _processReturn(penaltyAmount),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: _isSubmitting
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Text(
-                      'Selesaikan Pengembalian',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-            ),
-            if (!_allAddonsChecked) ...[
-              const SizedBox(height: 6),
-              const Text(
-                'Pastikan semua add-on dikembalikan lengkap',
-                key: Key('addon_incomplete_helper'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              'Kembalikan jaminan fisik ($collateralSlot) ke pelanggan',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!_allAddonsChecked)
+                  const Text(
+                    'Centang kelengkapan add-on untuk melanjutkan',
+                    key: Key('addon_incomplete_helper'),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                else
+                  Text(
+                    'Jaminan fisik: $collateralSlot',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: (_isSubmitting || !_canSubmitReturn)
+                        ? null
+                        : () => _processReturn(
+                              penaltyAmount,
+                              waivedAmount: waivedAmount,
+                            ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F172A),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFF1F5F9),
+                      disabledForegroundColor: const Color(0xFF94A3B8),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Selesaikan Pengembalian',
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  void _processReturn(double penaltyAmount) async {
+  void _processReturn(double penaltyAmount, {double waivedAmount = 0.0}) async {
     if (!_allAddonsChecked) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Pastikan semua add-on dikembalikan lengkap.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
+    if (_enableWaiver && waivedAmount > 0 && _waiverReasonController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Alasan keringanan / pembebasan denda wajib diisi.'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -1169,6 +1756,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       categoryAccessories['accessories_complete'] = _checklistStates['accessories_complete'] ?? true;
     }
 
+    final waiveReason = _waiverReasonController.text.trim();
     final returnedAddonIds = _addonItems.expand((a) => a.itemIds).toList();
     final payload = <String, dynamic>{
       'returned_at': inspectionTime.toIso8601String(),
@@ -1176,6 +1764,11 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       'late_fee': penaltyAmount,
       'total_penalty': penaltyAmount,
       'penalty_amount': penaltyAmount,
+      if (_enableWaiver && waivedAmount > 0) ...{
+        'waived_late_fee': waivedAmount,
+        'late_fee_discount': waivedAmount,
+        'late_fee_waive_reason': waiveReason,
+      },
       'staff_notes': _staffNotesController.text.trim().isEmpty ? null : _staffNotesController.text.trim(),
       'checklist_results': categoryChecklist,
       'accessories_returned': categoryAccessories,
@@ -1265,96 +1858,264 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: AppColors.success),
-            SizedBox(width: 8),
-            Expanded(child: Text('Unit Berhasil Kembali!')),
-          ],
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        content: Text(
-          'Pemeriksaan pengembalian selesai.\n'
-          'Unit kini siap disewakan kembali.\n'
-          '${penaltyPaid ? 'Denda keterlambatan berhasil dibayar & tercatat di revenue.\n' : (penaltyAmount > 0 ? 'Denda keterlambatan dicatat ke kasir (belum lunas).\n' : '')}'
-          'Silakan kembalikan jaminan fisik ($collateralSlot) kepada pelanggan.',
-        ),
-        actions: [
-          OutlinedButton.icon(
-            icon: const Icon(Icons.print_outlined, size: 18),
-            label: const Text('Cetak Bukti'),
-            onPressed: () {
-              final printerService = ThermalPrinterService();
-              final printerSettings = ref.read(printerProvider).settings;
-              final bizState = ref.read(businessProvider);
-              final shopName = bizState.resolvedStoreName;
-              final branchName = bizState.resolvedBranchName.isNotEmpty
-                  ? bizState.resolvedBranchName
-                  : 'Cabang Utama';
-              final branchAddress = bizState.resolvedBranchAddress;
-              final branchPhone = bizState.resolvedBranchPhone;
-              final checklistSummary = _isQuarantined
-                  ? 'Status: Karantina (Maintenance)'
-                  : (_isSmartphone
-                      ? (_isAppleDevice
-                          ? 'Status: Bersih (iCloud Logout)'
-                          : 'Status: Bersih (Akun Google/FRP Logout)')
-                      : 'Status: Fisik Diperiksa');
-              final accessoriesSummary = _checklistDefs
-                  .map((d) => '${d.label}: ${_checklistStates[d.key] == true ? "OK" : "Kurang"}')
-                  .join(' • ');
-
-              final model = ReceiptDataModel(
-                type: ReceiptType.rentalReturn,
-                title: 'BUKTI PENGEMBALIAN UNIT',
-                shopName: shopName.isNotEmpty ? shopName : null,
-                branchName: branchName,
-                branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
-                branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
-                bookingCode: widget.booking['booking_code']?.toString() ?? '',
-                customerName: widget.booking['customer']?['name']?.toString() ?? 'Pelanggan',
-                unitName: widget.booking['asset']?['name']?.toString() ?? 'Perangkat Gadget',
-                conditionGrade: 'Grade $_conditionGrade',
-                checklistNotes: checklistSummary,
-                accessoriesNotes: accessoriesSummary,
-                penaltyAmount: penaltyPaid ? penaltyAmount : 0.0,
-                paymentMethod: penaltyPaid ? 'Lunas Denda' : null,
-                totalAmount: penaltyPaid ? penaltyAmount : 0.0,
-                transactedAt: DateTime.now().toString().substring(0, 16),
-              );
-              final escposBytes = printerService.buildRentalReturnSlipBytes(model, printerSettings);
-              showDialog(
-                context: context,
-                builder: (dCtx) => ThermalReceiptPreviewDialog(
-                  title: 'Bukti Pengembalian',
-                  shopName: shopName.isNotEmpty ? shopName : null,
-                  branchName: branchName,
-                  branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
-                  branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
-                  escposBytes: escposBytes,
-                  qrData: widget.booking['booking_code']?.toString(),
-                  content: Column(
-                    children: [
-                      const Text('BUKTI PENGEMBALIAN UNIT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      Text('Kode: ${widget.booking['booking_code'] ?? "-"}', style: const TextStyle(fontSize: 11)),
-                      Text('Pelanggan: ${widget.booking['customer']?['name'] ?? "-"}', style: const TextStyle(fontSize: 11)),
-                      Text('Kondisi: Grade $_conditionGrade', style: const TextStyle(fontSize: 11)),
-                      const Divider(height: 16),
-                      Text('Jaminan Fisik ($collateralSlot) Telah Diserahkan Kembali', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.success)),
-                    ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  key: const Key('return_success_squircle_badge'),
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFFA7F3D0),
+                      width: 1,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.check_rounded,
+                    size: 26,
+                    color: Color(0xFF059669),
                   ),
                 ),
-              );
-            },
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Unit Berhasil Kembali',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                penaltyPaid
+                    ? 'Pemeriksaan pengembalian selesai dan unit siap disewakan kembali. Denda keterlambatan berhasil dibayar & tercatat di revenue.'
+                    : (penaltyAmount > 0
+                        ? 'Pemeriksaan pengembalian selesai dan unit siap disewakan kembali. Denda keterlambatan dicatat ke kasir (belum lunas).'
+                        : 'Pemeriksaan pengembalian selesai dan unit siap disewakan kembali.'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF64748B),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  'Kembalikan jaminan: $collateralSlot',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF0F172A),
+                          side: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        icon: const Icon(Icons.print_outlined, size: 17),
+                        label: const Text(
+                          'Cetak Bukti',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                        onPressed: () {
+                          final printerService = ThermalPrinterService();
+                          final printerSettings =
+                              ref.read(printerProvider).settings;
+                          final bizState = ref.read(businessProvider);
+                          final shopName = bizState.resolvedStoreName;
+                          final branchName =
+                              bizState.resolvedBranchName.isNotEmpty
+                                  ? bizState.resolvedBranchName
+                                  : 'Cabang Utama';
+                          final branchAddress = bizState.resolvedBranchAddress;
+                          final branchPhone = bizState.resolvedBranchPhone;
+                          final checklistSummary = _isQuarantined
+                              ? 'Status: Karantina (Maintenance)'
+                              : (_isSmartphone
+                                  ? (_isAppleDevice
+                                      ? 'Status: Bersih (iCloud Logout)'
+                                      : 'Status: Bersih (Akun Google/FRP Logout)')
+                                  : 'Status: Fisik Diperiksa');
+                          final accessoriesSummary = _checklistDefs
+                              .map(
+                                (d) =>
+                                    '${d.label}: ${_checklistStates[d.key] == true ? "OK" : "Kurang"}',
+                              )
+                              .join(' • ');
+
+                          final model = ReceiptDataModel(
+                            type: ReceiptType.rentalReturn,
+                            title: 'BUKTI PENGEMBALIAN UNIT',
+                            shopName: shopName.isNotEmpty ? shopName : null,
+                            branchName: branchName,
+                            branchAddress:
+                                branchAddress.isNotEmpty ? branchAddress : null,
+                            branchPhone:
+                                branchPhone.isNotEmpty ? branchPhone : null,
+                            bookingCode:
+                                widget.booking['booking_code']?.toString() ??
+                                '',
+                            customerName: widget.booking['customer']?['name']
+                                    ?.toString() ??
+                                'Pelanggan',
+                            unitName:
+                                widget.booking['asset']?['name']?.toString() ??
+                                'Perangkat Gadget',
+                            conditionGrade: 'Grade $_conditionGrade',
+                            checklistNotes: checklistSummary,
+                            accessoriesNotes: accessoriesSummary,
+                            penaltyAmount: penaltyPaid ? penaltyAmount : 0.0,
+                            paymentMethod: penaltyPaid ? 'Lunas Denda' : null,
+                            totalAmount: penaltyPaid ? penaltyAmount : 0.0,
+                            transactedAt: DateTime.now()
+                                .toString()
+                                .substring(0, 16),
+                          );
+                          final escposBytes =
+                              printerService.buildRentalReturnSlipBytes(
+                            model,
+                            printerSettings,
+                          );
+                          showDialog(
+                            context: context,
+                            builder: (dCtx) => ThermalReceiptPreviewDialog(
+                              title: 'Bukti Pengembalian',
+                              shopName: shopName.isNotEmpty ? shopName : null,
+                              branchName: branchName,
+                              branchAddress: branchAddress.isNotEmpty
+                                  ? branchAddress
+                                  : null,
+                              branchPhone:
+                                  branchPhone.isNotEmpty ? branchPhone : null,
+                              escposBytes: escposBytes,
+                              qrData: widget.booking['booking_code']?.toString(),
+                              content: Column(
+                                children: [
+                                  const Text(
+                                    'BUKTI PENGEMBALIAN UNIT',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Kode: ${widget.booking['booking_code'] ?? "-"}',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  Text(
+                                    'Pelanggan: ${widget.booking['customer']?['name'] ?? "-"}',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  Text(
+                                    'Kondisi: Grade $_conditionGrade',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  const Divider(height: 16),
+                                  Text(
+                                    'Jaminan Fisik ($collateralSlot) Telah Diserahkan Kembali',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                      color: AppColors.success,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.pop(context);
+                        },
+                        child: const Text(
+                          'Selesai',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context);
-            },
-            child: const Text('Selesai'),
-          ),
-        ],
+        ),
       ),
     );
   }

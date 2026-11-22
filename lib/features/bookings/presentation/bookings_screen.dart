@@ -504,25 +504,48 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           (item['status'] ?? '').toString().toLowerCase();
                       final startAt = DateFormatter.parseLocal(item['start_at']);
                       final endAt = DateFormatter.parseLocal(item['end_at']);
-                      final graceAt = DateFormatter.parseLocal(item['grace_expires_at']);
+                      final graceAt = DateFormatter.parseLocal(
+                        item['grace_extended_until'] ?? item['grace_expires_at'],
+                      );
                       final isReturned = statusLower == 'returned';
-                      final isNoShow = statusLower == 'no_show';
+                      final isNoShow = statusLower == 'no_show' ||
+                          statusLower == 'expired' ||
+                          statusLower == 'cancelled';
                       final isBookedStatus = statusLower == 'booked' ||
                           statusLower == 'reserved' ||
                           statusLower == 'confirmed' ||
-                          statusLower == 'waiting_handover';
+                          statusLower == 'waiting_handover' ||
+                          statusLower == 'late_pickup';
                       final isFloatingUnit = item['is_floating_unit'] == true ||
                           (isBookedStatus &&
                               item['asset_unit_id'] == null &&
                               activeAsset == null);
+                      final nowLocal = DateTime.now();
+                      final fallbackGraceDeadline =
+                          startAt?.add(const Duration(minutes: 60));
+                      final effectiveDeadline = graceAt ?? fallbackGraceDeadline;
                       final isOverduePickup = isBookedStatus &&
-                          (item['is_overdue_pickup'] == true ||
-                              (graceAt != null &&
-                                  graceAt.isBefore(DateTime.now())));
+                          (statusLower == 'late_pickup' ||
+                              item['is_late_pickup'] == true ||
+                              item['is_overdue_pickup'] == true ||
+                              (effectiveDeadline != null &&
+                                  effectiveDeadline.isBefore(nowLocal)));
+                      final latePickupMinutes = (isOverduePickup &&
+                              effectiveDeadline != null)
+                          ? nowLocal
+                              .difference(effectiveDeadline)
+                              .inMinutes
+                              .clamp(1, 99999)
+                          : 0;
+                      final latePickupBadgeText = latePickupMinutes >= 60
+                          ? 'Terlambat Ambil (+${latePickupMinutes ~/ 60}j ${latePickupMinutes % 60}m)'
+                          : (latePickupMinutes > 0
+                              ? 'Terlambat Ambil (+${latePickupMinutes}m)'
+                              : 'Terlambat Ambil');
                       final isGraceWarningWindow = isBookedStatus &&
                           !isOverduePickup &&
-                          graceAt != null &&
-                          graceAt.difference(DateTime.now()).inMinutes <= 15;
+                          effectiveDeadline != null &&
+                          effectiveDeadline.difference(nowLocal).inMinutes <= 15;
                       final paymentStatus = (item['payment_status'] ?? 'paid')
                           .toString()
                           .toLowerCase();
@@ -635,10 +658,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       ? (hasUnpaidPenalty
                                             ? 'SELESAI (DENDA BELUM LUNAS)'
                                             : 'SELESAI')
+                                      : statusLower == 'expired'
+                                      ? 'KEDALUWARSA'
                                       : isNoShow
                                       ? 'NO-SHOW'
                                       : isOverduePickup
-                                      ? 'Lewat Jadwal Ambil'
+                                      ? latePickupBadgeText
                                       : isBookedStatus
                                       ? (graceAt != null
                                             ? 'Batas ambil: ${DateFormatter.formatTime(graceAt)}'
@@ -648,8 +673,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       ? AppColors.warning
                                       : isReturned
                                       ? AppColors.textSecondary
-                                      : isNoShow || isOverduePickup
+                                      : isNoShow
                                       ? AppColors.danger
+                                      : isOverduePickup
+                                      ? (latePickupMinutes >= 60
+                                          ? AppColors.danger
+                                          : AppColors.warning)
                                       : isBookedStatus
                                       ? (isGraceWarningWindow
                                             ? AppColors.warning
@@ -662,8 +691,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                       ? AppColors.warningLight
                                       : isReturned
                                       ? AppColors.surfaceMuted
-                                      : isNoShow || isOverduePickup
+                                      : isNoShow
                                       ? AppColors.dangerLight
+                                      : isOverduePickup
+                                      ? (latePickupMinutes >= 60
+                                          ? AppColors.dangerLight
+                                          : AppColors.warningLight)
                                       : isBookedStatus
                                       ? (isGraceWarningWindow
                                             ? AppColors.warningLight

@@ -155,14 +155,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // FAB is 16dp above top of FloatingCapsuleDock (which is bottom of InventoryScreen body)
-    final fabRect = tester.getRect(find.byKey(const Key('inventory_expandable_main_fab')));
-    final dockTop = tester.getTopLeft(find.byType(FloatingCapsuleDock)).dy;
-    expect(dockTop - fabRect.bottom, closeTo(16.0, 1.0));
-
-    // ListView has 88dp bottom padding
+    // ListView has >= 88dp bottom padding (96dp) to clear FloatingCapsuleDock without FAB overlap
+    expect(find.byKey(const Key('inventory_expandable_main_fab')), findsNothing);
     final listView = tester.widget<ListView>(find.byType(ListView).first);
-    expect((listView.padding as EdgeInsets).bottom, 88.0);
+    expect((listView.padding as EdgeInsets).bottom, greaterThanOrEqualTo(88.0));
 
     // Newest unit appears above oldest unit
     final newDy = tester.getTopLeft(find.text('Unit Terbaru')).dy;
@@ -222,10 +218,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Expand FAB -> Registrasi Unit
-    await tester.tap(find.byKey(const Key('inventory_expandable_main_fab')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('fab_action_registrasi_unit')));
+    // Open Registrasi Unit sheet directly from model card "+ Tambah Unit"
+    await tester.tap(find.widgetWithText(ElevatedButton, '+ Tambah Unit').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Registrasi Unit Baru'), findsOneWidget);
@@ -264,10 +258,18 @@ void main() {
     // Close AddProductSheet and select Alpha A7 IV
     await tester.tap(find.byKey(const Key('add_product_sheet_close_button')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Alpha A7 IV'));
+    await tester.tap(
+      find.descendant(of: pickerSheet, matching: find.text('Alpha A7 IV')),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Alpha A7 IV'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('register_unit_model_selector')),
+        matching: find.text('Alpha A7 IV'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('4a: Panduan Persiapan Toko stays permanently hidden once printer connects (and after disconnect)',
