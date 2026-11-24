@@ -181,6 +181,7 @@ class AuthRepository {
     required String city,
     String? address,
     String? phone,
+    String? nichePreset,
     List<String>? businessCategories,
     String? branchStructure,
     String? initialBranchName,
@@ -193,6 +194,9 @@ class AuthRepository {
     if (city.trim().isNotEmpty) payload['city'] = city.trim();
     if (address != null && address.isNotEmpty) payload['address'] = address;
     if (phone != null && phone.isNotEmpty) payload['phone'] = phone;
+    if (nichePreset != null && nichePreset.isNotEmpty) {
+      payload['niche_preset'] = nichePreset;
+    }
     if (businessCategories != null && businessCategories.isNotEmpty) {
       payload['business_categories'] = businessCategories;
     }
@@ -247,6 +251,32 @@ class AuthRepository {
       await prefs.setString('active_business_name', resolvedName);
     }
     return data;
+  }
+
+  Future<Map<String, dynamic>> getCollateralSettings(int businessId) async {
+    final response = await _client.dio.get(
+      '${ApiConstants.businessDetail(businessId)}/collateral-settings',
+    );
+    final raw = response.data['data'];
+    return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> updateCollateralSettings(
+    int businessId, {
+    required bool enableCollateral,
+    required bool requireCollateral,
+    required List<Map<String, dynamic>> collateralTypes,
+  }) async {
+    final response = await _client.dio.put(
+      '${ApiConstants.businessDetail(businessId)}/collateral-settings',
+      data: {
+        'enable_collateral': enableCollateral,
+        'require_collateral': requireCollateral,
+        'collateral_types': collateralTypes,
+      },
+    );
+    final raw = response.data['data'];
+    return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>> createBranch(

@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../shared/widgets/collateral_picker_section.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/presentation/pos_transaction_detail_sheet.dart';
@@ -575,7 +577,11 @@ class RentalQueueActions {
         onProceedToHandoverPayment: ({
           required double remainingAmount,
           int? assetUnitId,
+          String? collateralTypeId,
+          String? collateralTypeName,
+          String? collateralType,
           required String collateralStorageSlot,
+          double? collateralDepositAmount,
           bool startNow = false,
           bool keepOriginalEndAt = false,
           double? adjustedContractTotal,
@@ -585,8 +591,14 @@ class RentalQueueActions {
             remainingDue: remainingAmount,
             isHandoverSettlement: true,
             assetUnitId: assetUnitId,
-            collateralType: booking['collateral_type']?.toString() ?? 'KTP Asli',
+            collateralTypeId:
+                collateralTypeId ?? booking['collateral_type_id']?.toString(),
+            collateralTypeName:
+                collateralTypeName ?? booking['collateral_type_name']?.toString(),
+            collateralType:
+                collateralType ?? booking['collateral_type']?.toString(),
             collateralStorageSlot: collateralStorageSlot,
+            collateralDepositAmount: collateralDepositAmount,
             startNow: startNow,
             keepOriginalEndAt: keepOriginalEndAt,
             contractTotalOverride: adjustedContractTotal,
@@ -2744,7 +2756,11 @@ class _CheckInHandoverSheet extends ConsumerStatefulWidget {
   final void Function({
     required double remainingAmount,
     int? assetUnitId,
+    String? collateralTypeId,
+    String? collateralTypeName,
+    String? collateralType,
     required String collateralStorageSlot,
+    double? collateralDepositAmount,
     bool startNow,
     bool keepOriginalEndAt,
     double? adjustedContractTotal,
@@ -2763,6 +2779,8 @@ class _CheckInHandoverSheet extends ConsumerStatefulWidget {
 
 class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
   late final TextEditingController _slotController;
+  late final TextEditingController _depositController;
+  late String _selectedCollateralTypeId;
   List<Map<String, dynamic>> _readyUnits = [];
   bool _isLoadingUnits = false;
   String? _unitsError;
@@ -2792,6 +2810,22 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
           widget.booking['collateral_storage_slot']?.toString() ??
           'Brankas A, Slot 01',
     );
+    final rawDeposit = parseCollateralDepositAmount(widget.booking);
+    _depositController = TextEditingController(
+      text: rawDeposit != null ? rawDeposit.toInt().toString() : '',
+    );
+    final existingTypeId =
+        widget.booking['collateral_type_id']?.toString().trim() ?? '';
+    final activeTypes = ref.read(businessProvider).activeCollateralTypes;
+    if (existingTypeId.isNotEmpty) {
+      _selectedCollateralTypeId = existingTypeId;
+    } else if (activeTypes.any((t) => t.id == 'ektp')) {
+      _selectedCollateralTypeId = 'ektp';
+    } else if (activeTypes.isNotEmpty) {
+      _selectedCollateralTypeId = activeTypes.first.id;
+    } else {
+      _selectedCollateralTypeId = 'ektp';
+    }
     _selectedUnitId = (widget.booking['asset_unit_id'] as num?)?.toInt();
     if (_isFloating) {
       _loadReadyUnits();
@@ -2801,6 +2835,7 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
   @override
   void dispose() {
     _slotController.dispose();
+    _depositController.dispose();
     super.dispose();
   }
 
@@ -2945,6 +2980,54 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
     );
   }
 
+  Map<String, dynamic> _resolveHandoverCollateral() {
+    final bizState = ref.read(businessProvider);
+    if (!bizState.isCollateralEnabled) {
+      return const {
+        'enabled': false,
+        'typeId': null,
+        'typeName': null,
+        'mode': CollateralInputMode.none,
+        'slot': '',
+        'deposit': 0.0,
+      };
+    }
+    final activeTypes = bizState.activeCollateralTypes;
+    String effectiveId = _selectedCollateralTypeId;
+    if (effectiveId == CollateralInputMode.none && !bizState.requireCollateral) {
+      return {
+        'enabled': true,
+        'typeId': CollateralInputMode.none,
+        'typeName': 'Tanpa Jaminan',
+        'mode': CollateralInputMode.none,
+        'slot': '',
+        'deposit': 0.0,
+      };
+    }
+    CollateralTypeOption? option;
+    for (final t in activeTypes) {
+      if (t.id == effectiveId) {
+        option = t;
+        break;
+      }
+    }
+    option ??= activeTypes.isNotEmpty
+        ? activeTypes.first
+        : const CollateralTypeOption(
+            id: 'ektp',
+            name: 'e-KTP',
+            inputMode: CollateralInputMode.vaultSlot,
+          );
+    return {
+      'enabled': true,
+      'typeId': option.id,
+      'typeName': option.name,
+      'mode': option.inputMode,
+      'slot': _slotController.text.trim(),
+      'deposit': double.tryParse(_depositController.text.trim()) ?? 0.0,
+    };
+  }
+
   bool _validateHandoverInputs() {
     if (_isFloating && _selectedUnitId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2955,7 +3038,25 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
       );
       return false;
     }
-    if (_slotController.text.trim().isEmpty) {
+    final resolved = _resolveHandoverCollateral();
+    if (resolved['enabled'] != true) {
+      return true;
+    }
+    final mode = resolved['mode'] as String;
+    if (mode == CollateralInputMode.cashDeposit) {
+      if ((resolved['deposit'] as double) <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Isi nominal deposit tunai jaminan terlebih dahulu.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        return false;
+      }
+      return true;
+    }
+    if (mode != CollateralInputMode.none &&
+        (resolved['slot'] as String).isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Isi data jaminan / slot brankas terlebih dahulu.'),
@@ -2972,7 +3073,10 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
     double adjustedContractTotal,
   ) {
     if (!_validateHandoverInputs()) return;
-    final slot = _slotController.text.trim();
+    final resolved = _resolveHandoverCollateral();
+    final collateralEnabled = resolved['enabled'] == true;
+    final slot = collateralEnabled ? resolved['slot'] as String : '';
+    final deposit = collateralEnabled ? resolved['deposit'] as double : 0.0;
     final unitId = _selectedUnitId;
     final startNow = _isEarlyPickup;
     final keepOriginalEndAt = startNow && _keepOriginalEndAt;
@@ -2980,7 +3084,11 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
     widget.onProceedToHandoverPayment(
       remainingAmount: remainingAmount,
       assetUnitId: unitId,
+      collateralTypeId: collateralEnabled ? resolved['typeId'] as String? : null,
+      collateralTypeName: collateralEnabled ? resolved['typeName'] as String? : null,
+      collateralType: collateralEnabled ? resolved['typeName'] as String? : null,
       collateralStorageSlot: slot,
+      collateralDepositAmount: collateralEnabled && deposit > 0 ? deposit : null,
       startNow: startNow,
       keepOriginalEndAt: keepOriginalEndAt,
       adjustedContractTotal: adjustedContractTotal,
@@ -2997,12 +3105,26 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
       _submitError = null;
     });
     final messenger = ScaffoldMessenger.of(context);
+    final resolved = _resolveHandoverCollateral();
+    final collateralEnabled = resolved['enabled'] == true;
+    final deposit = collateralEnabled ? resolved['deposit'] as double : 0.0;
 
     try {
       final res = await ref.read(bookingRepositoryProvider).checkInBooking(
             bookingId,
             assetUnitId: _selectedUnitId,
-            collateralStorageSlot: _slotController.text.trim(),
+            collateralTypeId:
+                collateralEnabled ? resolved['typeId'] as String? : null,
+            collateralTypeName:
+                collateralEnabled ? resolved['typeName'] as String? : null,
+            collateralType:
+                collateralEnabled ? resolved['typeName'] as String? : null,
+            collateralStorageSlot:
+                collateralEnabled && (resolved['slot'] as String).isNotEmpty
+                    ? resolved['slot'] as String
+                    : null,
+            collateralDepositAmount:
+                collateralEnabled && deposit > 0 ? deposit : null,
             startNow: _isEarlyPickup,
             keepOriginalEndAt: _isEarlyPickup && _keepOriginalEndAt,
           );
@@ -3532,58 +3654,38 @@ class _CheckInHandoverSheetState extends ConsumerState<_CheckInHandoverSheet> {
                 ),
               ],
 
-              const SizedBox(height: 16),
-              const Text(
-                'Slot Brankas Jaminan (KTP/SIM)',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF475569),
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                key: const Key('handover_collateral_field'),
-                controller: _slotController,
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  color: Color(0xFF0F172A),
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Contoh: Brankas Utama, Slot 01',
-                  hintStyle: const TextStyle(
-                    fontSize: 13.5,
-                    color: Color(0xFF94A3B8),
-                  ),
-                  isDense: true,
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFE2E8F0),
-                      width: 1,
+              Builder(
+                builder: (context) {
+                  final bizState = ref.watch(businessProvider);
+                  if (!bizState.isCollateralEnabled) {
+                    return const SizedBox.shrink();
+                  }
+                  final activeTypes = bizState.activeCollateralTypes;
+                  final effectiveId = (_selectedCollateralTypeId ==
+                              CollateralInputMode.none &&
+                          !bizState.requireCollateral)
+                      ? CollateralInputMode.none
+                      : (activeTypes.any((t) => t.id == _selectedCollateralTypeId)
+                          ? _selectedCollateralTypeId
+                          : (activeTypes.isNotEmpty
+                              ? activeTypes.first.id
+                              : 'ektp'));
+
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: CollateralPickerSection(
+                      activeTypes: activeTypes,
+                      requireCollateral: bizState.requireCollateral,
+                      selectedTypeId: effectiveId,
+                      vaultOrNoteController: _slotController,
+                      depositController: _depositController,
+                      vaultOrNoteFieldKey: const Key('handover_collateral_field'),
+                      onTypeSelected: (id) {
+                        setState(() => _selectedCollateralTypeId = id);
+                      },
                     ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFE2E8F0),
-                      width: 1,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF0F172A),
-                      width: 1.5,
-                    ),
-                  ),
-                ),
+                  );
+                },
               ),
               Builder(
                 builder: (context) {

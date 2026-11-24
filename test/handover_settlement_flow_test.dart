@@ -42,7 +42,8 @@ class _FakeHandoverCashierRepository extends CashierRepository {
   @override
   Future<Map<String, dynamic>> processPayment({
     required int bookingId,
-    required int paymentMethodId,
+    required int? paymentMethodId,
+    String? paymentMethodCode,
     double? cashReceived,
     double? amount,
     String? paymentType,
@@ -54,7 +55,10 @@ class _FakeHandoverCashierRepository extends CashierRepository {
     bool? isHandoverSettlement,
     int? assetUnitId,
     String? collateralType,
+    String? collateralTypeId,
+    String? collateralTypeName,
     String? collateralStorageSlot,
+    double? collateralDepositAmount,
     bool? startNow,
     bool? keepOriginalEndAt,
   }) async {
@@ -156,7 +160,10 @@ class _FakeHandoverBookingRepository extends BookingRepository {
     dynamic bookingId, {
     int? assetUnitId,
     String? collateralType,
+    String? collateralTypeId,
+    String? collateralTypeName,
     String? collateralStorageSlot,
+    double? collateralDepositAmount,
     bool startNow = false,
     bool keepOriginalEndAt = false,
   }) async {
@@ -183,6 +190,8 @@ void main() {
       {
         'id': 1,
         'name': 'RentCore Flagship',
+        'enable_collateral': true,
+        'require_collateral': false,
         'branches': [
           {
             'id': 1,

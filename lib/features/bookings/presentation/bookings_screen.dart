@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
@@ -845,29 +846,32 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.lock_clock_outlined,
-                                            size: 14,
-                                            color: AppColors.textMuted,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(
-                                              'Jaminan: ${item['collateral_storage_slot'] ?? 'Brankas Cabang'}',
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                      if (ref.watch(businessProvider).isCollateralEnabled ||
+                                          hasCollateralRecord(item)) ...[
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.lock_clock_outlined,
+                                              size: 14,
+                                              color: AppColors.textMuted,
                                             ),
-                                          ),
-                                        ],
-                                      ),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                'Jaminan: ${formatCollateralSummary(item)}',
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),

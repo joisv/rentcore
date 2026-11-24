@@ -30,7 +30,7 @@ class PaymentRepository {
 
   Future<PaymentResult> executePayment({
     required PaymentContext context,
-    required int paymentMethodId,
+    required int? paymentMethodId,
     required String paymentMethodCode,
     required String paymentMethodName,
     required double amountToPay,
@@ -39,7 +39,8 @@ class PaymentRepository {
     String? externalReference,
     String? idempotencyKey,
   }) async {
-    final isCash = paymentMethodCode.toUpperCase() == 'CASH';
+    final normalizedCode = paymentMethodCode.trim().toLowerCase();
+    final isCash = normalizedCode == 'cash';
     final effectiveIdempotencyKey =
         (idempotencyKey != null && idempotencyKey.trim().isNotEmpty)
         ? idempotencyKey.trim()
@@ -55,7 +56,13 @@ class PaymentRepository {
           payload['branch_id'] ??= context.branchId;
           payload['affiliate_id'] ??= context.branchId;
         }
-        payload['payment_method_id'] = paymentMethodId;
+        if (paymentMethodId != null) {
+          payload['payment_method_id'] = paymentMethodId;
+        }
+        if (normalizedCode.isNotEmpty) {
+          payload['payment_method'] = normalizedCode;
+          payload['payment_channel'] = normalizedCode;
+        }
         payload['cash_received'] = isCash ? cashReceived : amountToPay;
         if (!isCash && externalReference != null && externalReference.trim().isNotEmpty) {
           payload['external_reference'] = externalReference.trim();
@@ -98,6 +105,7 @@ class PaymentRepository {
                 hoursDelta: context.additionalHours ?? 6,
                 additionalFee: amountToPay,
                 paymentMethodId: paymentMethodId,
+                paymentMethodCode: paymentMethodCode,
                 cashReceived: isCash ? cashReceived : amountToPay,
                 notes: notes,
                 idempotencyKey: effectiveIdempotencyKey,
@@ -107,6 +115,7 @@ class PaymentRepository {
                 context.additionalHours ?? 6,
                 fee: amountToPay,
                 paymentMethodId: paymentMethodId,
+                paymentMethodCode: paymentMethodCode,
                 cashReceived: isCash ? cashReceived : amountToPay,
                 notes: notes,
                 idempotencyKey: effectiveIdempotencyKey,
@@ -134,7 +143,13 @@ class PaymentRepository {
         if (context.transactionType == PaymentTransactionType.penalty &&
             context.extraPayload?['is_return_workflow'] == true) {
           final returnPayload = Map<String, dynamic>.from(context.extraPayload?['return_payload'] ?? {});
-          returnPayload['penalty_payment_method_id'] = paymentMethodId;
+          if (paymentMethodId != null) {
+            returnPayload['penalty_payment_method_id'] = paymentMethodId;
+          }
+          if (normalizedCode.isNotEmpty) {
+            returnPayload['payment_method'] = normalizedCode;
+            returnPayload['payment_channel'] = normalizedCode;
+          }
           returnPayload['cash_received'] = isCash ? cashReceived : amountToPay;
           returnPayload['late_fee'] ??= amountToPay;
           returnPayload['total_penalty'] ??= amountToPay;
@@ -193,6 +208,7 @@ class PaymentRepository {
         final data = await _cashierRepo.processPayment(
           bookingId: context.bookingId ?? 0,
           paymentMethodId: paymentMethodId,
+          paymentMethodCode: paymentMethodCode,
           amount: amountToPay,
           paymentType: context.transactionType == PaymentTransactionType.penalty ? 'penalty' : 'settlement',
           cashReceived: isCash ? cashReceived : amountToPay,
@@ -207,8 +223,19 @@ class PaymentRepository {
               : context.extraPayload?['is_handover_settlement'] as bool?,
           assetUnitId: (context.extraPayload?['asset_unit_id'] as num?)?.toInt(),
           collateralType: context.extraPayload?['collateral_type']?.toString(),
+          collateralTypeId:
+              context.extraPayload?['collateral_type_id']?.toString(),
+          collateralTypeName:
+              context.extraPayload?['collateral_type_name']?.toString(),
           collateralStorageSlot:
               context.extraPayload?['collateral_storage_slot']?.toString(),
+          collateralDepositAmount: CurrencyFormatter.parse(
+            context.extraPayload?['collateral_deposit_amount'],
+          ) > 0
+              ? CurrencyFormatter.parse(
+                  context.extraPayload?['collateral_deposit_amount'],
+                )
+              : null,
           startNow: context.extraPayload?['start_now'] as bool?,
           keepOriginalEndAt:
               context.extraPayload?['keep_original_end_at'] as bool?,

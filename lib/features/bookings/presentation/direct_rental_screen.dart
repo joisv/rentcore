@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../shared/widgets/collateral_picker_section.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../shared/widgets/unit_thumbnail.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -99,10 +101,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     'Brankas C, Slot Khusus (VIP)',
   ];
   String _selectedSafeSlot = 'Brankas A, Slot 05';
+  String _selectedCollateralTypeId = 'ektp';
   static const int _initialUnitCap = 5;
   static const int _maxDurationMultiplier = 30;
 
   final _slotController = TextEditingController(text: 'Brankas A, Slot 05');
+  final _collateralNoteController = TextEditingController();
+  final _collateralDepositController = TextEditingController();
   final _voucherController = TextEditingController();
   final _unitSearchController = TextEditingController();
   String _unitSearchQuery = '';
@@ -377,6 +382,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     _phoneController.dispose();
     _addressController.dispose();
     _slotController.dispose();
+    _collateralNoteController.dispose();
+    _collateralDepositController.dispose();
     _voucherController.dispose();
     _dpAmountController.dispose();
     _unitSearchController.dispose();
@@ -673,6 +680,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     _durationMultiplier = 1;
     _selectedSafeSlot = 'Brankas A, Slot 05';
     _slotController.text = _selectedSafeSlot;
+    _collateralNoteController.clear();
+    _collateralDepositController.clear();
+    final activeCollaterals = ref.read(businessProvider).activeCollateralTypes;
+    _selectedCollateralTypeId = activeCollaterals.any((t) => t.id == 'ektp')
+        ? 'ektp'
+        : (activeCollaterals.isNotEmpty
+            ? activeCollaterals.first.id
+            : 'ektp');
     _modelAvailabilityList = [];
     _modelAvailabilityError = null;
     _assetValidationError = null;
@@ -1538,8 +1553,7 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       'duration_multiplier': _durationMultiplier,
       'quantity': _durationMultiplier,
       if (_selectedTierId != null) 'rate_id': _selectedTierId,
-      'collateral_type': 'KTP Asli',
-      'collateral_storage_slot': _slotController.text.trim(),
+      ..._buildCollateralPayload(bizState),
       'voucher_code': _discountAmount > 0 ? _voucherController.text.trim() : null,
       'unit_prices': {
         if (isFloating && effectiveModelId != null)
@@ -1555,6 +1569,73 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       payload['affiliate_id'] = activeBranchId;
     }
     return payload;
+  }
+
+  String _effectiveCollateralTypeId(BusinessState bizState) {
+    final activeTypes = bizState.activeCollateralTypes;
+    if (_selectedCollateralTypeId == CollateralInputMode.none &&
+        !bizState.requireCollateral) {
+      return CollateralInputMode.none;
+    }
+    if (activeTypes.any((t) => t.id == _selectedCollateralTypeId)) {
+      return _selectedCollateralTypeId;
+    }
+    if (activeTypes.isNotEmpty) {
+      return activeTypes.first.id;
+    }
+    return bizState.requireCollateral ? 'ektp' : CollateralInputMode.none;
+  }
+
+  CollateralTypeOption? _effectiveCollateralOption(BusinessState bizState) {
+    final id = _effectiveCollateralTypeId(bizState);
+    if (id == CollateralInputMode.none) return null;
+    for (final opt in bizState.activeCollateralTypes) {
+      if (opt.id == id) return opt;
+    }
+    return bizState.activeCollateralTypes.isNotEmpty
+        ? bizState.activeCollateralTypes.first
+        : null;
+  }
+
+  Map<String, dynamic> _buildCollateralPayload(BusinessState bizState) {
+    if (!bizState.isCollateralEnabled) {
+      return const {};
+    }
+    final typeId = _effectiveCollateralTypeId(bizState);
+    if (typeId == CollateralInputMode.none) {
+      return {
+        'collateral_type_id': CollateralInputMode.none,
+        'collateral_type_name': 'Tanpa Jaminan',
+        'collateral_type': 'Tanpa Jaminan',
+      };
+    }
+    final option = _effectiveCollateralOption(bizState);
+    final mode = option?.inputMode ?? CollateralInputMode.vaultSlot;
+    final name = option?.name ?? 'e-KTP';
+    if (mode == CollateralInputMode.cashDeposit) {
+      final depositVal =
+          double.tryParse(_collateralDepositController.text.trim()) ?? 0.0;
+      return {
+        'collateral_type_id': typeId,
+        'collateral_type_name': name,
+        'collateral_type': name,
+        if (depositVal > 0) 'collateral_deposit_amount': depositVal,
+      };
+    }
+    if (mode == CollateralInputMode.noteOnly) {
+      return {
+        'collateral_type_id': typeId,
+        'collateral_type_name': name,
+        'collateral_type': name,
+        'collateral_storage_slot': _collateralNoteController.text.trim(),
+      };
+    }
+    return {
+      'collateral_type_id': typeId,
+      'collateral_type_name': name,
+      'collateral_type': name,
+      'collateral_storage_slot': _slotController.text.trim(),
+    };
   }
 
   PaymentContext _buildBookingPaymentContext() {
@@ -2471,6 +2552,14 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
               data: (assets) {
                 final filteredAssets = assets
                     .where((a) {
+                      if (parseUnitIsAddon(a)) return false;
+                      final itemBranchId =
+                          _parseId(a['affiliate_id']) ?? _parseId(a['branch_id']);
+                      if (targetBranch.branchId != null &&
+                          itemBranchId != null &&
+                          itemBranchId != targetBranch.branchId) {
+                        return false;
+                      }
                       final aId = _parseId(a['id']);
                       final isCurrentlySelected = _selectedAssetId != null && aId == _selectedAssetId;
                       if (isCurrentlySelected) return true;
@@ -2807,7 +2896,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             ),
           ),
 
-          _buildAddonsSelectionSection(readyAssetsAsync, categoriesAsync),
+          _buildAddonsSelectionSection(
+            readyAssetsAsync,
+            categoriesAsync,
+            activeBranchId: targetBranch.branchId,
+          ),
         ],
       ),
     );
@@ -2849,6 +2942,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
     final query = _unitSearchQuery.trim().toLowerCase();
     final filteredModels = _modelAvailabilityList.where((model) {
+      if (parseModelIsAddon(model)) {
+        return false;
+      }
       final totalUnits = _parseId(model['total_units']) ?? 0;
       if (totalUnits <= 0) {
         return false;
@@ -3030,28 +3126,59 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
 
   Widget _buildAddonsSelectionSection(
     AsyncValue<List<dynamic>> readyAssetsAsync,
-    AsyncValue<List<dynamic>> categoriesAsync,
-  ) {
+    AsyncValue<List<dynamic>> categoriesAsync, {
+    int? activeBranchId,
+  }) {
     return readyAssetsAsync.when(
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
       data: (assets) {
         final addonAssets = assets.where((a) {
-          final m = a['model'] as Map? ?? {};
-          final c = m['category'] as Map? ?? {};
-          final isAddonModel = m['is_addon'] == true || m['is_addon'] == 1;
-          final isAddonCat = c['is_addon'] == true || c['is_addon'] == 1;
-          final catName = (c['name']?.toString() ?? '').toLowerCase();
-          final isKnownAddon = catName.contains('aksesoris') ||
-              catName.contains('accessory') ||
-              catName.contains('power bank') ||
-              catName.contains('charger') ||
-              catName.contains('tripod');
-          return isAddonModel || isAddonCat || isKnownAddon;
+          if (!parseUnitIsAddon(a)) return false;
+          final itemBranchId =
+              _parseId(a['affiliate_id']) ?? _parseId(a['branch_id']);
+          if (activeBranchId != null &&
+              itemBranchId != null &&
+              itemBranchId != activeBranchId) {
+            return false;
+          }
+          return true;
         }).toList();
 
         if (addonAssets.isEmpty) {
-          return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+              ),
+              const Text(
+                'ADD-ON (OPSIONAL)',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                key: const Key('booking_addon_empty_state'),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Text(
+                  'Belum ada unit add-on tersedia di cabang ini.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+              ),
+            ],
+          );
         }
 
         final categoryFilteredAddons = _selectedAddonCategoryId == null
@@ -3461,59 +3588,43 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 14),
-
-            // Collateral Safe Slot Dropdown
-            buildLabeledField(
-              label: _isScheduledBooking
-                  ? 'Slot Brankas Jaminan'
-                  : 'Slot Brankas Jaminan *',
-              child: DropdownButtonFormField<String>(
-                key: const Key('step2_collateral_dropdown'),
-                initialValue: _safeSlots.contains(_selectedSafeSlot)
-                    ? _selectedSafeSlot
-                    : _safeSlots.first,
-                dropdownColor: const Color(0xFFFFFFFF),
-                icon: const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: Color(0xFF64748B),
-                  size: 20,
-                ),
-                decoration: unifiedFieldDecoration(
-                  prefixIcon: const Icon(
-                    Icons.shield_outlined,
-                    size: 20,
-                    color: Color(0xFF64748B),
+            // Configurable Collateral Picker & Dynamic Detail Field
+            Builder(
+              builder: (context) {
+                final bizState = ref.watch(businessProvider);
+                if (!bizState.isCollateralEnabled) {
+                  return const SizedBox.shrink();
+                }
+                final effectiveTypeId = _effectiveCollateralTypeId(bizState);
+                return Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: CollateralPickerSection(
+                    activeTypes: bizState.activeCollateralTypes,
+                    requireCollateral: bizState.requireCollateral,
+                    selectedTypeId: effectiveTypeId,
+                    useVaultDropdown: true,
+                    vaultSlots: _safeSlots,
+                    selectedVaultSlot: _safeSlots.contains(_selectedSafeSlot)
+                        ? _selectedSafeSlot
+                        : _safeSlots.first,
+                    vaultDropdownKey: const Key('step2_collateral_dropdown'),
+                    isOptionalDetail: _isScheduledBooking,
+                    vaultOrNoteController: _collateralNoteController,
+                    depositController: _collateralDepositController,
+                    onTypeSelected: (id) {
+                      setState(() => _selectedCollateralTypeId = id);
+                    },
+                    onVaultSlotChanged: (val) {
+                      if (val != null) {
+                        setState(() {
+                          _selectedSafeSlot = val;
+                          _slotController.text = val;
+                        });
+                      }
+                    },
                   ),
-                ),
-                isExpanded: true,
-                items: _safeSlots.map((slot) {
-                  return DropdownMenuItem<String>(
-                    value: slot,
-                    child: Text(
-                      slot,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() {
-                      _selectedSafeSlot = val;
-                      _slotController.text = val;
-                    });
-                  }
-                },
-                validator: (v) {
-                  if (!_isScheduledBooking && (v == null || v.trim().isEmpty)) {
-                    return 'Slot brankas jaminan wajib dipilih';
-                  }
-                  return null;
-                },
-              ),
+                );
+              },
             ),
 
             // Customer Search Status Feedback
@@ -3696,7 +3807,9 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     );
     final customerName = _nameController.text.trim();
     final phone = _phoneController.text.trim();
-    final collateralSlot = _slotController.text.trim();
+    final collateralSummary = bizState.isCollateralEnabled
+        ? formatCollateralSummary(_buildCollateralPayload(bizState))
+        : '';
 
     return Padding(
       padding: const EdgeInsets.only(top: 4),
@@ -3844,8 +3957,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
             'Penyewa',
             '$customerName${phone.isNotEmpty ? ' • $phone' : ''}',
           ),
-          if (collateralSlot.isNotEmpty)
-            _buildReceiptMetaRow('Jaminan', collateralSlot),
+          if (bizState.isCollateralEnabled && collateralSummary.isNotEmpty)
+            _buildReceiptMetaRow('Jaminan', collateralSummary),
 
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 14),

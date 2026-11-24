@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/skeleton_loading.dart';
+import '../../../shared/widgets/airy_settings_widgets.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -140,14 +141,14 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
     final isInitialLoading = !_isInitLoaded || (bState.isLoading && bState.currentBusiness == null);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AirySettingsColors.canvas,
       appBar: const RentCoreAppBar(
         title: 'Profil Usaha & Toko',
       ),
       body: isInitialLoading
           ? const SettingsGroupSkeleton(groupCount: 1, itemsPerGroup: 4)
           : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -158,153 +159,136 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.1),
+                          color: AirySettingsColors.surfaceSubtle,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                          border: Border.all(color: AirySettingsColors.border),
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.lock_rounded, color: AppColors.warning, size: 20),
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              color: AirySettingsColors.obsidian,
+                              size: 18,
+                            ),
                             SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 'Anda masuk sebagai Staf. Pengaturan profil dan identitas toko hanya dapat diubah oleh Owner atau Admin.',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
+                                  color: AirySettingsColors.inkMuted,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.4,
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                     ],
 
-                    // Section Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.border),
+                    airySectionHeader('Identitas Toko & Header Struk'),
+                    const SizedBox(height: 16),
+
+                    // Store Name
+                    airyFieldLabel('Nama Usaha / Toko *'),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _nameController,
+                      enabled: isOwnerOrAdmin,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AirySettingsColors.obsidian,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.storefront_rounded, size: 18, color: AppColors.obsidian),
-                              SizedBox(width: 8),
-                              Text(
-                                'Identitas Toko & Header Struk',
-                                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
+                      decoration: airyInputDecoration(
+                        hintText: 'Contoh: Rental Kamera & Studio',
+                        enabled: isOwnerOrAdmin,
+                      ),
+                      validator: (val) => (val == null || val.trim().isEmpty)
+                          ? 'Nama toko wajib diisi'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
 
-                          // Store Name
-                          const Text('Nama Usaha / Toko *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _nameController,
-                            enabled: isOwnerOrAdmin,
-                            decoration: InputDecoration(
-                              hintText: 'Contoh: Rental Kamera & Studio',
-                              filled: true,
-                              fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                            validator: (val) => (val == null || val.trim().isEmpty) ? 'Nama toko wajib diisi' : null,
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Slogan / Tagline
-                          const Text('Slogan / Tagline Toko (Opsional)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _sloganController,
-                            enabled: isOwnerOrAdmin,
-                            decoration: InputDecoration(
-                              hintText: 'Contoh: Sewa iPhone & Gadget Terpercaya Sejak 2020',
-                              filled: true,
-                              fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Store Phone
-                          const Text('Nomor Telepon / WhatsApp Toko', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _phoneController,
-                            enabled: isOwnerOrAdmin,
-                            keyboardType: TextInputType.phone,
-                            decoration: InputDecoration(
-                              hintText: 'Contoh: 081234567890',
-                              filled: true,
-                              fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Store Address
-                          const Text('Alamat Usaha / Toko', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _addressController,
-                            enabled: isOwnerOrAdmin,
-                            maxLines: 2,
-                            decoration: InputDecoration(
-                              hintText: 'Contoh: Jl. Sudirman No. 45, Jakarta Pusat',
-                              filled: true,
-                              fillColor: isOwnerOrAdmin ? AppColors.surfaceMuted : AppColors.background,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Catatan: Nama, slogan, telepon, dan alamat ini akan tercetak pada header struk kasir dan dokumen penyewaan.',
-                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
-                          ),
-                        ],
+                    // Slogan / Tagline
+                    airyFieldLabel('Slogan / Tagline Toko (Opsional)'),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _sloganController,
+                      enabled: isOwnerOrAdmin,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AirySettingsColors.obsidian,
+                      ),
+                      decoration: airyInputDecoration(
+                        hintText:
+                            'Contoh: Sewa iPhone & Gadget Terpercaya Sejak 2020',
+                        enabled: isOwnerOrAdmin,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                    // Save Button
-                    if (isOwnerOrAdmin)
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.obsidian,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          icon: _isLoading
-                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Icon(Icons.save_rounded, size: 18),
-                          label: Text(
-                            _isLoading ? 'Menyimpan...' : 'Simpan Profil Toko',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                          ),
-                          onPressed: _isLoading ? null : _saveStoreProfile,
-                        ),
+                    // Store Phone
+                    airyFieldLabel('Nomor Telepon / WhatsApp Toko'),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _phoneController,
+                      enabled: isOwnerOrAdmin,
+                      keyboardType: TextInputType.phone,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AirySettingsColors.obsidian,
                       ),
+                      decoration: airyInputDecoration(
+                        hintText: 'Contoh: 081234567890',
+                        enabled: isOwnerOrAdmin,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Store Address
+                    airyFieldLabel('Alamat Usaha / Toko'),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _addressController,
+                      enabled: isOwnerOrAdmin,
+                      maxLines: 2,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AirySettingsColors.obsidian,
+                      ),
+                      decoration: airyInputDecoration(
+                        hintText: 'Contoh: Jl. Sudirman No. 45, Jakarta Pusat',
+                        enabled: isOwnerOrAdmin,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Nama, slogan, telepon, dan alamat ini akan tercetak pada header struk kasir dan dokumen penyewaan.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.45,
+                        color: AirySettingsColors.inkSecondary,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
+      bottomNavigationBar: (!isInitialLoading && isOwnerOrAdmin)
+          ? airyStickyFooter(
+              child: airyPrimaryCta(
+                label: 'Simpan Profil Toko',
+                isLoading: _isLoading,
+                onPressed: _isLoading ? null : _saveStoreProfile,
+              ),
+            )
+          : null,
     );
   }
 }

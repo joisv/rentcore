@@ -215,6 +215,7 @@ class BookingRepository {
     int additionalHours, {
     double? fee,
     int? paymentMethodId,
+    String? paymentMethodCode,
     double? cashReceived,
     String? notes,
     String? idempotencyKey,
@@ -224,6 +225,10 @@ class BookingRepository {
     };
     if (fee != null) data['additional_fee'] = fee;
     if (paymentMethodId != null) data['payment_method_id'] = paymentMethodId;
+    if (paymentMethodCode != null && paymentMethodCode.trim().isNotEmpty) {
+      data['payment_method'] = paymentMethodCode.trim().toLowerCase();
+      data['payment_channel'] = paymentMethodCode.trim().toLowerCase();
+    }
     if (cashReceived != null) data['cash_received'] = cashReceived;
     if (notes != null) data['notes'] = notes;
     final body = _attachIdempotencyKey(data, idempotencyKey);
@@ -244,6 +249,7 @@ class BookingRepository {
     required int hoursDelta,
     double? additionalFee,
     int? paymentMethodId,
+    String? paymentMethodCode,
     double? cashReceived,
     String? managerPin,
     String? reason,
@@ -257,6 +263,10 @@ class BookingRepository {
     if (bookingItemId != null) data['booking_item_id'] = bookingItemId;
     if (additionalFee != null) data['additional_fee'] = additionalFee;
     if (paymentMethodId != null) data['payment_method_id'] = paymentMethodId;
+    if (paymentMethodCode != null && paymentMethodCode.trim().isNotEmpty) {
+      data['payment_method'] = paymentMethodCode.trim().toLowerCase();
+      data['payment_channel'] = paymentMethodCode.trim().toLowerCase();
+    }
     if (cashReceived != null) data['cash_received'] = cashReceived;
     if (managerPin != null && managerPin.isNotEmpty) data['manager_pin'] = managerPin;
     if (reason != null && reason.isNotEmpty) data['reason'] = reason;
@@ -375,7 +385,10 @@ class BookingRepository {
     dynamic bookingId, {
     int? assetUnitId,
     String? collateralType,
+    String? collateralTypeId,
+    String? collateralTypeName,
     String? collateralStorageSlot,
+    double? collateralDepositAmount,
     bool startNow = false,
     bool keepOriginalEndAt = false,
   }) async {
@@ -384,8 +397,17 @@ class BookingRepository {
     if (collateralType != null && collateralType.isNotEmpty) {
       payload['collateral_type'] = collateralType;
     }
+    if (collateralTypeId != null && collateralTypeId.isNotEmpty) {
+      payload['collateral_type_id'] = collateralTypeId;
+    }
+    if (collateralTypeName != null && collateralTypeName.isNotEmpty) {
+      payload['collateral_type_name'] = collateralTypeName;
+    }
     if (collateralStorageSlot != null && collateralStorageSlot.isNotEmpty) {
       payload['collateral_storage_slot'] = collateralStorageSlot;
+    }
+    if (collateralDepositAmount != null && collateralDepositAmount > 0) {
+      payload['collateral_deposit_amount'] = collateralDepositAmount;
     }
     if (startNow) {
       payload['start_now'] = true;

@@ -102,7 +102,8 @@ class CashierRepository {
 
   Future<Map<String, dynamic>> processPayment({
     required int bookingId,
-    required int paymentMethodId,
+    required int? paymentMethodId,
+    String? paymentMethodCode,
     double? cashReceived,
     double? amount,
     String? paymentType,
@@ -114,13 +115,20 @@ class CashierRepository {
     bool? isHandoverSettlement,
     int? assetUnitId,
     String? collateralType,
+    String? collateralTypeId,
+    String? collateralTypeName,
     String? collateralStorageSlot,
+    double? collateralDepositAmount,
     bool? startNow,
     bool? keepOriginalEndAt,
   }) async {
     final payload = <String, dynamic>{
       'booking_id': bookingId,
-      'payment_method_id': paymentMethodId,
+      if (paymentMethodId != null) 'payment_method_id': paymentMethodId,
+      if (paymentMethodCode != null && paymentMethodCode.trim().isNotEmpty) ...{
+        'payment_method': paymentMethodCode.trim().toLowerCase(),
+        'payment_channel': paymentMethodCode.trim().toLowerCase(),
+      },
     };
     if (cashReceived != null) payload['cash_received'] = cashReceived;
     if (amount != null) payload['amount'] = amount;
@@ -137,8 +145,17 @@ class CashierRepository {
     }
     if (assetUnitId != null) payload['asset_unit_id'] = assetUnitId;
     if (collateralType != null) payload['collateral_type'] = collateralType;
+    if (collateralTypeId != null) {
+      payload['collateral_type_id'] = collateralTypeId;
+    }
+    if (collateralTypeName != null) {
+      payload['collateral_type_name'] = collateralTypeName;
+    }
     if (collateralStorageSlot != null) {
       payload['collateral_storage_slot'] = collateralStorageSlot;
+    }
+    if (collateralDepositAmount != null) {
+      payload['collateral_deposit_amount'] = collateralDepositAmount;
     }
     if (startNow != null) payload['start_now'] = startNow;
     if (keepOriginalEndAt != null) {

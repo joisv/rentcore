@@ -10,13 +10,13 @@ import '../../inventory/providers/asset_provider.dart';
 import '../../notifications/providers/notification_provider.dart';
 import '../../onboarding/providers/onboarding_provider.dart';
 import '../../organization/providers/organization_provider.dart';
-import '../../printer/providers/printer_provider.dart';
 import '../../transfers/providers/transfer_provider.dart';
 import '../../vouchers/providers/voucher_provider.dart';
 import '../data/auth_repository.dart';
+import 'auth_repository_provider.dart';
 import 'business_provider.dart';
 
-final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());
+export 'auth_repository_provider.dart' show authRepositoryProvider;
 
 class AuthState {
   final bool isLoading;
@@ -89,9 +89,6 @@ class AuthNotifier extends Notifier<AuthState> {
         isAuthenticated: true,
         user: user,
       );
-      if (ref.exists(printerProvider)) {
-        ref.read(printerProvider.notifier).syncHasEverConnectedFlag();
-      }
     } else {
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -129,9 +126,6 @@ class AuthNotifier extends Notifier<AuthState> {
         isAuthenticated: true,
         user: data['user'],
       );
-      if (ref.exists(printerProvider)) {
-        ref.read(printerProvider.notifier).syncHasEverConnectedFlag();
-      }
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -179,9 +173,6 @@ class AuthNotifier extends Notifier<AuthState> {
         isAuthenticated: true,
         user: data['user'],
       );
-      if (ref.exists(printerProvider)) {
-        ref.read(printerProvider.notifier).syncHasEverConnectedFlag();
-      }
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -340,14 +331,12 @@ class AuthNotifier extends Notifier<AuthState> {
       try { ref.read(businessProvider.notifier).reset(); } catch (_) {}
     }
     ref.invalidate(businessProvider);
-    ref.invalidate(businessProfileProvider);
 
     // 2. Store Checklist & Onboarding
     if (ref.exists(onboardingProvider)) {
       try { ref.read(onboardingProvider.notifier).reset(); } catch (_) {}
     }
     ref.invalidate(onboardingProvider);
-    ref.invalidate(storeChecklistProvider);
 
     // 3. Asset & Inventory
     ref.invalidate(assetRepositoryProvider);
@@ -448,13 +437,9 @@ class AuthNotifier extends Notifier<AuthState> {
       try { ref.read(selectedTransferStatusProvider.notifier).setStatus(null); } catch (_) {}
     }
 
-    // 11. Thermal Printer
-    if (ref.exists(printerProvider)) {
-      try { ref.read(printerProvider.notifier).reset(); } catch (_) {}
-      try { ref.invalidate(printerProvider); } catch (_) {}
-    }
-
-    // 12. Notifications
+    // 11. Notifications
+    // Note: printerProvider observes authProvider & businessProvider downstream via
+    // ref.listen and resets itself on logout, so AuthNotifier never touches it.
     try { ref.invalidate(notificationProvider); } catch (_) {}
   }
 }

@@ -8,13 +8,23 @@ import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
+import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
 import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
 import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
+import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
 import 'package:rentcore_mobile/features/onboarding/presentation/business_setup_wizard_screen.dart';
 import 'package:rentcore_mobile/features/onboarding/presentation/feature_walkthrough_screen.dart';
 import 'package:rentcore_mobile/features/onboarding/providers/onboarding_provider.dart';
 import 'package:rentcore_mobile/main.dart';
+
+class _StubGateNotificationNotifier extends NotificationNotifier {
+  @override
+  Future<void> fetchUnreadCountOnly() async {}
+
+  @override
+  Future<void> fetchNotifications({bool refresh = false}) async {}
+}
 
 class _FakeGateAuthRepository extends AuthRepository {
   final Map<String, dynamic>? mockSessionData;
@@ -211,6 +221,8 @@ void main() {
           assetRepositoryProvider.overrideWithValue(_FakeGateAssetRepository()),
           dashboardKpiProvider.overrideWith((ref) => Future.value(<String, dynamic>{})),
           dashboardQueueBookingsProvider.overrideWith((ref) => Future.value([])),
+          notificationProvider.overrideWith(_StubGateNotificationNotifier.new),
+          closingSummaryProvider.overrideWith((ref) => Future.value(<String, dynamic>{})),
         ],
         child: const MaterialApp(
           home: AuthRoutingGate(),

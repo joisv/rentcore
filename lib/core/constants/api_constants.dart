@@ -1,5 +1,11 @@
 class ApiConstants {
-  // Can be adjusted via runtime settings or emulator default
+  // Production endpoint (can be customized at build time via --dart-define=API_BASE_URL=...)
+  static const String productionBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://api.rentcore.id/api/v1',
+  );
+
+  // Can be adjusted via runtime settings in development builds
   static const String defaultBaseUrl = 'http://192.168.1.101:8000/api/v1';
   static const String lanPcBaseUrl = 'http://192.168.1.101:8000/api/v1';
   static const String currentLanPcBaseUrl = 'http://192.168.1.101:8000/api/v1';

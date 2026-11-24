@@ -110,16 +110,16 @@ void main() {
       // Check Tabs
       expect(find.text('Cabang (1)'), findsOneWidget);
       expect(find.text('Tim & Staf (1)'), findsOneWidget);
-      expect(find.text('Kebijakan Sewa'), findsOneWidget);
+      expect(find.text('Kebijakan'), findsOneWidget);
 
-      // Check Branch card in Tab 1
+      // Check Branch item in Tab 1
       expect(find.text('Cabang Seminyak Pusat'), findsOneWidget);
       expect(find.text('SMY'), findsOneWidget);
-      expect(find.text('PUSAT'), findsOneWidget);
+      expect(find.text('Pusat'), findsOneWidget);
       expect(find.text('Jl. Sunset Road No. 8'), findsOneWidget);
 
-      // Floating action button for owner should be present
-      expect(find.text('Tambah Cabang'), findsOneWidget);
+      // Footer primary CTA for owner should be present
+      expect(find.text('+ Tambah Cabang'), findsOneWidget);
     });
 
     testWidgets('Switches to Tim & Staf tab and displays member card with role badge', (tester) async {
@@ -186,8 +186,8 @@ void main() {
       expect(find.text('STAFF'), findsOneWidget);
       expect(find.text('Ditugaskan di: Cabang Seminyak'), findsOneWidget);
 
-      // Verify FAB switches to Undang Staf
-      expect(find.text('Undang Staf'), findsOneWidget);
+      // Verify footer CTA switches to + Undang Staf
+      expect(find.text('+ Undang Staf'), findsOneWidget);
     });
 
     testWidgets('Restricted staff sees view-only notice and NO floating action button', (tester) async {
@@ -233,10 +233,10 @@ void main() {
       // Verify View-Only Notice is rendered
       expect(find.textContaining('Mode Lihat: Penambahan cabang, staf, dan perubahan kebijakan hanya dapat dilakukan oleh Owner atau Admin.'), findsOneWidget);
 
-      // Verify FloatingActionButton is NOT present
+      // Verify FloatingActionButton and owner footer CTAs are NOT present
       expect(find.byType(FloatingActionButton), findsNothing);
-      expect(find.text('Tambah Cabang'), findsNothing);
-      expect(find.text('Undang Staf'), findsNothing);
+      expect(find.text('+ Tambah Cabang'), findsNothing);
+      expect(find.text('+ Undang Staf'), findsNothing);
     });
 
     testWidgets('Empty state renders helpful prompt when no branches exist', (tester) async {

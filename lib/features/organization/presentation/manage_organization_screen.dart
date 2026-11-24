@@ -3,18 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/skeleton_loading.dart';
+import '../../../shared/widgets/airy_settings_widgets.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/business_provider.dart';
+import '../../notifications/providers/notification_provider.dart';
 import '../providers/organization_provider.dart';
 
 class ManageOrganizationScreen extends ConsumerStatefulWidget {
   final int businessId;
   final String businessName;
+  final int initialTabIndex;
 
   const ManageOrganizationScreen({
     super.key,
     required this.businessId,
     required this.businessName,
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -28,7 +32,11 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 2),
+    );
     Future.microtask(() {
       ref.read(organizationProvider.notifier).loadOrganization(
             widget.businessId,
@@ -92,8 +100,9 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
             : widget.businessName;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AirySettingsColors.canvas,
       appBar: RentCoreAppBar(
+        showBottomBorder: true,
         titleWidget: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -104,7 +113,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
             const Text(
               'Kelola Cabang & Tim',
               style: TextStyle(
-                color: AppColors.textSecondary,
+                color: AirySettingsColors.inkSecondary,
                 fontSize: 12,
               ),
             ),
@@ -112,57 +121,119 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.obsidian),
+            icon: const Icon(
+              Icons.refresh_rounded,
+              color: AirySettingsColors.obsidian,
+            ),
             tooltip: 'Segarkan',
             onPressed: () => ref.read(organizationProvider.notifier).refresh(),
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.obsidian,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.obsidian,
-          indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: [
-            Tab(
-              icon: const Icon(Icons.storefront_outlined, size: 20),
-              text: 'Cabang (${orgState.branches.length})',
-            ),
-            Tab(
-              icon: const Icon(Icons.group_outlined, size: 20),
-              text: 'Tim & Staf (${orgState.members.length})',
-            ),
-            const Tab(
-              icon: Icon(Icons.policy_outlined, size: 20),
-              text: 'Kebijakan Sewa',
-            ),
-          ],
-        ),
       ),
       body: Column(
         children: [
+          // Segmented Pill Tab Control
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AirySettingsColors.pillSurface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, _) {
+                  final tabs = [
+                    'Cabang (${orgState.branches.length})',
+                    'Tim & Staf (${orgState.members.length})',
+                    'Kebijakan',
+                  ];
+                  return Row(
+                    children: List.generate(tabs.length, (index) {
+                      final isSelected = _tabController.index == index;
+                      return Expanded(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _tabController.animateTo(index),
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AirySettingsColors.canvas
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: isSelected
+                                  ? const [
+                                      BoxShadow(
+                                        color: Color(0x140F172A),
+                                        blurRadius: 4,
+                                        offset: Offset(0, 1),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Text(
+                              tabs[index],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                color: isSelected
+                                    ? AirySettingsColors.obsidian
+                                    : AirySettingsColors.inkSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  );
+                },
+              ),
+            ),
+          ),
+          airyHairlineDivider(),
+
           // If restricted staff: show view-only notice
           if (!isOwnerOrAdmin && !orgState.isLoading)
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 20),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Mode Lihat: Penambahan cabang, staf, dan perubahan kebijakan hanya dapat dilakukan oleh Owner atau Admin.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: Color(0xFFB45309),
+                      size: 18,
                     ),
-                  ),
-                ],
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Mode Lihat: Penambahan cabang, staf, dan perubahan kebijakan hanya dapat dilakukan oleh Owner atau Admin.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF92400E),
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -183,7 +254,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           ),
         ],
       ),
-      floatingActionButton: isOwnerOrAdmin
+      bottomNavigationBar: isOwnerOrAdmin
           ? AnimatedBuilder(
               animation: _tabController,
               builder: (context, _) {
@@ -191,23 +262,39 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                   return const SizedBox.shrink();
                 }
                 final isBranchesTab = _tabController.index == 0;
-                return FloatingActionButton.extended(
-                  backgroundColor: AppColors.obsidian,
-                  foregroundColor: Colors.white,
-                  icon: Icon(isBranchesTab ? Icons.add_business_rounded : Icons.person_add_alt_1_rounded),
-                  label: Text(isBranchesTab ? 'Tambah Cabang' : 'Undang Staf'),
-                  onPressed: () {
-                    if (isBranchesTab) {
-                      _openAddBranchSheet(context);
-                    } else {
-                      _openInviteMemberSheet(context, orgState.branches);
-                    }
-                  },
+                return airyStickyFooter(
+                  child: airyPrimaryCta(
+                    height: 46,
+                    label: isBranchesTab ? '+ Tambah Cabang' : '+ Undang Staf',
+                    onPressed: () {
+                      if (isBranchesTab) {
+                        _openAddBranchSheet(context);
+                      } else {
+                        _openInviteMemberSheet(context, orgState.branches);
+                      }
+                    },
+                  ),
                 );
               },
             )
           : null,
     );
+  }
+
+  String _formatBranchTitle(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+    final isAllUpper = trimmed == trimmed.toUpperCase() && trimmed != trimmed.toLowerCase();
+    return trimmed
+        .split(RegExp(r'\s+'))
+        .map((word) {
+          if (word.isEmpty) return word;
+          if (isAllUpper) {
+            return word[0].toUpperCase() + word.substring(1).toLowerCase();
+          }
+          return word[0].toUpperCase() + word.substring(1);
+        })
+        .join(' ');
   }
 
   // --- TAB 1: Cabang & Outlets ---
@@ -227,17 +314,38 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.store_mall_directory_outlined, size: 54, color: AppColors.textMuted),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AirySettingsColors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AirySettingsColors.border),
+                ),
+                child: const Icon(
+                  Icons.store_mall_directory_outlined,
+                  size: 28,
+                  color: AirySettingsColors.inkSecondary,
+                ),
+              ),
               const SizedBox(height: 16),
               const Text(
                 'Belum Ada Cabang Terdaftar',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AirySettingsColors.obsidian,
+                ),
               ),
               const SizedBox(height: 6),
               const Text(
                 'Tambahkan cabang atau outlet fisik untuk mulai mendistribusikan inventaris gadget.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AirySettingsColors.inkSecondary,
+                  height: 1.4,
+                ),
               ),
             ],
           ),
@@ -246,155 +354,171 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     }
 
     return RefreshIndicator(
-      color: AppColors.obsidian,
+      color: AirySettingsColors.obsidian,
       onRefresh: () => ref.read(organizationProvider.notifier).refresh(),
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+        padding: const EdgeInsets.only(bottom: 24),
         itemCount: state.branches.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        separatorBuilder: (_, _) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: airyHairlineDivider(),
+        ),
         itemBuilder: (context, index) {
           final branch = state.branches[index] as Map<String, dynamic>;
           final isCentral = branch['is_central'] == true;
-          final code = branch['code'] ?? '';
-          final name = branch['name'] ?? '';
+          final code = (branch['code'] ?? '').toString();
+          final displayName = _formatBranchTitle(
+            (branch['name'] ?? '').toString(),
+          );
           final city = branch['city'];
           final address = branch['address'];
           final phone = branch['phone'];
 
-          return Container(
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isCentral ? AppColors.obsidian : AppColors.border,
-                width: isCentral ? 1.5 : 1,
-              ),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
+          final hasCity = city != null && city.toString().trim().isNotEmpty;
+          final hasAddress =
+              address != null && address.toString().trim().isNotEmpty;
+          final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isCentral ? AppColors.obsidian : AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        isCentral ? Icons.stars_rounded : Icons.store_rounded,
-                        color: isCentral ? Colors.white : AppColors.obsidian,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AirySettingsColors.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AirySettingsColors.border),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.storefront_outlined,
+                    color: AirySettingsColors.obsidian,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
+                          Flexible(
+                            child: Text(
+                              displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: AirySettingsColors.obsidian,
                               ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceMuted,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  code,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          if (city != null && city.toString().isNotEmpty)
-                            Text(
-                              city.toString(),
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
+                          ),
+                          if (code.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AirySettingsColors.pillSurface,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                code,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: AirySettingsColors.obsidian,
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (isCentral) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AirySettingsColors.pillSurface,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Pusat',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AirySettingsColors.obsidian,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                    ),
-                    if (isCentral)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.obsidian,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'PUSAT',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
+                      if (hasCity || hasAddress || hasPhone) ...[
+                        const SizedBox(height: 5),
+                        if (hasCity)
+                          Text(
+                            city.toString(),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: AirySettingsColors.inkSecondary,
+                            ),
                           ),
-                        ),
-                      ),
-                    if (state.isOwnerOrAdmin)
-                      IconButton(
-                        key: Key('edit_branch_${branch['id']}'),
-                        icon: const Icon(
-                          Icons.edit_outlined,
-                          size: 19,
-                          color: AppColors.textSecondary,
-                        ),
-                        tooltip: 'Edit Cabang',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => _openEditBranchSheet(context, branch),
-                      ),
-                  ],
-                ),
-                if ((address != null && address.toString().isNotEmpty) ||
-                    (phone != null && phone.toString().isNotEmpty)) ...[
-                  const SizedBox(height: 12),
-                  const Divider(height: 1, color: AppColors.border),
-                  const SizedBox(height: 10),
-                  if (address != null && address.toString().isNotEmpty)
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
+                        if (hasAddress) ...[
+                          if (hasCity) const SizedBox(height: 2),
+                          Text(
                             address.toString(),
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AirySettingsColors.inkSecondary,
+                              height: 1.35,
+                            ),
                           ),
-                        ),
+                        ],
+                        if (hasPhone) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            phone.toString(),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AirySettingsColors.inkSecondary,
+                            ),
+                          ),
+                        ],
                       ],
+                    ],
+                  ),
+                ),
+                if (state.isOwnerOrAdmin) ...[
+                  const SizedBox(width: 10),
+                  InkWell(
+                    key: Key('edit_branch_${branch['id']}'),
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openEditBranchSheet(context, branch),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AirySettingsColors.canvas,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AirySettingsColors.border),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.edit_outlined,
+                        size: 18,
+                        color: AirySettingsColors.obsidian,
+                      ),
                     ),
-                  if (phone != null && phone.toString().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.phone_outlined, size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 6),
-                        Text(
-                          phone.toString(),
-                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ],
               ],
             ),
@@ -421,17 +545,38 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.group_off_outlined, size: 54, color: AppColors.textMuted),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AirySettingsColors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AirySettingsColors.border),
+                ),
+                child: const Icon(
+                  Icons.group_off_outlined,
+                  size: 28,
+                  color: AirySettingsColors.inkSecondary,
+                ),
+              ),
               const SizedBox(height: 16),
               const Text(
                 'Belum Ada Anggota Tim',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AirySettingsColors.obsidian,
+                ),
               ),
               const SizedBox(height: 6),
               const Text(
                 'Undang kasir atau administrator bisnis Anda untuk mulai mengoperasikan counter rental.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AirySettingsColors.inkSecondary,
+                  height: 1.4,
+                ),
               ),
             ],
           ),
@@ -440,35 +585,47 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     }
 
     return RefreshIndicator(
-      color: AppColors.obsidian,
+      color: AirySettingsColors.obsidian,
       onRefresh: () => ref.read(organizationProvider.notifier).refresh(),
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-        itemCount: state.members.length + (state.isOwnerOrAdmin && state.pendingResignations.isNotEmpty ? 1 : 0),
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        padding: const EdgeInsets.only(bottom: 24),
+        itemCount:
+            state.members.length +
+            (state.isOwnerOrAdmin && state.pendingResignations.isNotEmpty
+                ? 1
+                : 0),
+        separatorBuilder: (_, _) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: airyHairlineDivider(),
+        ),
         itemBuilder: (context, index) {
-          if (state.isOwnerOrAdmin && state.pendingResignations.isNotEmpty && index == 0) {
-            return _buildPendingResignationBanner(context, state);
+          if (state.isOwnerOrAdmin &&
+              state.pendingResignations.isNotEmpty &&
+              index == 0) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: _buildPendingResignationBanner(context, state),
+            );
           }
-          final memberIndex = (state.isOwnerOrAdmin && state.pendingResignations.isNotEmpty) ? index - 1 : index;
+          final memberIndex =
+              (state.isOwnerOrAdmin && state.pendingResignations.isNotEmpty)
+              ? index - 1
+              : index;
           final member = state.members[memberIndex] as Map<String, dynamic>;
           final user = (member['user'] as Map<String, dynamic>?) ?? {};
           final role = (member['role'] ?? 'staff').toString();
           final name = user['name'] ?? 'Pengguna';
           final email = user['email'] ?? '';
-          final branchMembers = (member['branch_members'] as List<dynamic>?) ?? [];
-          final pendingResignation = state.pendingResignations.where((r) => r['user_id'] == user['id']).firstOrNull as Map<String, dynamic>?;
+          final branchMembers =
+              (member['branch_members'] as List<dynamic>?) ?? [];
+          final pendingResignation =
+              state.pendingResignations
+                      .where((r) => r['user_id'] == user['id'])
+                      .firstOrNull
+                  as Map<String, dynamic>?;
 
-          return Container(
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: pendingResignation != null ? const Color(0xFFF59E0B) : AppColors.border,
-                width: pendingResignation != null ? 1.5 : 1,
-              ),
-            ),
-            padding: const EdgeInsets.all(16),
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -476,13 +633,15 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: pendingResignation != null ? const Color(0xFFD97706) : AppColors.obsidian,
+                      backgroundColor: pendingResignation != null
+                          ? const Color(0xFFB45309)
+                          : AirySettingsColors.obsidian,
                       child: Text(
                         (name.isNotEmpty ? name[0] : 'U').toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
                         ),
                       ),
                     ),
@@ -493,16 +652,23 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                         children: [
                           Text(
                             name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14.5,
+                              color: AirySettingsColors.obsidian,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             email,
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AirySettingsColors.inkSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -511,35 +677,60 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                     if (pendingResignation != null) ...[
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        key: Key('member_resign_badge_${user['id']}'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFEF3C7),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFFF59E0B)),
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.hourglass_top_rounded, size: 10, color: Color(0xFFB45309)),
+                            Icon(
+                              Icons.hourglass_top_rounded,
+                              size: 10,
+                              color: Color(0xFFB45309),
+                            ),
                             SizedBox(width: 3),
                             Text(
-                              'Resign',
-                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                              'Pengajuan Resign',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFB45309),
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ],
-                    if (state.isOwnerOrAdmin && role.toLowerCase() != 'owner') ...[
-                      const SizedBox(width: 4),
+                    if (state.isOwnerOrAdmin &&
+                        role.toLowerCase() != 'owner') ...[
+                      const SizedBox(width: 2),
                       PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondary),
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          size: 20,
+                          color: AirySettingsColors.inkSecondary,
+                        ),
                         padding: EdgeInsets.zero,
                         onSelected: (val) {
                           if (val == 'review_resignation') {
-                            _showReviewResignationDialog(context, pendingResignation!, member);
+                            _showReviewResignationDialog(
+                              context,
+                              pendingResignation!,
+                              member,
+                            );
                           } else if (val == 'reassign') {
-                            _showReassignBranchDialog(context, member, state.branches);
+                            _showReassignBranchDialog(
+                              context,
+                              member,
+                              state.branches,
+                            );
                           } else if (val == 'pin') {
                             _showSetManagerPinDialog(context, member);
                           } else if (val == 'deactivate') {
@@ -552,9 +743,20 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                               value: 'review_resignation',
                               child: Row(
                                 children: [
-                                  Icon(Icons.assignment_ind_outlined, size: 18, color: Color(0xFFD97706)),
+                                  Icon(
+                                    Icons.assignment_ind_outlined,
+                                    size: 18,
+                                    color: Color(0xFFD97706),
+                                  ),
                                   SizedBox(width: 8),
-                                  Text('Tinjau Resign', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
+                                  Text(
+                                    'Tinjau Resign',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF92400E),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -562,9 +764,16 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                             value: 'reassign',
                             child: Row(
                               children: [
-                                Icon(Icons.swap_horiz_rounded, size: 18, color: AppColors.obsidian),
+                                Icon(
+                                  Icons.swap_horiz_rounded,
+                                  size: 18,
+                                  color: AppColors.obsidian,
+                                ),
                                 SizedBox(width: 8),
-                                Text('Pindah Cabang', style: TextStyle(fontSize: 13)),
+                                Text(
+                                  'Pindah Cabang',
+                                  style: TextStyle(fontSize: 13),
+                                ),
                               ],
                             ),
                           ),
@@ -572,9 +781,16 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                             value: 'pin',
                             child: Row(
                               children: [
-                                Icon(Icons.pin_rounded, size: 18, color: AppColors.obsidian),
+                                Icon(
+                                  Icons.pin_rounded,
+                                  size: 18,
+                                  color: AppColors.obsidian,
+                                ),
                                 SizedBox(width: 8),
-                                Text('Atur PIN Manager', style: TextStyle(fontSize: 13)),
+                                Text(
+                                  'Atur PIN Manager',
+                                  style: TextStyle(fontSize: 13),
+                                ),
                               ],
                             ),
                           ),
@@ -582,9 +798,19 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                             value: 'deactivate',
                             child: Row(
                               children: [
-                                Icon(Icons.person_remove_rounded, size: 18, color: AppColors.danger),
+                                Icon(
+                                  Icons.person_remove_rounded,
+                                  size: 18,
+                                  color: AppColors.danger,
+                                ),
                                 SizedBox(width: 8),
-                                Text('Nonaktifkan', style: TextStyle(fontSize: 13, color: AppColors.danger)),
+                                Text(
+                                  'Nonaktifkan',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.danger,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -593,22 +819,41 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                     ],
                   ],
                 ),
-                const SizedBox(height: 12),
-                const Divider(height: 1, color: AppColors.border),
-                const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.location_city_rounded, size: 14, color: AppColors.textSecondary),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        _formatAssignedBranches(role, branchMembers),
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.only(left: 54),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.storefront_outlined,
+                        size: 13.5,
+                        color: AirySettingsColors.inkSecondary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _formatAssignedBranches(role, branchMembers),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AirySettingsColors.inkSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                if (state.isOwnerOrAdmin && pendingResignation != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(left: 54, top: 10),
+                    child: _buildInlineResignationCardActions(
+                      context,
+                      pendingResignation,
+                      name,
+                      state.isSubmitting,
+                    ),
+                  ),
+                ],
               ],
             ),
           );
@@ -721,6 +966,221 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
     );
   }
 
+  Widget _buildInlineResignationCardActions(
+    BuildContext context,
+    Map<String, dynamic> resignation,
+    String staffName,
+    bool isSubmitting,
+  ) {
+    final requestId = (resignation['id'] as num?)?.toInt();
+    if (requestId == null) return const SizedBox.shrink();
+    final reason = (resignation['reason'] ?? '').toString().trim();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AirySettingsColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AirySettingsColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (reason.isNotEmpty) ...[
+            Text(
+              'Alasan: "$reason"',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AirySettingsColors.inkSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: OutlinedButton(
+                    key: Key('member_reject_resign_$requestId'),
+                    onPressed: isSubmitting
+                        ? null
+                        : () => _promptRejectResignationDialog(
+                              context,
+                              requestId,
+                              staffName,
+                            ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AirySettingsColors.obsidian,
+                      side: const BorderSide(color: AirySettingsColors.border),
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Tolak',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: ElevatedButton(
+                    key: Key('member_approve_resign_$requestId'),
+                    onPressed: isSubmitting
+                        ? null
+                        : () => _confirmApproveResignation(
+                              context,
+                              requestId,
+                              staffName,
+                              '',
+                            ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AirySettingsColors.obsidian,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Setujui',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executeResignationReview(
+    BuildContext context, {
+    required int requestId,
+    required String staffName,
+    required bool approve,
+    String? decisionNotes,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await ref.read(organizationProvider.notifier).reviewResignation(
+          requestId,
+          approve: approve,
+          decisionNotes: decisionNotes,
+        );
+    if (!mounted) return;
+    if (success) {
+      if (ref.exists(notificationProvider)) {
+        ref.read(notificationProvider.notifier).fetchNotifications(refresh: true);
+        ref.read(notificationProvider.notifier).fetchUnreadCountOnly();
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            approve
+                ? 'Pengajuan resign $staffName berhasil disetujui'
+                : 'Pengajuan resign $staffName ditolak',
+          ),
+          backgroundColor:
+              approve ? AppColors.success : AirySettingsColors.obsidian,
+        ),
+      );
+    } else {
+      final err =
+          ref.read(organizationProvider).error ?? 'Gagal memproses permohonan resign.';
+      messenger.showSnackBar(
+        SnackBar(content: Text(err), backgroundColor: AppColors.danger),
+      );
+    }
+  }
+
+  void _promptRejectResignationDialog(
+    BuildContext context,
+    int requestId,
+    String staffName,
+  ) {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Tolak Resign $staffName',
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
+        content: TextField(
+          controller: reasonController,
+          maxLines: 2,
+          decoration: InputDecoration(
+            labelText: 'Catatan Penolakan (Opsional)',
+            hintText: 'Contoh: Masih dibutuhkan untuk periode akhir pekan...',
+            filled: true,
+            fillColor: AirySettingsColors.surfaceSubtle,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AirySettingsColors.border),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Batal',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AirySettingsColors.inkSecondary,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            key: const Key('confirm_reject_resignation_button'),
+            onPressed: () async {
+              final notes = reasonController.text.trim();
+              Navigator.pop(ctx);
+              await _executeResignationReview(
+                context,
+                requestId: requestId,
+                staffName: staffName,
+                approve: false,
+                decisionNotes: notes,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AirySettingsColors.obsidian,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text(
+              'Tolak Resign',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showReviewResignationDialog(
     BuildContext context,
     Map<String, dynamic> resignation,
@@ -807,24 +1267,15 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           ),
           OutlinedButton(
             onPressed: () async {
+              final notes = decisionNotesController.text.trim();
               Navigator.pop(ctx);
-              final success = await ref.read(organizationProvider.notifier).reviewResignation(
-                    resignation['id'] as int,
-                    approve: false,
-                    decisionNotes: decisionNotesController.text.trim(),
-                  );
-              if (context.mounted) {
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Permohonan resign ditolak.'), backgroundColor: AppColors.obsidian),
-                  );
-                } else {
-                  final err = ref.read(organizationProvider).error ?? 'Gagal memproses permohonan.';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(err), backgroundColor: AppColors.danger),
-                  );
-                }
-              }
+              await _executeResignationReview(
+                context,
+                requestId: resignation['id'] as int,
+                staffName: name,
+                approve: false,
+                decisionNotes: notes,
+              );
             },
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.danger,
@@ -876,26 +1327,13 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              final success = await ref.read(organizationProvider.notifier).reviewResignation(
-                    requestId,
-                    approve: true,
-                    decisionNotes: decisionNotes,
-                  );
-              if (context.mounted) {
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Pengunduran diri $staffName telah disetujui.'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                } else {
-                  final err = ref.read(organizationProvider).error ?? 'Gagal menyetujui pengunduran diri.';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(err), backgroundColor: AppColors.danger),
-                  );
-                }
-              }
+              await _executeResignationReview(
+                context,
+                requestId: requestId,
+                staffName: staffName,
+                approve: true,
+                decisionNotes: decisionNotes,
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.danger,
@@ -969,7 +1407,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                 )
               else
                 DropdownButtonFormField<int>(
-                  value: selectedToBranchId,
+                  initialValue: selectedToBranchId,
                   decoration: InputDecoration(
                     labelText: 'Cabang Tujuan',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -1912,275 +2350,362 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Info banner
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Row(
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.shield_outlined, color: AppColors.obsidian, size: 22),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Kelola aturan batas sewa per dokumen identitas (KTP/SIM) dan fitur aksesoris add-on agar operasional toko tetap aman dan terkontrol.',
-                    style: TextStyle(fontSize: 12, height: 1.4, color: AppColors.textSecondary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // SECTION 1: Identity Document Rental Limit
-          _buildCard(
-            title: 'Batas Dokumen Identitas (KTP / SIM)',
-            subtitle: 'Kontrol berapa banyak perangkat utama yang boleh disewa oleh 1 identitas pelanggan.',
-            icon: Icons.badge_outlined,
-            children: [
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Batasi Sewa per Dokumen Identitas',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-                subtitle: const Text(
-                  'Mencegah 1 pelanggan menyewa unit utama melebihi kuota sebelum sewa sebelumnya dikembalikan.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                ),
-                value: _idLimitEnabled,
-                activeColor: AppColors.obsidian,
-                onChanged: widget.isOwnerOrAdmin ? (val) => setState(() => _idLimitEnabled = val) : null,
-              ),
-              if (_idLimitEnabled) ...[
-                const Divider(height: 24),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Maksimal Unit Utama per Identitas',
-                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Default: 1 unit utama (iPhone, iPad, Kamera, Laptop)',
-                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
+                // Info callout
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AirySettingsColors.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AirySettingsColors.border),
                     ),
-                    const SizedBox(width: 16),
-                    SizedBox(
-                      width: 80,
-                      child: TextFormField(
-                        controller: _maxPrimaryController,
-                        enabled: widget.isOwnerOrAdmin,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.shield_outlined,
+                          color: AirySettingsColors.obsidian,
+                          size: 20,
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.infoLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_rounded, size: 16, color: AppColors.info),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Add-on (power bank, charger) TIDAK dihitung sebagai perangkat utama.',
-                          style: TextStyle(fontSize: 11, color: AppColors.info, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // SECTION 2: Add-on Accessories Feature
-          _buildCard(
-            title: 'Fitur Add-on & Aksesoris Sewa',
-            subtitle: 'Atur ketersediaan dan kuota sewa aksesoris tambahan (Power Bank, Charger, Tripod, dll).',
-            icon: Icons.extension_outlined,
-            children: [
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Aktifkan Fitur Add-on / Aksesoris',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-                subtitle: const Text(
-                  'Izinkan kasir menambahkan item add-on bersama unit utama saat membuat transaksi sewa.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                ),
-                value: _addonsEnabled,
-                activeColor: AppColors.obsidian,
-                onChanged: widget.isOwnerOrAdmin ? (val) => setState(() => _addonsEnabled = val) : null,
-              ),
-              if (_addonsEnabled) ...[
-                const Divider(height: 24),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Tanpa Batas Unit Add-on (Unlimited)',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-                  ),
-                  subtitle: const Text(
-                    'Pelanggan dapat menyewa add-on sebanyak stok fisik yang tersedia.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                  ),
-                  value: _unlimitedAddons,
-                  activeColor: AppColors.obsidian,
-                  onChanged: widget.isOwnerOrAdmin ? (val) => setState(() => _unlimitedAddons = val ?? false) : null,
-                ),
-                if (!_unlimitedAddons) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Expanded(
-                        flex: 3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Maksimal Unit Add-on per Sewa',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Kelola aturan batas sewa per dokumen identitas (KTP/SIM) dan fitur aksesoris add-on agar operasional toko tetap aman dan terkontrol.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.45,
+                              color: AirySettingsColors.inkMuted,
                             ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Batas kuota total add-on dalam 1 struk sewa',
-                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      SizedBox(
-                        width: 80,
-                        child: TextFormField(
-                          controller: _maxAddonsController,
-                          enabled: widget.isOwnerOrAdmin,
-                          keyboardType: TextInputType.number,
-                          textAlign: TextAlign.center,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ],
-              ],
-            ],
-          ),
-          const SizedBox(height: 24),
+                ),
+                airyHairlineDivider(),
 
-          // SAVE BUTTON
-          if (widget.isOwnerOrAdmin)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check_circle_outline_rounded, size: 20),
-                label: Text(
-                  _isSaving ? 'Menyimpan Kebijakan...' : 'Simpan Kebijakan Rental',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                ),
-                onPressed: _isSaving ? null : _saveRules,
-              ),
-            ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: AppColors.obsidian, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
+                // SECTION 1: Identity Document Rental Limit
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                      const SizedBox(height: 2),
-                      Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      const Text(
+                        'Batas Dokumen Identitas (KTP / SIM)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: AirySettingsColors.obsidian,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        'Kontrol berapa banyak perangkat utama yang boleh disewa oleh 1 identitas pelanggan.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AirySettingsColors.inkSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Batasi Sewa per Dokumen Identitas',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    color: AirySettingsColors.obsidian,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Mencegah 1 pelanggan menyewa unit utama melebihi kuota sebelum sewa sebelumnya dikembalikan.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AirySettingsColors.inkSecondary,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          airySwitch(
+                            value: _idLimitEnabled,
+                            onChanged: widget.isOwnerOrAdmin
+                                ? (val) => setState(() => _idLimitEnabled = val)
+                                : null,
+                          ),
+                        ],
+                      ),
+                      if (_idLimitEnabled) ...[
+                        const SizedBox(height: 16),
+                        airyHairlineDivider(),
+                        const SizedBox(height: 16),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Maksimal Unit Utama per Identitas',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13.5,
+                                      color: AirySettingsColors.obsidian,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Default: 1 unit utama (iPhone, iPad, Kamera, Laptop)',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AirySettingsColors.inkSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            SizedBox(
+                              width: 80,
+                              child: TextFormField(
+                                controller: _maxPrimaryController,
+                                enabled: widget.isOwnerOrAdmin,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AirySettingsColors.obsidian,
+                                ),
+                                decoration: airyInputDecoration(
+                                  enabled: widget.isOwnerOrAdmin,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AirySettingsColors.surfaceSubtle,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: AirySettingsColors.border,
+                            ),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                size: 16,
+                                color: AirySettingsColors.inkMuted,
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Add-on (power bank, charger) TIDAK dihitung sebagai perangkat utama.',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: AirySettingsColors.inkMuted,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                airyHairlineDivider(),
+
+                // SECTION 2: Add-on Accessories Feature
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Fitur Add-on & Aksesoris Sewa',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: AirySettingsColors.obsidian,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        'Atur ketersediaan dan kuota sewa aksesoris tambahan (Power Bank, Charger, Tripod, dll).',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AirySettingsColors.inkSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Aktifkan Fitur Add-on / Aksesoris',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    color: AirySettingsColors.obsidian,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Izinkan kasir menambahkan item add-on bersama unit utama saat membuat transaksi sewa.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AirySettingsColors.inkSecondary,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          airySwitch(
+                            value: _addonsEnabled,
+                            onChanged: widget.isOwnerOrAdmin
+                                ? (val) => setState(() => _addonsEnabled = val)
+                                : null,
+                          ),
+                        ],
+                      ),
+                      if (_addonsEnabled) ...[
+                        const SizedBox(height: 16),
+                        airyHairlineDivider(),
+                        const SizedBox(height: 8),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text(
+                            'Tanpa Batas Unit Add-on (Unlimited)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13.5,
+                              color: AirySettingsColors.obsidian,
+                            ),
+                          ),
+                          subtitle: const Text(
+                            'Pelanggan dapat menyewa add-on sebanyak stok fisik yang tersedia.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AirySettingsColors.inkSecondary,
+                            ),
+                          ),
+                          value: _unlimitedAddons,
+                          activeColor: AirySettingsColors.obsidian,
+                          onChanged: widget.isOwnerOrAdmin
+                              ? (val) => setState(
+                                  () => _unlimitedAddons = val ?? false,
+                                )
+                              : null,
+                        ),
+                        if (!_unlimitedAddons) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Expanded(
+                                flex: 3,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Maksimal Unit Add-on per Sewa',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13.5,
+                                        color: AirySettingsColors.obsidian,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Batas kuota total add-on dalam 1 struk sewa',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AirySettingsColors.inkSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              SizedBox(
+                                width: 80,
+                                child: TextFormField(
+                                  controller: _maxAddonsController,
+                                  enabled: widget.isOwnerOrAdmin,
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: AirySettingsColors.obsidian,
+                                  ),
+                                  decoration: airyInputDecoration(
+                                    enabled: widget.isOwnerOrAdmin,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
+          ),
         ),
-      ),
+        if (widget.isOwnerOrAdmin)
+          airyStickyFooter(
+            child: airyPrimaryCta(
+              label: 'Simpan Kebijakan Rental',
+              loadingLabel: 'Menyimpan Kebijakan...',
+              isLoading: _isSaving,
+              icon: Icons.check_circle_outline_rounded,
+              onPressed: _isSaving ? null : _saveRules,
+            ),
+          ),
+      ],
     );
   }
 }

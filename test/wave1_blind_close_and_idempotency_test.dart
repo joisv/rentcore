@@ -144,7 +144,8 @@ class _SpyCashierRepo extends CashierRepository {
   @override
   Future<Map<String, dynamic>> processPayment({
     required int bookingId,
-    required int paymentMethodId,
+    required int? paymentMethodId,
+    String? paymentMethodCode,
     double? amount,
     String? paymentType,
     double? cashReceived,
@@ -156,7 +157,10 @@ class _SpyCashierRepo extends CashierRepository {
     bool? isHandoverSettlement,
     int? assetUnitId,
     String? collateralType,
+    String? collateralTypeId,
+    String? collateralTypeName,
     String? collateralStorageSlot,
+    double? collateralDepositAmount,
     bool? startNow,
     bool? keepOriginalEndAt,
   }) async {
@@ -210,6 +214,7 @@ class _SpyBookingRepo extends BookingRepository {
     int additionalHours, {
     double? fee,
     int? paymentMethodId,
+    String? paymentMethodCode,
     double? cashReceived,
     String? notes,
     String? idempotencyKey,
@@ -230,6 +235,7 @@ class _SpyBookingRepo extends BookingRepository {
     required int hoursDelta,
     double? additionalFee,
     int? paymentMethodId,
+    String? paymentMethodCode,
     double? cashReceived,
     String? managerPin,
     String? reason,

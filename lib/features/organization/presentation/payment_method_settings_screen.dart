@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/skeleton_loading.dart';
+import '../../../../shared/widgets/airy_settings_widgets.dart';
 import '../../../../shared/widgets/authenticated_network_image.dart';
 import '../../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -47,9 +48,18 @@ class _PaymentMethodSettingsScreenState
   Uint8List? _pickedQrisBytes;
   bool _removeQrisImage = false;
 
+  bool get _hasUploadedQrisImage =>
+      !_removeQrisImage &&
+      ((_qrisImageUrl != null && _qrisImageUrl!.trim().isNotEmpty) ||
+          (_newQrisBase64 != null && _newQrisBase64!.trim().isNotEmpty) ||
+          _pickedQrisImage != null ||
+          _pickedQrisBytes != null);
+
   bool get _hasValidQrisPayload =>
       !_removeQrisImage &&
-      (_qrisRawPayload != null && _qrisRawPayload!.trim().isNotEmpty);
+      ((_qrisRawPayload != null && _qrisRawPayload!.trim().isNotEmpty) ||
+          (_newQrisBase64 != null && _newQrisBase64!.trim().isNotEmpty) ||
+          _pickedQrisBytes != null);
 
   void _populateFromConfig(Map<String, dynamic> data, {bool force = false}) {
     if (_isInitialized && !force) return;
@@ -77,14 +87,24 @@ class _PaymentMethodSettingsScreenState
     _linkajaEnabled = providers['linkaja'] != false;
     _ovoEnabled = providers['ovo'] != false;
 
+    _qrisRawPayload = config['qris_raw_payload'] as String?;
+    _qrisImageUrl = config['qris_image_url'] as String?;
+    final qrisPath = config['qris_image_path']?.toString().trim() ?? '';
+    final hasImage =
+        (_qrisImageUrl != null && _qrisImageUrl!.trim().isNotEmpty) ||
+        qrisPath.isNotEmpty ||
+        config['has_qris_image'] == true;
+
     _qrisEnabled =
+        hasImage &&
         config['qris_statis_enabled'] != false &&
         config['is_qris_enabled'] != false;
-    _isDynamicQrisEnabled = config['is_dynamic_qris_enabled'] == true;
-    _qrisRawPayload = config['qris_raw_payload'] as String?;
+    _isDynamicQrisEnabled =
+        hasImage &&
+        (_qrisRawPayload != null && _qrisRawPayload!.trim().isNotEmpty) &&
+        config['is_dynamic_qris_enabled'] == true;
     _cashEnabled = config['cash_enabled'] != false;
     _bankTransferEnabled = config['bank_transfer_enabled'] != false;
-    _qrisImageUrl = config['qris_image_url'] as String?;
   }
 
   Future<void> _pickQrisImage() async {
@@ -388,48 +408,16 @@ class _PaymentMethodSettingsScreenState
     final settingsAsync = ref.watch(paymentSettingsProvider(_selectedBranchId));
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AirySettingsColors.canvas,
       appBar: const RentCoreAppBar(title: 'Metode Pembayaran'),
       bottomNavigationBar: isOwnerOrAdmin
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
-                color: AppColors.surface,
-                border: Border(top: BorderSide(color: AppColors.border)),
-              ),
-              child: SafeArea(
-                child: ElevatedButton.icon(
-                  key: const Key('save_payment_settings_button'),
-                  onPressed: _isSaving ? null : _saveSettings,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.obsidian,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.check_circle_outline_rounded,
-                          size: 20,
-                        ),
-                  label: Text(
-                    _isSaving ? 'Menyimpan...' : 'Simpan Pengaturan',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
+          ? airyStickyFooter(
+              child: airyPrimaryCta(
+                buttonKey: const Key('save_payment_settings_button'),
+                label: 'Simpan Pengaturan',
+                isLoading: _isSaving,
+                icon: Icons.check_circle_outline_rounded,
+                onPressed: _isSaving ? null : _saveSettings,
               ),
             )
           : null,
@@ -466,79 +454,71 @@ class _PaymentMethodSettingsScreenState
           _populateFromConfig(data);
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(bottom: 24),
             children: [
               // 1. Role Authorization Notice
               if (!isOwnerOrAdmin)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFF59E0B)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.lock_outline_rounded,
-                        color: Color(0xFFD97706),
-                        size: 20,
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Pengaturan metode pembayaran hanya dapat diubah oleh Owner atau Admin. Anda melihat konfigurasi aktif ini dalam mode baca saja.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF92400E),
-                            height: 1.3,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.lock_outline_rounded,
+                          color: Color(0xFFB45309),
+                          size: 18,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Pengaturan metode pembayaran hanya dapat diubah oleh Owner atau Admin. Anda melihat konfigurasi aktif ini dalam mode baca saja.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF92400E),
+                              height: 1.4,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 
               // 2. Branch Scope Selector
               if (branches.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'CAKUPAN CABANG',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
+                      airySectionHeader('Cakupan Cabang'),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<int?>(
                         initialValue: _selectedBranchId,
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                        decoration: airyInputDecoration(
+                          enabled: isOwnerOrAdmin,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 14,
                             vertical: 12,
                           ),
                         ),
+                        dropdownColor: AirySettingsColors.canvas,
                         items: [
                           const DropdownMenuItem<int?>(
                             value: null,
                             child: Text(
                               'Semua Cabang (Standar Bisnis Pusat)',
-                              style: TextStyle(fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13.5,
+                                color: AirySettingsColors.obsidian,
+                              ),
                             ),
                           ),
                           ...branches.map((b) {
@@ -547,7 +527,14 @@ class _PaymentMethodSettingsScreenState
                                 : int.parse(b['id'].toString());
                             return DropdownMenuItem<int?>(
                               value: bId,
-                              child: Text(b['name'] ?? 'Cabang #$bId'),
+                              child: Text(
+                                b['name'] ?? 'Cabang #$bId',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 13.5,
+                                  color: AirySettingsColors.obsidian,
+                                ),
+                              ),
                             );
                           }),
                         ],
@@ -563,90 +550,119 @@ class _PaymentMethodSettingsScreenState
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                airyHairlineDivider(),
               ],
 
-              // 3. Static QRIS Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
+              // 3. Static QRIS Section
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'QRIS Statis',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: _hasUploadedQrisImage
+                                      ? AirySettingsColors.obsidian
+                                      : const Color(0xFF94A3B8),
                                 ),
                               ),
+                              const SizedBox(height: 2),
                               Text(
                                 'Tampilkan barcode QR untuk pembayaran m-Banking/E-Wallet',
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                  color: _hasUploadedQrisImage
+                                      ? AirySettingsColors.inkSecondary
+                                      : const Color(0xFF94A3B8),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        Switch(
+                        const SizedBox(width: 12),
+                        airySwitch(
                           key: const Key('qris_statis_toggle'),
-                          value: _qrisEnabled,
-                          activeThumbColor: AppColors.obsidian,
-                          onChanged: isOwnerOrAdmin
+                          value: _hasUploadedQrisImage ? _qrisEnabled : false,
+                          onChanged: (isOwnerOrAdmin && _hasUploadedQrisImage)
                               ? (val) => setState(() => _qrisEnabled = val)
                               : null,
                         ),
                       ],
                     ),
-                    if (_qrisEnabled) ...[
-                      const Divider(height: 24),
-                      const Text(
-                        'GAMBAR KODE QRIS TOKO',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: AppColors.textMuted,
+                    if (!_hasUploadedQrisImage) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        key: const Key('qris_upload_required_banner'),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AirySettingsColors.surfaceSubtle,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AirySettingsColors.border),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 16,
+                              color: AirySettingsColors.inkMuted,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Unggah gambar barcode QRIS terlebih dahulu untuk mengaktifkan pembayaran QRIS.',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: AirySettingsColors.inkMuted,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                    ],
+                    ...[
+                      const SizedBox(height: 18),
+                      airySectionHeader('Gambar Kode QRIS Toko'),
                       const SizedBox(height: 10),
                       if (!_removeQrisImage &&
                           (_newQrisBase64 != null ||
                               _qrisImageUrl != null)) ...[
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.border),
+                            color: AirySettingsColors.surfaceSubtle,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: AirySettingsColors.border,
+                            ),
                           ),
                           child: Row(
                             children: [
                               Container(
-                                width: 70,
-                                height: 70,
+                                width: 68,
+                                height: 68,
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: AppColors.border),
+                                  color: AirySettingsColors.canvas,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AirySettingsColors.border,
+                                  ),
                                 ),
                                 alignment: Alignment.center,
                                 child: _pickedQrisBytes != null
                                     ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(6),
+                                        borderRadius: BorderRadius.circular(8),
                                         child: Image.memory(
                                           _pickedQrisBytes!,
                                           fit: BoxFit.contain,
@@ -656,7 +672,7 @@ class _PaymentMethodSettingsScreenState
                                           ? const Icon(
                                               Icons.check_circle_rounded,
                                               color: AppColors.success,
-                                              size: 32,
+                                              size: 30,
                                             )
                                           : AuthenticatedNetworkImage(
                                               url: _qrisImageUrl!,
@@ -667,8 +683,9 @@ class _PaymentMethodSettingsScreenState
                                                     child,
                                                     loadingProgress,
                                                   ) {
-                                                    if (loadingProgress == null)
+                                                    if (loadingProgress == null) {
                                                       return child;
+                                                    }
                                                     return const Center(
                                                       child: SizedBox(
                                                         width: 20,
@@ -676,8 +693,9 @@ class _PaymentMethodSettingsScreenState
                                                         child:
                                                             CircularProgressIndicator(
                                                               strokeWidth: 2,
-                                                              color: AppColors
-                                                                  .obsidian,
+                                                              color:
+                                                                  AirySettingsColors
+                                                                      .obsidian,
                                                             ),
                                                       ),
                                                     );
@@ -685,7 +703,7 @@ class _PaymentMethodSettingsScreenState
                                               errorBuilder: (_, _, _) =>
                                                   const Icon(
                                                     Icons.qr_code_rounded,
-                                                    size: 36,
+                                                    size: 32,
                                                   ),
                                             )),
                               ),
@@ -700,8 +718,9 @@ class _PaymentMethodSettingsScreenState
                                           ? 'Gambar Baru Dipilih'
                                           : 'Gambar QRIS Aktif Tersimpan',
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                        color: AirySettingsColors.obsidian,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
@@ -711,20 +730,30 @@ class _PaymentMethodSettingsScreenState
                                           ? 'Klik "Simpan Pengaturan" untuk menerapkan gambar.'
                                           : 'Tampil di layar pembayaran kasir.',
                                       style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textSecondary,
+                                        fontSize: 11.5,
+                                        color: AirySettingsColors.inkSecondary,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 10),
                                     if (isOwnerOrAdmin)
                                       Row(
                                         children: [
                                           OutlinedButton.icon(
                                             style: OutlinedButton.styleFrom(
+                                              foregroundColor:
+                                                  AirySettingsColors.obsidian,
+                                              side: const BorderSide(
+                                                color:
+                                                    AirySettingsColors.border,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
                                               padding:
                                                   const EdgeInsets.symmetric(
                                                     horizontal: 10,
-                                                    vertical: 4,
+                                                    vertical: 6,
                                                   ),
                                               minimumSize: Size.zero,
                                               tapTargetSize:
@@ -737,7 +766,10 @@ class _PaymentMethodSettingsScreenState
                                             ),
                                             label: const Text(
                                               'Ganti',
-                                              style: TextStyle(fontSize: 11),
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                             onPressed: _pickQrisImage,
                                           ),
@@ -748,7 +780,7 @@ class _PaymentMethodSettingsScreenState
                                               padding:
                                                   const EdgeInsets.symmetric(
                                                     horizontal: 8,
-                                                    vertical: 4,
+                                                    vertical: 6,
                                                   ),
                                               minimumSize: Size.zero,
                                               tapTargetSize:
@@ -761,13 +793,19 @@ class _PaymentMethodSettingsScreenState
                                             ),
                                             label: const Text(
                                               'Hapus',
-                                              style: TextStyle(fontSize: 11),
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                             onPressed: () => setState(() {
                                               _removeQrisImage = true;
                                               _newQrisBase64 = null;
                                               _pickedQrisImage = null;
                                               _pickedQrisBytes = null;
+                                              _qrisRawPayload = null;
+                                              _qrisEnabled = false;
+                                              _isDynamicQrisEnabled = false;
                                             }),
                                           ),
                                         ],
@@ -781,34 +819,45 @@ class _PaymentMethodSettingsScreenState
                       ] else ...[
                         InkWell(
                           onTap: isOwnerOrAdmin ? _pickQrisImage : null,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                           child: Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(
-                              vertical: 24,
+                              vertical: 22,
                               horizontal: 16,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceMuted,
-                              borderRadius: BorderRadius.circular(12),
+                              color: AirySettingsColors.surfaceSubtle,
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: AppColors.border,
-                                style: BorderStyle.solid,
+                                color: AirySettingsColors.border,
                               ),
                             ),
                             child: Column(
                               children: [
-                                const Icon(
-                                  Icons.cloud_upload_outlined,
-                                  size: 36,
-                                  color: AppColors.textSecondary,
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: AirySettingsColors.canvas,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: AirySettingsColors.border,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.cloud_upload_outlined,
+                                    size: 22,
+                                    color: AirySettingsColors.obsidian,
+                                  ),
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 12),
                                 const Text(
                                   'Belum ada gambar barcode QRIS',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 13,
+                                    fontSize: 13.5,
+                                    color: AirySettingsColors.obsidian,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -816,31 +865,52 @@ class _PaymentMethodSettingsScreenState
                                   'Ketuk di sini untuk mengunggah gambar QRIS toko (PNG, JPG, maks. 2MB)',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                    color: AirySettingsColors.inkSecondary,
+                                    height: 1.35,
                                   ),
                                 ),
                                 if (isOwnerOrAdmin) ...[
-                                  const SizedBox(height: 12),
-                                  ElevatedButton.icon(
-                                    onPressed: _pickQrisImage,
-                                    icon: const Icon(
-                                      Icons.add_photo_alternate_rounded,
-                                      size: 16,
-                                    ),
-                                    label: const Text(
-                                      'Pilih Gambar QRIS',
-                                      style: TextStyle(fontSize: 12),
+                                  const SizedBox(height: 14),
+                                  SizedBox(
+                                    height: 42,
+                                    child: ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            AirySettingsColors.obsidian,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 18,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: _pickQrisImage,
+                                      icon: const Icon(
+                                        Icons.add_photo_alternate_outlined,
+                                        size: 16,
+                                      ),
+                                      label: const Text(
+                                        'Pilih Gambar QRIS',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 4),
                                   TextButton(
                                     onPressed: _showImageUploadDialog,
                                     child: const Text(
                                       'Atau masukkan manual / sampel test',
                                       style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppColors.textMuted,
+                                        fontSize: 11,
+                                        color: AirySettingsColors.inkSecondary,
                                       ),
                                     ),
                                   ),
@@ -850,7 +920,9 @@ class _PaymentMethodSettingsScreenState
                           ),
                         ),
                       ],
-                      const Divider(height: 28),
+                      const SizedBox(height: 18),
+                      airyHairlineDivider(),
+                      const SizedBox(height: 16),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -860,53 +932,66 @@ class _PaymentMethodSettingsScreenState
                               children: [
                                 Row(
                                   children: [
-                                    const Text(
+                                    Text(
                                       'QRIS Dinamis',
                                       style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14.5,
+                                        color: (_hasUploadedQrisImage &&
+                                                _hasValidQrisPayload)
+                                            ? AirySettingsColors.obsidian
+                                            : const Color(0xFF94A3B8),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
+                                        horizontal: 7,
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.obsidian.withOpacity(
-                                          0.08,
-                                        ),
+                                        color: AirySettingsColors.pillSurface,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         'NOMINAL OTOMATIS',
                                         style: TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.5,
-                                          color: AppColors.obsidian,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.4,
+                                          color: (_hasUploadedQrisImage &&
+                                                  _hasValidQrisPayload)
+                                              ? AirySettingsColors.obsidian
+                                              : const Color(0xFF94A3B8),
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 3),
-                                const Text(
+                                Text(
                                   'Kunci nominal transaksi secara real-time pada barcode aplikasi pelanggan',
                                   style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                    color: (_hasUploadedQrisImage &&
+                                            _hasValidQrisPayload)
+                                        ? AirySettingsColors.inkSecondary
+                                        : const Color(0xFF94A3B8),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          Switch(
+                          const SizedBox(width: 12),
+                          airySwitch(
                             key: const Key('is_dynamic_qris_enabled_toggle'),
-                            value: _isDynamicQrisEnabled,
-                            activeThumbColor: AppColors.obsidian,
-                            onChanged: (isOwnerOrAdmin && _hasValidQrisPayload)
+                            value: (_hasUploadedQrisImage &&
+                                    _hasValidQrisPayload)
+                                ? _isDynamicQrisEnabled
+                                : false,
+                            onChanged: (isOwnerOrAdmin &&
+                                    _hasUploadedQrisImage &&
+                                    _hasValidQrisPayload)
                                 ? (val) => setState(
                                     () => _isDynamicQrisEnabled = val,
                                   )
@@ -914,13 +999,13 @@ class _PaymentMethodSettingsScreenState
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       if (!_hasValidQrisPayload)
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFFFBEB),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: const Color(0xFFFDE68A)),
                           ),
                           child: const Row(
@@ -928,16 +1013,16 @@ class _PaymentMethodSettingsScreenState
                               Icon(
                                 Icons.lock_outline_rounded,
                                 size: 16,
-                                color: Color(0xFFD97706),
+                                color: Color(0xFFB45309),
                               ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'Unggah gambar QRIS statis terlebih dahulu untuk mengaktifkan QRIS Dinamis.',
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 11.5,
                                     color: Color(0xFF92400E),
-                                    height: 1.3,
+                                    height: 1.35,
                                   ),
                                 ),
                               ),
@@ -949,7 +1034,7 @@ class _PaymentMethodSettingsScreenState
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF0FDF4),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: const Color(0xFFBBF7D0)),
                           ),
                           child: const Row(
@@ -957,16 +1042,16 @@ class _PaymentMethodSettingsScreenState
                               Icon(
                                 Icons.check_circle_outline_rounded,
                                 size: 16,
-                                color: Color(0xFF16A34A),
+                                color: Color(0xFF15803D),
                               ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'Barcode QRIS terdeteksi & siap untuk nominal otomatis.',
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 11.5,
                                     color: Color(0xFF166534),
-                                    height: 1.3,
+                                    height: 1.35,
                                   ),
                                 ),
                               ),
@@ -977,16 +1062,11 @@ class _PaymentMethodSettingsScreenState
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              airyHairlineDivider(),
 
-              // 4. E-Wallet Card (Master Toggle + Sub-toggles)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
+              // 4. E-Wallet Section (Master Toggle + Sub-toggles)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1000,50 +1080,46 @@ class _PaymentMethodSettingsScreenState
                               Text(
                                 'Dompet Digital (E-Wallet)',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: AirySettingsColors.obsidian,
                                 ),
                               ),
+                              SizedBox(height: 2),
                               Text(
                                 'Aktifkan semua e-wallet',
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                  color: AirySettingsColors.inkSecondary,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        Switch(
+                        const SizedBox(width: 12),
+                        airySwitch(
                           key: const Key('ewallet_master_toggle'),
                           value: _ewalletMasterEnabled,
-                          activeThumbColor: AppColors.obsidian,
                           onChanged: isOwnerOrAdmin
-                              ? (val) =>
-                                    setState(() => _ewalletMasterEnabled = val)
+                              ? (val) => setState(
+                                  () => _ewalletMasterEnabled = val,
+                                )
                               : null,
                         ),
                       ],
                     ),
-                    const Divider(height: 24),
-                    const Text(
-                      'PENYEDIA E-WALLET',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
+                    const SizedBox(height: 16),
+                    airySectionHeader('Penyedia E-Wallet'),
                     const SizedBox(height: 4),
                     const Text(
                       'Preferensi pilihan masing-masing penyedia akan tetap tersimpan meskipun master toggle dimatikan.',
                       style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
+                        fontSize: 11.5,
+                        color: AirySettingsColors.inkSecondary,
+                        height: 1.35,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
 
                     // ShopeePay
                     _buildProviderTile(
@@ -1056,7 +1132,7 @@ class _PaymentMethodSettingsScreenState
                       onChanged: (val) =>
                           setState(() => _shopeepayEnabled = val),
                     ),
-                    const Divider(height: 16),
+                    airyHairlineDivider(),
 
                     // DANA
                     _buildProviderTile(
@@ -1068,7 +1144,7 @@ class _PaymentMethodSettingsScreenState
                       isEwalletProvider: true,
                       onChanged: (val) => setState(() => _danaEnabled = val),
                     ),
-                    const Divider(height: 16),
+                    airyHairlineDivider(),
 
                     // LinkAja
                     _buildProviderTile(
@@ -1080,7 +1156,7 @@ class _PaymentMethodSettingsScreenState
                       isEwalletProvider: true,
                       onChanged: (val) => setState(() => _linkajaEnabled = val),
                     ),
-                    const Divider(height: 16),
+                    airyHairlineDivider(),
 
                     // OVO
                     _buildProviderTile(
@@ -1095,29 +1171,16 @@ class _PaymentMethodSettingsScreenState
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              airyHairlineDivider(),
 
               // 5. Baseline Payment Methods (Tunai & Transfer)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'METODE LAINNYA',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                    airySectionHeader('Metode Lainnya'),
+                    const SizedBox(height: 8),
                     _buildProviderTile(
                       key: 'toggle_cash',
                       name: 'Tunai di Meja Kasir (CASH)',
@@ -1127,7 +1190,7 @@ class _PaymentMethodSettingsScreenState
                       isEwalletProvider: false,
                       onChanged: (val) => setState(() => _cashEnabled = val),
                     ),
-                    const Divider(height: 16),
+                    airyHairlineDivider(),
                     _buildProviderTile(
                       key: 'toggle_bank_transfer',
                       name: 'Transfer Bank (BCA / Mandiri / BRI)',
@@ -1142,7 +1205,6 @@ class _PaymentMethodSettingsScreenState
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
             ],
           );
         },
@@ -1162,41 +1224,46 @@ class _PaymentMethodSettingsScreenState
     final effectiveEnabled =
         enabled && (!isEwalletProvider || _ewalletMasterEnabled);
     final isDimmed = isEwalletProvider && !_ewalletMasterEnabled;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: isDimmed ? AppColors.textMuted : AppColors.textPrimary,
-                ),
-              ),
-              if (subtitle != null && subtitle.isNotEmpty) ...[
-                const SizedBox(height: 2),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: isDimmed
+                        ? AirySettingsColors.inkSecondary
+                        : AirySettingsColors.obsidian,
                   ),
                 ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AirySettingsColors.inkSecondary,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        Switch(
-          key: Key(key),
-          value: value,
-          activeThumbColor: AppColors.obsidian,
-          onChanged: effectiveEnabled ? onChanged : null,
-        ),
-      ],
+          const SizedBox(width: 12),
+          airySwitch(
+            key: Key(key),
+            value: value,
+            onChanged: effectiveEnabled ? onChanged : null,
+          ),
+        ],
+      ),
     );
   }
 }

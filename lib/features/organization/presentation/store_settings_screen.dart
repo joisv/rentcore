@@ -9,11 +9,13 @@ import '../../auth/presentation/user_profile_screen.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../customers/presentation/customer_directory_screen.dart';
+import '../../onboarding/presentation/feature_walkthrough_screen.dart';
 import '../../printer/providers/printer_provider.dart';
 import '../../printer/presentation/printer_settings_screen.dart';
 import '../../transfers/presentation/transfers_screen.dart';
 import '../../vouchers/presentation/voucher_screen.dart';
 import 'booking_rules_settings_screen.dart';
+import 'collateral_settings_screen.dart';
 import 'manage_organization_screen.dart';
 import 'payment_method_settings_screen.dart';
 import 'shift_schedule_screen.dart';
@@ -399,6 +401,26 @@ class StoreSettingsScreen extends ConsumerWidget {
           ),
           _buildRowDivider(),
           _buildMenuRow(
+            key: const Key('menu_collateral_settings'),
+            icon: Icons.verified_user_outlined,
+            title: 'Jaminan & Deposit',
+            subtitle: bState.isCollateralEnabled
+                ? 'Aktif • ${bState.activeCollateralTypes.length} tipe'
+                : 'Nonaktif',
+            rightCaption: isOwnerOrAdmin ? null : 'Lihat saja',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CollateralSettingsScreen(
+                    isReadOnly: !isOwnerOrAdmin,
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildRowDivider(),
+          _buildMenuRow(
             icon: Icons.confirmation_number_outlined,
             title: 'Voucher & Promo',
             onTap: () {
@@ -491,6 +513,23 @@ class StoreSettingsScreen extends ConsumerWidget {
 
           // GROUP 4: PRIVASI & LEGAL
           _buildGroupHeader('PRIVASI & LEGAL'),
+          _buildMenuRow(
+            key: const Key('menu_app_guide'),
+            icon: Icons.help_outline_rounded,
+            title: 'Panduan Aplikasi',
+            subtitle: 'Lihat ulang alur operasional RentCore',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const FeatureWalkthroughScreen(
+                    replayMode: true,
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildRowDivider(),
           _buildMenuRow(
             icon: Icons.privacy_tip_outlined,
             title: 'Kebijakan Privasi',
@@ -949,7 +988,13 @@ class _BookingPolicyBottomSheetState
                 Switch.adaptive(
                   key: const Key('policy_toggle_auto_expire_unpaid'),
                   value: _autoExpireUnpaid,
-                  activeThumbColor: const Color(0xFF0F172A),
+                  activeThumbColor: Colors.white,
+                  activeTrackColor: const Color(0xFF0F172A),
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor: const Color(0xFFE2E8F0),
+                  trackOutlineColor: const WidgetStatePropertyAll(
+                    Colors.transparent,
+                  ),
                   onChanged: canEdit
                       ? (val) => setState(() => _autoExpireUnpaid = val)
                       : null,
@@ -1426,7 +1471,13 @@ class _LateFeePolicyBottomSheetState
                 Switch.adaptive(
                   key: const Key('late_fee_toggle_daily_cap'),
                   value: _capAtDailyRate,
-                  activeThumbColor: const Color(0xFF0F172A),
+                  activeThumbColor: Colors.white,
+                  activeTrackColor: const Color(0xFF0F172A),
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor: const Color(0xFFE2E8F0),
+                  trackOutlineColor: const WidgetStatePropertyAll(
+                    Colors.transparent,
+                  ),
                   onChanged: canEdit
                       ? (val) => setState(() => _capAtDailyRate = val)
                       : null,

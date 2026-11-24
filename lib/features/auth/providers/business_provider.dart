@@ -1,11 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../customers/providers/customer_provider.dart';
+import '../../../core/utils/collateral_helper.dart';
 import '../../organization/providers/organization_provider.dart';
-import '../../vouchers/providers/voucher_provider.dart';
 import '../data/auth_repository.dart';
-import 'auth_provider.dart';
+import 'auth_repository_provider.dart';
 
 String? normalizeEntityId(dynamic raw) {
   if (raw == null) return null;
@@ -121,6 +120,49 @@ class BusinessState {
     }
     return const [];
   }
+
+  Map<String, dynamic> get effectivePaymentMethodsConfig {
+    final base = currentBusiness?['payment_methods_config'];
+    final merged = base is Map
+        ? Map<String, dynamic>.from(base)
+        : <String, dynamic>{};
+    final override = currentBranch?['payment_methods_config_override'];
+    if (override is Map) {
+      override.forEach((k, v) => merged[k.toString()] = v);
+    }
+    return merged;
+  }
+
+  bool get hasQrisImage {
+    final cfg = effectivePaymentMethodsConfig;
+    final url =
+        (currentBranch?['qris_image_url'] ??
+                currentBusiness?['qris_image_url'] ??
+                cfg['qris_image_url'] ??
+                cfg['qris_image_path'] ??
+                '')
+            .toString()
+            .trim();
+    return url.isNotEmpty;
+  }
+
+  bool get isQrisEnabled {
+    final cfg = effectivePaymentMethodsConfig;
+    return cfg['qris_statis_enabled'] == true ||
+        cfg['is_qris_enabled'] == true;
+  }
+
+  bool get isQrisPaymentAvailable => isQrisEnabled && hasQrisImage;
+
+  bool get isCollateralEnabled => resolveEnableCollateral(currentBusiness);
+
+  bool get requireCollateral => resolveRequireCollateral(currentBusiness);
+
+  List<CollateralTypeOption> get collateralTypes =>
+      resolveBusinessCollateralTypes(currentBusiness);
+
+  List<CollateralTypeOption> get activeCollateralTypes =>
+      collateralTypes.where((t) => t.isActive).toList();
 
   bool isCategoryRelevant(String categoryKey) {
     if (activeBusinessCategories.isEmpty) return true;
@@ -355,18 +397,11 @@ class BusinessNotifier extends Notifier<BusinessState> {
 
   void _invalidateTenantScopedProviders() {
     // Only reset/invalidate imperative notifiers that do not watch businessProvider directly;
-    // reactive providers watching businessProvider rebuild automatically on state change.
+    // reactive providers watching businessProvider (e.g. customerProvider, voucherProvider)
+    // rebuild automatically on activeBusinessId change.
     if (ref.exists(organizationProvider)) {
       try { ref.read(organizationProvider.notifier).reset(); } catch (_) {}
       ref.invalidate(organizationProvider);
-    }
-    if (ref.exists(customerProvider)) {
-      try { ref.read(customerProvider.notifier).reset(); } catch (_) {}
-      ref.invalidate(customerProvider);
-    }
-    if (ref.exists(voucherProvider)) {
-      try { ref.read(voucherProvider.notifier).reset(); } catch (_) {}
-      ref.invalidate(voucherProvider);
     }
   }
 
@@ -398,6 +433,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
     String? city,
     String? address,
     String? phone,
+    String? nichePreset,
     List<String>? businessCategories,
     String? branchStructure,
     String? initialBranchName,
@@ -411,6 +447,7 @@ class BusinessNotifier extends Notifier<BusinessState> {
         city: (city ?? '').trim(),
         address: address,
         phone: phone,
+        nichePreset: nichePreset,
         businessCategories: businessCategories,
         branchStructure: branchStructure,
         initialBranchName: initialBranchName,

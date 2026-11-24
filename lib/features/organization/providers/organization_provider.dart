@@ -332,10 +332,19 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
     if (bizId == null) return false;
     state = state.copyWith(businessId: bizId, isSubmitting: true, error: null);
     try {
-      await _repository.submitResignation(bizId, reason: reason);
-      final resignations = await _repository.fetchResignationRequests(bizId);
+      final created = await _repository.submitResignation(bizId, reason: reason);
+      List<dynamic> resignations = [];
+      try {
+        resignations = await _repository.fetchResignationRequests(bizId);
+      } catch (_) {}
+      if (resignations.isEmpty && created.isNotEmpty) {
+        resignations = [created];
+      }
       if (!ref.mounted) return true;
       state = state.copyWith(isSubmitting: false, resignationRequests: resignations);
+      if (ref.exists(businessProvider)) {
+        ref.read(businessProvider.notifier).refreshSilently();
+      }
       return true;
     } catch (e) {
       if (!ref.mounted) return false;
@@ -356,6 +365,9 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
       final resignations = await _repository.fetchResignationRequests(bizId);
       if (!ref.mounted) return true;
       state = state.copyWith(isSubmitting: false, resignationRequests: resignations);
+      if (ref.exists(businessProvider)) {
+        ref.read(businessProvider.notifier).refreshSilently();
+      }
       return true;
     } catch (e) {
       if (!ref.mounted) return false;
@@ -385,6 +397,9 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
         members: members,
         resignationRequests: resignations,
       );
+      if (ref.exists(businessProvider)) {
+        ref.read(businessProvider.notifier).refreshSilently();
+      }
       return true;
     } catch (e) {
       if (!ref.mounted) return false;

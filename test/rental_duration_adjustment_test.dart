@@ -30,6 +30,7 @@ class _FakeBookingRepository extends BookingRepository {
     required int hoursDelta,
     double? additionalFee,
     int? paymentMethodId,
+    String? paymentMethodCode,
     double? cashReceived,
     String? managerPin,
     String? reason,

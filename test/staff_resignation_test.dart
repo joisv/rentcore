@@ -129,9 +129,11 @@ void main() {
       expect(find.text('1 Permohonan Resign Menunggu Peninjauan'), findsOneWidget);
       expect(find.text('Tinjau'), findsOneWidget);
 
-      // Verify staff card has 'Resign' badge
+      // Verify staff card has 'Pengajuan Resign' badge and approve/reject buttons
       expect(find.text('Agus Pratama'), findsOneWidget);
-      expect(find.text('Resign'), findsOneWidget);
+      expect(find.text('Pengajuan Resign'), findsOneWidget);
+      expect(find.text('Setujui'), findsOneWidget);
+      expect(find.text('Tolak'), findsOneWidget);
     });
   });
 

@@ -4,7 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
+import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
+import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
 import 'package:rentcore_mobile/features/onboarding/presentation/feature_walkthrough_screen.dart';
+
+class _StubNotificationNotifier extends NotificationNotifier {
+  @override
+  Future<void> fetchUnreadCountOnly() async {}
+
+  @override
+  Future<void> fetchNotifications({bool refresh = false}) async {}
+}
 
 class _FakeWalkthroughAuthRepository extends AuthRepository {
   bool walkthroughApiCalled = false;
@@ -36,6 +46,10 @@ void main() {
       ProviderScope(
         overrides: [
           authRepositoryProvider.overrideWithValue(fakeRepo),
+          notificationProvider.overrideWith(_StubNotificationNotifier.new),
+          closingSummaryProvider.overrideWith(
+            (ref) => Future.value(<String, dynamic>{}),
+          ),
         ],
         child: const MaterialApp(
           home: FeatureWalkthroughScreen(),
@@ -110,6 +124,10 @@ void main() {
       ProviderScope(
         overrides: [
           authRepositoryProvider.overrideWithValue(fakeRepo),
+          notificationProvider.overrideWith(_StubNotificationNotifier.new),
+          closingSummaryProvider.overrideWith(
+            (ref) => Future.value(<String, dynamic>{}),
+          ),
         ],
         child: const MaterialApp(
           home: FeatureWalkthroughScreen(),

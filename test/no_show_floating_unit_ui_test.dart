@@ -157,7 +157,10 @@ class _FakeBookingRepository extends BookingRepository {
     dynamic bookingId, {
     int? assetUnitId,
     String? collateralType,
+    String? collateralTypeId,
+    String? collateralTypeName,
     String? collateralStorageSlot,
+    double? collateralDepositAmount,
     bool startNow = false,
     bool keepOriginalEndAt = false,
   }) async {

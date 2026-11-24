@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/legal_links.dart';
+import '../../../shared/widgets/airy_settings_widgets.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -16,9 +19,10 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _emailController = TextEditingController(text: 'kasir.genteng@rentcore.id');
-  final _passwordController = TextEditingController(text: 'password');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isDemoExpanded = true;
 
   @override
   void dispose() {
@@ -26,6 +30,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _passwordController.dispose();
     super.dispose();
   }
+
+  bool get _isDevelopmentMode =>
+      ref.read(appEnvironmentProvider) == AppEnvironment.development &&
+      AppConfig.isDevelopment;
 
   void _login() async {
     final email = _emailController.text.trim();
@@ -51,11 +59,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<String> _getEffectiveServerClientId() async {
+    if (!_isDevelopmentMode) {
+      return ApiConstants.googleServerClientId.trim();
+    }
     final prefs = await SharedPreferences.getInstance();
     final custom = prefs.getString('google_server_client_id');
     if (custom != null && custom.trim().isNotEmpty) {
       if (custom.contains('8uqr0atc9aiojvg8g3bubj0m609ko1ar')) {
-        await prefs.setString('google_server_client_id', ApiConstants.googleServerClientId);
+        await prefs.setString(
+          'google_server_client_id',
+          ApiConstants.googleServerClientId,
+        );
         return ApiConstants.googleServerClientId;
       }
       return custom.trim();
@@ -66,8 +80,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _handleGoogleSignIn() async {
     final serverClientId = await _getEffectiveServerClientId();
     if (serverClientId.isEmpty) {
-      if (mounted) {
+      if (!mounted) return;
+      if (_isDevelopmentMode) {
         _showConfigGoogleClientIdDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Konfigurasi Google Sign-In belum tersedia.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
       }
       return;
     }
@@ -85,7 +107,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       final account = await googleSignIn.signIn();
       if (account == null) {
-        // User cancelled account selection
         return;
       }
 
@@ -109,14 +130,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       final success = await ref.read(authProvider.notifier).googleSignIn(
-        idToken: idToken,
-        email: account.email,
-        name: account.displayName,
-        avatarUrl: account.photoUrl,
-      );
+            idToken: idToken,
+            email: account.email,
+            name: account.displayName,
+            avatarUrl: account.photoUrl,
+          );
 
       if (!success && mounted) {
-        final error = ref.read(authProvider).errorMessage ?? 'Autentikasi Google gagal.';
+        final error =
+            ref.read(authProvider).errorMessage ?? 'Autentikasi Google gagal.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(error),
@@ -144,57 +166,84 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       } else {
         _showDiagnosticErrorDialog(
           title: 'Gagal Masuk dengan Google',
-          message: errorStr.replaceAll('Exception: ', '').replaceAll('PlatformException(', ''),
+          message: errorStr
+              .replaceAll('Exception: ', '')
+              .replaceAll('PlatformException(', ''),
         );
       }
     }
   }
 
-  void _showDiagnosticErrorDialog({required String title, required String message}) {
-    showDialog(
+  void _showDiagnosticErrorDialog({
+    required String title,
+    required String message,
+  }) {
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         title: Row(
           children: [
             const Icon(Icons.warning_amber_rounded, color: AppColors.danger),
             const SizedBox(width: 8),
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
           ],
         ),
         content: SelectableText(
           message,
-          style: const TextStyle(fontSize: 13, height: 1.4),
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.45,
+            color: Color(0xFF475569),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Tutup'),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _showServerSettings(context);
-            },
-            child: const Text('Buka Pengaturan'),
-          ),
+          if (_isDevelopmentMode)
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showServerSettings(context);
+              },
+              child: const Text('Buka Pengaturan'),
+            ),
         ],
       ),
     );
   }
 
   void _showConfigGoogleClientIdDialog() async {
+    if (!_isDevelopmentMode) return;
     final currentId = await _getEffectiveServerClientId();
     final ctrl = TextEditingController(text: currentId);
 
     if (!mounted) return;
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         title: const Row(
           children: [
-            Icon(Icons.vpn_key_rounded, color: AppColors.obsidian),
+            Icon(Icons.vpn_key_rounded, color: Color(0xFF0F172A)),
             SizedBox(width: 8),
-            Text('Konfigurasi Web Client ID', style: TextStyle(fontSize: 16)),
+            Text(
+              'Konfigurasi Web Client ID',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
           ],
         ),
         content: Column(
@@ -203,22 +252,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           children: [
             const Text(
               'Untuk mengaktifkan autentikasi Google Sign-In asli di HP Android, masukkan Web OAuth Client ID dari Google Cloud Console:',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
-              decoration: const InputDecoration(
-                labelText: 'Google Web Client ID',
+              decoration: airyInputDecoration(
                 hintText: 'xxxx.apps.googleusercontent.com',
-                border: OutlineInputBorder(),
-                isDense: true,
               ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final newId = ctrl.text.trim();
@@ -244,34 +293,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _showServerSettings(BuildContext context) async {
+    if (!_isDevelopmentMode) return;
     final prefs = await SharedPreferences.getInstance();
     final urlCtrl = TextEditingController(text: ApiClient().currentBaseUrl);
     final googleIdCtrl = TextEditingController(
-      text: prefs.getString('google_server_client_id') ?? ApiConstants.googleServerClientId,
+      text: prefs.getString('google_server_client_id') ??
+          ApiConstants.googleServerClientId,
     );
 
     if (!context.mounted) return;
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Pengaturan Server & OAuth'),
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          title: const Text(
+            'Pengaturan Server & OAuth',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
+            ),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '1. Base URL Backend Laravel:',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
+                airyFieldLabel('1. Base URL Backend Laravel'),
                 const SizedBox(height: 6),
                 TextField(
                   controller: urlCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Base URL API',
-                    border: OutlineInputBorder(),
-                    isDense: true,
+                  decoration: airyInputDecoration(
+                    hintText: 'http://192.168.1.101:8000/api/v1',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -281,46 +336,57 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   children: [
                     ActionChip(
                       avatar: const Icon(Icons.usb_rounded, size: 14),
-                      label: const Text('127.0.0.1 (USB)', style: TextStyle(fontSize: 10)),
-                      onPressed: () => urlCtrl.text = ApiConstants.usbReverseBaseUrl,
+                      label: const Text('127.0.0.1 (USB)', style: TextStyle(fontSize: 10.5)),
+                      onPressed: () =>
+                          urlCtrl.text = ApiConstants.usbReverseBaseUrl,
                     ),
                     ActionChip(
                       avatar: const Icon(Icons.wifi_rounded, size: 14),
-                      label: const Text('192.168.1.101 (LAN)', style: TextStyle(fontSize: 10)),
-                      onPressed: () => urlCtrl.text = ApiConstants.currentLanPcBaseUrl,
+                      label: const Text('192.168.1.101 (LAN)', style: TextStyle(fontSize: 10.5)),
+                      onPressed: () =>
+                          urlCtrl.text = ApiConstants.currentLanPcBaseUrl,
                     ),
                     ActionChip(
                       avatar: const Icon(Icons.smart_screen_rounded, size: 14),
-                      label: const Text('10.0.2.2 (Emulator)', style: TextStyle(fontSize: 10)),
-                      onPressed: () => urlCtrl.text = ApiConstants.emulatorBaseUrl,
+                      label: const Text('10.0.2.2 (Emulator)', style: TextStyle(fontSize: 10.5)),
+                      onPressed: () =>
+                          urlCtrl.text = ApiConstants.emulatorBaseUrl,
                     ),
                     ActionChip(
                       avatar: const Icon(Icons.language_rounded, size: 14),
-                      label: const Text('Laragon vhost', style: TextStyle(fontSize: 10)),
-                      onPressed: () => urlCtrl.text = ApiConstants.laragonVhostUrl,
+                      label: const Text('Laragon vhost', style: TextStyle(fontSize: 10.5)),
+                      onPressed: () =>
+                          urlCtrl.text = ApiConstants.laragonVhostUrl,
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '2. Google Web OAuth Client ID:',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
+                airyFieldLabel('2. Google Web OAuth Client ID'),
                 const SizedBox(height: 6),
                 TextField(
                   controller: googleIdCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Web Client ID (.apps.googleusercontent.com)',
-                    border: OutlineInputBorder(),
-                    isDense: true,
+                  decoration: airyInputDecoration(
+                    hintText: 'xxxx.apps.googleusercontent.com',
                   ),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F172A),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                minimumSize: const Size(88, 42),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
               onPressed: () async {
                 final newUrl = urlCtrl.text.trim();
                 final newClientId = googleIdCtrl.text.trim();
@@ -341,212 +407,604 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  void _showForgotPasswordSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Bantuan Kata Sandi',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Untuk staf atau kasir, hubungi Owner atau Manager toko agar kata sandi akun Anda diperbarui melalui menu Tim & Staf. Untuk pemilik usaha, Anda juga dapat masuk langsung menggunakan akun Google.',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.5,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _handleGoogleSignIn();
+                },
+                child: const Text(
+                  'Masuk dengan Google',
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Kembali',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRegistrationOnboardingSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Daftar Akun Usaha Gratis',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Buat workspace rental baru dalam 3 langkah singkat: pilih akun Google Anda, isi profil usaha & cabang utama, lalu pilih preset katalog awal.',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.5,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _handleGoogleSignIn();
+                },
+                icon: const Icon(Icons.g_mobiledata_rounded, size: 22),
+                label: const Text(
+                  'Daftar dengan Google',
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Nanti Saja',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDevTopBar(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Container(
+          key: const Key('login_dev_badge'),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFFDE68A), width: 1),
+          ),
+          child: const Text(
+            'DEV',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: Color(0xFFB45309),
+            ),
+          ),
+        ),
+        IconButton(
+          key: const Key('login_server_config_button'),
+          icon: const Icon(
+            Icons.dns_outlined,
+            size: 20,
+            color: Color(0xFF64748B),
+          ),
+          tooltip: 'Pengaturan Server API',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          onPressed: () => _showServerSettings(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDemoSection() {
+    return Container(
+      key: const Key('login_demo_section'),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            key: const Key('login_demo_toggle'),
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(() => _isDemoExpanded = !_isDemoExpanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'PILIHAN AKUN DEMO RESMI',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _isDemoExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: const Color(0xFF64748B),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_isDemoExpanded) ...[
+            const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  ActionChip(
+                    key: const Key('demo_fill_kasir'),
+                    label: const Text(
+                      'Kasir Genteng',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    onPressed: () => _quickFill('kasir.genteng@rentcore.id'),
+                  ),
+                  ActionChip(
+                    key: const Key('demo_fill_manager'),
+                    label: const Text(
+                      'Manager Genteng',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    onPressed: () => _quickFill('manager.genteng@rentcore.id'),
+                  ),
+                  ActionChip(
+                    key: const Key('demo_fill_owner'),
+                    label: const Text(
+                      'Owner',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    onPressed: () => _quickFill('superadmin@rentcore.id'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final env = ref.watch(appEnvironmentProvider);
+    final isDevelopment = env == AppEnvironment.development;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.dns_rounded, color: AppColors.textSecondary),
-            tooltip: 'Pengaturan Server API',
-            onPressed: () => _showServerSettings(context),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFFFFFF),
+        body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Brand Header
+                if (isDevelopment) ...[
+                  _buildDevTopBar(context),
+                  const SizedBox(height: 16),
+                ] else
+                  const SizedBox(height: 24),
+
+                // Crisp Brand Header
                 Center(
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
-                      color: AppColors.obsidian,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.obsidian.withValues(alpha: 0.15),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(16),
                     ),
+                    alignment: Alignment.center,
                     child: const Icon(
                       Icons.devices_other_rounded,
-                      size: 40,
+                      size: 28,
                       color: Colors.white,
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
+                const SizedBox(height: 18),
+                const Text(
                   'RENTCORE',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    fontSize: 26,
-                    letterSpacing: 1.5,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.8,
+                    color: Color(0xFF0F172A),
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                const Text(
                   'Electronic Rental Operating System',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
                     fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF64748B),
                   ),
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: 32),
 
-                // Login Form Card
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
+                // Borderless Airy Minimalist Form
+                airyFieldLabel('Email'),
+                const SizedBox(height: 6),
+                TextField(
+                  key: const Key('login_email_field'),
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w500,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Masuk Akun',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontSize: 18,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      TextField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Email Petugas / Admin',
-                          prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        decoration: InputDecoration(
-                          labelText: 'Kata Sandi',
-                          prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              size: 20,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      ElevatedButton(
-                        onPressed: authState.isLoading ? null : _login,
-                        child: authState.isLoading
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Masuk ke Sistem'),
-                      ),
-                      const SizedBox(height: 16),
-                      const Row(
-                        children: [
-                          Expanded(child: Divider(color: AppColors.border)),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'atau',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                          Expanded(child: Divider(color: AppColors.border)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: authState.isLoading ? null : _handleGoogleSignIn,
-                        icon: const Icon(Icons.account_circle_rounded, size: 20, color: AppColors.obsidian),
-                        label: const Text(
-                          'Masuk dengan Google',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: AppColors.border),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ],
+                  decoration: airyInputDecoration(
+                    hintText: 'nama@usaha.com',
+                    prefixIcon: const Icon(
+                      Icons.alternate_email_rounded,
+                      size: 20,
+                      color: Color(0xFF64748B),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 24),
-
-                // Quick Account Fill Chips
-                Text(
-                  'PILIHAN AKUN DEMO RESMI:',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: AppColors.textMuted,
+                const SizedBox(height: 16),
+                airyFieldLabel('Kata Sandi'),
+                const SizedBox(height: 6),
+                TextField(
+                  key: const Key('login_password_field'),
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _login(),
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: airyInputDecoration(
+                    hintText: 'Masukkan kata sandi',
+                    prefixIcon: const Icon(
+                      Icons.lock_outline_rounded,
+                      size: 20,
+                      color: Color(0xFF64748B),
+                    ),
+                    suffixIcon: IconButton(
+                      key: const Key('login_password_visibility_toggle'),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        size: 20,
+                        color: const Color(0xFF64748B),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: InkWell(
+                    key: const Key('login_forgot_password_button'),
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: _showForgotPasswordSheet,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      child: Text(
+                        'Lupa Kata Sandi?',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Primary Sign-In CTA
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    key: const Key('login_submit_button'),
+                    onPressed: authState.isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F172A),
+                      disabledBackgroundColor: const Color(0xFF0F172A)
+                          .withValues(alpha: 0.65),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: authState.isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Masuk',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Hairline Divider
+                const Row(
                   children: [
-                    ActionChip(
-                      label: const Text('Kasir Genteng', style: TextStyle(fontSize: 11)),
-                      backgroundColor: AppColors.surface,
-                      onPressed: () => _quickFill('kasir.genteng@rentcore.id'),
+                    Expanded(
+                      child: Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Color(0xFFF1F5F9),
+                      ),
                     ),
-                    ActionChip(
-                      label: const Text('Manager Genteng', style: TextStyle(fontSize: 11)),
-                      backgroundColor: AppColors.surface,
-                      onPressed: () => _quickFill('manager.genteng@rentcore.id'),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14),
+                      child: Text(
+                        'atau',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
                     ),
-                    ActionChip(
-                      label: const Text('Super Admin', style: TextStyle(fontSize: 11)),
-                      backgroundColor: AppColors.surface,
-                      onPressed: () => _quickFill('superadmin@rentcore.id'),
+                    Expanded(
+                      child: Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Color(0xFFF1F5F9),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
+
+                // Google Sign-In Secondary CTA
+                SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    key: const Key('login_google_button'),
+                    onPressed: authState.isLoading ? null : _handleGoogleSignIn,
+                    icon: const Icon(
+                      Icons.g_mobiledata_rounded,
+                      size: 24,
+                      color: Color(0xFF0F172A),
+                    ),
+                    label: const Text(
+                      'Masuk dengan Google',
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFFFFF),
+                      side: const BorderSide(
+                        color: Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                      elevation: 0,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Registration Footer
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
+                  children: [
+                    const Text(
+                      'Belum punya akun usaha?',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    InkWell(
+                      key: const Key('login_register_button'),
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: _showRegistrationOnboardingSheet,
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          'Daftar Gratis',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (isDevelopment) ...[
+                  const SizedBox(height: 24),
+                  _buildDemoSection(),
+                ],
+
+                const SizedBox(height: 16),
                 Center(
                   child: TextButton.icon(
                     key: const Key('login_privacy_policy_button'),
@@ -557,14 +1015,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     icon: const Icon(
                       Icons.privacy_tip_outlined,
                       size: 15,
-                      color: AppColors.textSecondary,
+                      color: Color(0xFF64748B),
                     ),
                     label: const Text(
                       'Kebijakan Privasi',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
+                        color: Color(0xFF64748B),
                         decoration: TextDecoration.underline,
                       ),
                     ),

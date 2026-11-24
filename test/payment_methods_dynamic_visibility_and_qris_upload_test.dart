@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/organization/presentation/payment_method_settings_screen.dart';
 import 'package:rentcore_mobile/features/payments/data/payment_repository.dart';
 import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
 import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MockPaymentRepoForVisibility extends PaymentRepository {
   PaymentContext? lastContext;
@@ -14,7 +15,7 @@ class MockPaymentRepoForVisibility extends PaymentRepository {
   @override
   Future<PaymentResult> executePayment({
     required PaymentContext context,
-    required int paymentMethodId,
+    required int? paymentMethodId,
     required String paymentMethodCode,
     required String paymentMethodName,
     required double amountToPay,
@@ -39,6 +40,11 @@ class MockPaymentRepoForVisibility extends PaymentRepository {
 }
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
   final defaultPaymentMethods = [
     {'id': 1, 'code': 'CASH', 'name': 'Tunai', 'is_active': true},
     {
@@ -134,7 +140,7 @@ void main() {
       expect(find.text('Lainnya'), findsOneWidget);
     });
 
-    testWidgets('Hides QRIS card when qris_statis_enabled is false', (
+    testWidgets('Disables QRIS card when qris_statis_enabled is false', (
       tester,
     ) async {
       final mockSettings = {
@@ -162,9 +168,15 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('QRIS'), findsNothing);
+      expect(find.byKey(const Key('payment_method_card_qris')), findsOneWidget);
+      expect(find.text('QRIS'), findsOneWidget);
+      expect(find.text('Tidak tersedia'), findsOneWidget);
       expect(find.text('Tunai'), findsOneWidget);
       expect(find.text('Lainnya'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('payment_method_card_qris')));
+      await tester.pumpAndSettle();
+      expect(find.text('QRIS STATIS'), findsNothing);
     });
 
     testWidgets(

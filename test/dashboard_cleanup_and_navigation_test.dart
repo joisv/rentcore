@@ -404,7 +404,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // Enter new name
-        final nameFinder = find.widgetWithText(TextFormField, 'Nama Lengkap *');
+        final nameFinder = find.byKey(const Key('profile_name_field'));
         await tester.enterText(nameFinder, 'Updated Staff Name');
         await tester.pumpAndSettle();
 
@@ -435,13 +435,9 @@ void main() {
         await tester.pumpAndSettle();
 
         // Enter new password and confirmation
-        final newPwdFinder = find.widgetWithText(
-          TextFormField,
-          'Buat Kata Sandi Baru *',
-        );
-        final confirmPwdFinder = find.widgetWithText(
-          TextFormField,
-          'Konfirmasi Kata Sandi Baru *',
+        final newPwdFinder = find.byKey(const Key('profile_new_password_field'));
+        final confirmPwdFinder = find.byKey(
+          const Key('profile_confirm_password_field'),
         );
 
         await tester.enterText(newPwdFinder, 'secretPass123');

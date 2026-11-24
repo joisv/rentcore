@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/skeleton_loading.dart';
+import '../../auth/presentation/user_profile_screen.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/bookings_screen.dart';
 import '../../bookings/providers/booking_provider.dart';
@@ -294,6 +295,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   Widget _buildNotificationRow(NotificationItem item) {
     final isUnread = !item.isRead;
     final categoryIcon = _getCategoryIcon(item.category, item.type);
+    final iconStyle = _getNotificationIconColors(item);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -316,13 +318,13 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF3F4F6),
+                      color: iconStyle.background,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       categoryIcon,
                       size: 20,
-                      color: const Color(0xFF111111),
+                      color: iconStyle.foreground,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -407,10 +409,55 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     );
   }
 
+  bool _isResignRequested(NotificationItem item) {
+    return item.type == 'staff.resignation_submitted' ||
+        item.type == 'resignation_request' ||
+        item.type == 'resign_requested';
+  }
+
+  bool _isResignApproved(NotificationItem item) {
+    return item.type == 'staff.resignation_approved' ||
+        item.type == 'resign_approved' ||
+        (item.type == 'resignation_reviewed' &&
+            item.actionPayload?['status']?.toString() == 'approved');
+  }
+
+  bool _isResignRejected(NotificationItem item) {
+    return item.type == 'staff.resignation_rejected' ||
+        item.type == 'resign_rejected' ||
+        (item.type == 'resignation_reviewed' &&
+            item.actionPayload?['status']?.toString() == 'rejected');
+  }
+
+  ({Color background, Color foreground}) _getNotificationIconColors(
+    NotificationItem item,
+  ) {
+    if (_isResignApproved(item)) {
+      return (
+        background: const Color(0xFFECFDF5),
+        foreground: const Color(0xFF059669),
+      );
+    }
+    if (_isResignRejected(item)) {
+      return (
+        background: const Color(0xFFFEF2F2),
+        foreground: const Color(0xFFDC2626),
+      );
+    }
+    if (_isResignRequested(item)) {
+      return (
+        background: const Color(0xFFFFFBEB),
+        foreground: const Color(0xFFD97706),
+      );
+    }
+    return (
+      background: const Color(0xFFF3F4F6),
+      foreground: const Color(0xFF111111),
+    );
+  }
+
   bool _isInteractiveResignationNotification(NotificationItem item) {
-    final isResignType = item.type == 'staff.resignation_submitted' ||
-        item.type == 'resignation_request';
-    if (!isResignType) return false;
+    if (!_isResignRequested(item)) return false;
     final payload = item.actionPayload;
     if (payload == null) return false;
     return (payload['resignation_request_id'] ?? payload['resignation_id']) != null;
@@ -670,6 +717,17 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   }
 
   IconData _getCategoryIcon(String category, [String? type]) {
+    if (type == 'staff.resignation_approved' || type == 'resign_approved') {
+      return Icons.check_circle_outline_rounded;
+    }
+    if (type == 'staff.resignation_rejected' || type == 'resign_rejected') {
+      return Icons.cancel_outlined;
+    }
+    if (type == 'staff.resignation_submitted' ||
+        type == 'resignation_request' ||
+        type == 'resign_requested') {
+      return Icons.person_remove_outlined;
+    }
     if (type == 'rental.overdue') {
       return Icons.alarm_on_rounded;
     }
@@ -705,6 +763,9 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
         item.type == 'booking.grace_warning' ||
         item.type == 'booking.auto_noshow' ||
         item.type == 'inventory.low_stock' ||
+        _isResignRequested(item) ||
+        _isResignApproved(item) ||
+        _isResignRejected(item) ||
         item.category == 'transfer' ||
         item.category == 'membership' ||
         item.category == 'rental' ||
@@ -712,7 +773,11 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   }
 
   String _getActionLabel(NotificationItem item) {
-    if (item.type == 'rental.overdue') {
+    if (_isResignApproved(item) || _isResignRejected(item)) {
+      return 'Lihat Status Kepegawaian';
+    } else if (_isResignRequested(item)) {
+      return 'Tinjau Pengajuan Tim';
+    } else if (item.type == 'rental.overdue') {
       return 'Proses Pengembalian / Antrean';
     } else if (item.type == 'booking.grace_warning') {
       return 'Serahkan Unit / Cek Booking';
@@ -733,6 +798,47 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   }
 
   void _handleAction(NotificationItem item) {
+    final targetRoute = item.actionPayload?['target_route']?.toString();
+    if (_isResignApproved(item) ||
+        _isResignRejected(item) ||
+        targetRoute == 'user_profile' ||
+        item.actionRoute == '/profile') {
+      if (_isResignApproved(item)) {
+        ref.read(businessProvider.notifier).refreshSilently().catchError((_) {});
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const UserProfileScreen()),
+      );
+      return;
+    }
+
+    if (_isResignRequested(item) || targetRoute == 'manage_team') {
+      final biz = ref.read(businessProvider).currentBusiness;
+      final targetBizId =
+          (item.actionPayload?['business_id'] as num?)?.toInt() ??
+          (biz?['id'] as num?)?.toInt() ??
+          item.businessId;
+      final targetBizName =
+          item.actionPayload?['business_name']?.toString().trim().isNotEmpty ==
+                  true
+              ? item.actionPayload!['business_name'].toString().trim()
+              : ((biz?['name']?.toString().trim().isNotEmpty == true)
+                    ? biz!['name'].toString().trim()
+                    : 'Usaha Rental');
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ManageOrganizationScreen(
+            businessId: targetBizId,
+            businessName: targetBizName,
+            initialTabIndex: 1,
+          ),
+        ),
+      );
+      return;
+    }
+
     if (item.type == 'rental.overdue' ||
         item.type == 'booking.grace_warning' ||
         item.type == 'booking.auto_noshow' ||

@@ -240,3 +240,40 @@ final allCatalogModelsProvider = FutureProvider.autoDispose<List<Map<String, dyn
   return repo.fetchModels();
 });
 
+/// Parses booleans (`true`/`false`, `1`/`0`, `'true'`/`'false'`, `'1'`/`'0'`),
+/// strictly defaulting to [defaultValue] (`false`).
+bool parseBoolFlag(dynamic value, {bool defaultValue = false}) {
+  if (value == null) return defaultValue;
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1') return true;
+    if (normalized == 'false' || normalized == '0' || normalized.isEmpty) {
+      return false;
+    }
+  }
+  return defaultValue;
+}
+
+/// Reliably determines whether an inventory unit payload is marked as an add-on.
+/// Checks top-level `is_addon` first, then nested `model`/`product_model`/`asset_model`
+/// `is_addon`, defaulting strictly to `false` (never falling back to category flags).
+bool parseUnitIsAddon(dynamic unit) {
+  if (unit is! Map) return false;
+  if (unit.containsKey('is_addon') && unit['is_addon'] != null) {
+    return parseBoolFlag(unit['is_addon']);
+  }
+  final model = unit['model'] ?? unit['product_model'] ?? unit['asset_model'];
+  if (model is Map && model['is_addon'] != null) {
+    return parseBoolFlag(model['is_addon']);
+  }
+  return false;
+}
+
+/// Reliably determines whether a product model payload is marked as an add-on.
+bool parseModelIsAddon(dynamic model) {
+  if (model is! Map) return false;
+  return parseBoolFlag(model['is_addon']);
+}
+

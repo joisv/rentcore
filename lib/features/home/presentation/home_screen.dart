@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
@@ -13,7 +14,9 @@ import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../bookings/presentation/rental_queue_actions.dart';
 import '../../cashier/providers/cashier_provider.dart';
+import '../../inventory/presentation/add_product_sheet.dart';
 import '../../inventory/presentation/inventory_screen.dart';
+import '../../inventory/providers/asset_provider.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../notifications/providers/notification_provider.dart';
 import '../providers/dashboard_provider.dart';
@@ -338,14 +341,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         const SizedBox(height: 14),
                       ],
 
-                      // 4. Progressive Setup Checklist Banner (Non-blocking & Dismissible)
+                      // 4. Progressive Setup Checklist Banner (Owner Only, Non-blocking & Dismissible)
                       if (businessState.activeBusinessId != null) ...[
                         ProgressiveChecklistBanner(
-                          totalAssetCount: (kpiAsync.value?['kpi']?['units_total'] as num?)?.toInt() ??
-                              (kpiAsync.value?['kpi']?['total_units'] as num?)?.toInt() ??
-                              (kpiAsync.value?['kpi']?['total_assets'] as num?)?.toInt() ??
-                              (kpiAsync.value?['stats']?['total_units'] as num?)?.toInt() ??
-                              0,
+                          totalModelCount:
+                              (kpiAsync.value?['kpi']?['models_total'] as num?)
+                                      ?.toInt() ??
+                                  (kpiAsync.value?['kpi']?['total_models'] as num?)
+                                      ?.toInt() ??
+                                  0,
+                          totalAssetCount:
+                              (kpiAsync.value?['kpi']?['units_total'] as num?)
+                                      ?.toInt() ??
+                                  (kpiAsync.value?['kpi']?['total_units'] as num?)
+                                      ?.toInt() ??
+                                  (kpiAsync.value?['kpi']?['total_assets'] as num?)
+                                      ?.toInt() ??
+                                  (kpiAsync.value?['stats']?['total_units'] as num?)
+                                      ?.toInt() ??
+                                  0,
+                          onOpenCreateModel: () {
+                            showModalBottomSheet<void>(
+                              context: context,
+                              isScrollControlled: true,
+                              useSafeArea: true,
+                              backgroundColor: Colors.white,
+                              builder: (_) => AddProductSheet(
+                                onSuccess: () {
+                                  ref.invalidate(dashboardKpiProvider);
+                                  ref.invalidate(productsProvider);
+                                },
+                              ),
+                            );
+                          },
                           onOpenInventory: () => widget.onNavigateTab(2),
                         ),
                       ] else if (businessState.error == null &&
@@ -1855,10 +1883,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ];
     final assetIdentifierText = assetIdentifierParts.join(' • ');
 
-    final rawCollateral = booking['collateral_storage_slot']?.toString().trim();
-    final collateralSlot = (rawCollateral != null && rawCollateral.isNotEmpty)
-        ? rawCollateral
-        : 'Brankas Cabang';
+    final showCollateral =
+        ref.watch(businessProvider).isCollateralEnabled ||
+        hasCollateralRecord(booking);
+    final collateralSlot =
+        showCollateral ? formatCollateralSummary(booking) : '';
 
     final endAt = DateFormatter.parseLocal(booking['end_at']);
     final startAt = DateFormatter.parseLocal(booking['start_at']);
@@ -2123,16 +2152,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Jaminan: $collateralSlot',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF64748B),
+                    if (showCollateral) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Jaminan: $collateralSlot',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: Color(0xFF64748B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    ],
                   ],
                 ),
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
@@ -15,7 +16,7 @@ class MockPaymentRepository extends PaymentRepository {
   @override
   Future<PaymentResult> executePayment({
     required PaymentContext context,
-    required int paymentMethodId,
+    required int? paymentMethodId,
     required String paymentMethodCode,
     required String paymentMethodName,
     required double amountToPay,
@@ -43,6 +44,32 @@ class MockPaymentRepository extends PaymentRepository {
     return result;
   }
 }
+
+class _TestBusinessNotifier extends BusinessNotifier {
+  final BusinessState _initial;
+  _TestBusinessNotifier(this._initial);
+
+  @override
+  BusinessState build() => _initial;
+
+  @override
+  Future<void> refresh() async {}
+}
+
+BusinessNotifier createCollateralEnabledBusiness() => _TestBusinessNotifier(
+      const BusinessState(
+        activeBusinessId: 1,
+        activeBranchId: 1,
+        businesses: [
+          {
+            'id': 1,
+            'name': 'RentCore Test',
+            'enable_collateral': true,
+            'require_collateral': false,
+          },
+        ],
+      ),
+    );
 
 void main() {
   final mockReadyAssets = [
@@ -87,6 +114,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            businessProvider.overrideWith(createCollateralEnabledBusiness),
             readyAssetsProvider.overrideWith((ref) => Future.value(mockReadyAssets)),
             categoriesProvider.overrideWith((ref) => Future.value(mockCategories)),
             paymentMethodsProvider.overrideWith((ref) => Future.value(mockPaymentMethods)),
@@ -154,6 +182,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            businessProvider.overrideWith(createCollateralEnabledBusiness),
             readyAssetsProvider.overrideWith((ref) => Future.value(mockReadyAssets)),
             categoriesProvider.overrideWith((ref) => Future.value(mockCategories)),
             paymentMethodsProvider.overrideWith((ref) => Future.value(mockPaymentMethods)),
@@ -210,6 +239,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            businessProvider.overrideWith(createCollateralEnabledBusiness),
             readyAssetsProvider.overrideWith((ref) => Future.value(mockReadyAssets)),
             categoriesProvider.overrideWith((ref) => Future.value(mockCategories)),
             paymentMethodsProvider.overrideWith((ref) => Future.value(mockPaymentMethods)),

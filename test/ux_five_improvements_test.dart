@@ -5,11 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:rentcore_mobile/core/constants/navigation_keys.dart';
-import 'package:rentcore_mobile/core/services/printer_bluetooth_driver.dart';
-import 'package:rentcore_mobile/core/services/thermal_printer_service.dart';
 import 'package:rentcore_mobile/core/theme/app_theme.dart';
 import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
@@ -18,7 +15,6 @@ import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
 import 'package:rentcore_mobile/features/inventory/presentation/add_product_sheet.dart';
 import 'package:rentcore_mobile/features/inventory/presentation/inventory_screen.dart';
 import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
-import 'package:rentcore_mobile/features/printer/providers/printer_provider.dart';
 import 'package:rentcore_mobile/shared/widgets/floating_capsule_dock.dart';
 
 class _TestBusinessNotifier extends BusinessNotifier {
@@ -39,11 +35,6 @@ class _TestBusinessNotifier extends BusinessNotifier {
           }
         ],
       );
-}
-
-class _TestChecklistAuthRepo extends AuthRepository {
-  @override
-  Future<bool> isChecklistDismissed(int? businessId) async => false;
 }
 
 class _TestAssetRepo extends AssetRepository {
@@ -272,14 +263,12 @@ void main() {
     );
   });
 
-  testWidgets('4a: Panduan Persiapan Toko stays permanently hidden once printer connects (and after disconnect)',
+  testWidgets('4a: Panduan Persiapan Toko stays hidden once dismissed for the active business',
       (tester) async {
-    final service = ThermalPrinterService();
-    service.setDriver(MockPrinterDriver());
-
     final testBiz = {
       'id': 99,
       'name': 'Toko Kamera',
+      'role': 'owner',
       'branches': [
         {'id': 1, 'name': 'Pusat', 'code': 'PST', 'is_central': true},
       ],
@@ -288,13 +277,14 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authRepositoryProvider.overrideWithValue(_TestChecklistAuthRepo()),
           businessProvider.overrideWith(BusinessNotifier.new),
-          thermalPrinterServiceProvider.overrideWithValue(service),
         ],
         child: const MaterialApp(
           home: Scaffold(
-            body: ProgressiveChecklistBanner(totalAssetCount: 0),
+            body: ProgressiveChecklistBanner(
+              totalModelCount: 0,
+              totalAssetCount: 0,
+            ),
           ),
         ),
       ),
@@ -307,21 +297,13 @@ void main() {
     // Initially visible
     expect(find.text('Panduan Persiapan Toko'), findsOneWidget);
 
-    // Connect printer successfully -> persists scoped flag & hides checklist
-    final connected = await container.read(printerProvider.notifier).connectDevice(
-      const ThermalPrinterDevice(name: 'RPP02N', address: '00:11:22:33:44:55'),
-    );
-    expect(connected, isTrue);
-    await tester.pumpAndSettle();
-    expect(find.text('Panduan Persiapan Toko'), findsNothing);
-
-    // Disconnect printer -> flag remains true and checklist stays permanently hidden
-    await container.read(printerProvider.notifier).disconnect();
+    // Dismiss checklist -> persists scoped flag in SharedPreferences & hides card
+    await tester.tap(find.byKey(const Key('checklist_dismiss_button')));
     await tester.pumpAndSettle();
     expect(find.text('Panduan Persiapan Toko'), findsNothing);
 
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('has_ever_connected_printer_default_99'), isTrue);
+    expect(prefs.getBool('checklist_dismissed_99'), isTrue);
   });
 
   testWidgets('5: Booking Baru add-on search filters add-ons and preserves selection + subtotal',

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/legal_links.dart';
+import '../../../shared/widgets/airy_settings_widgets.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../organization/presentation/widgets/staff_resignation_sheet.dart';
+import '../../organization/providers/organization_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_provider.dart';
 
@@ -38,6 +41,20 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     final user = ref.read(authProvider).user;
     _nameController = TextEditingController(text: user?['name']?.toString() ?? '');
     _phoneController = TextEditingController(text: user?['phone']?.toString() ?? '');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final bState = ref.read(businessProvider);
+      final role = (bState.currentBusiness?['role'] ?? 'owner').toString();
+      if (bState.activeBusinessId != null && role != 'owner') {
+        final storeLabel = bState.resolvedStoreName.isNotEmpty
+            ? bState.resolvedStoreName
+            : 'Usaha Rental';
+        ref.read(organizationProvider.notifier).ensureBusinessResignationsLoaded(
+              bState.activeBusinessId!,
+              businessName: storeLabel,
+            );
+      }
+    });
   }
 
   @override
@@ -139,183 +156,184 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     final hasPassword = user?['has_password'] == true;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AirySettingsColors.canvas,
       appBar: const RentCoreAppBar(
         title: 'Profil & Keamanan Akun',
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        padding: const EdgeInsets.symmetric(vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // User Avatar & Badges Header
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    width: 84,
-                    height: 84,
-                    decoration: BoxDecoration(
-                      color: AppColors.obsidian,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: (avatarUrl != null && avatarUrl.isNotEmpty)
-                        ? ClipOval(
-                            child: Image.network(
-                              avatarUrl,
-                              width: 84,
-                              height: 84,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Text(
-                                _getInitials(userName),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w800,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Center(
+                child: Column(
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: const BoxDecoration(
+                        color: AirySettingsColors.obsidian,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: (avatarUrl != null && avatarUrl.isNotEmpty)
+                          ? ClipOval(
+                              child: Image.network(
+                                avatarUrl,
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Text(
+                                  _getInitials(userName),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
+                            )
+                          : Text(
+                              _getInitials(userName),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          )
-                        : Text(
-                            _getInitials(userName),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    userName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Text(
-                          userRole,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textSecondary,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                    const SizedBox(height: 12),
+                    Text(
+                      userName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AirySettingsColors.obsidian,
                       ),
-                      if (isGoogleUser) ...[
-                        const SizedBox(width: 6),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8F0FE),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
                           ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.check_circle_rounded, size: 11, color: Color(0xFF1D4ED8)),
-                              SizedBox(width: 4),
-                              Text(
-                                'Google Account',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
+                          decoration: BoxDecoration(
+                            color: AirySettingsColors.pillSurface,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            userRole,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: AirySettingsColors.inkMuted,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                        if (isGoogleUser) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFFDBEAFE),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 11,
                                   color: Color(0xFF1D4ED8),
                                 ),
-                              ),
-                            ],
+                                SizedBox(width: 4),
+                                Text(
+                                  'Google Account',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1D4ED8),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
+            airyHairlineDivider(),
 
             // SECTION 1: Personal Information Form
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               child: Form(
                 key: _profileFormKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.badge_outlined, size: 18, color: AppColors.textPrimary),
-                        SizedBox(width: 8),
-                        Text(
-                          'Informasi Pribadi',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
+                    airySectionHeader('Informasi Pribadi'),
                     const SizedBox(height: 16),
 
                     // Email (Readonly)
+                    airyFieldLabel('Alamat Email (Akun)'),
+                    const SizedBox(height: 6),
                     TextFormField(
+                      key: const Key('profile_email_field'),
                       initialValue: userEmail,
                       readOnly: true,
                       enabled: false,
-                      decoration: InputDecoration(
-                        labelText: 'Alamat Email (Akun)',
-                        prefixIcon: const Icon(Icons.email_outlined, size: 20),
-                        filled: true,
-                        fillColor: AppColors.surfaceMuted,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AppColors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AppColors.border),
+                      decoration: airyInputDecoration(
+                        enabled: false,
+                        prefixIcon: const Icon(
+                          Icons.email_outlined,
+                          size: 18,
+                          color: AirySettingsColors.inkSecondary,
                         ),
                       ),
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: AirySettingsColors.inkSecondary,
+                      ),
                     ),
                     const SizedBox(height: 14),
 
                     // Display Name
+                    airyFieldLabel('Nama Lengkap *'),
+                    const SizedBox(height: 6),
                     TextFormField(
+                      key: const Key('profile_name_field'),
                       controller: _nameController,
                       textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: 'Nama Lengkap *',
-                        prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AirySettingsColors.obsidian,
+                      ),
+                      decoration: airyInputDecoration(
+                        prefixIcon: const Icon(
+                          Icons.person_outline_rounded,
+                          size: 18,
+                          color: AirySettingsColors.inkSecondary,
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -330,95 +348,84 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     const SizedBox(height: 14),
 
                     // Phone Number
+                    airyFieldLabel('Nomor Telepon / WhatsApp'),
+                    const SizedBox(height: 6),
                     TextFormField(
+                      key: const Key('profile_phone_field'),
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
-                        labelText: 'Nomor Telepon / WhatsApp',
-                        prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AirySettingsColors.obsidian,
+                      ),
+                      decoration: airyInputDecoration(
                         hintText: 'Contoh: 081234567890',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        prefixIcon: const Icon(
+                          Icons.phone_outlined,
+                          size: 18,
+                          color: AirySettingsColors.inkSecondary,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 18),
 
-                    ElevatedButton(
-                      onPressed: _isProfileLoading ? null : _handleSaveProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.obsidian,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
-                      ),
-                      child: _isProfileLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            )
-                          : const Text(
-                              'Simpan Perubahan Profil',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                            ),
+                    airyPrimaryCta(
+                      label: 'Simpan Perubahan Profil',
+                      isLoading: _isProfileLoading,
+                      onPressed:
+                          _isProfileLoading ? null : _handleSaveProfile,
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            airyHairlineDivider(),
 
             // SECTION 2: Security & Password Management
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               child: Form(
                 key: _passwordFormKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.lock_outline_rounded, size: 18, color: AppColors.textPrimary),
-                        const SizedBox(width: 8),
-                        Text(
-                          hasPassword ? 'Ubah Kata Sandi' : 'Buat Kata Sandi Akun',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      hasPassword ? 'Ubah Kata Sandi' : 'Buat Kata Sandi Akun',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AirySettingsColors.obsidian,
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
 
                     // Google-connected notice if user does NOT have a password
                     if (!hasPassword) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDF4),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                          color: AirySettingsColors.surfaceSubtle,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AirySettingsColors.border),
                         ),
                         child: const Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.info_outline_rounded, color: Color(0xFF16A34A), size: 18),
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: AirySettingsColors.inkMuted,
+                              size: 18,
+                            ),
                             SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 'Akun Anda saat ini login via Google. Buat kata sandi lokal agar Anda dapat login langsung menggunakan email dan kata sandi tanpa bergantung pada Google.',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF15803D),
-                                  height: 1.35,
+                                  color: AirySettingsColors.inkMuted,
+                                  height: 1.4,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -431,20 +438,35 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
 
                     // Current Password field (ONLY if user already has an existing password)
                     if (hasPassword) ...[
+                      airyFieldLabel('Kata Sandi Saat Ini *'),
+                      const SizedBox(height: 6),
                       TextFormField(
+                        key: const Key('profile_current_password_field'),
                         controller: _currentPasswordController,
                         obscureText: _obscureCurrent,
-                        decoration: InputDecoration(
-                          labelText: 'Kata Sandi Saat Ini *',
-                          prefixIcon: const Icon(Icons.key_rounded, size: 20),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AirySettingsColors.obsidian,
+                        ),
+                        decoration: airyInputDecoration(
+                          prefixIcon: const Icon(
+                            Icons.key_outlined,
+                            size: 18,
+                            color: AirySettingsColors.inkSecondary,
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureCurrent ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              _obscureCurrent
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
                               size: 18,
+                              color: AirySettingsColors.inkSecondary,
                             ),
-                            onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                            onPressed: () => setState(
+                              () => _obscureCurrent = !_obscureCurrent,
+                            ),
                           ),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         validator: (value) {
                           if (hasPassword && (value == null || value.isEmpty)) {
@@ -457,20 +479,38 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     ],
 
                     // New Password field
+                    airyFieldLabel(
+                      hasPassword
+                          ? 'Kata Sandi Baru *'
+                          : 'Buat Kata Sandi Baru *',
+                    ),
+                    const SizedBox(height: 6),
                     TextFormField(
+                      key: const Key('profile_new_password_field'),
                       controller: _newPasswordController,
                       obscureText: _obscureNew,
-                      decoration: InputDecoration(
-                        labelText: hasPassword ? 'Kata Sandi Baru *' : 'Buat Kata Sandi Baru *',
-                        prefixIcon: const Icon(Icons.lock_rounded, size: 20),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AirySettingsColors.obsidian,
+                      ),
+                      decoration: airyInputDecoration(
+                        prefixIcon: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 18,
+                          color: AirySettingsColors.inkSecondary,
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                            _obscureNew
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
                             size: 18,
+                            color: AirySettingsColors.inkSecondary,
                           ),
-                          onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                          onPressed: () =>
+                              setState(() => _obscureNew = !_obscureNew),
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -479,7 +519,8 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         if (value.length < 8) {
                           return 'Kata sandi baru minimal 8 karakter.';
                         }
-                        if (hasPassword && value == _currentPasswordController.text) {
+                        if (hasPassword &&
+                            value == _currentPasswordController.text) {
                           return 'Kata sandi baru harus berbeda dari kata sandi saat ini.';
                         }
                         return null;
@@ -488,20 +529,35 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     const SizedBox(height: 14),
 
                     // Confirm New Password field
+                    airyFieldLabel('Konfirmasi Kata Sandi Baru *'),
+                    const SizedBox(height: 6),
                     TextFormField(
+                      key: const Key('profile_confirm_password_field'),
                       controller: _confirmPasswordController,
                       obscureText: _obscureConfirm,
-                      decoration: InputDecoration(
-                        labelText: 'Konfirmasi Kata Sandi Baru *',
-                        prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AirySettingsColors.obsidian,
+                      ),
+                      decoration: airyInputDecoration(
+                        prefixIcon: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 18,
+                          color: AirySettingsColors.inkSecondary,
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                            _obscureConfirm
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
                             size: 18,
+                            color: AirySettingsColors.inkSecondary,
                           ),
-                          onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                          onPressed: () => setState(
+                            () => _obscureConfirm = !_obscureConfirm,
+                          ),
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -515,151 +571,335 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     ),
                     const SizedBox(height: 18),
 
-                    ElevatedButton(
-                      onPressed: _isPasswordLoading ? null : () => _handleSavePassword(hasPassword),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: hasPassword ? AppColors.obsidian : const Color(0xFF16A34A),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
-                      ),
-                      child: _isPasswordLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            )
-                          : Text(
-                              hasPassword ? 'Perbarui Kata Sandi' : 'Buat Kata Sandi Sekarang',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                            ),
+                    airyPrimaryCta(
+                      label: hasPassword
+                          ? 'Perbarui Kata Sandi'
+                          : 'Buat Kata Sandi Sekarang',
+                      isLoading: _isPasswordLoading,
+                      onPressed: _isPasswordLoading
+                          ? null
+                          : () => _handleSavePassword(hasPassword),
                     ),
                   ],
                 ),
               ),
             ),
+
+            // SECTION 3: Employment Status & Resignation (non-owner)
             Builder(
               builder: (context) {
                 final bState = ref.watch(businessProvider);
+                final orgState = ref.watch(organizationProvider);
+                final userId = ref.watch(authProvider).user?['id'];
                 final currentBiz = bState.currentBusiness;
                 final bizRole = (currentBiz?['role'] ?? 'owner').toString();
                 if (bState.activeBusinessId == null || bizRole == 'owner') {
                   return const SizedBox.shrink();
                 }
-                return Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.badge_outlined, color: AppColors.obsidian, size: 22),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Status Kepegawaian & Resign',
-                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                              ),
-                              Text(
-                                bState.resolvedStoreName.isNotEmpty
-                                    ? bState.resolvedStoreName
-                                    : 'Usaha Rental',
-                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                              ),
-                            ],
-                          ),
+                final storeLabel = bState.resolvedStoreName.isNotEmpty
+                    ? bState.resolvedStoreName
+                    : 'Usaha Rental';
+
+                Map<String, dynamic>? latestRequest;
+                if (orgState.businessId == bState.activeBusinessId &&
+                    orgState.resignationRequests.isNotEmpty) {
+                  for (final raw in orgState.resignationRequests) {
+                    if (raw is Map &&
+                        (userId == null ||
+                            raw['user_id']?.toString() == userId.toString())) {
+                      latestRequest = Map<String, dynamic>.from(raw);
+                      break;
+                    }
+                  }
+                }
+
+                final resignStatus = (latestRequest?['status'] ??
+                        currentBiz?['resign_status'] ??
+                        '')
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+                final isPending = resignStatus == 'pending';
+                final isRejected = resignStatus == 'rejected';
+                final submittedReason = (latestRequest?['reason'] ??
+                        currentBiz?['resign_reason'] ??
+                        '')
+                    .toString()
+                    .trim();
+                final rejectionReason = (latestRequest?['decision_notes'] ??
+                        latestRequest?['rejection_reason'] ??
+                        currentBiz?['resign_rejection_reason'] ??
+                        '')
+                    .toString()
+                    .trim();
+                final requestedAtRaw = (latestRequest?['created_at'] ??
+                        currentBiz?['resign_requested_at'])
+                    ?.toString();
+                final requestedAtLabel =
+                    requestedAtRaw != null && requestedAtRaw.isNotEmpty
+                        ? DateFormatter.formatShort(requestedAtRaw)
+                        : null;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    airyHairlineDivider(),
+                    InkWell(
+                      key: const Key('user_profile_resign_tile'),
+                      onTap: () {
+                        StaffResignationSheet.show(
+                          context,
+                          businessId: bState.activeBusinessId!,
+                          businessName: storeLabel,
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
                         ),
-                        OutlinedButton(
-                          onPressed: () {
-                            StaffResignationSheet.show(
-                              context,
-                              businessId: bState.activeBusinessId!,
-                              businessName: bState.resolvedStoreName.isNotEmpty
-                                  ? bState.resolvedStoreName
-                                  : 'Usaha Rental',
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.danger,
-                            side: const BorderSide(color: AppColors.danger),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          child: const Text('Ajukan Resign', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Icon(
+                                Icons.badge_outlined,
+                                color: AirySettingsColors.obsidian,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Expanded(
+                                        child: Text(
+                                          'Status Kepegawaian & Resign',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                            color: AirySettingsColors.obsidian,
+                                          ),
+                                        ),
+                                      ),
+                                      if (isPending)
+                                        Container(
+                                          key: const Key('profile_resign_pending_pill'),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFFBEB),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: const Color(0xFFFDE68A),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Menunggu Persetujuan Resign',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFFB45309),
+                                            ),
+                                          ),
+                                        )
+                                      else if (isRejected)
+                                        Container(
+                                          key: const Key('profile_resign_rejected_pill'),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFEF2F2),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: const Color(0xFFFECACA),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Resign Ditolak',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFFDC2626),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  if (isPending) ...[
+                                    Text(
+                                      requestedAtLabel != null
+                                          ? '$storeLabel • Diajukan $requestedAtLabel'
+                                          : '$storeLabel • Pengajuan sedang ditinjau Owner',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AirySettingsColors.inkSecondary,
+                                      ),
+                                    ),
+                                    if (submittedReason.isNotEmpty) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        'Alasan: "$submittedReason"',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AirySettingsColors.inkSecondary,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ],
+                                  ] else if (isRejected) ...[
+                                    Text(
+                                      rejectionReason.isNotEmpty
+                                          ? 'Catatan Owner: "$rejectionReason"'
+                                          : '$storeLabel • Ajukan ulang bila diperlukan',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AirySettingsColors.inkSecondary,
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    Text(
+                                      '$storeLabel • Ajukan Resign',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AirySettingsColors.inkSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Icon(
+                                Icons.chevron_right_rounded,
+                                size: 20,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 );
               },
             ),
-            const SizedBox(height: 16),
-            Material(
-              color: AppColors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: const BorderSide(color: AppColors.border),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
-                    child: Text(
-                      'PRIVASI & AKUN',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        color: AppColors.textMuted,
+            airyHairlineDivider(),
+
+            // SECTION 4: Privacy & Account
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 6),
+              child: airySectionHeader('Privasi & Akun'),
+            ),
+            InkWell(
+              key: const Key('profile_privacy_policy_tile'),
+              onTap: () =>
+                  LegalLinks.openExternal(context, LegalLinks.privacyPolicyUri),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.privacy_tip_outlined,
+                      size: 20,
+                      color: AirySettingsColors.obsidian,
+                    ),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Kebijakan Privasi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: AirySettingsColors.obsidian,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Penggunaan data, izin Bluetooth & isolasi tenant',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AirySettingsColors.inkSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  ListTile(
-                    key: const Key('profile_privacy_policy_tile'),
-                    leading: const Icon(Icons.privacy_tip_outlined, size: 20, color: AppColors.obsidian),
-                    title: const Text(
-                      'Kebijakan Privasi',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    Icon(
+                      Icons.open_in_new_rounded,
+                      size: 16,
+                      color: Color(0xFF94A3B8),
                     ),
-                    subtitle: const Text(
-                      'Penggunaan data, izin Bluetooth & isolasi tenant',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                    trailing: const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.textMuted),
-                    onTap: () => LegalLinks.openExternal(context, LegalLinks.privacyPolicyUri),
-                  ),
-                  const Divider(height: 1, indent: 16, endIndent: 16, color: AppColors.border),
-                  ListTile(
-                    key: const Key('profile_account_deletion_tile'),
-                    leading: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.danger),
-                    title: const Text(
-                      'Hapus Akun',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        color: AppColors.danger,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Ajukan penonaktifan & penghapusan data akun',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                    trailing: const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.textMuted),
-                    onTap: () => LegalLinks.openExternal(context, LegalLinks.accountDeletionUri),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: airyHairlineDivider(),
+            ),
+            InkWell(
+              key: const Key('profile_account_deletion_tile'),
+              onTap: () => LegalLinks.openExternal(
+                context,
+                LegalLinks.accountDeletionUri,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline_rounded,
+                      size: 20,
+                      color: AppColors.danger,
+                    ),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hapus Akun',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: AppColors.danger,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Ajukan penonaktifan & penghapusan data akun',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AirySettingsColors.inkSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.open_in_new_rounded,
+                      size: 16,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

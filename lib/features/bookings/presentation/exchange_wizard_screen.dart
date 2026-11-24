@@ -39,6 +39,7 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
   bool _feeWaived = false;
   final TextEditingController _waiverReasonController = TextEditingController();
   final TextEditingController _managerPinController = TextEditingController();
+  String? _selectedPaymentMethodCode;
   int? _selectedPaymentMethodId;
   double _cashReceived = 0.0;
   final TextEditingController _cashReceivedController = TextEditingController();
@@ -960,9 +961,51 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
               if (methods.isEmpty) {
                 return const Text('Tidak ada metode pembayaran aktif.');
               }
-              if (_selectedPaymentMethodId == null && methods.isNotEmpty) {
+              final bizState = ref.watch(businessProvider);
+              final settingsAsync = ref.watch(
+                paymentSettingsProvider(bizState.activeBranchId),
+              );
+              final cfg = (settingsAsync.value?['config'] as Map?) ??
+                  (settingsAsync.value?['data']?['config'] as Map?);
+
+              bool isMethodSelectable(Map<String, dynamic> m) {
+                final code = (m['code'] ?? '').toString().toUpperCase();
+                if (code != 'QRIS') return m['is_active'] != false;
+                final qUrl =
+                    (cfg?['qris_image_url'] ?? m['qris_image_url'] ?? '')
+                        .toString()
+                        .trim();
+                final qPath = (cfg?['qris_image_path'] ?? '').toString().trim();
+                final qPayload =
+                    (cfg?['qris_raw_payload'] ?? m['qris_raw_payload'] ?? '')
+                        .toString()
+                        .trim();
+                final hasImg = qUrl.isNotEmpty ||
+                    qPath.isNotEmpty ||
+                    cfg?['has_qris_image'] == true ||
+                    qPayload.isNotEmpty ||
+                    bizState.hasQrisImage;
+                final qEnabled = cfg != null
+                    ? (cfg['qris_statis_enabled'] != false &&
+                          cfg['is_qris_enabled'] != false)
+                    : (m['is_active'] != false || bizState.isQrisEnabled);
+                return qEnabled && hasImg;
+              }
+
+              final selectable = methods.where(isMethodSelectable).toList();
+              final currentStillSelectable = selectable.any(
+                (m) => m['id'] == _selectedPaymentMethodId,
+              );
+              if ((_selectedPaymentMethodId == null || !currentStillSelectable) &&
+                  selectable.isNotEmpty) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  setState(() => _selectedPaymentMethodId = methods.first['id']);
+                  if (!mounted) return;
+                  final firstSelectable = selectable.first;
+                  setState(() {
+                    _selectedPaymentMethodId = firstSelectable['id'] as int?;
+                    _selectedPaymentMethodCode =
+                        firstSelectable['code']?.toString();
+                  });
                 });
               }
 
@@ -975,15 +1018,42 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<int>(
-                    value: _selectedPaymentMethodId,
+                    value: currentStillSelectable
+                        ? _selectedPaymentMethodId
+                        : null,
                     isExpanded: true,
                     items: methods.map((m) {
+                      final enabled = isMethodSelectable(m);
+                      final code = (m['code'] ?? '').toString().toUpperCase();
+                      final displayName = code == 'QRIS'
+                          ? (enabled
+                                ? 'QRIS'
+                                : 'QRIS — QRIS belum diunggah')
+                          : '${m['name']} (${m['code']})';
                       return DropdownMenuItem<int>(
-                        value: m['id'],
-                        child: Text('${m['name']} (${m['code']})'),
+                        value: m['id'] as int?,
+                        enabled: enabled,
+                        child: Text(
+                          displayName,
+                          style: TextStyle(
+                            color: enabled
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
                       );
                     }).toList(),
-                    onChanged: (id) => setState(() => _selectedPaymentMethodId = id),
+                    onChanged: (id) {
+                      if (id == null) return;
+                      final picked = methods
+                          .where((m) => m['id'] == id)
+                          .firstOrNull;
+                      setState(() {
+                        _selectedPaymentMethodId = id;
+                        _selectedPaymentMethodCode = picked?['code']
+                            ?.toString();
+                      });
+                    },
                   ),
                 ),
               );
@@ -1009,12 +1079,12 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
             },
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              _buildCashChip('Pas (Rp ${CurrencyFormatter.format(payable)})', payable),
-              const SizedBox(width: 8),
+              _buildCashChip('Pas (${CurrencyFormatter.format(payable)})', payable),
               _buildCashChip('Rp 50.000', 50000.0),
-              const SizedBox(width: 8),
               _buildCashChip('Rp 100.000', 100000.0),
             ],
           ),
@@ -1318,6 +1388,10 @@ class _ExchangeWizardScreenState extends ConsumerState<ExchangeWizardScreen> {
         'waiver_reason': _feeWaived ? _waiverReasonController.text.trim() : null,
         'manager_pin': _feeWaived ? _managerPinController.text.trim() : null,
         'payment_method_id': payable > 0 ? _selectedPaymentMethodId : null,
+        if (payable > 0 && _selectedPaymentMethodCode != null) ...{
+          'payment_method': _selectedPaymentMethodCode!.toLowerCase(),
+          'payment_channel': _selectedPaymentMethodCode!.toLowerCase(),
+        },
         'cash_received': payable > 0 ? _cashReceived : null,
       };
 

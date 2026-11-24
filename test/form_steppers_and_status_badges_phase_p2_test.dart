@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
 import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
 import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
 import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
@@ -8,7 +9,28 @@ import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart
 import 'package:rentcore_mobile/shared/widgets/dock_aware_scaffold.dart';
 import 'package:rentcore_mobile/shared/widgets/status_badge.dart';
 
+class _Phase2TestBusinessNotifier extends BusinessNotifier {
+  @override
+  BusinessState build() => const BusinessState(
+        activeBusinessId: 1,
+        activeBranchId: 1,
+        businesses: [
+          {
+            'id': 1,
+            'name': 'RentCore Test',
+            'enable_collateral': true,
+            'require_collateral': false,
+          },
+        ],
+      );
+
+  @override
+  Future<void> refresh() async {}
+}
+
 void main() {
+  BusinessNotifier createCollateralEnabledBusiness() => _Phase2TestBusinessNotifier();
+
   group('Phase P2 — Unified StatusBadge Component Tests', () {
     testWidgets('StatusBadge.rental renders correct state and colors', (tester) async {
       await tester.pumpWidget(
@@ -177,6 +199,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            businessProvider.overrideWith(createCollateralEnabledBusiness),
             readyAssetsProvider.overrideWith((ref) => Future.value(mockReadyAssets)),
             categoriesProvider.overrideWith((ref) => Future.value(mockCategories)),
             paymentMethodsProvider.overrideWith((ref) => Future.value(mockPaymentMethods)),

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/skeleton_loading.dart';
@@ -391,6 +392,14 @@ class PosTransactionDetailSheet extends ConsumerWidget {
                 if (customer['phone'] != null) ...[
                   const SizedBox(height: 6),
                   _buildDetailKvRow('Telepon', customer['phone'].toString()),
+                ],
+                if (ref.watch(businessProvider).isCollateralEnabled ||
+                    hasCollateralRecord(b)) ...[
+                  const SizedBox(height: 6),
+                  _buildDetailKvRow(
+                    'Jaminan',
+                    formatCollateralSummary(b),
+                  ),
                 ],
                 const SizedBox(height: 6),
                 Text(
@@ -1844,7 +1853,7 @@ class _VoidTransactionDialogState
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Metode: ${(p['payment_method'] is Map ? p['payment_method']['name'] : p['payment_method']) ?? 'Tunai'} • Tipe: ${p['type_label'] ?? p['type'] ?? 'Bayar'}',
+                      'Metode: ${(() { final raw = (p['payment_method'] is Map ? p['payment_method']['name'] : p['payment_method']) ?? 'Tunai'; return raw.toString().toLowerCase().contains('qris') ? 'QRIS' : raw; })()} • Tipe: ${p['type_label'] ?? p['type'] ?? 'Bayar'}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondary,

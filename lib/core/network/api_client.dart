@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
 import '../constants/api_constants.dart';
 import '../services/secure_token_storage.dart';
 
@@ -8,7 +9,7 @@ class ApiClient {
   factory ApiClient() => _instance;
 
   late Dio dio;
-  String _baseUrl = ApiConstants.defaultBaseUrl;
+  String _baseUrl = AppConfig.effectiveDefaultBaseUrl;
 
   static bool isLoggingOut = false;
 
@@ -150,20 +151,37 @@ class ApiClient {
   }
 
   Future<void> init() async {
+    if (AppConfig.isProduction) {
+      _baseUrl = AppConfig.productionBaseUrl;
+      dio.options.baseUrl = _baseUrl;
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final savedUrl = prefs.getString('api_base_url');
     if (savedUrl != null && savedUrl.isNotEmpty) {
       _baseUrl = savedUrl;
       dio.options.baseUrl = savedUrl;
+    } else {
+      _baseUrl = ApiConstants.defaultBaseUrl;
+      dio.options.baseUrl = _baseUrl;
     }
   }
 
   Future<void> updateBaseUrl(String newUrl) async {
+    if (AppConfig.isProduction) {
+      // Production builds lock base URL and ignore local server overrides.
+      _baseUrl = AppConfig.productionBaseUrl;
+      dio.options.baseUrl = _baseUrl;
+      return;
+    }
+
     _baseUrl = newUrl;
     dio.options.baseUrl = newUrl;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('api_base_url', newUrl);
   }
 
-  String get currentBaseUrl => _baseUrl;
+  String get currentBaseUrl =>
+      AppConfig.isProduction ? AppConfig.productionBaseUrl : _baseUrl;
 }

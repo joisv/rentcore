@@ -171,7 +171,8 @@ class _FakeCashierRepository extends CashierRepository {
   @override
   Future<Map<String, dynamic>> processPayment({
     required int bookingId,
-    required int paymentMethodId,
+    required int? paymentMethodId,
+    String? paymentMethodCode,
     double? cashReceived,
     double? amount,
     String? paymentType,
@@ -183,7 +184,10 @@ class _FakeCashierRepository extends CashierRepository {
     bool? isHandoverSettlement,
     int? assetUnitId,
     String? collateralType,
+    String? collateralTypeId,
+    String? collateralTypeName,
     String? collateralStorageSlot,
+    double? collateralDepositAmount,
     bool? startNow,
     bool? keepOriginalEndAt,
   }) async {

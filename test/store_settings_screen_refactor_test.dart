@@ -405,4 +405,91 @@ void main() {
       expect(find.byType(ShiftScheduleScreen), findsOneWidget);
     });
   });
+
+  group('Airy Minimalist Settings Sub-Screen Design Tokens', () {
+    testWidgets(
+      'UserProfileScreen uses pure #FFFFFF canvas and Obsidian #0F172A primary CTA for password creation',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authProvider.overrideWith(
+                () => _MockAuthNotifier(
+                  AuthState(
+                    user: {
+                      'id': 'usr-g1',
+                      'name': 'Dina',
+                      'email': 'dina@rentcore.id',
+                      'role': 'owner',
+                      'has_password': false,
+                      'auth_provider': 'google',
+                    },
+                    isAuthenticated: true,
+                  ),
+                ),
+              ),
+              businessProvider.overrideWith(
+                () => _MockBusinessNotifier(
+                  const BusinessState(activeBusinessId: 1),
+                ),
+              ),
+            ],
+            child: const MaterialApp(home: UserProfileScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+        expect(scaffold.backgroundColor, const Color(0xFFFFFFFF));
+
+        final createPwdBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Buat Kata Sandi Sekarang'),
+        );
+        final bg = createPwdBtn.style?.backgroundColor?.resolve({});
+        expect(bg, const Color(0xFF0F172A));
+      },
+    );
+
+    testWidgets(
+      'StoreProfileScreen renders #FFFFFF canvas, uppercase header, and sticky Simpan Profil Toko CTA',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authProvider.overrideWith(
+                () => _MockAuthNotifier(
+                  AuthState(
+                    user: {'id': 'usr-1', 'name': 'Hadi', 'role': 'owner'},
+                    isAuthenticated: true,
+                  ),
+                ),
+              ),
+              businessProvider.overrideWith(
+                () => _MockBusinessNotifier(
+                  BusinessState(
+                    activeBusinessId: 1,
+                    activeBusinessName: 'RentCore Pusat',
+                    businesses: [
+                      {
+                        'id': 1,
+                        'name': 'RentCore Pusat',
+                        'role': 'owner',
+                      },
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            child: const MaterialApp(home: StoreProfileScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+        expect(scaffold.backgroundColor, const Color(0xFFFFFFFF));
+        expect(find.text('IDENTITAS TOKO & HEADER STRUK'), findsOneWidget);
+        expect(find.text('Simpan Profil Toko'), findsOneWidget);
+      },
+    );
+  });
 }

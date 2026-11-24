@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../main.dart';
+import '../../../shared/widgets/airy_settings_widgets.dart';
+import '../../auth/providers/business_provider.dart';
 import '../providers/onboarding_provider.dart';
 
 class FeatureWalkthroughScreen extends ConsumerStatefulWidget {
-  const FeatureWalkthroughScreen({super.key});
+  final bool replayMode;
+  final String? roleOverride;
+
+  const FeatureWalkthroughScreen({
+    super.key,
+    this.replayMode = false,
+    this.roleOverride,
+  });
 
   @override
   ConsumerState<FeatureWalkthroughScreen> createState() =>
@@ -18,6 +27,16 @@ class _FeatureWalkthroughScreenState
   int _currentPage = 0;
   bool _isCompleting = false;
 
+  bool get _isStaffQuickStart {
+    final rawRole = (widget.roleOverride ??
+            ref.read(businessProvider).currentBusiness?['role'] ??
+            'owner')
+        .toString()
+        .trim()
+        .toLowerCase();
+    return rawRole == 'staff' || rawRole == 'cashier';
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -28,16 +47,22 @@ class _FeatureWalkthroughScreenState
     if (_isCompleting) return;
     setState(() => _isCompleting = true);
 
-    await ref.read(onboardingProvider.notifier).completeWalkthrough();
+    if (!widget.replayMode) {
+      await ref.read(onboardingProvider.notifier).completeWalkthrough();
+    }
 
     if (!mounted) return;
+    if (widget.replayMode) {
+      Navigator.of(context).pop();
+      return;
+    }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const MainShellScreen()),
     );
   }
 
-  void _nextPage() {
-    if (_currentPage < 3) {
+  void _nextPage(int totalPages) {
+    if (_currentPage < totalPages - 1) {
       _pageController.animateToPage(
         _currentPage + 1,
         duration: const Duration(milliseconds: 280),
@@ -50,19 +75,106 @@ class _FeatureWalkthroughScreenState
 
   @override
   Widget build(BuildContext context) {
+    final role = (widget.roleOverride ??
+            ref.watch(businessProvider).currentBusiness?['role'] ??
+            'owner')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final isStaffMode = role == 'staff' || role == 'cashier';
+    final totalPages = isStaffMode ? 3 : 4;
+    if (_currentPage >= totalPages) {
+      _currentPage = totalPages - 1;
+    }
+
+    final slides = isStaffMode
+        ? [
+            _buildSlideContainer(
+              previewWidget: _buildStaffQuickCard(
+                key: const Key('staff_quickstart_shift'),
+                icon: Icons.point_of_sale_rounded,
+                badge: 'LANGKAH 1 • KASIR',
+                title: 'Shift Pagi Siap Dibuka',
+                lines: const [
+                  'Catat modal kas awal di laci sebelum melayani transaksi.',
+                  'Semua pembayaran Tunai & Non-Tunai otomatis terpisahkan.',
+                ],
+              ),
+              title: 'Buka Shift Kasir',
+              description:
+                  'Mulai operasional cabang dengan membuka shift kasir dan mencatat saldo modal awal laci.',
+            ),
+            _buildSlideContainer(
+              previewWidget: _buildStaffQuickCard(
+                key: const Key('staff_quickstart_handover'),
+                icon: Icons.assignment_turned_in_outlined,
+                badge: 'LANGKAH 2 • TRANSAKSI',
+                title: 'Serahkan Unit ke Penyewa',
+                lines: const [
+                  'Pilih unit siap sewa atau proses antrean booking pelanggan.',
+                  'Verifikasi dokumen jaminan (KTP/SIM) sebelum penyerahan.',
+                ],
+              ),
+              title: 'Catat Sewa & Serahkan Unit',
+              description:
+                  'Buat sewa baru, proses pembayaran Tunai/QRIS, dan lakukan serah terima unit secara cepat.',
+            ),
+            _buildSlideContainer(
+              previewWidget: _buildStaffQuickCard(
+                key: const Key('staff_quickstart_return'),
+                icon: Icons.verified_outlined,
+                badge: 'LANGKAH 3 • PENGEMBALIAN',
+                title: 'Cek Kondisi & Tutup Sewa',
+                lines: const [
+                  'Periksa kelengkapan aksesoris dan kondisi fisik unit kembali.',
+                  'Denda keterlambatan dihitung otomatis sesuai aturan toko.',
+                ],
+              ),
+              title: 'Inspeksi Pengembalian',
+              description:
+                  'Catat pengembalian unit dengan rapi dan kembalikan unit langsung ke stok siap sewa.',
+            ),
+          ]
+        : [
+            _buildSlideContainer(
+              previewWidget: _buildSlide1Preview(),
+              title: 'Operasional Harian dalam Satu Layar',
+              description:
+                  'Pantau omzet, batas waktu kembali, dan unit siap sewa langsung saat aplikasi dibuka.',
+            ),
+            _buildSlideContainer(
+              previewWidget: _buildSlide2Preview(),
+              title: 'Antrean Terstruktur Berbasis Urgensi',
+              description:
+                  'Unit terlambat dan jatuh tempo otomatis mengapung di posisi teratas antrean kasir.',
+            ),
+            _buildSlideContainer(
+              previewWidget: _buildSlide3Preview(),
+              title: 'QRIS Dinamis Tanpa Input Manual',
+              description:
+                  'Nominal tagihan otomatis terkunci di aplikasi m-Banking dan e-wallet pelanggan.',
+            ),
+            _buildSlideContainer(
+              previewWidget: _buildSlide4Preview(),
+              title: 'Manajemen Shift & Closing Kasir Rapi',
+              description:
+                  'Pisahkan transaksi sewa dari laci kasir. Rekonsiliasi modal dan omzet fisik dengan dukungan cetak printer ESC/POS.',
+            ),
+          ];
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
-            // Top Bar with Skip Button
+            // Top Bar with Skip / Close Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Langkah ${_currentPage + 1} dari 4',
+                    'Langkah ${_currentPage + 1} dari $totalPages',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -75,9 +187,9 @@ class _FeatureWalkthroughScreenState
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
                     ),
-                    child: const Text(
-                      'Lewati',
-                      style: TextStyle(
+                    child: Text(
+                      widget.replayMode ? 'Tutup' : 'Lewati',
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -92,39 +204,106 @@ class _FeatureWalkthroughScreenState
               child: PageView(
                 controller: _pageController,
                 onPageChanged: (page) => setState(() => _currentPage = page),
-                children: [
-                  _buildSlideContainer(
-                    previewWidget: _buildSlide1Preview(),
-                    title: 'Operasional Harian dalam Satu Layar',
-                    description:
-                        'Pantau omzet, batas waktu kembali, dan unit siap sewa langsung saat aplikasi dibuka.',
-                  ),
-                  _buildSlideContainer(
-                    previewWidget: _buildSlide2Preview(),
-                    title: 'Antrean Terstruktur Berbasis Urgensi',
-                    description:
-                        'Unit terlambat dan jatuh tempo otomatis mengapung di posisi teratas antrean kasir.',
-                  ),
-                  _buildSlideContainer(
-                    previewWidget: _buildSlide3Preview(),
-                    title: 'QRIS Dinamis Tanpa Input Manual',
-                    description:
-                        'Nominal tagihan otomatis terkunci di aplikasi m-Banking dan e-wallet pelanggan.',
-                  ),
-                  _buildSlideContainer(
-                    previewWidget: _buildSlide4Preview(),
-                    title: 'Manajemen Shift & Closing Kasir Rapi',
-                    description:
-                        'Pisahkan transaksi sewa dari laci kasir. Rekonsiliasi modal dan omzet fisik dengan dukungan cetak printer ESC/POS.',
-                  ),
-                ],
+                children: slides,
               ),
             ),
 
             // Bottom Navigation & Dots
-            _buildBottomControls(),
+            _buildBottomControls(totalPages),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStaffQuickCard({
+    required Key key,
+    required IconData icon,
+    required String badge,
+    required String title,
+    required List<String> lines,
+  }) {
+    return Container(
+      key: key,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AirySettingsColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AirySettingsColors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AirySettingsColors.border),
+                ),
+                child: Icon(icon, size: 22, color: AirySettingsColors.obsidian),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AirySettingsColors.pillSurface,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AirySettingsColors.obsidian,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AirySettingsColors.obsidian,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (int i = 0; i < lines.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 16,
+                    color: AirySettingsColors.obsidian,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    lines[i],
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AirySettingsColors.inkSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -658,7 +837,12 @@ class _FeatureWalkthroughScreenState
   }
 
   // --- Bottom Controls (Page Indicator & Next Button) ---
-  Widget _buildBottomControls() {
+  Widget _buildBottomControls(int totalPages) {
+    final isLastPage = _currentPage >= totalPages - 1;
+    final finishLabel = _isStaffQuickStart
+        ? 'Masuk Dashboard'
+        : (widget.replayMode ? 'Selesai' : 'Mulai Operasional');
+
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
       decoration: const BoxDecoration(
@@ -670,7 +854,7 @@ class _FeatureWalkthroughScreenState
         children: [
           // Page Dots
           Row(
-            children: List.generate(4, (index) {
+            children: List.generate(totalPages, (index) {
               final isCurrent = _currentPage == index;
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -687,13 +871,13 @@ class _FeatureWalkthroughScreenState
 
           // Next / Get Started Button
           ElevatedButton(
-            onPressed: _isCompleting ? null : _nextPage,
+            onPressed: _isCompleting ? null : () => _nextPage(totalPages),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.obsidian,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
               ),
               elevation: 0,
             ),
@@ -707,7 +891,7 @@ class _FeatureWalkthroughScreenState
                     ),
                   )
                 : Text(
-                    _currentPage == 3 ? 'Mulai Operasional' : 'Lanjut',
+                    isLastPage ? finishLabel : 'Lanjut',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,

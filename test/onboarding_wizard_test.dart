@@ -16,6 +16,7 @@ class _FakeAuthRepository extends AuthRepository {
     required String city,
     String? address,
     String? phone,
+    String? nichePreset,
     List<String>? businessCategories,
     String? branchStructure,
     String? initialBranchName,
@@ -27,10 +28,12 @@ class _FakeAuthRepository extends AuthRepository {
       'id': pendingBusinessId ?? 777,
       'name': name,
       'city': city,
+      'niche_preset': nichePreset,
       'branch_structure': branchStructure ?? 'single_location',
+      'initial_branch_name': initialBranchName,
       'business_categories': businessCategories ?? [],
       'branches': [
-        {'id': 888, 'name': '$name Pusat', 'code': 'PST', 'is_central': true}
+        {'id': 888, 'name': initialBranchName ?? '$name Pusat', 'code': 'PST', 'is_central': true}
       ],
     };
     return lastCreatedPayload!;
@@ -111,26 +114,36 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
     await tester.pumpAndSettle();
 
-    // Step 2: Branch Structure Selection
+    // Step 2: Branch Structure & Primary Branch Detail
     expect(find.text('Struktur Operasional Toko'), findsOneWidget);
     expect(find.text('Sudah memiliki beberapa cabang'), findsOneWidget);
 
-    // Tap multi-branch option
+    // Tap multi-branch option and enter custom branch & city
     await tester.tap(find.text('Sudah memiliki beberapa cabang'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('wizard_branch_name_input')),
+      'Skyrental Pusat Jember',
+    );
+    await tester.enterText(
+      find.byKey(const Key('wizard_city_input')),
+      'Jember',
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Lanjut'));
     await tester.pumpAndSettle();
 
-    // Step 3: Kategori Bisnis Personalization
+    // Step 3: Smart Rental Niche Presets
     expect(find.text('Kategori Bisnis Rental'), findsOneWidget);
-    expect(find.text('iPhone & Smartphone'), findsOneWidget);
-    expect(find.text('Kamera'), findsOneWidget);
+    expect(find.text('iPhone & Gadget'), findsOneWidget);
+    expect(find.text('Kamera & Lensa'), findsOneWidget);
 
-    // Select 'iPhone & Smartphone' and 'Kamera'
-    await tester.tap(find.text('iPhone & Smartphone'));
+    // Select 'iPhone & Gadget' preset
+    await tester.tap(find.text('iPhone & Gadget'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Kamera'));
-    await tester.pumpAndSettle();
+
+    // Verify starter categories preview
+    expect(find.text('Android & Tablet'), findsOneWidget);
 
     // Submit
     await tester.tap(find.widgetWithText(ElevatedButton, 'Selesai & Buka Dashboard'));
@@ -138,9 +151,17 @@ void main() {
 
     expect(fakeRepo.createCalls, 1);
     expect(fakeRepo.lastCreatedPayload?['name'], 'Skyrental Jember');
+    expect(fakeRepo.lastCreatedPayload?['city'], 'Jember');
+    expect(
+      fakeRepo.lastCreatedPayload?['initial_branch_name'],
+      'Skyrental Pusat Jember',
+    );
     expect(fakeRepo.lastCreatedPayload?['branch_structure'], 'multi_branch');
-    expect(fakeRepo.lastCreatedPayload?['business_categories'],
-        containsAll(['iphone_smartphone', 'camera']));
+    expect(fakeRepo.lastCreatedPayload?['niche_preset'], 'iphone_gadget');
+    expect(
+      fakeRepo.lastCreatedPayload?['business_categories'],
+      contains('iphone_smartphone'),
+    );
   });
 
   testWidgets('Wizard Step 3 "Lewati" action finishes setup without categories',

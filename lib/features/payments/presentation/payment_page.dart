@@ -269,10 +269,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     final config = (settingsData?['config'] as Map<String, dynamic>?) ??
                    (settingsData?['data']?['config'] as Map<String, dynamic>?);
 
-    final paymentMethods = paymentMethodsAsync.value ?? [
-      {'id': 1, 'code': 'CASH', 'name': 'Tunai', 'is_active': true},
-      {'id': 2, 'code': 'QRIS', 'name': 'QRIS', 'is_active': true},
-      {'id': 3, 'code': 'TRANSFER', 'name': 'Transfer Bank', 'is_active': true},
+    final paymentMethods = paymentMethodsAsync.value ?? const [
+      {'code': 'CASH', 'name': 'Tunai', 'is_active': true},
+      {'code': 'QRIS', 'name': 'QRIS', 'is_active': true},
+      {'code': 'TRANSFER', 'name': 'Transfer Bank', 'is_active': true},
     ];
 
     // Method active toggles from settings / payment methods
@@ -280,9 +280,28 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         ? (config['cash_enabled'] != false)
         : paymentMethods.any((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH' && m['is_active'] != false);
 
+    final qrisMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
+    final isDynamicQrisEnabled = config != null
+        ? (config['is_dynamic_qris_enabled'] == true)
+        : (qrisMethod?['is_dynamic_qris_enabled'] == true);
+    final qrisRawPayload = config?['qris_raw_payload'] as String? ?? (qrisMethod?['qris_raw_payload'] as String?);
+    final qrisImageUrl = config?['qris_image_url'] as String? ?? (qrisMethod?['qris_image_url'] as String?);
+    final qrisImagePath = config?['qris_image_path']?.toString();
+
+    final hasQrisImageInConfig =
+        (qrisImageUrl != null && qrisImageUrl.trim().isNotEmpty) ||
+        (qrisImagePath != null && qrisImagePath.trim().isNotEmpty) ||
+        (config?['has_qris_image'] == true);
+    final hasAnyQrisBarcode =
+        hasQrisImageInConfig ||
+        (qrisRawPayload != null && qrisRawPayload.trim().isNotEmpty) ||
+        bizState.hasQrisImage;
+
     final isQrisEnabled = config != null
-        ? (config['qris_statis_enabled'] != false)
-        : paymentMethods.any((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS' && m['is_active'] != false);
+        ? (config['qris_statis_enabled'] != false && config['is_qris_enabled'] != false)
+        : (qrisMethod != null && qrisMethod['is_active'] != false) || bizState.isQrisEnabled;
+
+    final isQrisPaymentAvailable = isQrisEnabled && hasAnyQrisBarcode;
 
     final isEwalletMasterEnabled = config != null ? (config['ewallet_enabled'] != false) : true;
     final providers = (config?['ewallet_providers'] as Map<String, dynamic>?) ?? {};
@@ -301,31 +320,33 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     });
     final isOtherEnabled = hasAnyActiveEwallet || isBankTransferEnabled || hasOtherDirectMethod;
 
-    final qrisMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
-    final isDynamicQrisEnabled = config != null
-        ? (config['is_dynamic_qris_enabled'] == true)
-        : (qrisMethod?['is_dynamic_qris_enabled'] == true);
-    final qrisRawPayload = config?['qris_raw_payload'] as String? ?? (qrisMethod?['qris_raw_payload'] as String?);
-    final qrisImageUrl = config?['qris_image_url'] as String? ?? (qrisMethod?['qris_image_url'] as String?);
-
     paymentMethodsAsync.whenData((methods) {
       if (!_methodInitialized && methods.isNotEmpty) {
         _methodInitialized = true;
         if (isCashEnabled) {
-          final cashMethod = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull ?? methods.first;
-          _selectedMethodId = cashMethod['id'] as int?;
-          _selectedMethodCode = (cashMethod['code'] ?? 'CASH').toString().toUpperCase();
-          _selectedMethodName = cashMethod['name'] ?? 'Tunai';
-        } else if (isQrisEnabled) {
-          final qrisMethod = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull ?? methods.first;
-          _selectedMethodId = qrisMethod['id'] as int?;
-          _selectedMethodCode = (qrisMethod['code'] ?? 'QRIS').toString().toUpperCase();
-          _selectedMethodName = qrisMethod['name'] ?? 'QRIS';
+          final cashMethod = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull;
+          _selectedMethodId = cashMethod?['id'] as int?;
+          _selectedMethodCode = 'CASH';
+          _selectedMethodName = cashMethod?['name'] ?? 'Tunai';
         } else if (isOtherEnabled) {
-          final otherMethod = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() != 'CASH' && (m['code'] ?? '').toString().toUpperCase() != 'QRIS').firstOrNull ?? methods.first;
-          _selectedMethodId = otherMethod['id'] as int?;
-          _selectedMethodCode = (otherMethod['code'] ?? 'TRANSFER').toString().toUpperCase();
-          _selectedMethodName = otherMethod['name'] ?? 'Pembayaran Lainnya';
+          final otherMethod = methods.where((m) {
+            final code = (m['code'] ?? '').toString().toUpperCase();
+            return code != 'CASH' && code != 'QRIS' && m['is_active'] != false;
+          }).firstOrNull;
+          if (otherMethod != null) {
+            _selectedMethodId = otherMethod['id'] as int?;
+            _selectedMethodCode = (otherMethod['code'] ?? 'TRANSFER').toString().toUpperCase();
+            _selectedMethodName = otherMethod['name'] ?? 'Pembayaran Lainnya';
+          } else if (isBankTransferEnabled) {
+            _selectedMethodId = null;
+            _selectedMethodCode = 'TRANSFER';
+            _selectedMethodName = 'Transfer Bank';
+          }
+        } else if (isQrisPaymentAvailable) {
+          final resolvedQris = methods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
+          _selectedMethodId = resolvedQris?['id'] as int?;
+          _selectedMethodCode = 'QRIS';
+          _selectedMethodName = 'QRIS';
         }
       }
     });
@@ -449,38 +470,81 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                     ),
                     Builder(
                       builder: (context) {
-                        final activeCards = <Widget>[];
-
-                        if (isQrisEnabled) {
-                          activeCards.add(
-                            Expanded(
-                              child: _buildBottomMethodCard(
-                                title: 'QRIS',
-                                customIcon: _buildQrisLogoWidget(),
-                                onTap: () {
-                                  final qMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS').firstOrNull;
-                                  _selectedMethodId = qMethod?['id'] as int? ?? 2;
-                                  _selectedMethodCode = 'QRIS';
-                                  _selectedMethodName = qMethod?['name'] ?? 'QRIS';
-                                  _selectedQrisImageUrl = qrisImageUrl;
-                                  _isDynamicQrisEnabled = isDynamicQrisEnabled;
-                                  _qrisRawPayload = qrisRawPayload;
-                                  _showQrisSheet(context, ctx, amountDue);
-                                },
-                              ),
+                        final hasAnyActiveMethod = isCashEnabled ||
+                            isQrisPaymentAvailable ||
+                            isOtherEnabled;
+                        if (!hasAnyActiveMethod) {
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFEF4444)),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.info_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Tidak ada metode pembayaran aktif.',
+                                  style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ],
                             ),
                           );
                         }
+
+                        final activeCards = <Widget>[
+                          Expanded(
+                            child: _buildBottomMethodCard(
+                              cardKey: const Key('payment_method_card_qris'),
+                              title: 'QRIS',
+                              subtitle: isQrisPaymentAvailable
+                                  ? null
+                                  : (isQrisEnabled
+                                        ? 'QRIS belum diunggah'
+                                        : 'Tidak tersedia'),
+                              enabled: isQrisPaymentAvailable,
+                              customIcon: _buildQrisLogoWidget(
+                                muted: !isQrisPaymentAvailable,
+                              ),
+                              onTap: isQrisPaymentAvailable
+                                  ? () {
+                                      final qMethod = paymentMethods
+                                          .where(
+                                            (m) =>
+                                                (m['code'] ?? '')
+                                                    .toString()
+                                                    .toUpperCase() ==
+                                                'QRIS',
+                                          )
+                                          .firstOrNull;
+                                      _selectedMethodId =
+                                          qMethod?['id'] as int?;
+                                      _selectedMethodCode = 'QRIS';
+                                      _selectedMethodName = 'QRIS';
+                                      _selectedQrisImageUrl = qrisImageUrl;
+                                      _isDynamicQrisEnabled =
+                                          isDynamicQrisEnabled;
+                                      _qrisRawPayload = qrisRawPayload;
+                                      _showQrisSheet(context, ctx, amountDue);
+                                    }
+                                  : null,
+                            ),
+                          ),
+                        ];
 
                         if (isCashEnabled) {
                           activeCards.add(
                             Expanded(
                               child: _buildBottomMethodCard(
+                                cardKey: const Key('payment_method_card_cash'),
                                 title: 'Tunai',
                                 customIcon: _buildCashBillIconWidget(),
                                 onTap: () {
                                   final cashMethod = paymentMethods.where((m) => (m['code'] ?? '').toString().toUpperCase() == 'CASH').firstOrNull;
-                                  _selectedMethodId = cashMethod?['id'] as int? ?? 1;
+                                  _selectedMethodId = cashMethod?['id'] as int?;
                                   _selectedMethodCode = 'CASH';
                                   _selectedMethodName = cashMethod?['name'] ?? 'Tunai';
                                   _cashReceivedController.text = _formatEditableAmount(amountDue);
@@ -495,6 +559,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                           activeCards.add(
                             Expanded(
                               child: _buildBottomMethodCard(
+                                cardKey: const Key('payment_method_card_other'),
                                 title: 'Lainnya',
                                 customIcon: _buildOptionIconWidget(),
                                 onTap: () {
@@ -505,7 +570,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                       final code = (m['code'] ?? '').toString().toUpperCase();
                                       return code != 'CASH' && code != 'QRIS';
                                     }).firstOrNull;
-                                    _selectedMethodId = otherMethod?['id'] as int? ?? 3;
+                                    _selectedMethodId = otherMethod?['id'] as int?;
                                     _selectedMethodCode = otherMethod?['code']?.toString().toUpperCase() ?? 'TRANSFER';
                                     _selectedMethodName = otherMethod?['name'] ?? 'Pembayaran Lainnya';
                                   }
@@ -524,28 +589,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                   );
                                 },
                               ),
-                            ),
-                          );
-                        }
-
-                        if (activeCards.isEmpty) {
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF2F2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFEF4444)),
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.info_outline_rounded, color: Color(0xFFDC2626), size: 18),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Tidak ada metode pembayaran aktif.',
-                                  style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold, fontSize: 13),
-                                ),
-                              ],
                             ),
                           );
                         }
@@ -574,24 +617,29 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   // BOTTOM METHOD BUTTONS (CARD STYLE WITH BLACK BORDER)
   // =========================================================================
   Widget _buildBottomMethodCard({
+    Key? cardKey,
     required String title,
+    String? subtitle,
+    bool enabled = true,
     required Widget customIcon,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
+    final textColor = enabled ? Colors.black : const Color(0xFF94A3B8);
     return InkWell(
-      onTap: onTap,
+      key: cardKey,
+      onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        height: 64,
+        height: 68,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: enabled ? Colors.white : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Colors.black,
-            width: 1.5,
+            color: enabled ? Colors.black : const Color(0xFFE2E8F0),
+            width: enabled ? 1.5 : 1.0,
           ),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -599,23 +647,42 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
             const SizedBox(height: 4),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 9,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9.5,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                color: textColor,
               ),
             ),
+            if (subtitle != null && subtitle.isNotEmpty) ...[
+              const SizedBox(height: 1),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildQrisLogoWidget() {
+  Widget _buildQrisLogoWidget({bool muted = false}) {
     return SvgPicture.asset(
       'assets/logos/QRIS Logo - Black - zonalogo.com.svg',
-      height: 24,
+      height: 22,
       fit: BoxFit.contain,
+      colorFilter: muted
+          ? const ColorFilter.mode(Color(0xFF94A3B8), BlendMode.srcIn)
+          : null,
     );
   }
 
@@ -1892,14 +1959,38 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         );
         return;
       }
-      if (_selectedMethodCode == 'QRIS' && config['qris_statis_enabled'] == false) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Metode pembayaran QRIS dinonaktifkan oleh pengaturan toko.'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-        return;
+      if (_selectedMethodCode == 'QRIS') {
+        final methods = ref.read(paymentMethodsProvider).value ?? const [];
+        final qMethod = methods
+            .where((m) => (m['code'] ?? '').toString().toUpperCase() == 'QRIS')
+            .firstOrNull;
+        final qrisUrl =
+            (config['qris_image_url'] ?? qMethod?['qris_image_url'] ?? '')
+                .toString()
+                .trim();
+        final qrisPath = (config['qris_image_path'] ?? '').toString().trim();
+        final qrisPayload =
+            (config['qris_raw_payload'] ?? qMethod?['qris_raw_payload'] ?? '')
+                .toString()
+                .trim();
+        final hasQris = qrisUrl.isNotEmpty ||
+            qrisPath.isNotEmpty ||
+            config['has_qris_image'] == true ||
+            qrisPayload.isNotEmpty ||
+            bizState.hasQrisImage;
+        if (config['qris_statis_enabled'] == false ||
+            config['is_qris_enabled'] == false ||
+            !hasQris) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Metode pembayaran QRIS belum diunggah atau dinonaktifkan oleh pengaturan toko.',
+              ),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+          return;
+        }
       }
       final cleanMethod = _selectedMethodCode.toUpperCase();
       if (['SHOPEEPAY', 'DANA', 'GOPAY', 'OVO', 'LINKAJA'].contains(cleanMethod)) {
@@ -1944,11 +2035,20 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
           ? CurrencyFormatter.parse(_cashReceivedController.text)
           : amountDue;
 
+      final methods = ref.read(paymentMethodsProvider).value ?? const [];
+      int? resolvedMethodId = _selectedMethodId;
+      if (resolvedMethodId == null && methods.isNotEmpty) {
+        final target = _selectedMethodCode.trim().toUpperCase();
+        final match = methods
+            .where((m) => (m['code'] ?? '').toString().toUpperCase() == target)
+            .firstOrNull;
+        resolvedMethodId = match?['id'] as int?;
+      }
       final trimmedExternalRef = _externalRefController.text.trim();
       final repo = ref.read(paymentRepositoryProvider);
       final result = await repo.executePayment(
         context: widget.paymentContext,
-        paymentMethodId: _selectedMethodId ?? 1,
+        paymentMethodId: resolvedMethodId,
         paymentMethodCode: _selectedMethodCode,
         paymentMethodName: _selectedMethodName,
         amountToPay: amountDue,
@@ -2036,8 +2136,9 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
   String _normalizePaymentMethodDisplayName(String? name, String? code) {
     final raw = (name ?? code ?? '').trim();
     if (raw.isEmpty) return 'Tunai';
-    if (raw.contains('QRIS Dinamis / Statis') || raw.toUpperCase() == 'QRIS') {
-      return 'QRIS Dinamis';
+    if (code?.toUpperCase() == 'QRIS' ||
+        raw.toUpperCase().contains('QRIS')) {
+      return 'QRIS';
     }
     return raw;
   }

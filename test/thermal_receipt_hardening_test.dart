@@ -331,7 +331,7 @@ class _FakePaymentRepo extends PaymentRepository {
   @override
   Future<PaymentResult> executePayment({
     required PaymentContext context,
-    required int paymentMethodId,
+    required int? paymentMethodId,
     required String paymentMethodCode,
     required String paymentMethodName,
     required double amountToPay,

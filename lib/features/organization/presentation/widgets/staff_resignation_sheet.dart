@@ -1,9 +1,89 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../shared/widgets/airy_settings_widgets.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/business_provider.dart';
 import '../../providers/organization_provider.dart';
+
+/// Displays an Airy Minimalist confirmation dialog after a staff resignation
+/// request has been submitted to the Owner.
+Future<void> showResignSubmittedSuccessDialog(BuildContext context) {
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.check_rounded,
+                color: Color(0xFF059669),
+                size: 26,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Pengajuan Resign Terkirim',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: AirySettingsColors.obsidian,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Pengajuan Anda telah diteruskan ke Owner untuk ditinjau.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                color: AirySettingsColors.inkSecondary,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton(
+                key: const Key('resign_success_understand_button'),
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AirySettingsColors.obsidian,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Mengerti',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 class StaffResignationSheet extends ConsumerStatefulWidget {
   final int businessId;
@@ -82,26 +162,28 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final navigator = Navigator.of(context);
+              final isModalSheet = ModalRoute.of(context) is PopupRoute;
+              final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(ctx);
               final success = await ref.read(organizationProvider.notifier).submitResignation(
                     businessId: widget.businessId,
                     reason: _reasonController.text.trim(),
                   );
-              if (mounted) {
-                if (success) {
-                  setState(() => _showSubmitForm = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Permohonan pengunduran diri berhasil diajukan ke Owner.'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
+              if (!mounted) return;
+              if (success) {
+                setState(() => _showSubmitForm = false);
+                if (isModalSheet) {
+                  navigator.pop();
+                  await showResignSubmittedSuccessDialog(navigator.context);
                 } else {
-                  final err = ref.read(organizationProvider).error ?? 'Gagal mengajukan pengunduran diri.';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(err), backgroundColor: AppColors.danger),
-                  );
+                  await showResignSubmittedSuccessDialog(context);
                 }
+              } else {
+                final err = ref.read(organizationProvider).error ?? 'Gagal mengajukan pengunduran diri.';
+                messenger.showSnackBar(
+                  SnackBar(content: Text(err), backgroundColor: AppColors.danger),
+                );
               }
             },
             style: ElevatedButton.styleFrom(

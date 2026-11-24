@@ -5,11 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
 import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
+import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
 import 'package:rentcore_mobile/features/home/presentation/widgets/progressive_checklist_banner.dart';
-import 'package:rentcore_mobile/core/models/thermal_printer_models.dart';
-import 'package:rentcore_mobile/features/printer/presentation/printer_settings_screen.dart';
-import 'package:rentcore_mobile/features/printer/presentation/receipt_customization_screen.dart';
-import 'package:rentcore_mobile/features/printer/providers/printer_provider.dart';
+import 'package:rentcore_mobile/features/organization/presentation/payment_method_settings_screen.dart';
 
 class _FakeChecklistAuthRepository extends AuthRepository {
   final Map<int, bool> dismissedMap = {};
@@ -31,17 +29,17 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('ProgressiveChecklistBanner renders items and progress accurately',
+  testWidgets(
+      'ProgressiveChecklistBanner renders 3 Airy steps for Owner, tracks progress, and dismisses cleanly',
       (tester) async {
     final fakeRepo = _FakeChecklistAuthRepository();
 
     final testBiz = {
       'id': 101,
       'name': 'Skyrental Jember',
-      'phone': '081234567890', // hasProfile true
-      'address': 'Jl. Kalimantan No. 12',
+      'role': 'owner',
       'payment_methods_config': {
-        'is_dynamic_qris_enabled': true, // hasQris true
+        'is_dynamic_qris_enabled': true, // step 3 done
       },
       'branches': [
         {'id': 201, 'name': 'Pusat', 'code': 'PST', 'is_central': true}
@@ -53,49 +51,54 @@ void main() {
         overrides: [
           authRepositoryProvider.overrideWithValue(fakeRepo),
           businessProvider.overrideWith(BusinessNotifier.new),
+          paymentSettingsProvider.overrideWith(
+            (ref, _) => Future.value(<String, dynamic>{}),
+          ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: Scaffold(
             body: ProgressiveChecklistBanner(
-              totalAssetCount: 5, // hasUnits true
+              totalModelCount: 1, // step 1 done
+              totalAssetCount: 0, // step 2 pending
             ),
           ),
         ),
       ),
     );
 
-    // Provide active business to state
-    final container = ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
-    await container.read(businessProvider.notifier).loadInitialContext(preloadedBusinesses: [testBiz]);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
+    await container
+        .read(businessProvider.notifier)
+        .loadInitialContext(preloadedBusinesses: [testBiz]);
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('owner_setup_checklist_card')), findsOneWidget);
     expect(find.text('Panduan Persiapan Toko'), findsOneWidget);
-    // 3 of 4 completed: Profile (yes), Units (yes, count 5), QRIS (yes), Printer (pending)
-    expect(find.text('3 dari 4 Selesai'), findsOneWidget);
+    // 2 of 3 completed: Create Model (yes), Register Unit (no), Payment/QRIS (yes)
+    expect(find.text('2 dari 3 langkah selesai'), findsOneWidget);
 
-    expect(find.text('Lengkapi Profil Usaha'), findsOneWidget);
-    expect(find.text('Daftarkan Unit Pertama'), findsOneWidget);
-    expect(find.text('Atur Metode Pembayaran QRIS'), findsOneWidget);
-    expect(find.text('Hubungkan Printer Thermal'), findsOneWidget);
+    expect(find.text('Buat Model & Tarif Pertama'), findsOneWidget);
+    expect(find.text('Daftarkan Unit Fisik Pertama'), findsOneWidget);
+    expect(find.text('Atur Metode Pembayaran / QRIS'), findsOneWidget);
 
     // Dismiss banner
-    await tester.tap(find.byTooltip('Sembunyikan Panduan'));
+    await tester.tap(find.byKey(const Key('checklist_dismiss_button')));
     await tester.pumpAndSettle();
 
-    // Banner is dismissed and hidden
     expect(find.text('Panduan Persiapan Toko'), findsNothing);
+    expect(fakeRepo.dismissedMap[101], isTrue);
   });
 
-  testWidgets('ProgressiveChecklistBanner marks QRIS complete when branch override has qris_raw_payload',
+  testWidgets(
+      'ProgressiveChecklistBanner auto-hides when all 3 steps complete and hides for staff role',
       (tester) async {
     final fakeRepo = _FakeChecklistAuthRepository();
 
-    final testBiz = {
+    final completedOwnerBiz = {
       'id': 102,
       'name': 'Branch QRIS Rental',
-      'phone': '081234567890',
-      'address': 'Jl. Tidar No. 5',
-      // Business-level QRIS is not set
+      'role': 'owner',
       'payment_methods_config': null,
       'branches': [
         {
@@ -103,8 +106,7 @@ void main() {
           'name': 'Cabang Utama',
           'code': 'UTM',
           'is_central': true,
-          // Branch-level QRIS is configured
-          'qris_raw_payload': '00020101021126570014ID.LINKAJA.WWW011893600911002100650902081000650951440014ID.CO.QRIS.WWW0215ID10200210065090303UMI5204599953033605802ID5913RENTAL STORE6006JEMBER61056812162070703A016304ABCD',
+          'qris_raw_payload': '0002010102116304ABCD',
         }
       ],
     };
@@ -114,10 +116,14 @@ void main() {
         overrides: [
           authRepositoryProvider.overrideWithValue(fakeRepo),
           businessProvider.overrideWith(BusinessNotifier.new),
+          paymentSettingsProvider.overrideWith(
+            (ref, _) => Future.value(<String, dynamic>{}),
+          ),
         ],
         child: const MaterialApp(
           home: Scaffold(
             body: ProgressiveChecklistBanner(
+              totalModelCount: 2,
               totalAssetCount: 2,
             ),
           ),
@@ -125,109 +131,77 @@ void main() {
       ),
     );
 
-    final container = ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
-    await container.read(businessProvider.notifier).loadInitialContext(preloadedBusinesses: [testBiz]);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
+    await container
+        .read(businessProvider.notifier)
+        .loadInitialContext(preloadedBusinesses: [completedOwnerBiz]);
     await tester.pumpAndSettle();
 
-    // 3 of 4: Profile (yes), Units (yes), QRIS (yes from branch qris_raw_payload)
-    expect(find.text('3 dari 4 Selesai'), findsOneWidget);
-  });
+    // 3/3 completed -> auto-hides
+    expect(find.byKey(const Key('owner_setup_checklist_card')), findsNothing);
 
-  testWidgets('Tapping "Hubungkan Printer Thermal" navigates to PrinterSettingsScreen instead of ReceiptCustomizationScreen',
-      (tester) async {
-    final fakeRepo = _FakeChecklistAuthRepository();
-    final testBiz = {
+    // Switch to invited staff business -> hidden even at 0/3
+    final staffBiz = {
       'id': 103,
-      'name': 'Printer Nav Test Biz',
+      'name': 'Staff Toko',
+      'role': 'staff',
+      'payment_methods_config': null,
       'branches': [
-        {'id': 203, 'name': 'Pusat', 'code': 'PST', 'is_central': true}
+        {'id': 203, 'name': 'Cabang Utama', 'code': 'UTM', 'is_central': true}
       ],
     };
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authRepositoryProvider.overrideWithValue(fakeRepo),
-          businessProvider.overrideWith(BusinessNotifier.new),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(
-            body: ProgressiveChecklistBanner(totalAssetCount: 0),
-          ),
-        ),
-      ),
-    );
-
-    final container = ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
-    await container.read(businessProvider.notifier).loadInitialContext(preloadedBusinesses: [testBiz]);
+    await container
+        .read(businessProvider.notifier)
+        .loadInitialContext(preloadedBusinesses: [staffBiz]);
     await tester.pumpAndSettle();
 
-    final printerTile = find.text('Hubungkan Printer Thermal');
-    expect(printerTile, findsOneWidget);
-
-    await tester.tap(printerTile);
-    await tester.pumpAndSettle();
-
-    // Verify PrinterSettingsScreen is opened, NOT ReceiptCustomizationScreen
-    expect(find.byType(PrinterSettingsScreen), findsOneWidget);
-    expect(find.byType(ReceiptCustomizationScreen), findsNothing);
+    expect(find.byKey(const Key('owner_setup_checklist_card')), findsNothing);
   });
 
-  testWidgets('ProgressiveChecklistBanner marks printer complete when thermal printer is paired or connected',
+  testWidgets(
+      'Tapping "Atur Metode Pembayaran / QRIS" opens PaymentMethodSettingsScreen',
       (tester) async {
     final fakeRepo = _FakeChecklistAuthRepository();
     final testBiz = {
       'id': 104,
-      'name': 'Paired Printer Biz',
-      'phone': '081234567890', // hasProfile true
-      'address': 'Jl. Mastrip 45',
-      'payment_methods_config': {
-        'is_dynamic_qris_enabled': true, // hasQris true
-      },
+      'name': 'Payment Setup Biz',
+      'role': 'owner',
       'branches': [
         {'id': 204, 'name': 'Pusat', 'code': 'PST', 'is_central': true}
       ],
     };
 
-    const pairedPrinterState = PrinterState(
-      connectedDevice: ThermalPrinterDevice(
-        name: 'Zjiang PT-210',
-        address: '66:22:33:44:55:66',
-        isConnected: true,
-      ),
-      status: PrinterConnectionStatus.connected,
-    );
-
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authRepositoryProvider.overrideWithValue(fakeRepo),
           businessProvider.overrideWith(BusinessNotifier.new),
-          printerProvider.overrideWith(() => _MockPrinterNotifier(pairedPrinterState)),
+          paymentSettingsProvider.overrideWith(
+            (ref, _) => Future.value(<String, dynamic>{}),
+          ),
         ],
         child: const MaterialApp(
           home: Scaffold(
             body: ProgressiveChecklistBanner(
-              totalAssetCount: 3, // hasUnits true
+              totalModelCount: 0,
+              totalAssetCount: 0,
             ),
           ),
         ),
       ),
     );
 
-    final container = ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
-    await container.read(businessProvider.notifier).loadInitialContext(preloadedBusinesses: [testBiz]);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
+    await container
+        .read(businessProvider.notifier)
+        .loadInitialContext(preloadedBusinesses: [testBiz]);
     await tester.pumpAndSettle();
 
-    // All 4 of 4 completed: Profile, Units, QRIS, Printer
-    expect(find.text('4 dari 4 Selesai'), findsOneWidget);
+    await tester.tap(find.text('Atur Metode Pembayaran / QRIS'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PaymentMethodSettingsScreen), findsOneWidget);
   });
-}
-
-class _MockPrinterNotifier extends PrinterNotifier {
-  final PrinterState _initial;
-  _MockPrinterNotifier(this._initial);
-
-  @override
-  PrinterState build() => _initial;
 }

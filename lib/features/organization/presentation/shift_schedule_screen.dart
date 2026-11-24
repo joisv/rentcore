@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/skeleton_loading.dart';
+import '../../../../shared/widgets/airy_settings_widgets.dart';
 import '../../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/business_provider.dart';
@@ -168,21 +169,41 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
     final scheduleAsync = ref.watch(shiftScheduleProvider(effectiveBranchId));
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AirySettingsColors.canvas,
       appBar: const RentCoreAppBar(
         title: 'Jadwal Operasional Shift',
       ),
+      bottomNavigationBar: (scheduleAsync.hasValue && isOwnerOrAdmin)
+          ? airyStickyFooter(
+              child: airyPrimaryCta(
+                label: 'Simpan Jadwal Operasional',
+                loadingLabel: 'Menyimpan Jadwal...',
+                isLoading: _isSaving,
+                icon: Icons.check_circle_outline_rounded,
+                onPressed: _isSaving ? null : _saveSchedule,
+              ),
+            )
+          : null,
       body: scheduleAsync.when(
-        loading: () => const SettingsGroupSkeleton(groupCount: 2, itemsPerGroup: 3),
+        loading: () =>
+            const SettingsGroupSkeleton(groupCount: 2, itemsPerGroup: 3),
         error: (err, stack) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.danger),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 48,
+                  color: AppColors.danger,
+                ),
                 const SizedBox(height: 12),
-                Text('Gagal memuat jadwal shift:\n$err', textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
+                Text(
+                  'Gagal memuat jadwal shift:\n$err',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13),
+                ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => ref.invalidate(shiftScheduleProvider),
@@ -195,115 +216,146 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
         data: (data) {
           _populateFromSchedule(data);
 
-          final operationalState = data['operational_state']?.toString() ?? 'unknown';
+          final operationalState =
+              data['operational_state']?.toString() ?? 'unknown';
           final statusMessage = data['status_message']?.toString() ?? '-';
           final timezone = data['timezone']?.toString() ?? 'Asia/Jakarta';
-          final scheduledOpen = data['shift_opening_time']?.toString() ?? _formatTimeOfDay(_openingTime);
-          final scheduledClose = data['shift_closing_time']?.toString() ?? _formatTimeOfDay(_closingTime);
-          final graceMinutes = data['shift_grace_period_minutes']?.toString() ?? _gracePeriodController.text;
+          final scheduledOpen =
+              data['shift_opening_time']?.toString() ??
+              _formatTimeOfDay(_openingTime);
+          final scheduledClose =
+              data['shift_closing_time']?.toString() ??
+              _formatTimeOfDay(_closingTime);
+          final graceMinutes =
+              data['shift_grace_period_minutes']?.toString() ??
+              _gracePeriodController.text;
 
           return Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.only(bottom: 24),
               children: [
                 // Read-only notice for staff
-                if (!isOwnerOrAdmin) ...[
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.lock_rounded, size: 20, color: AppColors.textSecondary),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Mode Hanya Baca: Pengaturan jadwal operasional shift hanya dapat diubah oleh Owner atau Admin.',
-                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                if (!isOwnerOrAdmin)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AirySettingsColors.surfaceSubtle,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AirySettingsColors.border),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.lock_outline_rounded,
+                            size: 18,
+                            color: AirySettingsColors.obsidian,
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Branch Filter Selector (if multiple branches)
-                if (branches.length > 1) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<int?>(
-                        isExpanded: true,
-                        value: _selectedBranchId,
-                        hint: const Text('Semua Cabang (Jadwal Utama Bisnis)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                        items: [
-                          const DropdownMenuItem<int?>(
-                            value: null,
-                            child: Text('Jadwal Utama Bisnis (Default)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Mode Hanya Baca: Pengaturan jadwal operasional shift hanya dapat diubah oleh Owner atau Admin.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AirySettingsColors.inkMuted,
+                                height: 1.4,
+                              ),
+                            ),
                           ),
-                          ...branches.map((b) {
-                            return DropdownMenuItem<int?>(
-                              value: b['id'] as int?,
-                              child: Text('Cabang: ${b['name']}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                            );
-                          }),
                         ],
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedBranchId = val;
-                            _isInitialized = false;
-                          });
-                        },
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                ],
 
-                // Operational Status Card
-                _buildStatusCard(operationalState, statusMessage, timezone, scheduledOpen, scheduledClose, graceMinutes),
-                const SizedBox(height: 18),
-
-                // General Shift Schedule Settings Card
-                _buildScheduleSettingsCard(isOwnerOrAdmin),
-                const SizedBox(height: 18),
-
-                // Branch Override Card (Only when a specific branch is selected)
-                if (_selectedBranchId != null) ...[
-                  _buildBranchOverrideCard(isOwnerOrAdmin),
-                  const SizedBox(height: 24),
-                ],
-
-                // Save Action Button
-                if (isOwnerOrAdmin) ...[
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.obsidian,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
+                // Top Schedule Selector Strip
+                if (branches.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                    child: Container(
+                      height: 46,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: AirySettingsColors.surfaceSubtle,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AirySettingsColors.border),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int?>(
+                          isExpanded: true,
+                          value: _selectedBranchId,
+                          dropdownColor: AirySettingsColors.canvas,
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 20,
+                            color: AirySettingsColors.inkMuted,
+                          ),
+                          hint: const Text(
+                            'Semua Cabang (Jadwal Utama Bisnis)',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: AirySettingsColors.obsidian,
+                            ),
+                          ),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text(
+                                'Jadwal Utama Bisnis (Default)',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AirySettingsColors.obsidian,
+                                ),
+                              ),
+                            ),
+                            ...branches.map((b) {
+                              return DropdownMenuItem<int?>(
+                                value: b['id'] as int?,
+                                child: Text(
+                                  'Cabang: ${b['name']}',
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: AirySettingsColors.obsidian,
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                          onChanged: (val) {
+                            setState(() {
+                              _selectedBranchId = val;
+                              _isInitialized = false;
+                            });
+                          },
+                        ),
+                      ),
                     ),
-                    icon: _isSaving
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.check_circle_outline_rounded, size: 20),
-                    label: Text(
-                      _isSaving ? 'Menyimpan Jadwal...' : 'Simpan Jadwal Operasional',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    onPressed: _isSaving ? null : _saveSchedule,
                   ),
-                  const SizedBox(height: 32),
+                  airyHairlineDivider(),
+                ],
+
+                // Operational Status Open Section
+                _buildStatusSection(
+                  operationalState,
+                  statusMessage,
+                  timezone,
+                  scheduledOpen,
+                  scheduledClose,
+                  graceMinutes,
+                ),
+                airyHairlineDivider(),
+
+                // General Shift Schedule Settings Open Section
+                _buildScheduleSettingsSection(isOwnerOrAdmin),
+
+                // Branch Override Open Section (Only when a specific branch is selected)
+                if (_selectedBranchId != null) ...[
+                  airyHairlineDivider(),
+                  _buildBranchOverrideSection(isOwnerOrAdmin),
                 ],
               ],
             ),
@@ -313,7 +365,7 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
     );
   }
 
-  Widget _buildStatusCard(
+  Widget _buildStatusSection(
     String state,
     String message,
     String timezone,
@@ -321,74 +373,74 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
     String closeTime,
     String graceMin,
   ) {
-    Color stateColor;
+    Color pillBg;
+    Color pillFg;
     String stateLabel;
     IconData stateIcon;
 
     switch (state) {
       case 'active':
-        stateColor = AppColors.success;
+        pillBg = const Color(0xFFF0FDF4);
+        pillFg = const Color(0xFF15803D);
         stateLabel = 'SHIFT SEDANG AKTIF';
-        stateIcon = Icons.check_circle_rounded;
+        stateIcon = Icons.check_circle_outline_rounded;
         break;
       case 'opening_required':
-        stateColor = Colors.orange;
+        pillBg = const Color(0xFFFFFBEB);
+        pillFg = const Color(0xFFB45309);
         stateLabel = 'WAJIB BUKA SHIFT';
         stateIcon = Icons.alarm_on_rounded;
         break;
       case 'closed':
-        stateColor = AppColors.textMuted;
+        pillBg = AirySettingsColors.pillSurface;
+        pillFg = AirySettingsColors.inkMuted;
         stateLabel = 'SHIFT DITUTUP';
-        stateIcon = Icons.lock_clock_rounded;
+        stateIcon = Icons.lock_clock_outlined;
         break;
       case 'disabled':
-        stateColor = AppColors.info;
+        pillBg = const Color(0xFFEFF6FF);
+        pillFg = const Color(0xFF1D4ED8);
         stateLabel = 'BATASAN NONAKTIF';
         stateIcon = Icons.info_outline_rounded;
         break;
       default:
-        stateColor = AppColors.obsidian;
+        pillBg = AirySettingsColors.surfaceSubtle;
+        pillFg = AirySettingsColors.obsidian;
         stateLabel = 'BELUM DIBUKA';
         stateIcon = Icons.schedule_rounded;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.timelapse_rounded, size: 18, color: AppColors.obsidian),
-                  SizedBox(width: 8),
-                  Text(
-                    'STATUS OPERASIONAL HARI INI',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
-                  ),
-                ],
+              Flexible(
+                child: airySectionHeader('STATUS OPERASIONAL HARI INI'),
               ),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                  color: stateColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
+                  color: pillBg,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(stateIcon, size: 12, color: stateColor),
+                    Icon(stateIcon, size: 12, color: pillFg),
                     const SizedBox(width: 4),
                     Text(
                       stateLabel,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: stateColor),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                        color: pillFg,
+                      ),
                     ),
                   ],
                 ),
@@ -398,16 +450,24 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
           const SizedBox(height: 12),
           Text(
             message,
-            style: const TextStyle(fontSize: 13, height: 1.4, fontWeight: FontWeight.w600, color: AppColors.obsidian),
+            style: const TextStyle(
+              fontSize: 13.5,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+              color: AirySettingsColors.obsidian,
+            ),
           ),
-          const Divider(height: 20),
+          const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildMetricItem('Jam Buka', openTime),
-              _buildMetricItem('Jam Tutup', closeTime),
-              _buildMetricItem('Toleransi Tutup', '$graceMin menit'),
-              _buildMetricItem('Zona Waktu', timezone.split('/').last),
+              Expanded(child: _buildMetricItem('Jam Buka', openTime)),
+              Expanded(child: _buildMetricItem('Jam Tutup', closeTime)),
+              Expanded(
+                child: _buildMetricItem('Toleransi Tutup', '$graceMin menit'),
+              ),
+              Expanded(
+                child: _buildMetricItem('Zona Waktu', timezone.split('/').last),
+              ),
             ],
           ),
         ],
@@ -419,170 +479,209 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.obsidian)),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AirySettingsColors.inkSecondary,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+            color: AirySettingsColors.obsidian,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildScheduleSettingsCard(bool isEditable) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'PENGATURAN UTAMA JADWAL SHIFT',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
-            ),
-            const SizedBox(height: 12),
+  Widget _buildScheduleSettingsSection(bool isEditable) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          airySectionHeader('PENGATURAN UTAMA JADWAL SHIFT'),
+          const SizedBox(height: 14),
 
-            // Enforcement Switch
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              value: _enforcementEnabled,
-              activeColor: AppColors.obsidian,
-              title: const Text(
-                'Wajibkan Batasan Shift Kasir',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+          // Enforcement Switch
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Wajibkan Batasan Shift Kasir',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AirySettingsColors.obsidian,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Bila aktif, kasir wajib membuka shift di dalam rentang jam operasional sebelum transaksi POS diproses.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AirySettingsColors.inkSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              subtitle: const Text(
-                'Bila aktif, kasir wajib membuka shift di dalam rentang jam operasional sebelum transaksi POS diproses.',
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              const SizedBox(width: 12),
+              airySwitch(
+                value: _enforcementEnabled,
+                onChanged: isEditable
+                    ? (val) => setState(() => _enforcementEnabled = val)
+                    : null,
               ),
-              onChanged: isEditable
-                  ? (val) {
-                      setState(() => _enforcementEnabled = val);
-                    }
-                  : null,
-            ),
-            const Divider(height: 20),
+            ],
+          ),
+          const SizedBox(height: 16),
+          airyHairlineDivider(),
+          const SizedBox(height: 16),
 
-            // Opening and Closing Time
+          // Opening and Closing Time
+          Row(
+            children: [
+              Expanded(
+                child: _buildTimePickerTile(
+                  label: 'Jam Buka Shift',
+                  time: _openingTime,
+                  isEditable: isEditable,
+                  onPick: (t) => setState(() => _openingTime = t),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildTimePickerTile(
+                  label: 'Jam Tutup Shift',
+                  time: _closingTime,
+                  isEditable: isEditable,
+                  onPick: (t) => setState(() => _closingTime = t),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Grace Period Input
+          airyFieldLabel('Toleransi Keterlambatan Tutup Shift (Menit) *'),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _gracePeriodController,
+            enabled: isEditable,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AirySettingsColors.obsidian,
+            ),
+            decoration: airyInputDecoration(
+              hintText: '30',
+              enabled: isEditable,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+            ).copyWith(suffixText: 'Menit'),
+            validator: (val) {
+              if (val == null || val.trim().isEmpty) {
+                return 'Toleransi wajib diisi.';
+              }
+              final num = int.tryParse(val);
+              if (num == null || num < 0 || num > 240) {
+                return 'Isi antara 0 - 240 menit.';
+              }
+              return null;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBranchOverrideSection(bool isEditable) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          airySectionHeader('OVERRIDE JADWAL KHUSUS CABANG'),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Gunakan Jam Khusus Untuk Cabang Ini',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AirySettingsColors.obsidian,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Cabang ini akan memiliki jam buka dan tutup yang berbeda dari jadwal default bisnis.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AirySettingsColors.inkSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              airySwitch(
+                value: _hasBranchOverride,
+                onChanged: isEditable
+                    ? (val) => setState(() => _hasBranchOverride = val)
+                    : null,
+              ),
+            ],
+          ),
+          if (_hasBranchOverride) ...[
+            const SizedBox(height: 16),
+            airyHairlineDivider(),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: _buildTimePickerTile(
-                    label: 'Jam Buka Shift',
-                    time: _openingTime,
+                    label: 'Override Jam Buka',
+                    time: _branchOpeningTime,
                     isEditable: isEditable,
-                    onPick: (t) => setState(() => _openingTime = t),
+                    onPick: (t) => setState(() => _branchOpeningTime = t),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildTimePickerTile(
-                    label: 'Jam Tutup Shift',
-                    time: _closingTime,
+                    label: 'Override Jam Tutup',
+                    time: _branchClosingTime,
                     isEditable: isEditable,
-                    onPick: (t) => setState(() => _closingTime = t),
+                    onPick: (t) => setState(() => _branchClosingTime = t),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Grace Period Input
-            const Text(
-              'Toleransi Keterlambatan Tutup Shift (Menit) *',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _gracePeriodController,
-              enabled: isEditable,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                suffixText: 'Menit',
-                hintText: '30',
-                filled: true,
-                fillColor: isEditable ? AppColors.surface : AppColors.surfaceMuted,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) return 'Toleransi wajib diisi.';
-                final num = int.tryParse(val);
-                if (num == null || num < 0 || num > 240) return 'Isi antara 0 - 240 menit.';
-                return null;
-              },
-            ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBranchOverrideCard(bool isEditable) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'OVERRIDE JADWAL KHUSUS CABANG',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textMuted),
-            ),
-            const SizedBox(height: 12),
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              value: _hasBranchOverride,
-              activeColor: AppColors.obsidian,
-              title: const Text(
-                'Gunakan Jam Khusus Untuk Cabang Ini',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-              ),
-              subtitle: const Text(
-                'Cabang ini akan memiliki jam buka dan tutup yang berbeda dari jadwal default bisnis.',
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-              onChanged: isEditable
-                  ? (val) {
-                      setState(() => _hasBranchOverride = val);
-                    }
-                  : null,
-            ),
-            if (_hasBranchOverride) ...[
-              const Divider(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTimePickerTile(
-                      label: 'Override Jam Buka',
-                      time: _branchOpeningTime,
-                      isEditable: isEditable,
-                      onPick: (t) => setState(() => _branchOpeningTime = t),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildTimePickerTile(
-                      label: 'Override Jam Tutup',
-                      time: _branchClosingTime,
-                      isEditable: isEditable,
-                      onPick: (t) => setState(() => _branchClosingTime = t),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -596,10 +695,7 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary),
-        ),
+        airyFieldLabel(label),
         const SizedBox(height: 6),
         InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -611,23 +707,32 @@ class _ShiftScheduleScreenState extends ConsumerState<ShiftScheduleScreen> {
                   )
               : null,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            height: 46,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isEditable ? AppColors.surface : AppColors.surfaceMuted,
+              color: isEditable
+                  ? AirySettingsColors.surfaceSubtle
+                  : AirySettingsColors.pillSurface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: AirySettingsColors.border),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   _formatTimeOfDay(time),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.obsidian),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AirySettingsColors.obsidian,
+                  ),
                 ),
                 Icon(
                   Icons.access_time_rounded,
                   size: 18,
-                  color: isEditable ? AppColors.obsidian : AppColors.textMuted,
+                  color: isEditable
+                      ? AirySettingsColors.obsidian
+                      : AirySettingsColors.inkSecondary,
                 ),
               ],
             ),

@@ -248,6 +248,8 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
 
         final fakeRepo = FakeCashierRepository();
+        (fakeRepo.settingsData['config'] as Map<String, dynamic>)['qris_image_url'] =
+            'http://rentcore.test/qris.png';
         bool updateCalled = false;
 
         fakeRepo.updatePaymentSettingsHandler = (payload) async {

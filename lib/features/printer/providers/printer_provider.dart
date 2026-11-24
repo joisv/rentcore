@@ -133,6 +133,14 @@ class PrinterNotifier extends Notifier<PrinterState> {
   Future<void> syncHasEverConnectedFlag() async {
     try {
       if (!ref.mounted) return;
+      if (ref.exists(authProvider) &&
+          !ref.read(authProvider).isAuthenticated &&
+          ref.read(businessProvider).activeBusinessId == null) {
+        if (state.hasEverConnectedPrinter) {
+          state = state.copyWith(hasEverConnectedPrinter: false);
+        }
+        return;
+      }
       final prefs = await SharedPreferences.getInstance();
       if (!ref.mounted) return;
       final hasSaved = _hasSavedPrinterConfig(prefs) || state.connectedDevice != null;
@@ -153,12 +161,26 @@ class PrinterNotifier extends Notifier<PrinterState> {
   PrinterState build() {
     ref.listen<int?>(
       businessProvider.select((s) => s.activeBusinessId),
-      (_, _) => syncHasEverConnectedFlag(),
+      (previous, next) {
+        if (previous != next) {
+          syncHasEverConnectedFlag();
+        }
+      },
     );
     if (ref.exists(authProvider)) {
-      ref.listen<dynamic>(
-        authProvider.select((s) => s.user?['id']),
-        (_, _) => syncHasEverConnectedFlag(),
+      ref.listen<(bool, dynamic)>(
+        authProvider.select((s) => (s.isAuthenticated, s.user?['id'])),
+        (previous, next) {
+          final wasAuth = previous?.$1 ?? false;
+          final isAuth = next.$1;
+          if (wasAuth && !isAuth) {
+            reset();
+          } else if (isAuth && (!wasAuth || previous?.$2 != next.$2)) {
+            Future.microtask(() => _init());
+          } else if (isAuth) {
+            syncHasEverConnectedFlag();
+          }
+        },
       );
     }
     Future.microtask(() => _init());

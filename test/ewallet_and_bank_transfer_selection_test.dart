@@ -9,6 +9,12 @@ import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart
 
 class _FakeCashierRepoForSelection extends CashierRepository {
   @override
+  Future<Map<String, dynamic>> fetchCurrentShift({int? branchId}) async => {
+    'has_active_shift': true,
+    'shift': {'id': 1, 'branch_id': branchId ?? 1, 'status': 'open'},
+  };
+
+  @override
   Future<List<Map<String, dynamic>>> fetchPaymentMethods({int? branchId}) async {
     return [
       {'id': 1, 'name': 'Tunai', 'code': 'CASH'},
@@ -36,7 +42,7 @@ class _FakePaymentRepoForSelection extends PaymentRepository {
   @override
   Future<PaymentResult> executePayment({
     required PaymentContext context,
-    required int paymentMethodId,
+    required int? paymentMethodId,
     required String paymentMethodCode,
     required String paymentMethodName,
     required double amountToPay,
@@ -111,6 +117,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap "PROSES PEMBAYARAN"
+    await tester.ensureVisible(find.text('PROSES PEMBAYARAN'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('PROSES PEMBAYARAN'));
     await tester.pumpAndSettle();
 
@@ -153,6 +161,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap "PROSES PEMBAYARAN"
+    await tester.ensureVisible(find.text('PROSES PEMBAYARAN'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('PROSES PEMBAYARAN'));
     await tester.pumpAndSettle();
 

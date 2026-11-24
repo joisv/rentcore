@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
+import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/services/thermal_printer_service.dart';
@@ -509,7 +510,15 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
         : billableHours.toStringAsFixed(1);
     final bool isLateBeyondGrace = lateMinutes > gracePeriodMinutes;
 
-    final collateralSlot = booking['collateral_storage_slot'] ?? 'Brankas Cabang';
+    final showCollateral =
+        ref.watch(businessProvider).isCollateralEnabled ||
+        hasCollateralRecord(booking);
+    final collateralSummary = showCollateral
+        ? formatCollateralSummary(
+            booking,
+            legacyIncludeTypeFallback: true,
+          )
+        : '';
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -589,33 +598,35 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Jaminan',
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          'Jaminan: KTP • $collateralSlot',
-                          style: const TextStyle(
+                  if (showCollateral) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Jaminan',
+                          style: TextStyle(
                             fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF0F172A),
+                            color: Color(0xFF64748B),
                           ),
-                          textAlign: TextAlign.end,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            'Jaminan: $collateralSummary',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF0F172A),
+                            ),
+                            textAlign: TextAlign.end,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1598,7 +1609,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!_allAddonsChecked)
+                if (!_allAddonsChecked) ...[
                   const Text(
                     'Centang kelengkapan add-on untuk melanjutkan',
                     key: Key('addon_incomplete_helper'),
@@ -1610,10 +1621,15 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       color: Color(0xFF64748B),
                       fontWeight: FontWeight.w500,
                     ),
-                  )
-                else
+                  ),
+                  const SizedBox(height: 10),
+                ] else if (showCollateral) ...[
                   Text(
-                    'Jaminan fisik: $collateralSlot',
+                    isNoCollateralRecord(booking)
+                        ? 'Tanpa Jaminan'
+                        : parseCollateralDepositAmount(booking) != null
+                            ? 'Kembalikan deposit: ${formatCollateralSummary(booking)}'
+                            : 'Jaminan fisik: ${formatCollateralSummary(booking)}',
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1623,7 +1639,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
+                ],
                 SizedBox(
                   height: 48,
                   child: ElevatedButton(
@@ -1854,7 +1871,18 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   }
 
   void _showReturnSuccessDialog(double penaltyAmount, bool penaltyPaid) {
-    final collateralSlot = widget.booking['collateral_storage_slot'] ?? 'Brankas Cabang';
+    final showCollateral =
+        ref.read(businessProvider).isCollateralEnabled ||
+        hasCollateralRecord(widget.booking);
+    final collateralReminder = showCollateral
+        ? (isNoCollateralRecord(widget.booking)
+            ? 'Sewa tanpa jaminan fisik / deposit.'
+            : parseCollateralDepositAmount(widget.booking) != null
+                ? 'Kembalikan deposit tunai: ${CurrencyFormatter.format(parseCollateralDepositAmount(widget.booking)!)}'
+                : 'Kembalikan jaminan: ${formatCollateralSummary(widget.booking)}')
+        : '';
+    final collateralSlot =
+        showCollateral ? formatCollateralSummary(widget.booking) : '';
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1919,30 +1947,32 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                   height: 1.4,
                 ),
               ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: const Color(0xFFE2E8F0),
-                    width: 1,
+              if (showCollateral) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    collateralReminder,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF334155),
+                    ),
                   ),
                 ),
-                child: Text(
-                  'Kembalikan jaminan: $collateralSlot',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF334155),
-                  ),
-                ),
-              ),
+              ],
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -2065,15 +2095,17 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                                     'Kondisi: Grade $_conditionGrade',
                                     style: const TextStyle(fontSize: 11),
                                   ),
-                                  const Divider(height: 16),
-                                  Text(
-                                    'Jaminan Fisik ($collateralSlot) Telah Diserahkan Kembali',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                      color: AppColors.success,
+                                  if (showCollateral) ...[
+                                    const Divider(height: 16),
+                                    Text(
+                                      'Jaminan Fisik ($collateralSlot) Telah Diserahkan Kembali',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                        color: AppColors.success,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             ),

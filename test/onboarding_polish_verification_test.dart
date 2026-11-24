@@ -4,8 +4,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
 import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
+import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
+import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
 import 'package:rentcore_mobile/features/onboarding/presentation/business_setup_wizard_screen.dart';
 import 'package:rentcore_mobile/features/onboarding/presentation/feature_walkthrough_screen.dart';
+
+class _StubPolishNotificationNotifier extends NotificationNotifier {
+  @override
+  Future<void> fetchUnreadCountOnly() async {}
+
+  @override
+  Future<void> fetchNotifications({bool refresh = false}) async {}
+}
 
 class _FakePolishAuthRepository extends AuthRepository {
   Map<String, dynamic>? createdData;
@@ -17,6 +27,7 @@ class _FakePolishAuthRepository extends AuthRepository {
     required String city,
     String? address,
     String? phone,
+    String? nichePreset,
     List<String>? businessCategories,
     String? branchStructure,
     String? initialBranchName,
@@ -27,6 +38,7 @@ class _FakePolishAuthRepository extends AuthRepository {
       'id': 999,
       'name': name,
       'city': city,
+      'niche_preset': nichePreset,
       'branch_structure': branchStructure ?? 'single_location',
       'business_categories': businessCategories ?? [],
     };
@@ -123,7 +135,7 @@ void main() {
         // 1. Check subtle subtitle beneath heading
         expect(find.text('Kategori Bisnis Rental'), findsOneWidget);
         expect(
-          find.text('Pilih kategori barang yang Anda sewakan. Kategori dapat diubah atau ditambahkan kapan saja.'),
+          find.textContaining('Pilih preset usaha rental'),
           findsOneWidget,
         );
 
@@ -165,6 +177,11 @@ void main() {
           ProviderScope(
             overrides: [
               authRepositoryProvider.overrideWithValue(fakeRepo),
+              notificationProvider
+                  .overrideWith(_StubPolishNotificationNotifier.new),
+              closingSummaryProvider.overrideWith(
+                (ref) => Future.value(<String, dynamic>{}),
+              ),
             ],
             child: const MaterialApp(
               home: FeatureWalkthroughScreen(),
