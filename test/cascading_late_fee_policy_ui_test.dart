@@ -2,19 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/presentation/return_wizard_screen.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
-import 'package:rentcore_mobile/features/inventory/presentation/add_product_sheet.dart';
-import 'package:rentcore_mobile/features/inventory/presentation/inventory_screen.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
+import 'package:sewakasir/features/auth/data/auth_repository.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/presentation/return_wizard_screen.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/inventory/data/asset_repository.dart';
+import 'package:sewakasir/features/inventory/presentation/add_product_sheet.dart';
+import 'package:sewakasir/features/inventory/presentation/inventory_screen.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/features/organization/presentation/store_settings_screen.dart';
 
 class _FakeAuthNotifier extends AuthNotifier {
   final AuthState _initial;
@@ -154,9 +154,12 @@ void main() {
             'auto_expire_unpaid_booking': true,
             'late_pickup_end_time_mode': 'keep_original_end',
             'return_grace_period_minutes': 15,
+            'late_fee_grace_mode': 'deductive',
             'late_fee_rounding_mode': 'hourly_ceil',
             'cap_late_fee_at_daily_rate': true,
             'default_hourly_late_fee': 15000.0,
+            'late_fee_default_type': 'fixed',
+            'allow_cashier_late_fee_waiver': true,
             'branches': [
               {'id': 1, 'name': 'Cabang Pusat', 'code': 'PST', 'is_central': true},
             ],
@@ -212,12 +215,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fakeAuthRepo.lastBusinessId, 1);
-      expect(fakeAuthRepo.lastBusinessPayload, {
-        'return_grace_period_minutes': 30,
-        'late_fee_rounding_mode': 'half_hourly_ceil',
-        'cap_late_fee_at_daily_rate': false,
-        'default_hourly_late_fee': 22000.0,
-      });
+      expect(fakeAuthRepo.lastBusinessPayload?['return_grace_period_minutes'], 30);
+      expect(fakeAuthRepo.lastBusinessPayload?['late_fee_grace_minutes'], 30);
+      expect(fakeAuthRepo.lastBusinessPayload?['late_fee_rounding_mode'], 'half_hourly_ceil');
+      expect(fakeAuthRepo.lastBusinessPayload?['late_fee_rounding'], 'half_hourly_ceil');
+      expect(fakeAuthRepo.lastBusinessPayload?['cap_late_fee_at_daily_rate'], false);
+      expect(fakeAuthRepo.lastBusinessPayload?['late_fee_cap_daily'], false);
+      expect(fakeAuthRepo.lastBusinessPayload?['default_hourly_late_fee'], 22000.0);
+      expect(fakeAuthRepo.lastBusinessPayload?['late_fee_default_rate'], 22000.0);
     },
   );
 

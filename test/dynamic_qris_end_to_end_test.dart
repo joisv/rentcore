@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:rentcore_mobile/core/services/qris_service.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/organization/presentation/payment_method_settings_screen.dart';
-import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
-import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
+import 'package:sewakasir/core/services/qris_service.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/organization/presentation/payment_method_settings_screen.dart';
+import 'package:sewakasir/features/payments/models/payment_context.dart';
+import 'package:sewakasir/features/payments/presentation/payment_page.dart';
 
 const kSampleStaticPayload =
     '00020101021126580014ID.LINKAJA.WWW0118936009180000000001020712345675204581253033605802ID5911RENTCORE POS6007JAKARTA6105123406304A1B2';

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/core/services/printer_bluetooth_driver.dart';
-import 'package:rentcore_mobile/core/services/thermal_printer_service.dart';
-import 'package:rentcore_mobile/features/printer/presentation/printer_settings_screen.dart';
-import 'package:rentcore_mobile/features/printer/presentation/receipt_customization_screen.dart';
-import 'package:rentcore_mobile/features/printer/providers/printer_provider.dart';
+import 'package:sewakasir/core/services/printer_bluetooth_driver.dart';
+import 'package:sewakasir/core/services/thermal_printer_service.dart';
+import 'package:sewakasir/features/printer/presentation/printer_settings_screen.dart';
+import 'package:sewakasir/features/printer/presentation/receipt_customization_screen.dart';
+import 'package:sewakasir/features/printer/providers/printer_provider.dart';
 
 void main() {
   setUp(() {

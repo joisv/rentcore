@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/organization/presentation/manage_organization_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/widgets/staff_resignation_sheet.dart';
-import 'package:rentcore_mobile/features/organization/providers/organization_provider.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/organization/presentation/manage_organization_screen.dart';
+import 'package:sewakasir/features/organization/presentation/widgets/staff_resignation_sheet.dart';
+import 'package:sewakasir/features/organization/providers/organization_provider.dart';
 
 class _MockOrganizationNotifier extends OrganizationNotifier {
   final OrganizationState _initialState;

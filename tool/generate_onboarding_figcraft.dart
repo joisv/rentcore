@@ -1143,7 +1143,7 @@ void main() async {
   createText(text: '📊 Kasir', parent: dock, x: 255, y: 20, props: {'fontSize': 11, 'fontVariations': {'wght': 600}, 'fills': [cTextSecondary]});
 
   // Write out JSON script
-  final outFile = File('C:/Users/VyndhyCell/Projects/rentcore/design/figcraft_onboarding_script.json');
+  final outFile = File('C:/Users/VyndhyCell/Projects/sewakasir/design/figcraft_onboarding_script.json');
   await outFile.parent.create(recursive: true);
   await outFile.writeAsString(jsonEncode(commands));
   print('Generated ${commands.length} commands to ${outFile.path}');

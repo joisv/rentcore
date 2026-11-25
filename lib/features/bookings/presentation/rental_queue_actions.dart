@@ -366,103 +366,21 @@ class RentalQueueActions {
 
       if (!context.mounted) return;
       final bizState = ref.read(businessProvider);
-      final affiliate = booking['affiliate'] as Map?;
-      final shopName = (receiptData['business_name']?.toString() ??
-              bizState.resolvedStoreName)
-          .trim();
-      final rawBranch = (receiptData['outlet_name']?.toString() ??
-              affiliate?['name']?.toString() ??
-              bizState.resolvedBranchName)
-          .trim();
-      final branchName = rawBranch.isNotEmpty ? rawBranch : 'Cabang Utama';
-      final branchAddress = (receiptData['outlet_address']?.toString() ??
-              affiliate?['address']?.toString() ??
-              bizState.resolvedBranchAddress)
-          .trim();
-      final branchPhone = (receiptData['outlet_phone']?.toString() ??
-              affiliate?['phone']?.toString() ??
-              bizState.resolvedBranchPhone)
-          .trim();
-      final cashierName = receiptData['cashier_name'] ?? 'Kasir';
-      final receiptNum =
-          receiptData['receipt_number'] ?? booking['booking_code'] ?? '-';
-      final customerName =
-          receiptData['customer_name'] ?? booking['customer']?['name'] ?? '-';
-      final totalAmt = CurrencyFormatter.parse(
-        receiptData['total_amount'] ?? booking['total_bill'],
-      );
-      final cashRec = CurrencyFormatter.parse(receiptData['cash_received']);
-      final cashChg = CurrencyFormatter.parse(receiptData['cash_change']);
-      final method = receiptData['payment_method'] ?? 'Tunai';
-
-      final printerService = ThermalPrinterService();
       final printerSettings = ref.read(printerProvider).settings;
-      final model = ReceiptDataModel(
-        type: ReceiptType.posPayment,
+      final document = ReceiptDocumentData.fromTransaction(
+        business: bizState,
+        booking: booking,
+        receiptData: receiptData,
+        settings: printerSettings,
         title: 'STRUK TRANSAKSI SEWA',
-        shopName: shopName.isNotEmpty ? shopName : null,
-        branchName: branchName,
-        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
-        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
         isReprint: true,
-        receiptNumber: receiptNum,
-        bookingCode: booking['booking_code']?.toString(),
-        customerName: customerName,
-        cashierName: cashierName,
-        totalAmount: totalAmt,
-        paymentMethod: method,
-        cashReceived: cashRec,
-        cashChange: cashChg,
-        transactedAt:
-            receiptData['transacted_at']?.toString() ??
-            DateTime.now().toString().substring(0, 16),
-      );
-      final escposBytes = printerService.buildPosPaymentSlipBytes(
-        model,
-        printerSettings,
       );
 
       showDialog(
         context: context,
-        builder: (ctx) => ThermalReceiptPreviewDialog(
+        builder: (ctx) => ThermalReceiptPreviewDialog.fromDocument(
           title: 'Struk Transaksi Sewa',
-          shopName: shopName.isNotEmpty ? shopName : null,
-          branchName: branchName,
-          branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
-          branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
-          isReprint: true,
-          qrData: booking['booking_code']?.toString(),
-          escposBytes: escposBytes,
-          content: Column(
-            children: [
-              const Text(
-                'STRUK SEWA CABANG',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              Text('No: $receiptNum', style: const TextStyle(fontSize: 11)),
-              Text(
-                'Pelanggan: $customerName',
-                style: const TextStyle(fontSize: 11),
-              ),
-              const Divider(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Total:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                  Text(
-                    CurrencyFormatter.format(totalAmt),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          document: document,
         ),
       );
     } catch (e) {

@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/thermal_printer_service.dart';
+import '../../core/widgets/unified_thermal_receipt_preview.dart';
 import '../../features/auth/providers/business_provider.dart';
 import '../../features/printer/presentation/printer_settings_screen.dart';
 import '../../features/printer/providers/printer_provider.dart';
@@ -25,7 +26,8 @@ class ThermalReceiptPreviewDialog extends ConsumerStatefulWidget {
   final bool autoShareOnOpen;
   final Future<void> Function(Uint8List pngBytes, String caption)? onShareImage;
   final Uint8List escposBytes;
-  final Widget content;
+  final Widget? content;
+  final ReceiptDocumentData? document;
   final String? qrData;
 
   const ThermalReceiptPreviewDialog({
@@ -33,7 +35,8 @@ class ThermalReceiptPreviewDialog extends ConsumerStatefulWidget {
     required this.title,
     required this.branchName,
     required this.escposBytes,
-    required this.content,
+    this.content,
+    this.document,
     this.shopName,
     this.branchAddress,
     this.branchPhone,
@@ -42,6 +45,30 @@ class ThermalReceiptPreviewDialog extends ConsumerStatefulWidget {
     this.onShareImage,
     this.qrData,
   });
+
+  /// Unified constructor backed by [ReceiptDocumentData] (Single Source of Truth).
+  factory ThermalReceiptPreviewDialog.fromDocument({
+    Key? key,
+    required String title,
+    required ReceiptDocumentData document,
+    bool autoShareOnOpen = false,
+    Future<void> Function(Uint8List pngBytes, String caption)? onShareImage,
+  }) {
+    return ThermalReceiptPreviewDialog(
+      key: key,
+      title: title,
+      shopName: document.storeName,
+      branchName: document.branchName,
+      branchAddress: document.storeAddress.isNotEmpty ? document.storeAddress : null,
+      branchPhone: document.storePhone.isNotEmpty ? document.storePhone : null,
+      isReprint: document.isReprint,
+      autoShareOnOpen: autoShareOnOpen,
+      onShareImage: onShareImage,
+      qrData: document.effectiveQrData,
+      document: document,
+      escposBytes: ThermalReceiptEscPosBuilder.build(document),
+    );
+  }
 
   @override
   ConsumerState<ThermalReceiptPreviewDialog> createState() =>
@@ -243,172 +270,180 @@ class _ThermalReceiptPreviewDialogState
                 padding: const EdgeInsets.all(20),
                 child: RepaintBoundary(
                   key: _receiptBoundaryKey,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Paper Header
-                        Center(
-                          child: Text(
-                            resolvedShopName,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                              letterSpacing: 1.0,
-                            ),
+                  child: widget.document != null
+                      ? UnifiedThermalReceiptPreview(
+                          data: widget.document!.applySettings(
+                            printerState.settings,
+                            business: bizState,
                           ),
-                        ),
-                        if (printerState.settings.customSlogan.trim().isNotEmpty)
-                          Center(
-                            child: Text(
-                              printerState.settings.customSlogan.trim(),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 10,
-                                color: AppColors.textSecondary,
+                          showBottomTearEdge: true,
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
                               ),
-                            ),
+                            ],
                           ),
-                        Center(
-                          child: Text(
-                            resolvedBranchName,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                        if (resolvedAddress.isNotEmpty)
-                          Center(
-                            child: Text(
-                              resolvedAddress,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 10,
-                                color: AppColors.textSecondary,
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Paper Header
+                              Center(
+                                child: Text(
+                                  resolvedShopName,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        if (resolvedPhone.isNotEmpty)
-                          Center(
-                            child: Text(
-                              'Telp: $resolvedPhone',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 10,
-                                color: AppColors.textSecondary,
+                              if (printerState.settings.customSlogan.trim().isNotEmpty)
+                                Center(
+                                  child: Text(
+                                    printerState.settings.customSlogan.trim(),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 10,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              Center(
+                                child: Text(
+                                  resolvedBranchName,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        const SizedBox(height: 6),
-                        Text(
-                          dividerText,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            color: Colors.grey,
-                          ),
-                        ),
-                        if (widget.isReprint) ...[
-                          const SizedBox(height: 4),
-                          const Center(
-                            child: Text(
-                              '-- CETAK ULANG --',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11,
+                              if (resolvedAddress.isNotEmpty)
+                                Center(
+                                  child: Text(
+                                    resolvedAddress,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 10,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              if (resolvedPhone.isNotEmpty)
+                                Center(
+                                  child: Text(
+                                    'Telp: $resolvedPhone',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 10,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 6),
+                              Text(
+                                dividerText,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: Colors.grey,
+                                ),
                               ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 8),
+                              if (widget.isReprint) ...[
+                                const SizedBox(height: 4),
+                                const Center(
+                                  child: Text(
+                                    '-- CETAK ULANG --',
+                                    style: TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
 
-                        // Injected Slip Content
-                        widget.content,
+                              // Injected Slip Content
+                              if (widget.content != null) widget.content!,
 
-                        // Optional 2D QR Code
-                        if (widget.qrData != null &&
-                            printerState.settings.showQrBarcode) ...[
-                          const SizedBox(height: 12),
-                          Center(
-                            child: QrImageView(
-                              data: widget.qrData!,
-                              version: QrVersions.auto,
-                              size: 130.0,
-                              padding: const EdgeInsets.all(4),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Center(
-                            child: Text(
-                              widget.qrData!,
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
+                              // Optional 2D QR Code
+                              if (widget.qrData != null &&
+                                  printerState.settings.showQrBarcode) ...[
+                                const SizedBox(height: 12),
+                                Center(
+                                  child: QrImageView(
+                                    data: widget.qrData!,
+                                    version: QrVersions.auto,
+                                    size: 130.0,
+                                    padding: const EdgeInsets.all(4),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Center(
+                                  child: Text(
+                                    widget.qrData!,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 12),
+                              Text(
+                                dividerText,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: Colors.grey,
+                                ),
                               ),
-                            ),
-                          ),
-                        ],
-
-                        const SizedBox(height: 12),
-                        Text(
-                          dividerText,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            color: Colors.grey,
+                              if (printerState.settings.showReturnTerms &&
+                                  printerState.settings.returnTermsText.trim().isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  printerState.settings.returnTermsText.trim(),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 9.5,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                              if (printerState.settings.customFooterMessage.trim().isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  printerState.settings.customFooterMessage.trim(),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                        if (printerState.settings.showReturnTerms &&
-                            printerState.settings.returnTermsText.trim().isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            printerState.settings.returnTermsText.trim(),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 9.5,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                        if (printerState.settings.customFooterMessage.trim().isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            printerState.settings.customFooterMessage.trim(),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 10,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
                 ),
               ),
             ),
@@ -570,9 +605,20 @@ class _ThermalReceiptPreviewDialogState
     setState(() => _isPrinting = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final success = await ref
-          .read(printerProvider.notifier)
-          .sendRawBytes(widget.escposBytes);
+      final bool success;
+      if (widget.document != null) {
+        final effectiveDoc = widget.document!.applySettings(
+          printerState.settings,
+          business: ref.read(businessProvider),
+        );
+        success = await ref
+            .read(printerProvider.notifier)
+            .printReceiptDocument(effectiveDoc);
+      } else {
+        success = await ref
+            .read(printerProvider.notifier)
+            .sendRawBytes(widget.escposBytes);
+      }
 
       if (mounted) {
         setState(() => _isPrinting = false);

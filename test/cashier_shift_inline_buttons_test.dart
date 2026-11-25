@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/theme/app_theme.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/financial_hub_screen.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/shared/widgets/floating_capsule_dock.dart';
+import 'package:sewakasir/core/theme/app_theme.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/presentation/financial_hub_screen.dart';
+import 'package:sewakasir/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/shared/widgets/floating_capsule_dock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeCashierRepo extends CashierRepository {

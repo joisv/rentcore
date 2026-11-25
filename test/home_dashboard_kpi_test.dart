@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/home/data/dashboard_repository.dart';
-import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
-import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/home/data/dashboard_repository.dart';
+import 'package:sewakasir/features/home/presentation/home_screen.dart';
+import 'package:sewakasir/features/home/providers/dashboard_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeBookingRepository extends BookingRepository {

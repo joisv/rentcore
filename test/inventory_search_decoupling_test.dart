@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
 
 void main() {
   group('Inventory Search Decoupling Tests', () {

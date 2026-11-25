@@ -32,12 +32,23 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   Future<void> _markAllAsRead() async {
     final scaffold = ScaffoldMessenger.of(context);
     final success = await ref.read(notificationProvider.notifier).markAllAsRead();
-    if (success && mounted) {
+    if (!mounted) return;
+    if (success) {
       scaffold.showSnackBar(
         const SnackBar(
           content: Text('Semua pemberitahuan telah ditandai sebagai dibaca.'),
           duration: Duration(seconds: 2),
           backgroundColor: AppColors.obsidian,
+        ),
+      );
+    } else {
+      scaffold.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Gagal memperbarui status pemberitahuan. Perubahan dikembalikan.',
+          ),
+          duration: Duration(seconds: 3),
+          backgroundColor: AppColors.danger,
         ),
       );
     }
@@ -737,6 +748,15 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     if (type == 'booking.auto_noshow') {
       return Icons.person_off_outlined;
     }
+    if (type == 'unit_approval_requested') {
+      return Icons.pending_actions_rounded;
+    }
+    if (type == 'unit_approved') {
+      return Icons.check_circle_outline_rounded;
+    }
+    if (type == 'unit_rejected') {
+      return Icons.cancel_outlined;
+    }
     if (type == 'inventory.low_stock') {
       return Icons.warning_amber_rounded;
     }
@@ -763,6 +783,9 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
         item.type == 'booking.grace_warning' ||
         item.type == 'booking.auto_noshow' ||
         item.type == 'inventory.low_stock' ||
+        item.type == 'unit_approval_requested' ||
+        item.type == 'unit_approved' ||
+        item.type == 'unit_rejected' ||
         _isResignRequested(item) ||
         _isResignApproved(item) ||
         _isResignRejected(item) ||
@@ -783,6 +806,10 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
       return 'Serahkan Unit / Cek Booking';
     } else if (item.type == 'booking.auto_noshow') {
       return 'Lihat Antrean No-Show';
+    } else if (item.type == 'unit_approval_requested') {
+      return 'Tinjau Persetujuan Unit';
+    } else if (item.type == 'unit_approved' || item.type == 'unit_rejected') {
+      return 'Lihat Daftar Aset';
     } else if (item.type == 'inventory.low_stock') {
       return 'Cek Stok Unit Siap';
     } else if (item.category == 'transfer') {
@@ -852,6 +879,24 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const BookingsScreen()),
+      );
+    } else if (item.type == 'unit_approval_requested') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const InventoryScreen(
+            initialStatusFilter: 'pending_approval',
+          ),
+        ),
+      );
+    } else if (item.type == 'unit_approved' ||
+        item.type == 'unit_rejected' ||
+        targetRoute == 'inventory') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const InventoryScreen(),
+        ),
       );
     } else if (item.type == 'inventory.low_stock' || item.category == 'inventory' || item.actionRoute == '/inventory') {
       Navigator.push(

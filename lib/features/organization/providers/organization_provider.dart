@@ -29,6 +29,7 @@ class OrganizationState {
     this.error,
   });
 
+  bool get isOwner => userRole == 'owner';
   bool get isOwnerOrAdmin => userRole == 'owner' || userRole == 'admin';
   List<dynamic> get pendingResignations => resignationRequests.where((r) => r['status'] == 'pending').toList();
   Map<String, dynamic>? get myActiveResignation => resignationRequests.where((r) => r['status'] == 'pending').firstOrNull;
@@ -299,6 +300,9 @@ class OrganizationNotifier extends Notifier<OrganizationState> {
     try {
       final updated = await _repository.updateRentalRules(bizId, payload);
       state = state.copyWith(isSubmitting: false, rentalRules: updated);
+      if (ref.exists(businessProvider)) {
+        ref.read(businessProvider.notifier).refreshSilently();
+      }
       return true;
     } catch (e) {
       state = state.copyWith(isSubmitting: false, error: e.toString());

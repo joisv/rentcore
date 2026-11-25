@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
-import 'package:rentcore_mobile/features/onboarding/presentation/business_setup_wizard_screen.dart';
-import 'package:rentcore_mobile/features/onboarding/presentation/feature_walkthrough_screen.dart';
+import 'package:sewakasir/features/auth/data/auth_repository.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/notifications/providers/notification_provider.dart';
+import 'package:sewakasir/features/onboarding/presentation/business_setup_wizard_screen.dart';
+import 'package:sewakasir/features/onboarding/presentation/feature_walkthrough_screen.dart';
 
 class _StubPolishNotificationNotifier extends NotificationNotifier {
   @override

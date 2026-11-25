@@ -4,12 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/core/config/app_config.dart';
-import 'package:rentcore_mobile/core/constants/api_constants.dart';
-import 'package:rentcore_mobile/core/network/api_client.dart';
-import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/presentation/login_screen.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/core/config/app_config.dart';
+import 'package:sewakasir/core/constants/api_constants.dart';
+import 'package:sewakasir/core/network/api_client.dart';
+import 'package:sewakasir/features/auth/data/auth_repository.dart';
+import 'package:sewakasir/features/auth/presentation/login_screen.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
 
 class _IdleFakeAuthRepository extends AuthRepository {
   String? lastEmail;
@@ -160,7 +160,7 @@ void main() {
         expect(passwordField.controller?.text, isEmpty);
 
         // Crisp Airy Minimalist branding, form labels, CTAs & onboarding footer exist
-        expect(find.text('RENTCORE'), findsOneWidget);
+        expect(find.text('SEWAKASIR'), findsOneWidget);
         expect(find.text('Electronic Rental Operating System'), findsOneWidget);
         expect(find.text('Email'), findsOneWidget);
         expect(find.text('Kata Sandi'), findsOneWidget);

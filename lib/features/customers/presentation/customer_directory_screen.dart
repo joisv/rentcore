@@ -1,7 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/debounced_search_controller.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../providers/customer_provider.dart';
@@ -17,8 +17,8 @@ class CustomerDirectoryScreen extends ConsumerStatefulWidget {
 
 class _CustomerDirectoryScreenState extends ConsumerState<CustomerDirectoryScreen> {
   final _searchController = TextEditingController();
+  final _searchDebouncer = DebouncedSearchController();
   final _scrollController = ScrollController();
-  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -28,7 +28,7 @@ class _CustomerDirectoryScreenState extends ConsumerState<CustomerDirectoryScree
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
+    _searchDebouncer.dispose();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -42,15 +42,18 @@ class _CustomerDirectoryScreenState extends ConsumerState<CustomerDirectoryScree
   }
 
   void _onSearchChanged(String query) {
-    _debounceTimer?.cancel();
-    final isTestEnvironment = WidgetsBinding.instance.runtimeType.toString().contains('Test');
-    if (isTestEnvironment) {
-      ref.read(customerProvider.notifier).setSearchQuery(query.trim());
-    } else {
-      _debounceTimer = Timer(const Duration(milliseconds: 350), () {
-        ref.read(customerProvider.notifier).setSearchQuery(query.trim());
-      });
-    }
+    final isTestEnvironment =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    _searchDebouncer.run(
+      query,
+      (trimmed, cancelToken) {
+        if (!mounted) return;
+        ref
+            .read(customerProvider.notifier)
+            .setSearchQuery(trimmed, cancelToken: cancelToken);
+      },
+      immediate: isTestEnvironment,
+    );
   }
 
   String _getInitials(String name) {

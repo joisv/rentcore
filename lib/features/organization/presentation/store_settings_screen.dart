@@ -517,7 +517,7 @@ class StoreSettingsScreen extends ConsumerWidget {
             key: const Key('menu_app_guide'),
             icon: Icons.help_outline_rounded,
             title: 'Panduan Aplikasi',
-            subtitle: 'Lihat ulang alur operasional RentCore',
+            subtitle: 'Lihat ulang alur operasional SewaKasir',
             onTap: () {
               Navigator.push(
                 context,
@@ -595,7 +595,7 @@ class StoreSettingsScreen extends ConsumerWidget {
 
           const Center(
             child: Text(
-              'Rentcore • Versi 1.0.0+1',
+              'SewaKasir • Versi 1.0.0+1',
               style: TextStyle(
                 fontSize: 11.5,
                 color: Color(0xFF94A3B8),
@@ -1172,8 +1172,11 @@ class _LateFeePolicyBottomSheetState
   static const List<int> _graceOptions = [0, 10, 15, 30];
 
   late int _returnGraceMinutes;
+  late String _graceMode;
   late String _roundingMode;
   late bool _capAtDailyRate;
+  late String _defaultRateType;
+  late bool _allowCashierWaiver;
   late final TextEditingController _defaultRateController;
   bool _isSaving = false;
 
@@ -1191,20 +1194,41 @@ class _LateFeePolicyBottomSheetState
   }
 
   void _syncFromBusiness(Map<String, dynamic>? biz) {
-    final rawGrace = (biz?['return_grace_period_minutes'] as num?)?.toInt();
+    final rawGrace = (biz?['late_fee_grace_minutes'] as num?)?.toInt() ??
+        (biz?['return_grace_period_minutes'] as num?)?.toInt();
     _returnGraceMinutes =
         (rawGrace != null && _graceOptions.contains(rawGrace)) ? rawGrace : 15;
-    final rawMode = biz?['late_fee_rounding_mode']?.toString();
-    _roundingMode = rawMode == 'half_hourly_ceil'
-        ? 'half_hourly_ceil'
-        : 'hourly_ceil';
-    _capAtDailyRate = biz?['cap_late_fee_at_daily_rate'] != false;
+
+    final rawGraceMode = biz?['late_fee_grace_mode']?.toString();
+    _graceMode = rawGraceMode == 'deductive' ? 'deductive' : 'forfeit';
+
+    final rawMode = (biz?['late_fee_rounding'] ?? biz?['late_fee_rounding_mode'])
+        ?.toString();
+    if (rawMode == 'half_hourly_ceil' || rawMode == 'exact_minute') {
+      _roundingMode = rawMode!;
+    } else {
+      _roundingMode = 'hourly_ceil';
+    }
+
+    _capAtDailyRate = (biz?['late_fee_cap_daily'] ??
+            biz?['cap_late_fee_at_daily_rate']) !=
+        false;
+
+    final rawType = biz?['late_fee_default_type']?.toString();
+    _defaultRateType = rawType == 'percent_daily' ? 'percent_daily' : 'fixed';
+
+    _allowCashierWaiver = biz?['allow_cashier_late_fee_waiver'] != false;
+
     final rawDefaultRate = double.tryParse(
-      biz?['default_hourly_late_fee']?.toString() ?? '',
+      (biz?['late_fee_default_rate'] ?? biz?['default_hourly_late_fee'])
+              ?.toString() ??
+          '',
     );
     _defaultRateController.text =
         (rawDefaultRate != null && rawDefaultRate > 0)
-            ? rawDefaultRate.toInt().toString()
+            ? (rawDefaultRate % 1 == 0
+                ? rawDefaultRate.toInt().toString()
+                : rawDefaultRate.toString())
             : '';
   }
 
@@ -1214,14 +1238,24 @@ class _LateFeePolicyBottomSheetState
     final nav = Navigator.of(context);
     try {
       final rawRate = _defaultRateController.text.trim();
-      final double parsedRate =
-          rawRate.isNotEmpty ? CurrencyFormatter.parse(rawRate) : 0.0;
+      final double parsedRate = rawRate.isNotEmpty
+          ? (_defaultRateType == 'percent_daily'
+              ? (double.tryParse(rawRate.replaceAll(',', '.')) ?? 0.0)
+              : CurrencyFormatter.parse(rawRate))
+          : 0.0;
 
       await ref.read(authRepositoryProvider).updateBusiness(widget.businessId, {
         'return_grace_period_minutes': _returnGraceMinutes,
+        'late_fee_grace_minutes': _returnGraceMinutes,
+        'late_fee_grace_mode': _graceMode,
         'late_fee_rounding_mode': _roundingMode,
+        'late_fee_rounding': _roundingMode,
         'cap_late_fee_at_daily_rate': _capAtDailyRate,
+        'late_fee_cap_daily': _capAtDailyRate,
         'default_hourly_late_fee': parsedRate,
+        'late_fee_default_rate': parsedRate,
+        'late_fee_default_type': _defaultRateType,
+        'allow_cashier_late_fee_waiver': _allowCashierWaiver,
       });
       await ref.read(businessProvider.notifier).refresh();
       if (!mounted) return;
@@ -1244,9 +1278,36 @@ class _LateFeePolicyBottomSheetState
     }
   }
 
+  Widget _buildOptionChip({
+    required Key key,
+    required String label,
+    required bool selected,
+    required bool enabled,
+    required VoidCallback onSelected,
+  }) {
+    return ChoiceChip(
+      key: key,
+      label: Text(label),
+      selected: selected,
+      showCheckmark: false,
+      selectedColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFFF8FAFC),
+      side: BorderSide(
+        color: selected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+      ),
+      labelStyle: TextStyle(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+        color: selected ? Colors.white : const Color(0xFF0F172A),
+      ),
+      onSelected: enabled ? (_) => onSelected() : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final canEdit = widget.isOwnerOrAdmin;
+    final isPercentDefault = _defaultRateType == 'percent_daily';
     return SafeArea(
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
@@ -1287,7 +1348,7 @@ class _LateFeePolicyBottomSheetState
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Toleransi pengembalian, pembulatan & batas tarif harian',
+                        'Toleransi, pembulatan, batas harian & izin kasir',
                         style: TextStyle(
                           fontSize: 12.5,
                           color: Color(0xFF64748B),
@@ -1341,7 +1402,7 @@ class _LateFeePolicyBottomSheetState
             ],
             const SizedBox(height: 18),
             const Text(
-              'Toleransi Keterlambatan Kembali',
+              'Toleransi Keterlambatan',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -1353,33 +1414,59 @@ class _LateFeePolicyBottomSheetState
               spacing: 8,
               runSpacing: 8,
               children: _graceOptions.map((mins) {
-                final selected = _returnGraceMinutes == mins;
-                return ChoiceChip(
+                return _buildOptionChip(
                   key: Key('late_fee_grace_$mins'),
-                  label: Text('$mins menit'),
-                  selected: selected,
-                  showCheckmark: false,
-                  selectedColor: const Color(0xFF0F172A),
-                  backgroundColor: const Color(0xFFF8FAFC),
-                  side: BorderSide(
-                    color: selected
-                        ? const Color(0xFF0F172A)
-                        : const Color(0xFFE2E8F0),
-                  ),
-                  labelStyle: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                  onSelected: canEdit
-                      ? (_) => setState(() => _returnGraceMinutes = mins)
-                      : null,
+                  label: '$mins menit',
+                  selected: _returnGraceMinutes == mins,
+                  enabled: canEdit,
+                  onSelected: () => setState(() => _returnGraceMinutes = mins),
                 );
               }).toList(),
             ),
+            const SizedBox(height: 14),
+            const Text(
+              'Perilaku Toleransi',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _graceMode == 'forfeit'
+                  ? 'Jika melewati toleransi, seluruh durasi keterlambatan dihitung penuh.'
+                  : 'Durasi keterlambatan dikurangi menit toleransi terlebih dahulu.',
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: Color(0xFF64748B),
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildOptionChip(
+                  key: const Key('late_fee_grace_mode_forfeit'),
+                  label: 'Hangus Jika Lewat',
+                  selected: _graceMode == 'forfeit',
+                  enabled: canEdit,
+                  onSelected: () => setState(() => _graceMode = 'forfeit'),
+                ),
+                _buildOptionChip(
+                  key: const Key('late_fee_grace_mode_deductive'),
+                  label: 'Potong Durasi Telat',
+                  selected: _graceMode == 'deductive',
+                  enabled: canEdit,
+                  onSelected: () => setState(() => _graceMode = 'deductive'),
+                ),
+              ],
+            ),
             const Divider(height: 28, color: Color(0xFFF1F5F9)),
             const Text(
-              'Pembulatan Jam Denda',
+              'Pembulatan Waktu Denda',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -1391,52 +1478,27 @@ class _LateFeePolicyBottomSheetState
               spacing: 8,
               runSpacing: 8,
               children: [
-                ChoiceChip(
+                _buildOptionChip(
                   key: const Key('late_fee_rounding_hourly'),
-                  label: const Text('Per Jam (Bulatkan Ke Atas)'),
+                  label: 'Per Jam',
                   selected: _roundingMode == 'hourly_ceil',
-                  showCheckmark: false,
-                  selectedColor: const Color(0xFF0F172A),
-                  backgroundColor: const Color(0xFFF8FAFC),
-                  side: BorderSide(
-                    color: _roundingMode == 'hourly_ceil'
-                        ? const Color(0xFF0F172A)
-                        : const Color(0xFFE2E8F0),
-                  ),
-                  labelStyle: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: _roundingMode == 'hourly_ceil'
-                        ? Colors.white
-                        : const Color(0xFF0F172A),
-                  ),
-                  onSelected: canEdit
-                      ? (_) => setState(() => _roundingMode = 'hourly_ceil')
-                      : null,
+                  enabled: canEdit,
+                  onSelected: () => setState(() => _roundingMode = 'hourly_ceil'),
                 ),
-                ChoiceChip(
+                _buildOptionChip(
                   key: const Key('late_fee_rounding_half'),
-                  label: const Text('Per 30 Menit'),
+                  label: 'Per 30 Menit',
                   selected: _roundingMode == 'half_hourly_ceil',
-                  showCheckmark: false,
-                  selectedColor: const Color(0xFF0F172A),
-                  backgroundColor: const Color(0xFFF8FAFC),
-                  side: BorderSide(
-                    color: _roundingMode == 'half_hourly_ceil'
-                        ? const Color(0xFF0F172A)
-                        : const Color(0xFFE2E8F0),
-                  ),
-                  labelStyle: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: _roundingMode == 'half_hourly_ceil'
-                        ? Colors.white
-                        : const Color(0xFF0F172A),
-                  ),
-                  onSelected: canEdit
-                      ? (_) =>
-                          setState(() => _roundingMode = 'half_hourly_ceil')
-                      : null,
+                  enabled: canEdit,
+                  onSelected: () =>
+                      setState(() => _roundingMode = 'half_hourly_ceil'),
+                ),
+                _buildOptionChip(
+                  key: const Key('late_fee_rounding_exact'),
+                  label: 'Prorata Menit',
+                  selected: _roundingMode == 'exact_minute',
+                  enabled: canEdit,
+                  onSelected: () => setState(() => _roundingMode = 'exact_minute'),
                 ),
               ],
             ),
@@ -1486,7 +1548,7 @@ class _LateFeePolicyBottomSheetState
             ),
             const Divider(height: 28, color: Color(0xFFF1F5F9)),
             const Text(
-              'Tarif Denda Default Toko / Jam (Opsional)',
+              'Tarif Denda Default Toko',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -1494,19 +1556,44 @@ class _LateFeePolicyBottomSheetState
               ),
             ),
             const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildOptionChip(
+                  key: const Key('late_fee_default_type_fixed'),
+                  label: 'Nominal Tetap / Jam',
+                  selected: !isPercentDefault,
+                  enabled: canEdit,
+                  onSelected: () => setState(() => _defaultRateType = 'fixed'),
+                ),
+                _buildOptionChip(
+                  key: const Key('late_fee_default_type_percent'),
+                  label: '% Tarif Harian',
+                  selected: isPercentDefault,
+                  enabled: canEdit,
+                  onSelected: () =>
+                      setState(() => _defaultRateType = 'percent_daily'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             TextField(
               key: const Key('late_fee_default_rate_input'),
               controller: _defaultRateController,
               enabled: canEdit,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF0F172A),
               ),
               decoration: InputDecoration(
-                prefixText: 'Rp ',
-                hintText: '0 (jika model tidak mengatur tarif)',
+                prefixText: isPercentDefault ? null : 'Rp ',
+                suffixText: isPercentDefault ? '% / jam' : null,
+                hintText: isPercentDefault
+                    ? 'Contoh: 10 (10% tarif harian per jam)'
+                    : '0 (jika model tidak mengatur tarif)',
                 filled: true,
                 fillColor: const Color(0xFFF8FAFC),
                 isDense: true,
@@ -1530,6 +1617,50 @@ class _LateFeePolicyBottomSheetState
                   borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
               ),
+            ),
+            const Divider(height: 28, color: Color(0xFFF1F5F9)),
+            Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Izinkan Kasir Bebaskan Denda',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Jika nonaktif, hanya Owner yang dapat menyesuaikan atau membebaskan denda saat pengembalian.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Switch.adaptive(
+                  key: const Key('late_fee_toggle_allow_waiver'),
+                  value: _allowCashierWaiver,
+                  activeThumbColor: Colors.white,
+                  activeTrackColor: const Color(0xFF0F172A),
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor: const Color(0xFFE2E8F0),
+                  trackOutlineColor: const WidgetStatePropertyAll(
+                    Colors.transparent,
+                  ),
+                  onChanged: canEdit
+                      ? (val) => setState(() => _allowCashierWaiver = val)
+                      : null,
+                ),
+              ],
             ),
             if (canEdit) ...[
               const SizedBox(height: 20),

@@ -1542,99 +1542,21 @@ class PosTransactionDetailSheet extends ConsumerWidget {
       if (!context.mounted) return;
 
       final bizState = ref.read(businessProvider);
-      final affiliate = b['affiliate'] as Map?;
-      final shopName = (receiptData['business_name']?.toString() ??
-              bizState.resolvedStoreName)
-          .trim();
-      final branchName = (receiptData['outlet_name']?.toString() ??
-              affiliate?['name']?.toString() ??
-              bizState.resolvedBranchName)
-          .trim();
-      final resolvedBranchName =
-          branchName.isNotEmpty ? branchName : 'Cabang Utama';
-      final branchAddress = (receiptData['outlet_address']?.toString() ??
-              affiliate?['address']?.toString() ??
-              bizState.resolvedBranchAddress)
-          .trim();
-      final branchPhone = (receiptData['outlet_phone']?.toString() ??
-              affiliate?['phone']?.toString() ??
-              bizState.resolvedBranchPhone)
-          .trim();
-
-      final cashierName = receiptData['cashier_name'] ?? 'Kasir';
-      final receiptNum =
-          receiptData['receipt_number'] ?? b['booking_code'] ?? '-';
-      final totalAmt = CurrencyFormatter.parse(
-        receiptData['total_amount'] ?? b['total_bill'],
-      );
-      final method = receiptData['payment_method'] ?? 'Tunai';
-
-      final printerService = ThermalPrinterService();
       final printerSettings = ref.read(printerProvider).settings;
-      final model = ReceiptDataModel(
-        type: ReceiptType.posPayment,
+      final document = ReceiptDocumentData.fromTransaction(
+        business: bizState,
+        booking: b,
+        receiptData: receiptData,
+        settings: printerSettings,
         title: 'STRUK TRANSAKSI POS',
-        shopName: shopName.isNotEmpty ? shopName : null,
-        branchName: resolvedBranchName,
-        branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
-        branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
         isReprint: isReprint,
-        receiptNumber: receiptNum,
-        bookingCode: b['booking_code']?.toString(),
-        customerName: b['customer']?['name']?.toString() ?? '-',
-        cashierName: cashierName,
-        totalAmount: totalAmt,
-        paymentMethod: method,
-        transactedAt:
-            receiptData['transacted_at']?.toString() ??
-            DateTime.now().toString().substring(0, 16),
-      );
-      final escposBytes = printerService.buildPosPaymentSlipBytes(
-        model,
-        printerSettings,
       );
 
       showDialog(
         context: context,
-        builder: (ctx) => ThermalReceiptPreviewDialog(
+        builder: (ctx) => ThermalReceiptPreviewDialog.fromDocument(
           title: isReprint ? 'Cetak Ulang Struk POS' : 'Struk Transaksi POS',
-          shopName: shopName.isNotEmpty ? shopName : null,
-          branchName: resolvedBranchName,
-          branchAddress: branchAddress.isNotEmpty ? branchAddress : null,
-          branchPhone: branchPhone.isNotEmpty ? branchPhone : null,
-          isReprint: isReprint,
-          qrData: b['booking_code']?.toString(),
-          escposBytes: escposBytes,
-          content: Column(
-            children: [
-              const Text(
-                'STRUK SEWA KASIR',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              Text('No: $receiptNum', style: const TextStyle(fontSize: 11)),
-              Text(
-                'Pelanggan: ${b['customer']?['name'] ?? '-'}',
-                style: const TextStyle(fontSize: 11),
-              ),
-              const Divider(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Total Bayar:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                  Text(
-                    CurrencyFormatter.format(totalAmt),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          document: document,
         ),
       );
     } catch (e) {

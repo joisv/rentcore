@@ -248,6 +248,7 @@ class _ManageOrganizationScreenState extends ConsumerState<ManageOrganizationScr
                   businessId: widget.businessId,
                   initialRules: orgState.rentalRules,
                   isOwnerOrAdmin: isOwnerOrAdmin,
+                  isOwner: orgState.userRole == 'owner',
                 ),
               ],
             ),
@@ -2255,11 +2256,13 @@ class _RentalRulesTabView extends ConsumerStatefulWidget {
   final int businessId;
   final Map<String, dynamic>? initialRules;
   final bool isOwnerOrAdmin;
+  final bool isOwner;
 
   const _RentalRulesTabView({
     required this.businessId,
     required this.initialRules,
     required this.isOwnerOrAdmin,
+    this.isOwner = false,
   });
 
   @override
@@ -2272,7 +2275,18 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
   late bool _addonsEnabled;
   late bool _unlimitedAddons;
   late TextEditingController _maxAddonsController;
+  late String _branchUnitRegistrationPolicy;
   bool _isSaving = false;
+
+  static String _normalizeUnitRegistrationPolicy(dynamic raw) {
+    final val = (raw?.toString() ?? '').trim().toLowerCase();
+    if (val == 'require_owner_approval' ||
+        val == 'owner_only' ||
+        val == 'self_service') {
+      return val;
+    }
+    return 'self_service';
+  }
 
   @override
   void initState() {
@@ -2287,6 +2301,9 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
     _maxAddonsController = TextEditingController(
       text: (rules['max_addons_per_rental'] ?? 5).toString(),
     );
+    _branchUnitRegistrationPolicy = _normalizeUnitRegistrationPolicy(
+      rules['branch_unit_registration_policy'],
+    );
   }
 
   @override
@@ -2300,6 +2317,9 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
         _addonsEnabled = rules['addons_enabled'] ?? true;
         _unlimitedAddons = rules['max_addons_per_rental'] == null;
         _maxAddonsController.text = (rules['max_addons_per_rental'] ?? 5).toString();
+        _branchUnitRegistrationPolicy = _normalizeUnitRegistrationPolicy(
+          rules['branch_unit_registration_policy'],
+        );
       });
     }
   }
@@ -2324,6 +2344,8 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
       'addons_enabled': _addonsEnabled,
       'allow_unlimited_addons': _unlimitedAddons,
       if (!_unlimitedAddons) 'max_addons_per_rental': maxAddons,
+      if (widget.isOwner)
+        'branch_unit_registration_policy': _branchUnitRegistrationPolicy,
     };
 
     final success = await ref.read(organizationProvider.notifier).updateRentalRules(payload);
@@ -2691,6 +2713,57 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
                     ],
                   ),
                 ),
+
+                const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+
+                // Section 3: Kebijakan Registrasi Unit Cabang
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Kebijakan Registrasi Unit Cabang',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Atur kewenangan staf cabang saat menambahkan unit fisik baru ke daftar aset.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: Color(0xFF64748B),
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildUnitRegistrationPolicyOption(
+                        value: 'self_service',
+                        title: 'Bebas Daftarkan Sendiri',
+                        subtitle:
+                            'Cabang dapat langsung menambahkan unit fisik baru ke stok siap sewa.',
+                      ),
+                      const SizedBox(height: 10),
+                      _buildUnitRegistrationPolicyOption(
+                        value: 'require_owner_approval',
+                        title: 'Wajib Persetujuan Owner',
+                        subtitle:
+                            'Unit yang didaftarkan cabang masuk antrean persetujuan sebelum bisa disewakan.',
+                      ),
+                      const SizedBox(height: 10),
+                      _buildUnitRegistrationPolicyOption(
+                        value: 'owner_only',
+                        title: 'Hanya Owner',
+                        subtitle:
+                            'Cabang tidak dapat membuat atau mendaftarkan unit baru.',
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -2706,6 +2779,91 @@ class _RentalRulesTabViewState extends ConsumerState<_RentalRulesTabView> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildUnitRegistrationPolicyOption({
+    required String value,
+    required String title,
+    required String subtitle,
+  }) {
+    final isSelected = _branchUnitRegistrationPolicy == value;
+    final canEdit = widget.isOwner;
+
+    return InkWell(
+      key: Key('unit_reg_policy_option_$value'),
+      borderRadius: BorderRadius.circular(12),
+      onTap: canEdit
+          ? () => setState(() => _branchUnitRegistrationPolicy = value)
+          : null,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF0F172A)
+                : const Color(0xFFE2E8F0),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              margin: const EdgeInsets.only(top: 2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFFCBD5E1),
+                  width: 1.5,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 12,
+                      color: Colors.white,
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: canEdit
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

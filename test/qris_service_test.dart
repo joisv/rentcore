@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/services/qris_service.dart';
+import 'package:sewakasir/core/services/qris_service.dart';
 
 void main() {
   group('QrisService Dart Unit Tests', () {

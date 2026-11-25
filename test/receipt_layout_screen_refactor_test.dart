@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/core/models/thermal_printer_models.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/printer/presentation/receipt_customization_screen.dart';
-import 'package:rentcore_mobile/features/printer/providers/printer_provider.dart';
+import 'package:sewakasir/core/models/thermal_printer_models.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/printer/presentation/receipt_customization_screen.dart';
+import 'package:sewakasir/features/printer/providers/printer_provider.dart';
 
 class _FakeBusinessNotifierForReceiptTest extends BusinessNotifier {
   @override

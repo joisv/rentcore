@@ -87,7 +87,7 @@ class _AppConfigGateObserverState extends ConsumerState<AppConfigGateObserver>
               onPrimaryPressed: () => _openPlayStore(
                 context,
                 gateState.config?.playStoreUrl ??
-                    'https://play.google.com/store/apps/details?id=com.rentcore.app',
+                    'https://play.google.com/store/apps/details?id=id.sewakasir.mobile',
               ),
             ),
           ),

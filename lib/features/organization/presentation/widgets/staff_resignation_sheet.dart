@@ -520,7 +520,7 @@ class _StaffResignationSheetState extends ConsumerState<StaffResignationSheet> {
                     Expanded(
                       child: Text(
                         'Pengunduran diri hanya akan mengakhiri keanggotaan Anda pada bisnis ini. '
-                        'Akun global RentCore, riwayat transaksi terdahulu, dan bisnis independen yang Anda miliki tetap aman.',
+                        'Akun global SewaKasir, riwayat transaksi terdahulu, dan bisnis independen yang Anda miliki tetap aman.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFF1E40AF),

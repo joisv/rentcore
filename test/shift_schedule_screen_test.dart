@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/organization/presentation/shift_schedule_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/organization/presentation/shift_schedule_screen.dart';
+import 'package:sewakasir/features/organization/presentation/store_settings_screen.dart';
 
 class _StaticAuthNotifier extends AuthNotifier {
   final AuthState _initial;

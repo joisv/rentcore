@@ -31,7 +31,7 @@ class AppConfigData {
           : '1.0.0',
       playStoreUrl: rawPlayUrl.isNotEmpty
           ? rawPlayUrl
-          : 'https://play.google.com/store/apps/details?id=com.rentcore.app',
+          : 'https://play.google.com/store/apps/details?id=id.sewakasir.mobile',
       maintenanceMode: json['maintenance_mode'] == true,
       maintenanceMessage: _cleanNullable(json['maintenance_message']),
       forceUpdateMessage: _cleanNullable(json['force_update_message']),

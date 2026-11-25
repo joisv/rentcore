@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/idempotency_helper.dart';
 
 class CashierApiException implements Exception {
   final String message;
@@ -18,6 +19,12 @@ class CashierApiException implements Exception {
 
 class CashierRepository {
   final ApiClient _client = ApiClient();
+  String? _pendingCloseShiftIdempotencyKey;
+
+  /// Attach a per-submission idempotency key for the next [closeShift] call.
+  void attachCloseShiftIdempotencyKey(String? key) {
+    _pendingCloseShiftIdempotencyKey = key;
+  }
 
   Future<Map<String, dynamic>> fetchClosingSummary({
     int? branchId,
@@ -137,7 +144,11 @@ class CashierRepository {
     if (externalReference != null && externalReference.isNotEmpty) {
       payload['external_reference'] = externalReference;
     }
-    if (idempotencyKey != null) payload['idempotency_key'] = idempotencyKey;
+    final effectiveKey =
+        (idempotencyKey != null && idempotencyKey.trim().isNotEmpty)
+        ? idempotencyKey.trim()
+        : IdempotencyHelper.generateUuidV4();
+    payload['idempotency_key'] = effectiveKey;
     if (frpCleared != null) payload['frp_cleared'] = frpCleared;
     if (accountRemoved != null) payload['account_removed'] = accountRemoved;
     if (isHandoverSettlement != null) {
@@ -162,8 +173,9 @@ class CashierRepository {
       payload['keep_original_end_at'] = keepOriginalEndAt;
     }
 
-    final headers = <String, dynamic>{};
-    if (idempotencyKey != null) headers['X-Idempotency-Key'] = idempotencyKey;
+    final headers = <String, dynamic>{
+      'X-Idempotency-Key': effectiveKey,
+    };
 
     final response = await _client.dio.post(
       ApiConstants.cashierPay,
@@ -410,7 +422,16 @@ class CashierRepository {
     String? closingNotes,
     int? branchId,
   }) async {
-    final payload = <String, dynamic>{'actual_cash_counted': actualCashCounted};
+    final pendingKey = _pendingCloseShiftIdempotencyKey;
+    _pendingCloseShiftIdempotencyKey = null;
+    final effectiveKey =
+        (pendingKey != null && pendingKey.trim().isNotEmpty)
+        ? pendingKey.trim()
+        : IdempotencyHelper.generateUuidV4();
+    final payload = <String, dynamic>{
+      'actual_cash_counted': actualCashCounted,
+      'idempotency_key': effectiveKey,
+    };
     if (shiftId != null) payload['shift_id'] = shiftId;
     if (differenceReason != null && differenceReason.isNotEmpty) {
       payload['difference_reason'] = differenceReason;
@@ -419,7 +440,9 @@ class CashierRepository {
       payload['closing_notes'] = closingNotes;
     }
 
-    final headers = <String, dynamic>{};
+    final headers = <String, dynamic>{
+      'X-Idempotency-Key': effectiveKey,
+    };
     if (branchId != null) headers['X-Branch-Id'] = branchId.toString();
 
     try {

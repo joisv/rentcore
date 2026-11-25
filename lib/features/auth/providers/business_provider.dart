@@ -83,6 +83,37 @@ class BusinessState {
   bool get isCentralBranch => currentBranch?['is_central'] == true;
   bool get isConsolidated => activeBusinessId != null && activeBranchId == null;
 
+  String get currentUserRole =>
+      (currentBusiness?['role']?.toString() ?? '').trim().toLowerCase();
+
+  /// True when the active business membership is `owner` (or omitted in legacy test fixtures).
+  bool get isCurrentUserOwner =>
+      currentUserRole.isEmpty || currentUserRole == 'owner';
+
+  /// Active owner-configured policy for branch unit registrations:
+  /// `'self_service'`, `'require_owner_approval'`, or `'owner_only'`.
+  String get branchUnitRegistrationPolicy {
+    final raw =
+        (currentBusiness?['branch_unit_registration_policy']?.toString() ?? '')
+            .trim()
+            .toLowerCase();
+    if (raw == 'require_owner_approval' ||
+        raw == 'owner_only' ||
+        raw == 'self_service') {
+      return raw;
+    }
+    return 'self_service';
+  }
+
+  /// Whether the current user is allowed to create/register new inventory units.
+  bool get canRegisterUnits =>
+      isCurrentUserOwner || branchUnitRegistrationPolicy != 'owner_only';
+
+  /// Whether unit registrations by the current user enter `pending_approval`.
+  bool get requiresUnitApproval =>
+      !isCurrentUserOwner &&
+      branchUnitRegistrationPolicy == 'require_owner_approval';
+
   String get resolvedStoreName {
     final fromActive = (activeBusinessName ?? '').trim();
     if (fromActive.isNotEmpty) return fromActive;

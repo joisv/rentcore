@@ -14,7 +14,7 @@ class AuthRepository {
       data: {
         'email': email,
         'password': password,
-        'device_name': 'RentCore Mobile Handheld',
+        'device_name': 'SewaKasir Mobile Handheld',
       },
     );
 
@@ -80,7 +80,7 @@ class AuthRepository {
         'email': email,
         'name': name,
         'avatar_url': avatarUrl,
-        'device_name': 'RentCore Flutter Mobile Handheld (Google)',
+        'device_name': 'SewaKasir Flutter Mobile Handheld (Google)',
       },
     );
 

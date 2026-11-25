@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/inventory/data/asset_repository.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
 
 class _FakeAssetRepository extends AssetRepository {
   final List<int?> recordedBranchRequests = [];

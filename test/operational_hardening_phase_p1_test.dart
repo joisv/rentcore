@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/constants/navigation_keys.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/pos_transaction_detail_sheet.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/widgets/add_branch_expense_modal.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/shared/widgets/floating_capsule_dock.dart';
+import 'package:sewakasir/core/constants/navigation_keys.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/presentation/pos_transaction_detail_sheet.dart';
+import 'package:sewakasir/features/cashier/presentation/widgets/add_branch_expense_modal.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/shared/widgets/floating_capsule_dock.dart';
 
 class _FakeFailingPinCashierRepository extends CashierRepository {
   int attempts = 0;

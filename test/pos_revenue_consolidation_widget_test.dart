@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/cashier_screen.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/pos_transaction_detail_sheet.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/revenue_report_screen.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/presentation/cashier_screen.dart';
+import 'package:sewakasir/features/cashier/presentation/pos_transaction_detail_sheet.dart';
+import 'package:sewakasir/features/cashier/presentation/revenue_report_screen.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
 
 class _MockCashierRepository extends CashierRepository {
   int? lastRequestedBranchId;

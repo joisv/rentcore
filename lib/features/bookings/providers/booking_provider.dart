@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/business_provider.dart';
 import '../data/booking_repository.dart';
@@ -48,6 +49,13 @@ final bookingsListProvider = FutureProvider.autoDispose<List<Map<String, dynamic
   final repo = ref.watch(bookingRepositoryProvider);
   final status = ref.watch(bookingFilterStatusProvider);
   final searchQuery = ref.watch(bookingSearchQueryProvider);
+  final cancelToken = CancelToken();
+  ref.onDispose(() {
+    if (!cancelToken.isCancelled) {
+      cancelToken.cancel('Superseded by newer bookings query');
+    }
+  });
+  repo.attachCancelToken(cancelToken);
   return repo.fetchBookings(
     status: status == 'all' ? null : status,
     search: searchQuery.trim().isEmpty ? null : searchQuery.trim(),

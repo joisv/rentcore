@@ -2,9 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/providers/app_config_provider.dart';
-import 'package:rentcore_mobile/core/services/app_config_service.dart';
-import 'package:rentcore_mobile/shared/widgets/app_gate_overlay.dart';
+import 'package:sewakasir/core/providers/app_config_provider.dart';
+import 'package:sewakasir/core/services/app_config_service.dart';
+import 'package:sewakasir/shared/widgets/app_gate_overlay.dart';
 
 void main() {
   group('SemVer Comparison Tests', () {
@@ -67,14 +67,14 @@ void main() {
         const AppConfigData(
           minAndroidVersion: '1.0.0',
           latestAndroidVersion: '1.0.0',
-          playStoreUrl: 'https://play.google.com/store/apps/details?id=com.rentcore.app',
+          playStoreUrl: 'https://play.google.com/store/apps/details?id=id.sewakasir.mobile',
           maintenanceMode: true,
           maintenanceMessage: 'Upgrade database 5 menit.',
         ),
         const AppConfigData(
           minAndroidVersion: '1.0.0',
           latestAndroidVersion: '1.0.0',
-          playStoreUrl: 'https://play.google.com/store/apps/details?id=com.rentcore.app',
+          playStoreUrl: 'https://play.google.com/store/apps/details?id=id.sewakasir.mobile',
           maintenanceMode: false,
         ),
       ]);
@@ -110,14 +110,14 @@ void main() {
         const AppConfigData(
           minAndroidVersion: '1.2.0',
           latestAndroidVersion: '1.3.0',
-          playStoreUrl: 'https://play.google.com/store/apps/details?id=com.rentcore.app',
+          playStoreUrl: 'https://play.google.com/store/apps/details?id=id.sewakasir.mobile',
           maintenanceMode: false,
           forceUpdateMessage: 'Wajib update ke versi 1.2.0.',
         ),
         const AppConfigData(
           minAndroidVersion: '1.0.0',
           latestAndroidVersion: '1.3.0',
-          playStoreUrl: 'https://play.google.com/store/apps/details?id=com.rentcore.app',
+          playStoreUrl: 'https://play.google.com/store/apps/details?id=id.sewakasir.mobile',
           maintenanceMode: false,
         ),
       ]);
@@ -147,7 +147,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('force_update_store_button')));
       await tester.pumpAndSettle();
-      expect(launchedUri.toString(), equals('https://play.google.com/store/apps/details?id=com.rentcore.app'));
+      expect(launchedUri.toString(), equals('https://play.google.com/store/apps/details?id=id.sewakasir.mobile'));
 
       // Simulate app resume -> triggers second fetchAppConfig where minAndroidVersion is 1.0.0
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

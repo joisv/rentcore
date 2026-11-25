@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:rentcore_mobile/core/network/network_status_provider.dart';
-import 'package:rentcore_mobile/core/services/thermal_printer_service.dart';
-import 'package:rentcore_mobile/core/utils/currency_formatter.dart';
-import 'package:rentcore_mobile/core/utils/date_formatter.dart';
-import 'package:rentcore_mobile/features/customers/providers/customer_provider.dart';
+import 'package:sewakasir/core/network/network_status_provider.dart';
+import 'package:sewakasir/core/services/thermal_printer_service.dart';
+import 'package:sewakasir/core/utils/currency_formatter.dart';
+import 'package:sewakasir/core/utils/date_formatter.dart';
+import 'package:sewakasir/features/customers/providers/customer_provider.dart';
 
 void main() {
   setUpAll(() async {

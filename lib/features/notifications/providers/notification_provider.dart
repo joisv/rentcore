@@ -103,7 +103,10 @@ class NotificationNotifier extends Notifier<NotificationState> {
       if (!ref.mounted) return;
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Gagal memuat pemberitahuan: $e',
+        errorMessage: ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal memuat pemberitahuan.',
+        ),
       );
     }
   }
@@ -185,6 +188,21 @@ class NotificationNotifier extends Notifier<NotificationState> {
   }
 
   Future<bool> markAllAsRead() async {
+    final previousState = state;
+    final hasUnread = state.unreadCount > 0 ||
+        state.notifications.any((n) => !n.isRead);
+
+    if (hasUnread) {
+      final now = DateTime.now();
+      final optimisticList = state.notifications.map((n) {
+        return n.copyWith(readAt: n.readAt ?? now);
+      }).toList();
+      state = state.copyWith(
+        notifications: optimisticList,
+        unreadCount: 0,
+      );
+    }
+
     try {
       final response = await ApiClient().dio.post(
         ApiConstants.markAllNotificationsRead,
@@ -203,8 +221,15 @@ class NotificationNotifier extends Notifier<NotificationState> {
         );
         return true;
       }
+
+      if (hasUnread && ref.mounted) {
+        state = previousState;
+      }
       return false;
-    } catch (e) {
+    } catch (_) {
+      if (hasUnread && ref.mounted) {
+        state = previousState;
+      }
       return false;
     }
   }

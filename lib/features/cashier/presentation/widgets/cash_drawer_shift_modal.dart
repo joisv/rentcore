@@ -9,6 +9,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/services/thermal_printer_service.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/date_formatter.dart';
+import '../../../../core/utils/idempotency_helper.dart';
 import '../../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/business_provider.dart';
@@ -78,6 +79,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
   bool _isLoading = false;
   bool _serverRequiresReason = false;
   String? _errorMessage;
+  String? _closeShiftIdempotencyKey;
 
   bool get _isOpenMode =>
       widget.activeShift == null || widget.activeShift!['status'] != 'open';
@@ -285,12 +287,15 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
       _errorMessage = null;
     });
 
+    _closeShiftIdempotencyKey ??= IdempotencyHelper.generateUuidV4();
+
     try {
       final repo = ref.read(cashierRepositoryProvider);
       final shiftId = widget.activeShift?['id'];
       final reasonText = _reasonController.text.trim();
       final notesText = _closeNotesController.text.trim();
 
+      repo.attachCloseShiftIdempotencyKey(_closeShiftIdempotencyKey);
       final result = await repo.closeShift(
         actualCashCounted: _actualCountedTotal,
         shiftId: shiftId is int ? shiftId : null,
@@ -298,6 +303,7 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
         closingNotes: notesText.isEmpty ? null : notesText,
         branchId: widget.branchId,
       );
+      _closeShiftIdempotencyKey = null;
 
       if (!mounted) return;
 
@@ -313,6 +319,9 @@ class _CashDrawerShiftModalState extends ConsumerState<CashDrawerShiftModal> {
     } catch (e) {
       if (!mounted) return;
       final requiresReason = _isDifferenceReasonError(e);
+      if (requiresReason) {
+        _closeShiftIdempotencyKey = null;
+      }
       setState(() {
         _isLoading = false;
         if (requiresReason) {

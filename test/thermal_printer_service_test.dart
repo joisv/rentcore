@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/core/services/printer_bluetooth_driver.dart';
-import 'package:rentcore_mobile/core/services/thermal_printer_service.dart';
+import 'package:sewakasir/core/services/printer_bluetooth_driver.dart';
+import 'package:sewakasir/core/services/thermal_printer_service.dart';
 
 void main() {
   group('PlatformBluetoothDriver payload encoding', () {

@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/home/presentation/widgets/progressive_checklist_banner.dart';
-import 'package:rentcore_mobile/features/organization/presentation/payment_method_settings_screen.dart';
+import 'package:sewakasir/features/auth/data/auth_repository.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/home/presentation/widgets/progressive_checklist_banner.dart';
+import 'package:sewakasir/features/organization/presentation/payment_method_settings_screen.dart';
 
 class _FakeChecklistAuthRepository extends AuthRepository {
   final Map<int, bool> dismissedMap = {};

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/features/organization/presentation/manage_organization_screen.dart';
-import 'package:rentcore_mobile/features/organization/providers/organization_provider.dart';
+import 'package:sewakasir/features/organization/presentation/manage_organization_screen.dart';
+import 'package:sewakasir/features/organization/providers/organization_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

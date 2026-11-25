@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/models/receipt_document_data.dart';
 import '../../../core/models/thermal_printer_models.dart';
 import '../../../core/widgets/skeleton_loading.dart';
+import '../../../core/widgets/unified_thermal_receipt_preview.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
+import '../../auth/providers/business_provider.dart';
 import '../providers/printer_provider.dart';
 import 'receipt_customization_screen.dart';
 
@@ -115,9 +118,104 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
 
               // 5. Bluetooth Discovery List
               _buildDiscoveredDevicesSection(context, state, notifier),
+              const SizedBox(height: 20),
+
+              // 6. Live Sample Receipt Preview (Single Source of Truth)
+              _buildSampleReceiptPreviewCard(context, state),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSampleReceiptPreviewCard(
+    BuildContext context,
+    PrinterState state,
+  ) {
+    final bizState = ref.watch(businessProvider);
+    final sampleDoc = ReceiptDocumentData.sample(
+      bizState,
+      settings: state.settings,
+    );
+    final is58mm = sampleDoc.paperWidthMm < 80;
+    final isEcho = sampleDoc.isCompactEcho;
+
+    return Container(
+      key: const Key('printer_settings_sample_preview_card'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.receipt_long_rounded,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                    SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'PRATINJAU STRUK SAMPEL',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: AppColors.textMuted,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  is58mm ? '58mm • 32 Kolom' : '80mm • 48 Kolom',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          UnifiedThermalReceiptPreview(
+            data: sampleDoc,
+            paperEdgeLabel: isEcho
+                ? (is58mm
+                    ? 'MODE ECHO • KOMPAK (58MM)'
+                    : 'MODE ECHO • KOMPAK (80MM)')
+                : (is58mm
+                    ? 'TEAR BAR MANUAL (58MM)'
+                    : 'AUTO-CUTTER POS (80MM)'),
+            paperEdgeIcon: isEcho
+                ? Icons.eco_rounded
+                : (is58mm
+                    ? Icons.straighten_rounded
+                    : Icons.content_cut_rounded),
+            paperEdgeIconColor: isEcho ? AppColors.success : AppColors.textMuted,
+          ),
+        ],
       ),
     );
   }

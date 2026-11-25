@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/models/paginated_result.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/presentation/bookings_screen.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/payments/data/payment_repository.dart';
+import 'package:sewakasir/core/models/paginated_result.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/presentation/bookings_screen.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/payments/data/payment_repository.dart';
 
 class _FakeBusinessNotifier extends BusinessNotifier {
   final BusinessState _initial;

@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:rentcore_mobile/core/theme/app_theme.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/organization/providers/organization_provider.dart';
-import 'package:rentcore_mobile/features/vouchers/data/voucher_repository.dart';
-import 'package:rentcore_mobile/features/vouchers/presentation/voucher_detail_dialog.dart';
-import 'package:rentcore_mobile/features/vouchers/presentation/voucher_form_dialog.dart';
-import 'package:rentcore_mobile/features/vouchers/presentation/voucher_screen.dart';
-import 'package:rentcore_mobile/features/vouchers/providers/voucher_provider.dart';
+import 'package:sewakasir/core/theme/app_theme.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/organization/providers/organization_provider.dart';
+import 'package:sewakasir/features/vouchers/data/voucher_repository.dart';
+import 'package:sewakasir/features/vouchers/presentation/voucher_detail_dialog.dart';
+import 'package:sewakasir/features/vouchers/presentation/voucher_form_dialog.dart';
+import 'package:sewakasir/features/vouchers/presentation/voucher_screen.dart';
+import 'package:sewakasir/features/vouchers/providers/voucher_provider.dart';
 
 class MockVoucherRepository extends VoucherRepository {
   List<Map<String, dynamic>> mockVouchers = [];

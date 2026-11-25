@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/debounced_search_controller.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../auth/providers/business_provider.dart';
@@ -162,6 +164,7 @@ class InventoryScreen extends ConsumerStatefulWidget {
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final DebouncedSearchController _searchDebouncer = DebouncedSearchController();
   final ScrollController _scrollController = ScrollController();
   final Set<String> _expandedModelKeys = <String>{};
   String _searchQuery = '';
@@ -199,6 +202,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       setState(() => _isLoadingMoreAssets = true);
       try {
         final nextPage = _currentAssetPage + 1;
+        final cancelToken = _searchDebouncer.nextCancelToken('Pagination superseded');
+        repo.attachCancelToken(cancelToken);
         final res = await repo.fetchAssetsPaginated(
           status: status,
           categoryId: categoryId,
@@ -256,12 +261,28 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   @override
   void dispose() {
+    _searchDebouncer.dispose();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _onSearchChanged(String val) {
+    final isTestEnvironment =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    _searchDebouncer.run(
+      val,
+      (trimmed, _) {
+        if (!mounted) return;
+        _resetAssetPagination();
+        setState(() => _searchQuery = trimmed);
+      },
+      immediate: isTestEnvironment,
+    );
+  }
+
   void _refreshAll() {
+    _searchDebouncer.cancelPending();
     _resetAssetPagination();
     ref.invalidate(inventoryListProvider);
     ref.invalidate(productsProvider);
@@ -273,6 +294,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   void _clearSearch() {
     _searchController.clear();
+    _searchDebouncer.cancelPending();
+    _resetAssetPagination();
     setState(() => _searchQuery = '');
     ref.read(assetSearchQueryProvider.notifier).setSearch('');
     ref.read(catalogSearchQueryProvider.notifier).setSearch('');
@@ -326,34 +349,35 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ),
               ),
               actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 20),
-                  child: Center(
-                    child: SizedBox(
-                      height: 38,
-                      child: ElevatedButton(
-                        key: const Key('inventory_add_model_button'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F172A),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                if (bizState.canRegisterUnits)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 20),
+                    child: Center(
+                      child: SizedBox(
+                        height: 38,
+                        child: ElevatedButton(
+                          key: const Key('inventory_add_model_button'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F172A),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
-                        ),
-                        onPressed: () => _openAddProductSheet(context),
-                        child: const Text(
-                          '+ Model Baru',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                          onPressed: () => _openAddProductSheet(context),
+                          child: const Text(
+                            '+ Model Baru',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
               ],
             )
           : null,
@@ -362,6 +386,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           : Column(
               children: [
                 if (bizState.isConsolidated) _buildBranchBar(context, bizState),
+                if (!bizState.canRegisterUnits) _buildOwnerOnlyPolicyBanner(),
                 Expanded(
                   child: _buildUnifiedBody(
                     context: context,
@@ -375,6 +400,42 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildOwnerOnlyPolicyBanner() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: Container(
+        key: const Key('inventory_owner_only_notice'),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Row(
+          children: [
+            Icon(
+              Icons.lock_outline_rounded,
+              size: 16,
+              color: Color(0xFF64748B),
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Pendaftaran unit baru hanya dapat dilakukan oleh Owner sesuai kebijakan bisnis.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF64748B),
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -546,6 +607,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       return _buildInventoryOnboardingEmptyState(
         context: context,
         hasModels: false,
+        canRegisterUnits: bizState.canRegisterUnits,
         onCreateModel: () => _openAddProductSheet(context),
         onRefresh: () async => _refreshAll(),
       );
@@ -856,7 +918,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     ),
                   ),
                 ),
-                onChanged: (val) => setState(() => _searchQuery = val),
+                onChanged: _onSearchChanged,
               ),
             ),
           ),
@@ -1344,38 +1406,40 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SizedBox(
-                        height: 34,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0F172A),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                          ),
-                          onPressed: () => _openAddAssetSheet(
-                            context,
-                            initialModelId: modelId,
-                          ),
-                          child: const FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              '+ Tambah Unit',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
+                    if (bizState.canRegisterUnits) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SizedBox(
+                          height: 34,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                              maxLines: 1,
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            onPressed: () => _openAddAssetSheet(
+                              context,
+                              initialModelId: modelId,
+                            ),
+                            child: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '+ Tambah Unit',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ],
@@ -1399,22 +1463,23 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       ),
                     ),
                   ),
-                  InkWell(
-                    onTap: () =>
-                        _openAddAssetSheet(context, initialModelId: modelId),
-                    borderRadius: BorderRadius.circular(6),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      child: Text(
-                        '+ Tambah Unit',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF0F172A),
+                  if (bizState.canRegisterUnits)
+                    InkWell(
+                      onTap: () =>
+                          _openAddAssetSheet(context, initialModelId: modelId),
+                      borderRadius: BorderRadius.circular(6),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Text(
+                          '+ Tambah Unit',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                          ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             )
@@ -1493,83 +1558,286 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       if (formattedBranch.isNotEmpty) formattedBranch,
     ];
 
+    final isPendingApproval = status.toLowerCase() == 'pending_approval';
+    final showOwnerApprovalActions =
+        isPendingApproval && bizState.isCurrentUserOwner;
+
     return InkWell(
       onTap: () => _openEditAssetSheet(context, unit),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    assetCode,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F172A),
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        assetCode,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (specParts.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          specParts.join(' • '),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
                   ),
-                  if (specParts.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      specParts.join(' • '),
-                      style: const TextStyle(
-                        fontSize: 12,
+                ),
+                const SizedBox(width: 8),
+                _buildStatusPill(status),
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: 'Edit Unit',
+                  child: InkWell(
+                    key: Key('edit_unit_btn_${unit['id']}'),
+                    onTap: () => _openEditAssetSheet(context, unit),
+                    borderRadius: BorderRadius.circular(8),
+                    child: const SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: Icon(
+                        Icons.edit_outlined,
+                        size: 17,
                         color: Color(0xFF64748B),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
+                  ),
+                ),
+                Tooltip(
+                  message: 'Hapus Unit',
+                  child: InkWell(
+                    key: Key('delete_unit_btn_${unit['id']}'),
+                    onTap: () => _confirmDeleteFromCard(context, unit),
+                    borderRadius: BorderRadius.circular(8),
+                    child: const SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 17,
+                        color: Color(0xFFDC2626),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (showOwnerApprovalActions) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  SizedBox(
+                    height: 32,
+                    child: ElevatedButton(
+                      key: Key('approve_unit_btn_${unit['id']}'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () => _approvePendingUnit(context, unit),
+                      child: const Text(
+                        'Setujui',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 32,
+                    child: OutlinedButton(
+                      key: Key('reject_unit_btn_${unit['id']}'),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(
+                          color: Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () => _rejectPendingUnit(context, unit),
+                      child: const Text(
+                        'Tolak',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            _buildStatusPill(status),
-            const SizedBox(width: 4),
-            Tooltip(
-              message: 'Edit Unit',
-              child: InkWell(
-                key: Key('edit_unit_btn_${unit['id']}'),
-                onTap: () => _openEditAssetSheet(context, unit),
-                borderRadius: BorderRadius.circular(8),
-                child: const SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: Icon(
-                    Icons.edit_outlined,
-                    size: 17,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-              ),
-            ),
-            Tooltip(
-              message: 'Hapus Unit',
-              child: InkWell(
-                key: Key('delete_unit_btn_${unit['id']}'),
-                onTap: () => _confirmDeleteFromCard(context, unit),
-                borderRadius: BorderRadius.circular(8),
-                child: const SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 17,
-                    color: Color(0xFFDC2626),
-                  ),
-                ),
-              ),
-            ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _approvePendingUnit(
+    BuildContext context,
+    Map<String, dynamic> unit,
+  ) async {
+    final unitId = (unit['id'] as num?)?.toInt();
+    if (unitId == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(assetRepositoryProvider).approveAsset(unitId);
+      _refreshAll();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Unit baru disetujui dan kini berstatus Siap Sewa.'),
+          backgroundColor: Color(0xFF0F172A),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            ApiClient.extractErrorMessage(
+              e,
+              fallback: 'Gagal menyetujui unit baru.',
+            ),
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  Future<void> _rejectPendingUnit(
+    BuildContext context,
+    Map<String, dynamic> unit,
+  ) async {
+    final unitId = (unit['id'] as num?)?.toInt();
+    if (unitId == null) return;
+    final assetCode = unit['asset_code']?.toString() ?? '-';
+    var reasonDraft = '';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Tolak Pengajuan Unit',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tolak pengajuan pendaftaran unit "$assetCode"?',
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF475569),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('reject_unit_reason_field'),
+              onChanged: (val) => reasonDraft = val,
+              maxLines: 2,
+              decoration: _airyAssetInputDecoration(
+                hintText: 'Alasan penolakan (opsional)...',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text(
+              'Batal',
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
+          ),
+          ElevatedButton(
+            key: const Key('confirm_reject_unit_button'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Tolak Unit'),
+          ),
+        ],
+      ),
+    );
+
+    final reason = reasonDraft.trim();
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(assetRepositoryProvider).rejectAsset(
+        unitId,
+        reason: reason.isNotEmpty ? reason : null,
+      );
+      _refreshAll();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Pengajuan unit berhasil ditolak.'),
+          backgroundColor: Color(0xFF0F172A),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            ApiClient.extractErrorMessage(
+              e,
+              fallback: 'Gagal menolak pengajuan unit.',
+            ),
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   String _toTitleCase(String text) {
@@ -1693,32 +1961,49 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   Widget _buildStatusPill(String status) {
-    final (String label, Color bg, Color text) = switch (status
-        .toLowerCase()) {
+    final (String label, Color bg, Color text, Color? borderColor) =
+        switch (status.toLowerCase()) {
       'ready' || 'siap sewa' => (
         'Siap Sewa',
         const Color(0xFFECFDF5),
         const Color(0xFF047857),
+        null,
+      ),
+      'pending_approval' || 'menunggu persetujuan' => (
+        'Menunggu Persetujuan',
+        const Color(0xFFFFFBEB),
+        const Color(0xFFB45309),
+        const Color(0xFFFDE68A),
+      ),
+      'rejected' || 'ditolak' => (
+        'Ditolak',
+        const Color(0xFFFEF2F2),
+        const Color(0xFFDC2626),
+        const Color(0xFFFECACA),
       ),
       'rented' || 'sedang sewa' => (
         'Sedang Sewa',
         const Color(0xFFEFF6FF),
         const Color(0xFF1D4ED8),
+        null,
       ),
       'maintenance' || 'perawatan' => (
         'Perawatan',
         const Color(0xFFFFFBEB),
         const Color(0xFFB45309),
+        null,
       ),
       'in_transit' || 'dalam mutasi' => (
         'Dalam Mutasi',
         const Color(0xFFFAF5FF),
         const Color(0xFF7E22CE),
+        null,
       ),
       _ => (
         status,
         const Color(0xFFF1F5F9),
         const Color(0xFF475569),
+        null,
       ),
     };
 
@@ -1727,6 +2012,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(6),
+        border: borderColor != null
+            ? Border.all(color: borderColor, width: 1)
+            : null,
       ),
       child: Text(
         label,
@@ -1832,6 +2120,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Widget _buildInventoryOnboardingEmptyState({
     required BuildContext context,
     bool hasModels = false,
+    bool canRegisterUnits = true,
     required VoidCallback onCreateModel,
     VoidCallback? onRegisterUnit,
     required Future<void> Function() onRefresh,
@@ -2046,29 +2335,66 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: ElevatedButton(
-                            key: const Key('inventory_empty_primary_cta'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0F172A),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                        if (canRegisterUnits)
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton(
+                              key: const Key('inventory_empty_primary_cta'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0F172A),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 0,
                               ),
-                              elevation: 0,
+                              onPressed: primaryAction,
+                              child: Text(
+                                primaryLabel,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
                             ),
-                            onPressed: primaryAction,
-                            child: Text(
-                              primaryLabel,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
+                          )
+                        else
+                          Container(
+                            key: const Key('inventory_owner_only_notice'),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                                width: 1,
                               ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.lock_outline_rounded,
+                                  size: 16,
+                                  color: Color(0xFF64748B),
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Pendaftaran model dan unit baru hanya dapat dilakukan oleh Owner.',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF64748B),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -2461,7 +2787,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
 
     return Padding(
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
         left: 20,
         right: 20,
         top: 10,
@@ -2496,7 +2822,11 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                       final modelTitle =
                           selectedModel?['name']?.toString() ?? '-';
                       final modelBrand =
-                          selectedModel?['brand']?.toString() ?? '';
+                          selectedModel?['brand']?.toString().trim() ?? '';
+                      final rawCat = selectedModel?['category'];
+                      final modelCategory = rawCat is Map
+                          ? (rawCat['name']?.toString().trim() ?? '')
+                          : '';
                       final modelRate = hasSelection
                           ? _extractModelPrimaryRate(selectedModel)
                           : null;
@@ -2523,6 +2853,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                 builder: (ctx) => _ModelPickerBottomSheet(
                                   models: models,
                                   selectedModelId: _selectedModelId,
+                                  canCreateModel: bizState.canRegisterUnits,
                                   onModelCreated: () {
                                     ref.invalidate(allCatalogModelsProvider);
                                     widget.onSuccess();
@@ -2537,7 +2868,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 14,
-                                vertical: 11,
+                                vertical: 12,
                               ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF8FAFC),
@@ -2555,9 +2886,9 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                     _buildModelThumbnailWidget(
                                       modelTitle,
                                       modelImage,
-                                      size: 38,
+                                      size: 40,
                                     ),
-                                    const SizedBox(width: 10),
+                                    const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -2567,7 +2898,7 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                             modelTitle,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w600,
-                                              fontSize: 13.5,
+                                              fontSize: 14,
                                               color: Color(0xFF0F172A),
                                             ),
                                             maxLines: 1,
@@ -2577,10 +2908,12 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                             [
                                               if (modelBrand.isNotEmpty)
                                                 modelBrand,
+                                              if (modelCategory.isNotEmpty)
+                                                modelCategory,
                                               ?modelRate,
                                             ].join(' • '),
                                             style: const TextStyle(
-                                              fontSize: 11.5,
+                                              fontSize: 12,
                                               color: Color(0xFF64748B),
                                             ),
                                             maxLines: 1,
@@ -2593,10 +2926,10 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                     const Expanded(
                                       child: Padding(
                                         padding: EdgeInsets.symmetric(
-                                          vertical: 4,
+                                          vertical: 3,
                                         ),
                                         child: Text(
-                                          'Pilih Model Katalog',
+                                          'Pilih atau cari model perangkat...',
                                           style: TextStyle(
                                             fontSize: 13.5,
                                             color: Color(0xFF94A3B8),
@@ -2606,7 +2939,14 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                     ),
                                   const SizedBox(width: 8),
                                   const Icon(
+                                    Icons.search_rounded,
+                                    size: 18,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  const Icon(
                                     Icons.keyboard_arrow_down_rounded,
+                                    size: 20,
                                     color: Color(0xFF64748B),
                                   ),
                                 ],
@@ -2708,12 +3048,16 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
                             initialValue: _grade,
+                            isExpanded: true,
                             decoration: _airyAssetInputDecoration(),
                             items: ['A', 'B', 'C']
                                 .map(
                                   (g) => DropdownMenuItem(
                                     value: g,
-                                    child: Text('Grade $g'),
+                                    child: Text(
+                                      'Grade $g',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 )
                                 .toList(),
@@ -2889,14 +3233,20 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                                 'affiliate_id': bizState.activeBranchId,
                             };
 
-                            await repo.createAsset(payload);
+                            final created = await repo.createAsset(payload);
+                            final isPending = created['status']
+                                    ?.toString()
+                                    .toLowerCase() ==
+                                'pending_approval';
                             ref.invalidate(dashboardKpiProvider);
                             nav.pop();
                             widget.onSuccess();
                             messenger.showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text(
-                                  'Unit inventaris berhasil didaftarkan!',
+                                  isPending
+                                      ? 'Unit berhasil diajukan dan menunggu persetujuan Owner.'
+                                      : 'Unit inventaris berhasil didaftarkan!',
                                 ),
                               ),
                             );
@@ -2905,7 +3255,12 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                               setState(() => _isLoading = false);
                               messenger.showSnackBar(
                                 SnackBar(
-                                  content: Text('Gagal mendaftar unit: $e'),
+                                  content: Text(
+                                    ApiClient.extractErrorMessage(
+                                      e,
+                                      fallback: 'Gagal mendaftar unit.',
+                                    ),
+                                  ),
                                   backgroundColor: AppColors.danger,
                                 ),
                               );
@@ -2940,16 +3295,18 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
 }
 
 // ==========================================
-// SEARCHABLE MODEL PICKER BOTTOM SHEET
+// KEYBOARD-SAFE SEARCHABLE MODEL PICKER SHEET
 // ==========================================
 class _ModelPickerBottomSheet extends StatefulWidget {
   final List<Map<String, dynamic>> models;
   final int? selectedModelId;
+  final bool canCreateModel;
   final VoidCallback onModelCreated;
 
   const _ModelPickerBottomSheet({
     required this.models,
     this.selectedModelId,
+    this.canCreateModel = true,
     required this.onModelCreated,
   });
 
@@ -2993,101 +3350,145 @@ class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
         : widget.models.where((m) {
             final name = (m['name']?.toString() ?? '').toLowerCase();
             final brand = (m['brand']?.toString() ?? '').toLowerCase();
-            return name.contains(q) || brand.contains(q);
+            final rawCat = m['category'];
+            final category = rawCat is Map
+                ? (rawCat['name']?.toString() ?? '').toLowerCase()
+                : (m['category_name']?.toString() ?? '').toLowerCase();
+            return name.contains(q) ||
+                brand.contains(q) ||
+                category.contains(q);
           }).toList();
 
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
+    final sheetHeight = MediaQuery.sizeOf(context).height * 0.85;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxHeight),
+    return SizedBox(
+      height: sheetHeight,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
+          // Pinned Top Drag Handle
+          const SizedBox(height: 10),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Pinned Top Title & Close Button
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 12, 10),
+            padding: const EdgeInsets.fromLTRB(20, 12, 12, 10),
             child: Row(
               children: [
                 const Expanded(
                   child: Text(
-                    'Pilih Model / Tipe Perangkat',
+                    'Pilih Model Perangkat',
                     style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16.5,
-                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.2,
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded),
+                  key: const Key('model_picker_close_button'),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFF64748B),
+                  ),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
           ),
+          // Pinned Search Field (Never Covered by Keyboard)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              key: const Key('model_picker_search_field'),
-              controller: _searchController,
-              autofocus: true,
-              onChanged: (val) => setState(() => _query = val),
-              decoration: InputDecoration(
-                hintText: 'Cari nama model atau merek...',
-                hintStyle: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textMuted,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SizedBox(
+              height: 44,
+              child: TextField(
+                key: const Key('model_picker_search_field'),
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: Color(0xFF0F172A),
                 ),
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  size: 20,
-                  color: AppColors.textSecondary,
-                ),
-                suffixIcon: _query.isNotEmpty
-                    ? IconButton(
-                        key: const Key('model_picker_search_clear'),
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          size: 18,
-                          color: AppColors.textSecondary,
-                        ),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                      )
-                    : null,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 11,
-                ),
-                filled: true,
-                fillColor: AppColors.surfaceMuted,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(
-                    color: AppColors.obsidian,
-                    width: 1.5,
+                onChanged: (val) => setState(() => _query = val),
+                decoration: InputDecoration(
+                  hintText: 'Cari nama model, merek, atau kategori...',
+                  hintStyle: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: Color(0xFF64748B),
+                  ),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          key: const Key('model_picker_search_clear'),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: Color(0xFF64748B),
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                        )
+                      : null,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF0F172A),
+                      width: 1.4,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 10),
-          Flexible(
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          // Keyboard-Inset-Aware Scrollable Results List
+          Expanded(
             child: filteredModels.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 28,
+                ? SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      28,
+                      20,
+                      keyboardInset + 24,
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -3095,7 +3496,7 @@ class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
                         const Icon(
                           Icons.search_off_rounded,
                           size: 36,
-                          color: AppColors.textMuted,
+                          color: Color(0xFF94A3B8),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -3105,49 +3506,73 @@ class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 13,
-                            color: AppColors.textSecondary,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                       ],
                     ),
                   )
                 : ListView.separated(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    key: const Key('model_picker_results_list'),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      8,
+                      20,
+                      keyboardInset + 24,
+                    ),
                     itemCount: filteredModels.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    separatorBuilder: (_, _) => const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xFFF1F5F9),
+                    ),
                     itemBuilder: (context, index) {
                       final m = filteredModels[index];
                       final id = (m['id'] as num?)?.toInt();
                       final name = m['name']?.toString() ?? '-';
-                      final brand = m['brand']?.toString() ?? '';
+                      final brand = m['brand']?.toString().trim() ?? '';
+                      final rawCat = m['category'];
+                      final category = rawCat is Map
+                          ? (rawCat['name']?.toString().trim() ?? '')
+                          : (m['category_name']?.toString().trim() ?? '');
                       final imageUrl = _extractModelImageUrl(m);
                       final primaryRate = _extractModelPrimaryRate(m);
                       final isSelected =
                           id != null && id == widget.selectedModelId;
 
+                      final subtitleParts = <String>[
+                        if (brand.isNotEmpty) brand,
+                        if (category.isNotEmpty) category,
+                        if (primaryRate != null && primaryRate.isNotEmpty)
+                          primaryRate,
+                      ];
+
                       return InkWell(
+                        key: Key('model_picker_row_${id ?? index}'),
                         onTap: id == null
                             ? null
                             : () => Navigator.pop(context, id),
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 11,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.surfaceMuted
-                                : Colors.white,
+                                ? const Color(0xFFF8FAFC)
+                                : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.obsidian
-                                  : AppColors.border,
-                              width: isSelected ? 1.5 : 1,
-                            ),
                           ),
                           child: Row(
                             children: [
-                              _buildModelThumbnailWidget(name, imageUrl),
+                              _buildModelThumbnailWidget(
+                                name,
+                                imageUrl,
+                                size: 40,
+                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -3156,43 +3581,34 @@ class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
                                     Text(
                                       name,
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13.5,
-                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14.5,
+                                        color: Color(0xFF0F172A),
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      brand.isNotEmpty ? brand : '-',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
+                                    if (subtitleParts.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        subtitleParts.join(' • '),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                    ],
                                   ],
                                 ),
                               ),
-                              if (primaryRate != null) ...[
-                                const SizedBox(width: 8),
-                                Text(
-                                  primaryRate,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                    color: AppColors.obsidian,
-                                  ),
-                                ),
-                              ],
                               if (isSelected) ...[
                                 const SizedBox(width: 8),
                                 const Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 18,
-                                  color: AppColors.obsidian,
+                                  Icons.check_rounded,
+                                  size: 20,
+                                  color: Color(0xFF0F172A),
                                 ),
                               ],
                             ],
@@ -3202,33 +3618,37 @@ class _ModelPickerBottomSheetState extends State<_ModelPickerBottomSheet> {
                     },
                   ),
           ),
-          SafeArea(
-            top: false,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: AppColors.border)),
-              ),
-              child: OutlinedButton(
-                key: const Key('model_picker_add_new_button'),
-                onPressed: _openCreateModelSheet,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.obsidian,
-                  side: const BorderSide(color: AppColors.obsidian, width: 1.2),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+          if (widget.canCreateModel && keyboardInset == 0)
+            SafeArea(
+              top: false,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
                 ),
-                child: const Text(
-                  '+ Tambah Model Baru',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                child: OutlinedButton(
+                  key: const Key('model_picker_add_new_button'),
+                  onPressed: _openCreateModelSheet,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F172A),
+                    side: const BorderSide(
+                      color: Color(0xFFE2E8F0),
+                      width: 1.2,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    '+ Tambah Model Baru',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -3539,12 +3959,16 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
                             initialValue: _grade,
+                            isExpanded: true,
                             decoration: _airyAssetInputDecoration(),
                             items: ['A', 'B', 'C']
                                 .map(
                                   (g) => DropdownMenuItem(
                                     value: g,
-                                    child: Text('Grade $g'),
+                                    child: Text(
+                                      'Grade $g',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 )
                                 .toList(),
@@ -4104,6 +4528,13 @@ class _FilterAsetBottomSheet extends ConsumerWidget {
                           onTap: () => ref
                               .read(selectedAssetStatusFilterProvider.notifier)
                               .setFilter('in_transit'),
+                        ),
+                        _buildPill(
+                          selected: statusFilter == 'pending_approval',
+                          label: 'Menunggu Persetujuan',
+                          onTap: () => ref
+                              .read(selectedAssetStatusFilterProvider.notifier)
+                              .setFilter('pending_approval'),
                         ),
                       ],
                     ),

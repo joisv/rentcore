@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/auth/presentation/user_profile_screen.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
-import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
-import 'package:rentcore_mobile/main.dart';
-import 'package:rentcore_mobile/shared/widgets/floating_capsule_dock.dart';
+import 'package:sewakasir/features/auth/presentation/user_profile_screen.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/bookings/presentation/direct_rental_screen.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/home/presentation/home_screen.dart';
+import 'package:sewakasir/features/home/providers/dashboard_provider.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/features/organization/presentation/store_settings_screen.dart';
+import 'package:sewakasir/main.dart';
+import 'package:sewakasir/shared/widgets/floating_capsule_dock.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

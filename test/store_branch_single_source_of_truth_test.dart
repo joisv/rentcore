@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/home/data/dashboard_repository.dart';
-import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
-import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
-import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_profile_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
-import 'package:rentcore_mobile/shared/widgets/business_selector_sheet.dart';
+import 'package:sewakasir/features/auth/data/auth_repository.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/home/data/dashboard_repository.dart';
+import 'package:sewakasir/features/home/presentation/home_screen.dart';
+import 'package:sewakasir/features/home/providers/dashboard_provider.dart';
+import 'package:sewakasir/features/notifications/providers/notification_provider.dart';
+import 'package:sewakasir/features/organization/presentation/store_profile_screen.dart';
+import 'package:sewakasir/features/organization/presentation/store_settings_screen.dart';
+import 'package:sewakasir/shared/widgets/business_selector_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockAuthNotifier extends AuthNotifier {

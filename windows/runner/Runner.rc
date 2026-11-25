@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.rentcore" "\0"
-            VALUE "FileDescription", "rentcore_mobile" "\0"
+            VALUE "CompanyName", "id.sewakasir" "\0"
+            VALUE "FileDescription", "SewaKasir" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "rentcore_mobile" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.rentcore. All rights reserved." "\0"
-            VALUE "OriginalFilename", "rentcore_mobile.exe" "\0"
-            VALUE "ProductName", "rentcore_mobile" "\0"
+            VALUE "InternalName", "SewaKasir" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 SewaKasir. All rights reserved." "\0"
+            VALUE "OriginalFilename", "sewakasir.exe" "\0"
+            VALUE "ProductName", "SewaKasir" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

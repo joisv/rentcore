@@ -525,9 +525,15 @@ class PrinterNotifier extends Notifier<PrinterState> {
 
       Uint8List bytes;
       if (state.settings.printMode == PrintMode.echo) {
-        final sampleData = _service.getSampleBookingReceipt(state.settings);
-        final doc = _service.buildReceiptDocument(sampleData, state.settings, PrintMode.echo);
-        bytes = _service.buildSlipBytesFromDocument(doc, state.settings);
+        final biz = ref.exists(businessProvider)
+            ? ref.read(businessProvider)
+            : const BusinessState();
+        final sampleDoc = ReceiptDocumentData.sample(
+          biz,
+          settings: state.settings,
+          modeOverride: PrintMode.echo,
+        );
+        bytes = _service.buildReceiptBytes(sampleDoc);
       } else {
         bytes = _service.buildTestSlipBytes(state.settings);
       }
@@ -561,6 +567,61 @@ class PrinterNotifier extends Notifier<PrinterState> {
       state = state.copyWith(
         isPrinting: false,
         errorMessage: 'Gagal mengirim test print: $e',
+      );
+      return false;
+    }
+  }
+
+  /// Unified print pipeline accepting [ReceiptDocumentData] directly.
+  /// Used by Checkout, Dashboard Queue Reprint, Transaction Detail Reprint, and Preview screens.
+  Future<bool> printReceiptDocument(ReceiptDocumentData data) async {
+    if (state.isPrinting) return false;
+    state = state.copyWith(isPrinting: true, clearError: true);
+    try {
+      ThermalPrinterDevice? target =
+          state.connectedDevice ?? _service.connectedDevice ?? await _service.loadSavedDeviceFromPrefs();
+      if (target != null && _service.connectedDevice == null) {
+        _service.setConnectedDevice(target);
+      }
+
+      if (target == null || target.address.trim().isEmpty) {
+        state = state.copyWith(
+          isPrinting: false,
+          errorMessage: 'Belum ada printer yang dipilih atau terhubung.',
+        );
+        return false;
+      }
+
+      final success = await _service.printReceipt(data);
+
+      if (!success) {
+        final err = _service.lastError ?? 'Gagal mencetak struk transaksi. Periksa koneksi printer.';
+        state = state.copyWith(
+          isPrinting: false,
+          connectedDevice: _service.connectedDevice ?? target.copyWith(isConnected: false),
+          status: PrinterConnectionStatus.disconnected,
+          errorMessage: err,
+        );
+        return false;
+      }
+
+      state = state.copyWith(
+        isPrinting: false,
+        status: PrinterConnectionStatus.connected,
+        connectedDevice: (_service.connectedDevice ?? target).copyWith(isConnected: true),
+        lastEchoLog: data.printMode == PrintMode.echo
+            ? '[ECHO STRUK]\n'
+                'Judul: ${data.title}\n'
+                'Ref: ${data.transactionCode}\n'
+                'Total: Rp ${data.totalAmount.toInt()}\n'
+                'Status: Sukses Dicetak (Format Kompak)'
+            : null,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isPrinting: false,
+        errorMessage: 'Gagal mencetak struk: $e',
       );
       return false;
     }

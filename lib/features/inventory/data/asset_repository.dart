@@ -5,6 +5,18 @@ import '../../../core/network/api_client.dart';
 
 class AssetRepository {
   final ApiClient _client = ApiClient();
+  CancelToken? _pendingCancelToken;
+
+  /// Attach a [CancelToken] to be consumed by the next read/search request.
+  void attachCancelToken(CancelToken? cancelToken) {
+    _pendingCancelToken = cancelToken;
+  }
+
+  CancelToken? _takeCancelToken() {
+    final token = _pendingCancelToken;
+    _pendingCancelToken = null;
+    return token;
+  }
 
   List<Map<String, dynamic>> _extractList(dynamic rawData) {
     if (rawData == null) return [];
@@ -41,6 +53,7 @@ class AssetRepository {
     int? branchId,
     bool allBranches = false,
   }) async {
+    final cancelToken = _takeCancelToken();
     final queryParams = <String, dynamic>{};
     if (status != null && status.isNotEmpty) queryParams['status'] = status;
     if (search != null && search.isNotEmpty) queryParams['search'] = search;
@@ -48,17 +61,15 @@ class AssetRepository {
     if (branchId != null) queryParams['branch_id'] = branchId;
     if (allBranches) queryParams['all_branches'] = 1;
 
-    print('>>> [ASSET_REPO] GET ${ApiConstants.assets} with params: $queryParams');
     try {
       final response = await _client.dio.get(
         ApiConstants.assets,
         queryParameters: queryParams,
+        cancelToken: cancelToken,
       );
-      print('>>> [ASSET_REPO] response status: ${response.statusCode}, type: ${response.data.runtimeType}');
       final data = response.data;
       if (data is Map && data.containsKey('data')) {
         final extracted = _extractList(data['data']);
-        print('>>> [ASSET_REPO] extracted count from data["data"]: ${extracted.length}');
         if (extracted.isNotEmpty || data['data'] is List || (data['data'] is Map && (data['data'] as Map)['data'] is List)) {
           final seenIds = <dynamic>{};
           return extracted.where((item) {
@@ -68,14 +79,12 @@ class AssetRepository {
         }
       }
       final extractedFallback = _extractList(data);
-      print('>>> [ASSET_REPO] extractedFallback count: ${extractedFallback.length}');
       final fallbackSeen = <dynamic>{};
       return extractedFallback.where((item) {
         final id = item['id'];
         return id == null || fallbackSeen.add(id);
       }).toList();
-    } catch (e, st) {
-      print('>>> [ASSET_REPO] dio get error: $e\n$st');
+    } catch (_) {
       rethrow;
     }
   }
@@ -89,9 +98,10 @@ class AssetRepository {
     int page = 1,
     int perPage = 20,
   }) async {
+    final cancelToken = _takeCancelToken();
     final queryParams = <String, dynamic>{
       'page': page,
-      'per_page': perPage,
+      'per_page': perPage.clamp(1, 50),
     };
     if (status != null && status.isNotEmpty) queryParams['status'] = status;
     if (search != null && search.isNotEmpty) queryParams['search'] = search;
@@ -103,6 +113,7 @@ class AssetRepository {
       final response = await _client.dio.get(
         ApiConstants.assets,
         queryParameters: queryParams,
+        cancelToken: cancelToken,
       );
 
       final data = response.data;
@@ -193,6 +204,7 @@ class AssetRepository {
     int? categoryId,
     String? search,
   }) async {
+    final cancelToken = _takeCancelToken();
     final queryParams = <String, dynamic>{'all': true};
     if (categoryId != null) queryParams['category_id'] = categoryId;
     if (search != null && search.isNotEmpty) queryParams['search'] = search;
@@ -200,6 +212,7 @@ class AssetRepository {
     final response = await _client.dio.get(
       ApiConstants.products,
       queryParameters: queryParams,
+      cancelToken: cancelToken,
     );
     final data = response.data;
     if (data is Map && data.containsKey('data')) {
@@ -262,6 +275,25 @@ class AssetRepository {
   Future<Map<String, dynamic>> deleteAsset(int id) async {
     final response = await _client.dio.delete(
       ApiConstants.deleteAsset(id),
+    );
+    return response.data is Map ? Map<String, dynamic>.from(response.data) : {};
+  }
+
+  Future<Map<String, dynamic>> approveAsset(int id) async {
+    final response = await _client.dio.post(
+      ApiConstants.approveAsset(id),
+    );
+    return response.data is Map ? Map<String, dynamic>.from(response.data) : {};
+  }
+
+  Future<Map<String, dynamic>> rejectAsset(int id, {String? reason}) async {
+    final payload = <String, dynamic>{};
+    if (reason != null && reason.trim().isNotEmpty) {
+      payload['reason'] = reason.trim();
+    }
+    final response = await _client.dio.post(
+      ApiConstants.rejectAsset(id),
+      data: payload,
     );
     return response.data is Map ? Map<String, dynamic>.from(response.data) : {};
   }

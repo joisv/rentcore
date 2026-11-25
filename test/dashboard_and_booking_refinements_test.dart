@@ -4,17 +4,17 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:rentcore_mobile/core/theme/app_theme.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/home/data/dashboard_repository.dart';
-import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
-import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
-import 'package:rentcore_mobile/shared/widgets/unit_thumbnail.dart';
+import 'package:sewakasir/core/theme/app_theme.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/presentation/direct_rental_screen.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/home/data/dashboard_repository.dart';
+import 'package:sewakasir/features/home/presentation/home_screen.dart';
+import 'package:sewakasir/features/home/providers/dashboard_provider.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/shared/widgets/unit_thumbnail.dart';
 
 class _TestAuthNotifier extends AuthNotifier {
   @override

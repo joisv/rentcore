@@ -4,14 +4,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:rentcore_mobile/core/theme/app_theme.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/cashier_screen.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
-import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
+import 'package:sewakasir/core/theme/app_theme.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/presentation/cashier_screen.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/payments/models/payment_context.dart';
+import 'package:sewakasir/features/payments/presentation/payment_page.dart';
 
 class _FakeWave2CashierRepo extends CashierRepository {
   final bool shiftEnforcementEnabled;

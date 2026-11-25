@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/debounced_search_controller.dart';
 import '../../auth/providers/business_provider.dart';
 import '../data/customer_repository.dart';
 
@@ -54,20 +56,37 @@ class CustomerState {
 
 class CustomerNotifier extends Notifier<CustomerState> {
   CustomerRepository get _repository => ref.read(customerRepositoryProvider);
+  CancelToken? _activeCancelToken;
 
   @override
   CustomerState build() {
     ref.watch(businessProvider.select((s) => s.activeBusinessId));
+    ref.onDispose(() {
+      if (_activeCancelToken != null && !_activeCancelToken!.isCancelled) {
+        _activeCancelToken!.cancel('CustomerNotifier disposed');
+      }
+    });
     Future.microtask(() => loadCustomers(refresh: true));
     return const CustomerState();
   }
 
-  Future<void> loadCustomers({bool refresh = false}) async {
+  Future<void> loadCustomers({
+    bool refresh = false,
+    CancelToken? cancelToken,
+  }) async {
     if (!ref.mounted) return;
 
     if (refresh) {
+      if (_activeCancelToken != null &&
+          _activeCancelToken != cancelToken &&
+          !_activeCancelToken!.isCancelled) {
+        _activeCancelToken!.cancel('Superseded by newer customer search');
+      }
+      _activeCancelToken = cancelToken ?? CancelToken();
       state = state.copyWith(isLoading: true, error: null, currentPage: 1);
     }
+
+    final effectiveToken = cancelToken ?? _activeCancelToken;
 
     try {
       final page = refresh ? 1 : state.currentPage;
@@ -78,13 +97,14 @@ class CustomerNotifier extends Notifier<CustomerState> {
         isBlacklisted = false;
       }
 
+      _repository.attachCancelToken(effectiveToken);
       final result = await _repository.fetchCustomersPaginated(
         page: page,
         search: state.searchQuery.isEmpty ? null : state.searchQuery,
         isBlacklisted: isBlacklisted,
       );
 
-      if (!ref.mounted) return;
+      if (!ref.mounted || (effectiveToken?.isCancelled ?? false)) return;
 
       final updatedList = refresh ? result.items : [...state.customers, ...result.items];
       state = state.copyWith(
@@ -96,7 +116,7 @@ class CustomerNotifier extends Notifier<CustomerState> {
         error: null,
       );
     } catch (e) {
-      if (!ref.mounted) return;
+      if (DebouncedSearchController.isCancelError(e) || !ref.mounted) return;
       state = state.copyWith(
         isLoading: false,
         isLoadingMore: false,
@@ -112,10 +132,10 @@ class CustomerNotifier extends Notifier<CustomerState> {
     await loadCustomers(refresh: false);
   }
 
-  void setSearchQuery(String query) {
+  void setSearchQuery(String query, {CancelToken? cancelToken}) {
     if (state.searchQuery == query) return;
     state = state.copyWith(searchQuery: query);
-    loadCustomers(refresh: true);
+    loadCustomers(refresh: true, cancelToken: cancelToken);
   }
 
   void setStatusFilter(String filter) {

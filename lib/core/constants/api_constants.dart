@@ -11,7 +11,7 @@ class ApiConstants {
   static const String currentLanPcBaseUrl = 'http://192.168.1.101:8000/api/v1';
   static const String usbReverseBaseUrl = 'http://127.0.0.1:8000/api/v1';
   static const String emulatorBaseUrl = 'http://10.0.2.2:8000/api/v1';
-  static const String laragonVhostUrl = 'http://rentcore_backend.test/api/v1';
+  static const String laragonVhostUrl = 'http://sewakasir_backend.test/api/v1';
 
   // Public App Gate & Telemetry
   static const String appConfig = '/app-config';
@@ -137,6 +137,8 @@ class ApiConstants {
   static String cancelTransfer(dynamic id) => '/transfers/$id/cancel';
   static String updateAsset(dynamic id) => '/assets/$id';
   static String deleteAsset(dynamic id) => '/assets/$id';
+  static String approveAsset(dynamic id) => '/assets/$id/approve';
+  static String rejectAsset(dynamic id) => '/assets/$id/reject';
 
   // Customers & Identity Verification
   static const String customers = '/customers';

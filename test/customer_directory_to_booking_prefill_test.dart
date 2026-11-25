@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/customers/presentation/widgets/customer_detail_sheet.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
-import 'package:rentcore_mobile/features/payments/data/payment_repository.dart';
-import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
+import 'package:sewakasir/features/bookings/presentation/direct_rental_screen.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/customers/presentation/widgets/customer_detail_sheet.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/features/payments/data/payment_repository.dart';
+import 'package:sewakasir/features/payments/models/payment_context.dart';
 
 class MockPaymentRepository extends PaymentRepository {
   PaymentContext? lastContext;

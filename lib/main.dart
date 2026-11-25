@@ -34,7 +34,7 @@ class RentCoreApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
-      title: 'RentCore Mobile',
+      title: 'SewaKasir',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const AppConfigGateObserver(child: AuthRoutingGate()),

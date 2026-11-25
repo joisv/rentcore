@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/home/data/dashboard_repository.dart';
-import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/home/data/dashboard_repository.dart';
+import 'package:sewakasir/features/home/providers/dashboard_provider.dart';
 
 class _FakeDashboardRepository extends DashboardRepository {
   final List<int?> recordedBranchRequests = [];

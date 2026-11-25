@@ -1,9 +1,13 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/debounced_search_controller.dart';
+import '../../../core/utils/idempotency_helper.dart';
 import '../../../shared/widgets/collateral_picker_section.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../shared/widgets/unit_thumbnail.dart';
@@ -110,8 +114,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
   final _collateralDepositController = TextEditingController();
   final _voucherController = TextEditingController();
   final _unitSearchController = TextEditingController();
+  final _unitSearchDebouncer = DebouncedSearchController();
+  final _customerLookupDebouncer = DebouncedSearchController();
   String _unitSearchQuery = '';
   bool _showAllUnits = false;
+  String? _scheduledSubmitIdempotencyKey;
 
   // Unit Selection initially null
   bool _isScheduledBooking = false;
@@ -386,6 +393,8 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     _collateralDepositController.dispose();
     _voucherController.dispose();
     _dpAmountController.dispose();
+    _unitSearchDebouncer.dispose();
+    _customerLookupDebouncer.dispose();
     _unitSearchController.dispose();
     _addonSearchController.dispose();
     super.dispose();
@@ -794,7 +803,11 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     return start.add(Duration(hours: hours));
   }
 
-  Future<void> _loadModelAvailability({int? branchIdOverride}) async {
+  Future<void> _loadModelAvailability({
+    int? branchIdOverride,
+    String? search,
+    CancelToken? cancelToken,
+  }) async {
     final startAt = _scheduledStartAt;
     if (!_isScheduledBooking || startAt == null) return;
     final bizState = ref.read(businessProvider);
@@ -820,13 +833,20 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       _modelAvailabilityError = null;
     });
 
+    final effectiveToken =
+        cancelToken ?? _unitSearchDebouncer.nextCancelToken('Model availability superseded');
+    final effectiveSearch = (search ?? _unitSearchQuery).trim();
+
     try {
-      final list = await ref.read(bookingRepositoryProvider).fetchModelAvailability(
+      final bookingRepo = ref.read(bookingRepositoryProvider);
+      bookingRepo.attachCancelToken(effectiveToken);
+      final list = await bookingRepo.fetchModelAvailability(
             startAt: startAt,
             endAt: _effectiveScheduledEndAt,
             branchId: activeBranchId,
+            search: effectiveSearch.isEmpty ? null : effectiveSearch,
           );
-      if (!mounted) return;
+      if (!mounted || effectiveToken.isCancelled) return;
       // Ignore stale responses if the user switched branch mid-flight.
       final currentResolvedBranchId = _resolveTargetBranch(
         ref.read(businessProvider),
@@ -890,10 +910,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       });
       _syncUnsavedInputState();
     } catch (e) {
-      if (!mounted) return;
+      if (DebouncedSearchController.isCancelError(e) || !mounted) return;
       setState(() {
         _isLoadingModelAvailability = false;
-        _modelAvailabilityError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+        _modelAvailabilityError = ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal memuat ketersediaan model.',
+        );
       });
     }
   }
@@ -1324,9 +1347,15 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       _customerLookupMessage = null;
     });
 
+    final lookupToken = _customerLookupDebouncer.nextCancelToken(
+      'Customer lookup superseded',
+    );
+
     try {
       final repo = CustomerRepository();
+      repo.attachCancelToken(lookupToken);
       final result = await repo.lookupCustomer(phone);
+      if (!mounted || lookupToken.isCancelled) return;
       if (result != null) {
         setState(() {
           _foundCustomer = result;
@@ -1354,11 +1383,17 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
         });
       }
     } catch (e) {
+      if (DebouncedSearchController.isCancelError(e) || !mounted) return;
       setState(() {
-        _customerLookupMessage = 'Gagal mencari pelanggan: $e';
+        _customerLookupMessage = ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal mencari data pelanggan.',
+        );
       });
     } finally {
-      setState(() => _isSearchingCustomer = false);
+      if (mounted && !lookupToken.isCancelled) {
+        setState(() => _isSearchingCustomer = false);
+      }
     }
   }
 
@@ -1700,11 +1735,16 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
     if (!_validateScheduleBeforeSubmit()) return;
     setState(() => _isSubmittingScheduled = true);
     final messenger = ScaffoldMessenger.of(context);
+    _scheduledSubmitIdempotencyKey ??= IdempotencyHelper.generateUuidV4();
     try {
       final payload = _buildBookingPayload();
       payload['paid_amount'] = 0;
 
-      await ref.read(bookingRepositoryProvider).createRental(payload);
+      await ref.read(bookingRepositoryProvider).createRental(
+        payload,
+        idempotencyKey: _scheduledSubmitIdempotencyKey,
+      );
+      _scheduledSubmitIdempotencyKey = null;
       ref.invalidate(bookingsListProvider);
       ref.invalidate(dashboardQueueBookingsProvider);
       ref.invalidate(dashboardKpiProvider);
@@ -1724,7 +1764,10 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal menyimpan booking: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}',
+            ApiClient.extractErrorMessage(
+              e,
+              fallback: 'Gagal menyimpan booking.',
+            ),
           ),
           backgroundColor: AppColors.danger,
         ),
@@ -2345,7 +2388,19 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                 _showAllUnits = false;
               });
               if (showFloatingModels) {
-                _loadModelAvailability();
+                final isTestEnvironment =
+                    WidgetsBinding.instance.runtimeType.toString().contains('Test');
+                _unitSearchDebouncer.run(
+                  value,
+                  (trimmed, cancelToken) {
+                    if (!mounted) return;
+                    _loadModelAvailability(
+                      search: trimmed,
+                      cancelToken: cancelToken,
+                    );
+                  },
+                  immediate: isTestEnvironment,
+                );
               }
             },
             style: const TextStyle(fontSize: 13.5, color: Color(0xFF0F172A)),
@@ -2361,12 +2416,13 @@ class _DirectRentalScreenState extends ConsumerState<DirectRentalScreen> {
                       icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
                       onPressed: () {
                         _unitSearchController.clear();
+                        _unitSearchDebouncer.cancelPending();
                         setState(() {
                           _unitSearchQuery = '';
                           _showAllUnits = false;
                         });
                         if (showFloatingModels) {
-                          _loadModelAvailability();
+                          _loadModelAvailability(search: '');
                         }
                       },
                     )

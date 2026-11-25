@@ -2,10 +2,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/network/api_client.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/idempotency_helper.dart';
 import '../../../core/services/thermal_printer_service.dart';
 import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/business_provider.dart';
@@ -60,6 +62,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
 
   String _conditionGrade = 'A';
   bool _isSubmitting = false;
+  String? _returnIdempotencyKey;
   bool _payPenaltyNow = true;
   bool _enableWaiver = false;
   final _waiverAmountController = TextEditingController();
@@ -338,7 +341,6 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     }
   }
 
-  bool get _isAppleDevice => _category == RentalDeviceCategory.apple;
   bool get _isSmartphone =>
       _category == RentalDeviceCategory.apple ||
       _category == RentalDeviceCategory.mobile;
@@ -370,16 +372,22 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     final customer = booking['customer'] ?? {};
     final endAt = booking['end_at'] != null ? DateTime.tryParse(booking['end_at']) : null;
     final now = DateTime.now();
-    final activeBusiness = ref.watch(businessProvider).activeBusiness;
+    final bizState = ref.watch(businessProvider);
+    final activeBusiness = bizState.activeBusiness;
 
-    // Resolve cascading late-fee policy (contract snapshot -> unit -> model -> business)
+    // Resolve deterministic 4-step cascading late-fee policy
+    // (server preview -> contract snapshot -> unit -> model -> business -> legacy)
     int lateMinutes = 0;
+    int billableMinutes = 0;
     double billableHours = 0.0;
     double hourlyLateRate = 15000.0;
     double calculatedPenalty = 0.0;
     int gracePeriodMinutes = 60;
+    String graceMode = 'deductive';
     String roundingMode = 'hourly_ceil';
+    String rateSourceLabel = 'Tarif Default Toko';
     double? dailyRateCap;
+    double? modelDailyPrice;
     bool wasCapped = false;
 
     final activeItem = booking['active_item'] as Map?;
@@ -400,51 +408,104 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
         (primaryItem?['asset_model'] as Map?) ??
         (booking['asset_model'] as Map?);
 
-    // 1. Grace period
+    // Helper: resolve model 1-day (24h) pricing tier if available
+    final modelTiers = modelMap?['pricing_tiers'] as List?;
+    if (modelTiers != null) {
+      for (final t in modelTiers.whereType<Map>()) {
+        final isOneDay = (t['duration_unit'] == 'day' &&
+                int.tryParse(t['duration_value']?.toString() ?? '') == 1) ||
+            int.tryParse(t['duration_hours']?.toString() ?? '') == 24;
+        if (isOneDay && t['price'] != null) {
+          final parsedDaily = double.tryParse(t['price'].toString());
+          if (parsedDaily != null && parsedDaily > 0) {
+            modelDailyPrice = parsedDaily;
+            break;
+          }
+        }
+      }
+    }
+
+    // 1. Grace period & grace mode
     final rawAppliedGrace = primaryItem?['applied_grace_period_minutes'] ??
         rateSnap?['applied_grace_period_minutes'];
     if (rawAppliedGrace != null) {
       gracePeriodMinutes = int.tryParse(rawAppliedGrace.toString()) ?? 15;
     } else if (activeBusiness != null &&
-        activeBusiness.containsKey('return_grace_period_minutes') &&
-        activeBusiness['return_grace_period_minutes'] != null) {
-      gracePeriodMinutes =
-          int.tryParse(activeBusiness['return_grace_period_minutes'].toString()) ?? 15;
+        (activeBusiness['late_fee_grace_minutes'] != null ||
+            activeBusiness['return_grace_period_minutes'] != null)) {
+      final rawBizGrace = activeBusiness['late_fee_grace_minutes'] ??
+          activeBusiness['return_grace_period_minutes'];
+      gracePeriodMinutes = int.tryParse(rawBizGrace.toString()) ?? 15;
+    }
+
+    final rawGraceMode = (primaryItem?['applied_late_fee_grace_mode'] ??
+            rateSnap?['applied_late_fee_grace_mode'] ??
+            activeBusiness?['late_fee_grace_mode'])
+        ?.toString();
+    final bool hasCanonicalPolicyKeys = activeBusiness != null &&
+        (activeBusiness.containsKey('late_fee_grace_mode') ||
+            activeBusiness.containsKey('late_fee_grace_minutes') ||
+            activeBusiness.containsKey('late_fee_rounding') ||
+            activeBusiness.containsKey('late_fee_default_rate'));
+    if (rawGraceMode == 'forfeit' || rawGraceMode == 'deductive') {
+      graceMode = rawGraceMode!;
+    } else {
+      graceMode = hasCanonicalPolicyKeys ? 'forfeit' : 'deductive';
     }
 
     // 2. Rounding mode
     final rawRoundingMode = (primaryItem?['applied_late_fee_rounding_mode'] ??
             rateSnap?['applied_late_fee_rounding_mode'] ??
+            activeBusiness?['late_fee_rounding'] ??
             activeBusiness?['late_fee_rounding_mode'])
         ?.toString();
-    if (rawRoundingMode == 'half_hourly_ceil' || rawRoundingMode == 'hourly_ceil') {
+    if (rawRoundingMode == 'half_hourly_ceil' ||
+        rawRoundingMode == 'hourly_ceil' ||
+        rawRoundingMode == 'exact_minute') {
       roundingMode = rawRoundingMode!;
     }
 
     // 3. Hourly late rate (applied snapshot -> unit -> model -> business -> legacy tier rate)
     final rawAppliedRate = primaryItem?['applied_hourly_late_fee'] ??
         rateSnap?['applied_hourly_late_fee'];
+    final rawModelRate =
+        modelMap?['late_fee_per_hour'] ?? modelMap?['hourly_late_fee'];
+    final rawBusinessDefaultRate = activeBusiness?['late_fee_default_rate'] ??
+        activeBusiness?['default_hourly_late_fee'];
+    final String defaultRateType =
+        activeBusiness?['late_fee_default_type']?.toString() ?? 'fixed';
+
     if (rawAppliedRate != null) {
       hourlyLateRate = double.tryParse(rawAppliedRate.toString()) ?? 0.0;
+      rateSourceLabel = 'Kontrak Sewa';
     } else if (assetMap != null && assetMap['hourly_late_fee'] != null) {
       hourlyLateRate = double.tryParse(assetMap['hourly_late_fee'].toString()) ?? 0.0;
-    } else if (modelMap != null && modelMap['hourly_late_fee'] != null) {
-      hourlyLateRate = double.tryParse(modelMap['hourly_late_fee'].toString()) ?? 0.0;
-    } else if (activeBusiness != null &&
-        activeBusiness['default_hourly_late_fee'] != null) {
-      hourlyLateRate =
-          double.tryParse(activeBusiness['default_hourly_late_fee'].toString()) ?? 0.0;
+      rateSourceLabel = 'Tarif Unit';
+    } else if (rawModelRate != null) {
+      hourlyLateRate = double.tryParse(rawModelRate.toString()) ?? 0.0;
+      rateSourceLabel = 'Tarif Model';
+    } else if (rawBusinessDefaultRate != null) {
+      final parsedDefault =
+          double.tryParse(rawBusinessDefaultRate.toString()) ?? 0.0;
+      if (defaultRateType == 'percent_daily' && modelDailyPrice != null) {
+        hourlyLateRate = ((modelDailyPrice * parsedDefault) / 100).roundToDouble();
+        rateSourceLabel = '% Tarif Harian';
+      } else {
+        hourlyLateRate = parsedDefault;
+        rateSourceLabel = 'Tarif Default Toko';
+      }
     } else if (rateSnap != null && rateSnap['extension_hourly_rate'] != null) {
       hourlyLateRate =
           double.tryParse(rateSnap['extension_hourly_rate'].toString()) ?? 15000.0;
-    } else {
-      final tiers = modelMap?['pricing_tiers'] as List?;
-      if (tiers != null && tiers.isNotEmpty && tiers.first is Map) {
-        final firstTier = tiers.first as Map;
-        if (firstTier['extension_hourly_rate'] != null) {
-          hourlyLateRate =
-              double.tryParse(firstTier['extension_hourly_rate'].toString()) ?? 15000.0;
-        }
+      rateSourceLabel = 'Tarif Ekstensi';
+    } else if (modelTiers != null &&
+        modelTiers.isNotEmpty &&
+        modelTiers.first is Map) {
+      final firstTier = modelTiers.first as Map;
+      if (firstTier['extension_hourly_rate'] != null) {
+        hourlyLateRate =
+            double.tryParse(firstTier['extension_hourly_rate'].toString()) ?? 15000.0;
+        rateSourceLabel = 'Tarif Ekstensi';
       }
     }
 
@@ -456,41 +517,81 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       final rawCap = primaryItem?['applied_daily_rate_cap'] ??
           rateSnap?['applied_daily_rate_cap'];
       dailyRateCap = rawCap != null ? double.tryParse(rawCap.toString()) : null;
-    } else if (activeBusiness?['cap_late_fee_at_daily_rate'] == true) {
-      final tiers = modelMap?['pricing_tiers'] as List?;
-      if (tiers != null) {
-        for (final t in tiers.whereType<Map>()) {
-          final isOneDay = (t['duration_unit'] == 'day' &&
-                  int.tryParse(t['duration_value']?.toString() ?? '') == 1) ||
-              int.tryParse(t['duration_hours']?.toString() ?? '') == 24;
-          if (isOneDay && t['price'] != null) {
-            final parsedDaily = double.tryParse(t['price'].toString());
-            if (parsedDaily != null && parsedDaily > 0) {
-              dailyRateCap = parsedDaily;
-              break;
-            }
-          }
-        }
-      }
+    } else if (activeBusiness?['late_fee_cap_daily'] == true ||
+        activeBusiness?['cap_late_fee_at_daily_rate'] == true) {
+      dailyRateCap = modelDailyPrice;
     }
 
-    if (endAt != null && now.isAfter(endAt)) {
+    // Check if backend provided authoritative late_fee_preview
+    final rawPreview = booking['late_fee_preview'];
+    if (rawPreview is Map && rawPreview.containsKey('calculated_fee')) {
+      lateMinutes =
+          int.tryParse(rawPreview['raw_overdue_minutes']?.toString() ?? '') ??
+              (endAt != null && now.isAfter(endAt)
+                  ? now.difference(endAt).inMinutes
+                  : 0);
+      billableMinutes =
+          int.tryParse(rawPreview['billable_minutes']?.toString() ?? '') ?? 0;
+      billableHours =
+          double.tryParse(rawPreview['billable_hours']?.toString() ?? '') ??
+              (billableMinutes / 60.0);
+      hourlyLateRate =
+          double.tryParse(rawPreview['applied_rate']?.toString() ?? '') ??
+              hourlyLateRate;
+      calculatedPenalty =
+          double.tryParse(rawPreview['calculated_fee']?.toString() ?? '') ?? 0.0;
+      wasCapped = rawPreview['cap_applied'] == true;
+      if (rawPreview['daily_rate_cap'] != null) {
+        dailyRateCap =
+            double.tryParse(rawPreview['daily_rate_cap'].toString());
+      }
+      if (rawPreview['grace_period_minutes'] != null) {
+        gracePeriodMinutes =
+            int.tryParse(rawPreview['grace_period_minutes'].toString()) ??
+                gracePeriodMinutes;
+      }
+      if (rawPreview['grace_mode'] != null) {
+        graceMode = rawPreview['grace_mode'].toString();
+      }
+      if (rawPreview['rounding_mode'] != null) {
+        roundingMode = rawPreview['rounding_mode'].toString();
+      }
+      final previewSource = rawPreview['rate_source']?.toString();
+      if (previewSource == 'model') {
+        rateSourceLabel = 'Tarif Model';
+      } else if (previewSource == 'asset') {
+        rateSourceLabel = 'Tarif Unit';
+      } else if (previewSource == 'snapshot') {
+        rateSourceLabel = 'Kontrak Sewa';
+      } else if (previewSource == 'business_percent_daily') {
+        rateSourceLabel = '% Tarif Harian';
+      } else if (previewSource == 'business_default') {
+        rateSourceLabel = 'Tarif Default Toko';
+      }
+    } else if (endAt != null && now.isAfter(endAt)) {
       lateMinutes = now.difference(endAt).inMinutes;
       if (lateMinutes > gracePeriodMinutes) {
-        final chargeableMinutes = lateMinutes - gracePeriodMinutes;
-        if (roundingMode == 'half_hourly_ceil') {
-          billableHours = (chargeableMinutes / 30).ceil() * 0.5;
+        billableMinutes = graceMode == 'forfeit'
+            ? lateMinutes
+            : math.max(0, lateMinutes - gracePeriodMinutes);
+        if (roundingMode == 'exact_minute') {
+          billableHours = billableMinutes / 60.0;
+          calculatedPenalty = (billableHours * hourlyLateRate).roundToDouble();
+        } else if (roundingMode == 'half_hourly_ceil') {
+          billableHours = (billableMinutes / 30).ceil() * 0.5;
+          calculatedPenalty = billableHours * hourlyLateRate;
         } else {
-          billableHours = (chargeableMinutes / 60).ceil().toDouble();
+          billableHours = (billableMinutes / 60).ceil().toDouble();
+          calculatedPenalty = billableHours * hourlyLateRate;
         }
-        calculatedPenalty = billableHours * hourlyLateRate;
 
         if (dailyRateCap != null && dailyRateCap > 0 && calculatedPenalty > 0) {
           final fullCycles = billableHours ~/ 24;
           final remHours = math.max(0.0, billableHours - (fullCycles * 24));
           final fullCycleCost = math.min(24 * hourlyLateRate, dailyRateCap);
           final remCycleCost = math.min(remHours * hourlyLateRate, dailyRateCap);
-          final cappedPenalty = (fullCycles * fullCycleCost) + remCycleCost;
+          final cappedPenalty =
+              ((fullCycles * fullCycleCost) + remCycleCost).roundToDouble();
           if (cappedPenalty < calculatedPenalty) {
             calculatedPenalty = cappedPenalty;
             wasCapped = true;
@@ -499,7 +600,12 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       }
     }
 
-    final rawWaivedAmount = _enableWaiver
+    final bool allowCashierLateFeeWaiver =
+        activeBusiness?['allow_cashier_late_fee_waiver'] != false;
+    final bool canWaiveLateFee =
+        allowCashierLateFeeWaiver || bizState.isCurrentUserOwner;
+
+    final rawWaivedAmount = (canWaiveLateFee && _enableWaiver)
         ? CurrencyFormatter.parse(_waiverAmountController.text.trim())
         : 0.0;
     final double waivedAmount =
@@ -508,6 +614,12 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     final String billableHoursLabel = billableHours % 1 == 0
         ? billableHours.toInt().toString()
         : billableHours.toStringAsFixed(1);
+    final String billedUnitExpr = roundingMode == 'exact_minute'
+        ? '$billableMinutes menit × ${CurrencyFormatter.format(hourlyLateRate)}/jam'
+        : '$billableHoursLabel jam × ${CurrencyFormatter.format(hourlyLateRate)}';
+    final String breakdownFormulaText = graceMode == 'deductive'
+        ? 'Telat $lateMinutes menit - Toleransi $gracePeriodMinutes menit = $billedUnitExpr • $rateSourceLabel'
+        : '$billedUnitExpr • $rateSourceLabel';
     final bool isLateBeyondGrace = lateMinutes > gracePeriodMinutes;
 
     final showCollateral =
@@ -1225,60 +1337,127 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                     ),
                     const SizedBox(height: 10),
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      key: const Key('late_fee_breakdown_card'),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFEF2F2),
+                        color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: const Color(0xFFFECACA),
+                          color: const Color(0xFFE2E8F0),
                           width: 1,
                         ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Telat $lateMinutes menit - Toleransi $gracePeriodMinutes menit = $billableHoursLabel jam × ${CurrencyFormatter.format(hourlyLateRate)}',
-                            key: const Key('late_fee_breakdown_formula'),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Expanded(
+                              const Text(
+                                'Jadwal Kembali',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
                                 child: Text(
-                                  'Denda Hitungan Sistem',
-                                  style: TextStyle(
+                                  endAt != null
+                                      ? DateFormatter.formatFull(endAt)
+                                      : '-',
+                                  style: const TextStyle(
                                     fontSize: 12,
-                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
+                                    fontFeatures: [FontFeature.tabularFigures()],
                                   ),
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Waktu Aktual',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  DateFormatter.formatFull(now),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Durasi Terlambat',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                CurrencyFormatter.format(calculatedPenalty),
+                                '${_formatOverdueDuration(lateMinutes)} ($lateMinutes menit)',
                                 style: const TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF0F172A),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFDC2626),
                                   fontFeatures: [FontFeature.tabularFigures()],
                                 ),
                                 textAlign: TextAlign.end,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const Divider(
+                            height: 16,
+                            thickness: 1,
+                            color: Color(0xFFE2E8F0),
+                          ),
+                          const Text(
+                            'Perhitungan',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            breakdownFormulaText,
+                            key: const Key('late_fee_breakdown_formula'),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Expanded(
                                 child: Text(
-                                  'Grace period',
+                                  'Toleransi',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     color: Color(0xFF64748B),
@@ -1287,7 +1466,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                '$gracePeriodMinutes menit bebas biaya',
+                                '$gracePeriodMinutes menit (${graceMode == 'forfeit' ? 'Hangus jika lewat' : 'Potong durasi'})',
                                 style: const TextStyle(
                                   fontSize: 11.5,
                                   color: Color(0xFF64748B),
@@ -1323,11 +1502,41 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                               ],
                             ),
                           ],
-                          if (_enableWaiver && waivedAmount > 0) ...[
-                            const Divider(
-                              height: 14,
-                              color: Color(0xFFFECACA),
-                            ),
+                          const Divider(
+                            height: 16,
+                            thickness: 1,
+                            color: Color(0xFFE2E8F0),
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Denda Keterlambatan',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                CurrencyFormatter.format(calculatedPenalty),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A),
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                                textAlign: TextAlign.end,
+                              ),
+                            ],
+                          ),
+                          if (canWaiveLateFee &&
+                              _enableWaiver &&
+                              waivedAmount > 0) ...[
+                            const SizedBox(height: 6),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -1352,140 +1561,248 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Total Denda Akhir',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  CurrencyFormatter.format(penaltyAmount),
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ],
                       ),
                     ),
                     const SizedBox(height: 10),
-                    InkWell(
-                      key: const Key('waiver_toggle'),
-                      onTap: () => setState(() {
-                        _enableWaiver = !_enableWaiver;
-                        if (!_enableWaiver) {
-                          _waiverAmountController.clear();
-                          _waiverReasonController.clear();
-                        }
-                      }),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
+                    if (canWaiveLateFee) ...[
+                      InkWell(
+                        key: const Key('waiver_toggle'),
+                        onTap: () => setState(() {
+                          _enableWaiver = !_enableWaiver;
+                          if (!_enableWaiver) {
+                            _waiverAmountController.clear();
+                            _waiverReasonController.clear();
+                          }
+                        }),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _enableWaiver
+                                    ? Icons.check_box_rounded
+                                    : Icons.check_box_outline_blank_rounded,
+                                size: 20,
+                                color: _enableWaiver
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFF64748B),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Sesuaikan / Bebaskan Denda',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_enableWaiver) ...[
+                        const SizedBox(height: 10),
+                        Row(
                           children: [
-                            Icon(
-                              _enableWaiver
-                                  ? Icons.check_box_rounded
-                                  : Icons.check_box_outline_blank_rounded,
-                              size: 20,
-                              color: _enableWaiver
-                                  ? const Color(0xFF0F172A)
-                                  : const Color(0xFF64748B),
+                            Expanded(
+                              child: TextField(
+                                key: const Key('waiver_amount_input'),
+                                controller: _waiverAmountController,
+                                keyboardType: TextInputType.number,
+                                onChanged: (_) => setState(() {}),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF0F172A),
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Nominal Keringanan',
+                                  prefixText: 'Rp ',
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF0F172A),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                             const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                'Beri Keringanan / Bebaskan Denda',
+                            ActionChip(
+                              key: const Key('waiver_full_chip'),
+                              backgroundColor: const Color(0xFFF8FAFC),
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              label: const Text(
+                                'Bebaskan 100%',
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
                                   color: Color(0xFF0F172A),
                                 ),
                               ),
+                              onPressed: () {
+                                setState(() {
+                                  _waiverAmountController.text =
+                                      calculatedPenalty.toInt().toString();
+                                });
+                              },
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                    if (_enableWaiver) ...[
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              key: const Key('waiver_amount_input'),
-                              controller: _waiverAmountController,
-                              keyboardType: TextInputType.number,
-                              onChanged: (_) => setState(() {}),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF0F172A),
-                              ),
-                              decoration: InputDecoration(
-                                labelText: 'Nominal Keringanan',
-                                prefixText: 'Rp ',
-                                isDense: true,
-                                filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFE2E8F0),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final preset in const [
+                              (key: 'waiver_reason_chip_macet', label: 'Macet / Hujan'),
+                              (key: 'waiver_reason_chip_unit', label: 'Kendala Unit'),
+                              (key: 'waiver_reason_chip_toko', label: 'Kebijakan Toko'),
+                            ])
+                              ChoiceChip(
+                                key: Key(preset.key),
+                                label: Text(
+                                  preset.label,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: _waiverReasonController.text.trim() ==
+                                            preset.label
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
                                   ),
                                 ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF0F172A),
-                                    width: 1.5,
-                                  ),
+                                selected: _waiverReasonController.text.trim() ==
+                                    preset.label,
+                                selectedColor: const Color(0xFF0F172A),
+                                backgroundColor: const Color(0xFFF8FAFC),
+                                showCheckmark: false,
+                                side: BorderSide(
+                                  color: _waiverReasonController.text.trim() ==
+                                          preset.label
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFFE2E8F0),
                                 ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                onSelected: (_) {
+                                  setState(() {
+                                    _waiverReasonController.text = preset.label;
+                                  });
+                                },
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ActionChip(
-                            key: const Key('waiver_full_chip'),
-                            backgroundColor: const Color(0xFFF8FAFC),
-                            side: const BorderSide(color: Color(0xFFE2E8F0)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            label: const Text(
-                              'Bebaskan 100%',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _waiverAmountController.text =
-                                    calculatedPenalty.toInt().toString();
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        key: const Key('waiver_reason_input'),
-                        controller: _waiverReasonController,
-                        maxLines: 2,
-                        onChanged: (_) => setState(() {}),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF0F172A),
+                          ],
                         ),
-                        decoration: InputDecoration(
-                          labelText: 'Alasan Keringanan / Pembebasan (Wajib) *',
-                          hintText:
-                              'Contoh: Pelanggan konfirmasi macet via admin',
-                          isDense: true,
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE2E8F0),
+                        const SizedBox(height: 10),
+                        TextField(
+                          key: const Key('waiver_reason_input'),
+                          controller: _waiverReasonController,
+                          maxLines: 2,
+                          onChanged: (_) => setState(() {}),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF0F172A),
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Alasan Keringanan / Pembebasan (Wajib) *',
+                            hintText:
+                                'Pilih alasan cepat di atas atau tulis catatan khusus',
+                            isDense: true,
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF0F172A),
+                                width: 1.5,
+                              ),
                             ),
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF0F172A),
-                              width: 1.5,
-                            ),
+                        ),
+                      ],
+                    ] else ...[
+                      Container(
+                        key: const Key('waiver_owner_only_notice'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFFE2E8F0),
+                            width: 1,
                           ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              size: 16,
+                              color: Color(0xFF64748B),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Penyesuaian atau pembebasan denda hanya diizinkan untuk Owner.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -1648,6 +1965,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                         ? null
                         : () => _processReturn(
                               penaltyAmount,
+                              calculatedPenalty: calculatedPenalty,
                               waivedAmount: waivedAmount,
                             ),
                     style: ElevatedButton.styleFrom(
@@ -1686,7 +2004,11 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     );
   }
 
-  void _processReturn(double penaltyAmount, {double waivedAmount = 0.0}) async {
+  void _processReturn(
+    double penaltyAmount, {
+    double calculatedPenalty = 0.0,
+    double waivedAmount = 0.0,
+  }) async {
     if (!_allAddonsChecked) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1779,12 +2101,14 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       'returned_at': inspectionTime.toIso8601String(),
       'condition_grade': _conditionGrade,
       'late_fee': penaltyAmount,
+      'final_late_fee': penaltyAmount,
       'total_penalty': penaltyAmount,
       'penalty_amount': penaltyAmount,
       if (_enableWaiver && waivedAmount > 0) ...{
         'waived_late_fee': waivedAmount,
         'late_fee_discount': waivedAmount,
         'late_fee_waive_reason': waiveReason,
+        'late_fee_waiver_reason': waiveReason,
       },
       'staff_notes': _staffNotesController.text.trim().isEmpty ? null : _staffNotesController.text.trim(),
       'checklist_results': categoryChecklist,
@@ -1837,16 +2161,28 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       ref.invalidate(closingSummaryProvider);
 
       if (mounted) {
-        _showReturnSuccessDialog(penaltyAmount, true);
+        _showReturnSuccessDialog(
+          penaltyAmount,
+          true,
+          calculatedPenalty: calculatedPenalty,
+          waivedAmount: waivedAmount,
+          waiveReason: waiveReason,
+        );
       }
       return;
     }
 
     // 2. On-time return (penaltyAmount <= 0) OR explicit cashier deferral (_payPenaltyNow == false)
     setState(() => _isSubmitting = true);
+    _returnIdempotencyKey ??= IdempotencyHelper.generateUuidV4();
 
     try {
-      final inspection = await ref.read(bookingRepositoryProvider).processReturn(widget.booking['id'], payload);
+      final inspection = await ref.read(bookingRepositoryProvider).processReturn(
+        widget.booking['id'],
+        payload,
+        idempotencyKey: _returnIdempotencyKey,
+      );
+      _returnIdempotencyKey = null;
       ref.invalidate(bookingsListProvider);
       ref.invalidate(closingSummaryProvider);
 
@@ -1855,14 +2191,42 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       if (serverPenalty != null) {
         penaltyAmount = CurrencyFormatter.parse(serverPenalty);
       }
+      final serverCalculated = inspection['calculated_late_fee'];
+      final double resolvedCalculated = serverCalculated != null
+          ? CurrencyFormatter.parse(serverCalculated)
+          : calculatedPenalty;
+      final serverWaived = inspection['waived_late_fee'];
+      final double resolvedWaived = serverWaived != null
+          ? CurrencyFormatter.parse(serverWaived)
+          : waivedAmount;
+      final resolvedReason =
+          (inspection['late_fee_waiver_reason'] ??
+                  inspection['late_fee_waive_reason'] ??
+                  waiveReason)
+              .toString()
+              .trim();
 
       if (mounted) {
-        _showReturnSuccessDialog(penaltyAmount, false);
+        _showReturnSuccessDialog(
+          penaltyAmount,
+          false,
+          calculatedPenalty: resolvedCalculated,
+          waivedAmount: resolvedWaived,
+          waiveReason: resolvedReason,
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memproses kembali: $e'), backgroundColor: AppColors.danger),
+          SnackBar(
+            content: Text(
+              ApiClient.extractErrorMessage(
+                e,
+                fallback: 'Gagal memproses pengembalian unit.',
+              ),
+            ),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     } finally {
@@ -1870,7 +2234,13 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
     }
   }
 
-  void _showReturnSuccessDialog(double penaltyAmount, bool penaltyPaid) {
+  void _showReturnSuccessDialog(
+    double penaltyAmount,
+    bool penaltyPaid, {
+    double calculatedPenalty = 0.0,
+    double waivedAmount = 0.0,
+    String waiveReason = '',
+  }) {
     final showCollateral =
         ref.read(businessProvider).isCollateralEnabled ||
         hasCollateralRecord(widget.booking);
@@ -2003,111 +2373,99 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                           softWrap: false,
                         ),
                         onPressed: () {
-                          final printerService = ThermalPrinterService();
                           final printerSettings =
                               ref.read(printerProvider).settings;
                           final bizState = ref.read(businessProvider);
-                          final shopName = bizState.resolvedStoreName;
+                          final shopName = bizState.resolvedStoreName.isNotEmpty
+                              ? bizState.resolvedStoreName
+                              : 'SewaKasir';
                           final branchName =
                               bizState.resolvedBranchName.isNotEmpty
                                   ? bizState.resolvedBranchName
                                   : 'Cabang Utama';
                           final branchAddress = bizState.resolvedBranchAddress;
                           final branchPhone = bizState.resolvedBranchPhone;
-                          final checklistSummary = _isQuarantined
-                              ? 'Status: Karantina (Maintenance)'
-                              : (_isSmartphone
-                                  ? (_isAppleDevice
-                                      ? 'Status: Bersih (iCloud Logout)'
-                                      : 'Status: Bersih (Akun Google/FRP Logout)')
-                                  : 'Status: Fisik Diperiksa');
-                          final accessoriesSummary = _checklistDefs
-                              .map(
-                                (d) =>
-                                    '${d.label}: ${_checklistStates[d.key] == true ? "OK" : "Kurang"}',
-                              )
-                              .join(' • ');
+                          final bookingCode =
+                              widget.booking['booking_code']?.toString() ?? '-';
+                          final itemsList =
+                              (widget.booking['items'] as List?) ?? const [];
+                          final firstItem = itemsList.isNotEmpty && itemsList.first is Map
+                              ? itemsList.first as Map
+                              : null;
+                          final assetMap =
+                              (firstItem?['asset'] as Map?) ??
+                              (widget.booking['asset'] as Map?);
+                          final modelMap = assetMap?['model'] as Map?;
+                          final unitName = (modelMap?['name'] ??
+                                  assetMap?['name'] ??
+                                  widget.booking['asset']?['name'] ??
+                                  'Unit Sewa')
+                              .toString();
+                          final assetCode = assetMap?['asset_code']?.toString();
 
-                          final model = ReceiptDataModel(
-                            type: ReceiptType.rentalReturn,
-                            title: 'BUKTI PENGEMBALIAN UNIT',
-                            shopName: shopName.isNotEmpty ? shopName : null,
+                          final receiptDoc = ReceiptDocumentData(
+                            storeName: shopName,
+                            storeAddress: branchAddress,
+                            storePhone: branchPhone,
                             branchName: branchName,
-                            branchAddress:
-                                branchAddress.isNotEmpty ? branchAddress : null,
-                            branchPhone:
-                                branchPhone.isNotEmpty ? branchPhone : null,
-                            bookingCode:
-                                widget.booking['booking_code']?.toString() ??
-                                '',
+                            title: 'BUKTI PENGEMBALIAN UNIT',
+                            transactionCode: bookingCode,
+                            bookingCode: bookingCode,
+                            printedAt: DateFormatter.formatFull(DateTime.now()),
+                            cashierName: 'Kasir',
                             customerName: widget.booking['customer']?['name']
                                     ?.toString() ??
                                 'Pelanggan',
-                            unitName:
-                                widget.booking['asset']?['name']?.toString() ??
-                                'Perangkat Gadget',
-                            conditionGrade: 'Grade $_conditionGrade',
-                            checklistNotes: checklistSummary,
-                            accessoriesNotes: accessoriesSummary,
-                            penaltyAmount: penaltyPaid ? penaltyAmount : 0.0,
-                            paymentMethod: penaltyPaid ? 'Lunas Denda' : null,
-                            totalAmount: penaltyPaid ? penaltyAmount : 0.0,
-                            transactedAt: DateTime.now()
-                                .toString()
-                                .substring(0, 16),
+                            customerPhone: widget.booking['customer']?['phone']
+                                    ?.toString() ??
+                                '',
+                            rentalPeriodLabel: 'Kondisi: Grade $_conditionGrade',
+                            items: [
+                              ReceiptDocumentItem(
+                                name: unitName,
+                                variantOrCode: assetCode,
+                                quantity: 1,
+                                unitPrice: 0,
+                                totalPrice: 0,
+                              ),
+                            ],
+                            subtotal: 0,
+                            penaltyAmount: penaltyAmount,
+                            calculatedLateFee: calculatedPenalty,
+                            waivedLateFee: waivedAmount,
+                            lateFeeWaiverReason:
+                                waiveReason.trim().isNotEmpty
+                                    ? waiveReason.trim()
+                                    : null,
+                            collateralSummary: showCollateral &&
+                                    collateralSlot.isNotEmpty
+                                ? 'Dikembalikan ($collateralSlot)'
+                                : null,
+                            totalAmount: penaltyAmount,
+                            paidAmount: penaltyPaid ? penaltyAmount : 0,
+                            remainingBalance:
+                                penaltyPaid ? 0 : penaltyAmount,
+                            paymentMethodLabel: penaltyPaid
+                                ? 'Lunas Denda'
+                                : (penaltyAmount > 0
+                                    ? 'Denda Belum Lunas'
+                                    : 'Tepat Waktu / Bebas Denda'),
+                            paperWidthMm: printerSettings.paperWidth ==
+                                    ReceiptPaperWidth.mm80
+                                ? 80
+                                : 58,
+                            footerNote: printerSettings.customFooterMessage,
+                            showCollateralInfo: showCollateral,
+                            showPenaltyDetails: true,
+                            qrData: bookingCode,
                           );
-                          final escposBytes =
-                              printerService.buildRentalReturnSlipBytes(
-                            model,
-                            printerSettings,
-                          );
+
                           showDialog(
                             context: context,
-                            builder: (dCtx) => ThermalReceiptPreviewDialog(
+                            builder: (dCtx) =>
+                                ThermalReceiptPreviewDialog.fromDocument(
                               title: 'Bukti Pengembalian',
-                              shopName: shopName.isNotEmpty ? shopName : null,
-                              branchName: branchName,
-                              branchAddress: branchAddress.isNotEmpty
-                                  ? branchAddress
-                                  : null,
-                              branchPhone:
-                                  branchPhone.isNotEmpty ? branchPhone : null,
-                              escposBytes: escposBytes,
-                              qrData: widget.booking['booking_code']?.toString(),
-                              content: Column(
-                                children: [
-                                  const Text(
-                                    'BUKTI PENGEMBALIAN UNIT',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Kode: ${widget.booking['booking_code'] ?? "-"}',
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                  Text(
-                                    'Pelanggan: ${widget.booking['customer']?['name'] ?? "-"}',
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                  Text(
-                                    'Kondisi: Grade $_conditionGrade',
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                  if (showCollateral) ...[
-                                    const Divider(height: 16),
-                                    Text(
-                                      'Jaminan Fisik ($collateralSlot) Telah Diserahkan Kembali',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11,
-                                        color: AppColors.success,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                              document: receiptDoc,
                             ),
                           );
                         },

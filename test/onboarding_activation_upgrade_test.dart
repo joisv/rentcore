@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/home/presentation/widgets/progressive_checklist_banner.dart';
-import 'package:rentcore_mobile/features/onboarding/presentation/business_setup_wizard_screen.dart';
-import 'package:rentcore_mobile/features/onboarding/presentation/feature_walkthrough_screen.dart';
-import 'package:rentcore_mobile/features/onboarding/providers/onboarding_provider.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
+import 'package:sewakasir/features/auth/data/auth_repository.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/home/presentation/widgets/progressive_checklist_banner.dart';
+import 'package:sewakasir/features/onboarding/presentation/business_setup_wizard_screen.dart';
+import 'package:sewakasir/features/onboarding/presentation/feature_walkthrough_screen.dart';
+import 'package:sewakasir/features/onboarding/providers/onboarding_provider.dart';
+import 'package:sewakasir/features/organization/presentation/store_settings_screen.dart';
 
 class _StaticAuthNotifier extends AuthNotifier {
   final AuthState _state;

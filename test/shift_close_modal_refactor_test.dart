@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
-import 'package:rentcore_mobile/core/theme/app_theme.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/core/theme/app_theme.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
 
 class _FakeCashierShiftModalRepo extends CashierRepository {
   bool closeShiftCalled = false;

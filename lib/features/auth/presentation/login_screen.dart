@@ -122,7 +122,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 'Langkah Perbaikan di Google Cloud Console:\n'
                 '1. Pastikan Web Client ID yang digunakan ($serverClientId) benar dari menu Credentials > OAuth 2.0 Client IDs > Web application.\n'
                 '2. Pastikan Android Client ID sudah dibuat dengan:\n'
-                '   - Package name: com.rentcore.rentcore_mobile\n'
+                '   - Package name: id.sewakasir.mobile\n'
                 '   - SHA-1: 98:8C:86:65:AA:EF:A8:F8:57:E2:F0:89:E1:1C:E1:D3:BD:7B:96:D6',
           );
         }
@@ -157,7 +157,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               'Google Play Services menolak autentikasi karena konfigurasi belum sesuai di Google Cloud Console.\n\n'
               'Pastikan di Google Cloud Console:\n'
               '1. Android Client ID terdaftar:\n'
-              '   Package: com.rentcore.rentcore_mobile\n'
+              '   Package: id.sewakasir.mobile\n'
               '   SHA-1: 98:8C:86:65:AA:EF:A8:F8:57:E2:F0:89:E1:1C:E1:D3:BD:7B:96:D6\n'
               '2. Web Client ID terdaftar & cocok dengan serverClientId:\n'
               '   $serverClientId\n'
@@ -756,7 +756,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 18),
                 const Text(
-                  'RENTCORE',
+                  'SEWAKASIR',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 22,

@@ -5,13 +5,27 @@ import '../../../core/network/api_client.dart';
 
 class CustomerRepository {
   final Dio _dio = ApiClient().dio;
+  CancelToken? _pendingCancelToken;
+
+  /// Attach a [CancelToken] to be consumed by the next read/search request.
+  void attachCancelToken(CancelToken? cancelToken) {
+    _pendingCancelToken = cancelToken;
+  }
+
+  CancelToken? _takeCancelToken() {
+    final token = _pendingCancelToken;
+    _pendingCancelToken = null;
+    return token;
+  }
 
   /// Quick lookup customer by phone number or NIK/identity number.
   Future<Map<String, dynamic>?> lookupCustomer(String query) async {
+    final cancelToken = _takeCancelToken();
     try {
       final response = await _dio.get(
         ApiConstants.customerLookup,
         queryParameters: {'query': query.trim()},
+        cancelToken: cancelToken,
       );
 
       if (response.data['success'] == true && response.data['data'] != null) {
@@ -19,23 +33,39 @@ class CustomerRepository {
       }
       return null;
     } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) rethrow;
       if (e.response?.statusCode == 404) return null;
-      throw Exception(e.error ?? 'Gagal mencari data pelanggan.');
+      throw Exception(
+        ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal mencari data pelanggan.',
+        ),
+      );
     } catch (e) {
-      throw Exception('Gagal mencari data pelanggan: $e');
+      throw Exception(
+        ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal mencari data pelanggan.',
+        ),
+      );
     }
   }
 
   /// Search customers list with pagination and optional filter.
-  Future<List<Map<String, dynamic>>> searchCustomers({String? query, bool? isBlacklisted}) async {
+  Future<List<Map<String, dynamic>>> searchCustomers({
+    String? query,
+    bool? isBlacklisted,
+  }) async {
+    final cancelToken = _takeCancelToken();
     try {
-      final params = <String, dynamic>{};
+      final params = <String, dynamic>{'per_page': 20};
       if (query != null && query.isNotEmpty) params['search'] = query;
       if (isBlacklisted != null) params['is_blacklisted'] = isBlacklisted ? 1 : 0;
 
       final response = await _dio.get(
         ApiConstants.customers,
         queryParameters: params,
+        cancelToken: cancelToken,
       );
 
       if (response.data['success'] == true) {
@@ -44,9 +74,20 @@ class CustomerRepository {
       }
       return [];
     } on DioException catch (e) {
-      throw Exception(e.error ?? 'Gagal mengambil daftar pelanggan.');
+      if (e.type == DioExceptionType.cancel) rethrow;
+      throw Exception(
+        ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal mengambil daftar pelanggan.',
+        ),
+      );
     } catch (e) {
-      throw Exception('Gagal mengambil daftar pelanggan: $e');
+      throw Exception(
+        ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal mengambil daftar pelanggan.',
+        ),
+      );
     }
   }
 
@@ -56,14 +97,19 @@ class CustomerRepository {
     String? search,
     bool? isBlacklisted,
   }) async {
+    final cancelToken = _takeCancelToken();
     try {
-      final params = <String, dynamic>{'page': page};
+      final params = <String, dynamic>{
+        'page': page,
+        'per_page': 20,
+      };
       if (search != null && search.isNotEmpty) params['search'] = search;
       if (isBlacklisted != null) params['is_blacklisted'] = isBlacklisted ? 1 : 0;
 
       final response = await _dio.get(
         ApiConstants.customers,
         queryParameters: params,
+        cancelToken: cancelToken,
       );
 
       if (response.data['success'] == true && response.data['data'] != null) {
@@ -82,9 +128,20 @@ class CustomerRepository {
       }
       return PaginatedResult.empty();
     } on DioException catch (e) {
-      throw Exception(e.error ?? 'Gagal mengambil data pelanggan.');
+      if (e.type == DioExceptionType.cancel) rethrow;
+      throw Exception(
+        ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal mengambil data pelanggan.',
+        ),
+      );
     } catch (e) {
-      throw Exception('Gagal mengambil data pelanggan: $e');
+      throw Exception(
+        ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal mengambil data pelanggan.',
+        ),
+      );
     }
   }
 

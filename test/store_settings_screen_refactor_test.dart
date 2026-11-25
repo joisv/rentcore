@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/auth/presentation/user_profile_screen.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/customers/presentation/customer_directory_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/manage_organization_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/payment_method_settings_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/shift_schedule_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_profile_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
-import 'package:rentcore_mobile/features/printer/presentation/printer_settings_screen.dart';
-import 'package:rentcore_mobile/features/transfers/presentation/transfers_screen.dart';
-import 'package:rentcore_mobile/features/vouchers/presentation/voucher_screen.dart';
-import 'package:rentcore_mobile/shared/widgets/business_selector_sheet.dart';
+import 'package:sewakasir/features/auth/presentation/user_profile_screen.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/customers/presentation/customer_directory_screen.dart';
+import 'package:sewakasir/features/organization/presentation/manage_organization_screen.dart';
+import 'package:sewakasir/features/organization/presentation/payment_method_settings_screen.dart';
+import 'package:sewakasir/features/organization/presentation/shift_schedule_screen.dart';
+import 'package:sewakasir/features/organization/presentation/store_profile_screen.dart';
+import 'package:sewakasir/features/organization/presentation/store_settings_screen.dart';
+import 'package:sewakasir/features/printer/presentation/printer_settings_screen.dart';
+import 'package:sewakasir/features/transfers/presentation/transfers_screen.dart';
+import 'package:sewakasir/features/vouchers/presentation/voucher_screen.dart';
+import 'package:sewakasir/shared/widgets/business_selector_sheet.dart';
 
 class _MockAuthNotifier extends AuthNotifier {
   final AuthState _initial;
@@ -134,7 +134,7 @@ void main() {
       // Clean footer actions
       expect(find.text('Ganti Usaha / Cabang'), findsOneWidget);
       expect(find.text('Keluar Akun'), findsOneWidget);
-      expect(find.text('Rentcore • Versi 1.0.0+1'), findsOneWidget);
+      expect(find.text('SewaKasir • Versi 1.0.0+1'), findsOneWidget);
 
       // Chevrons & ListView clearance
       expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);

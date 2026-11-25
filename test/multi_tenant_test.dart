@@ -1,9 +1,9 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/core/network/api_client.dart';
-import 'package:rentcore_mobile/core/services/secure_token_storage.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/core/network/api_client.dart';
+import 'package:sewakasir/core/services/secure_token_storage.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

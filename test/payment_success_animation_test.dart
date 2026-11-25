@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/widgets/animated_success_checkmark.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
-import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
+import 'package:sewakasir/core/widgets/animated_success_checkmark.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/payments/models/payment_context.dart';
+import 'package:sewakasir/features/payments/presentation/payment_page.dart';
 
 class _FakeCashierRepoForAnimationTest extends CashierRepository {
   @override

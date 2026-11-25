@@ -1,6 +1,6 @@
-# rentcore_mobile
+# sewakasir
 
-A new Flutter project.
+SewaKasir - Electronic Rental Operating System.
 
 ## Getting Started
 

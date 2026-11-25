@@ -4,18 +4,18 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/services/printer_bluetooth_driver.dart';
-import 'package:rentcore_mobile/core/services/thermal_printer_service.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/pos_transaction_detail_sheet.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/payments/data/payment_repository.dart';
-import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
-import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
-import 'package:rentcore_mobile/features/printer/presentation/printer_settings_screen.dart';
-import 'package:rentcore_mobile/shared/widgets/thermal_receipt_preview_dialog.dart';
+import 'package:sewakasir/core/services/printer_bluetooth_driver.dart';
+import 'package:sewakasir/core/services/thermal_printer_service.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/presentation/pos_transaction_detail_sheet.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/payments/data/payment_repository.dart';
+import 'package:sewakasir/features/payments/models/payment_context.dart';
+import 'package:sewakasir/features/payments/presentation/payment_page.dart';
+import 'package:sewakasir/features/printer/presentation/printer_settings_screen.dart';
+import 'package:sewakasir/shared/widgets/thermal_receipt_preview_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -208,8 +208,8 @@ void main() {
         expect(dialogFinder, findsOneWidget);
         final dialog = tester.widget<ThermalReceiptPreviewDialog>(dialogFinder);
         expect(dialog.isReprint, isTrue);
-        expect(find.text('-- CETAK ULANG --'), findsOneWidget);
-        expect(latin1.decode(dialog.escposBytes), contains('-- CETAK ULANG --'));
+        expect(find.text('[CETAK ULANG]'), findsOneWidget);
+        expect(latin1.decode(dialog.escposBytes), contains('[CETAK ULANG]'));
       },
     );
 

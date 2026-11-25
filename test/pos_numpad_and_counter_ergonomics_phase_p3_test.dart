@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/constants/navigation_keys.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/widgets/add_branch_expense_modal.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/payments/data/payment_repository.dart';
-import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
-import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
-import 'package:rentcore_mobile/shared/widgets/pos_numpad.dart';
+import 'package:sewakasir/core/constants/navigation_keys.dart';
+import 'package:sewakasir/features/cashier/presentation/widgets/add_branch_expense_modal.dart';
+import 'package:sewakasir/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/payments/data/payment_repository.dart';
+import 'package:sewakasir/features/payments/models/payment_context.dart';
+import 'package:sewakasir/features/payments/presentation/payment_page.dart';
+import 'package:sewakasir/shared/widgets/pos_numpad.dart';
 
 void main() {
   group('Phase P3 — PosNumpad Unit & Touch Tests', () {

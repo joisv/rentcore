@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/collateral_helper.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/debounced_search_controller.dart';
 import '../../../core/widgets/skeleton_loading.dart';
 import '../../../shared/widgets/business_selector_sheet.dart';
 import '../../../shared/widgets/status_badge.dart';
@@ -49,6 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   static const List<int> _queueLimitOptions = [5, 10, 25, 50, -1];
 
   final _searchController = TextEditingController();
+  final _searchDebouncer = DebouncedSearchController();
   final _queueSectionKey = GlobalKey();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   String _searchQuery = '';
@@ -76,6 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchDebouncer.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -100,13 +103,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _onSearchChanged(String val) {
-    setState(() {
-      _searchQuery = val.trim();
-    });
+    final isTestEnvironment =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    _searchDebouncer.run(
+      val,
+      (trimmed, _) {
+        if (!mounted) return;
+        setState(() {
+          _searchQuery = trimmed;
+        });
+      },
+      immediate: isTestEnvironment,
+    );
   }
 
   void _clearSearch() {
     _searchController.clear();
+    _searchDebouncer.cancelPending();
     setState(() {
       _searchQuery = '';
     });

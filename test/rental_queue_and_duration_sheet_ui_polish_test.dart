@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/constants/app_colors.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/presentation/bookings_screen.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/core/constants/app_colors.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/presentation/bookings_screen.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
 
 class _FakeBookingRepositoryForPolish extends BookingRepository {
   List<Map<String, dynamic>> returnData = [];

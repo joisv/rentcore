@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/financial_activity_ledger_screen.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/pos_transaction_detail_sheet.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/cashier/presentation/financial_activity_ledger_screen.dart';
+import 'package:sewakasir/features/cashier/presentation/pos_transaction_detail_sheet.dart';
+import 'package:sewakasir/features/cashier/presentation/widgets/cash_drawer_shift_modal.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
 
 void main() {
   testWidgets('FinancialActivityLedgerScreen renders ledger list and filter chips', (tester) async {

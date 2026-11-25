@@ -26,21 +26,17 @@ class _RateItem {
   String unit;
   final TextEditingController valueController;
   final TextEditingController priceController;
-  final TextEditingController extensionRateController;
 
   _RateItem({
     this.unit = 'day',
     String value = '1',
     String price = '',
-    String extensionRate = '20000',
   })  : valueController = TextEditingController(text: value),
-        priceController = TextEditingController(text: price),
-        extensionRateController = TextEditingController(text: extensionRate);
+        priceController = TextEditingController(text: price);
 
   void dispose() {
     valueController.dispose();
     priceController.dispose();
-    extensionRateController.dispose();
   }
 }
 
@@ -80,7 +76,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       _colorController.text = p['color']?.toString() ?? '';
       _storageController.text = p['storage_capacity']?.toString() ?? '';
       _descriptionController.text = p['description']?.toString() ?? '';
-      final rawHourlyLateFee = p['hourly_late_fee'];
+      final rawHourlyLateFee = p['late_fee_per_hour'] ?? p['hourly_late_fee'];
       if (rawHourlyLateFee != null && rawHourlyLateFee.toString().trim().isNotEmpty) {
         final parsed = double.tryParse(rawHourlyLateFee.toString());
         _hourlyLateFeeController.text =
@@ -107,12 +103,10 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
         for (final t in tiers) {
           if (t is Map<String, dynamic>) {
             final pr = t['price'];
-            final ext = t['extension_hourly_rate'];
             _rates.add(_RateItem(
               unit: t['duration_unit']?.toString() ?? 'day',
               value: (t['duration_value'] ?? 1).toString(),
               price: pr != null ? (pr is num ? pr.toInt().toString() : pr.toString()) : '',
-              extensionRate: ext != null ? (ext is num ? ext.toInt().toString() : ext.toString()) : '20000',
             ));
           }
         }
@@ -121,7 +115,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
 
     if (_rates.isEmpty) {
       // Default initial rate: 1 Hari
-      _rates.add(_RateItem(unit: 'day', value: '1', price: '', extensionRate: '20000'));
+      _rates.add(_RateItem(unit: 'day', value: '1', price: ''));
     }
   }
 
@@ -144,7 +138,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
     setState(() {
       final nextValue = _rates.isEmpty ? '1' : (_rates.length == 1 ? '3' : (_rates.length == 2 ? '7' : '1'));
       final nextUnit = _rates.length >= 2 ? 'week' : 'day';
-      _rates.add(_RateItem(unit: nextUnit, value: nextValue, price: '', extensionRate: '20000'));
+      _rates.add(_RateItem(unit: nextUnit, value: nextValue, price: ''));
     });
   }
 
@@ -165,7 +159,6 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
         unit: unit,
         value: value.toString(),
         price: '',
-        extensionRate: '20000',
       ));
     });
   }
@@ -435,7 +428,6 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       final r = _rates[i];
       final val = int.tryParse(r.valueController.text.trim());
       final price = CurrencyFormatter.parse(r.priceController.text.trim());
-      final ext = CurrencyFormatter.parse(r.extensionRateController.text.trim());
 
       if (val == null || val <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -454,7 +446,6 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
         'duration_unit': r.unit,
         'duration_value': val,
         'price': price,
-        'extension_hourly_rate': ext > 0 ? ext : 20000.0,
       });
     }
 
@@ -498,6 +489,7 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
           'requires_frp_check': _requiresFrpCheck ? 1 : 0,
           'is_addon': _isAddon ? 1 : 0,
           'hourly_late_fee': ?parsedModelLateFee,
+          'late_fee_per_hour': ?parsedModelLateFee,
           if (_isEditing) '_method': 'PUT',
           if (_removeImage) 'remove_image': 1,
         };
@@ -509,7 +501,6 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
           formMap['rates[$i][duration_unit]'] = r['duration_unit'];
           formMap['rates[$i][duration_value]'] = r['duration_value'];
           formMap['rates[$i][price]'] = r['price'];
-          formMap['rates[$i][extension_hourly_rate]'] = r['extension_hourly_rate'];
         }
         if (_pickedImageBytes != null && _pickedImageFile != null) {
           formMap['image'] = MultipartFile.fromBytes(
@@ -544,8 +535,10 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
           'has_serial_number': _hasSerialNumber,
           'requires_frp_check': _requiresFrpCheck,
           'is_addon': _isAddon,
-          if (parsedModelLateFee != null || _isEditing)
+          if (parsedModelLateFee != null || _isEditing) ...{
             'hourly_late_fee': parsedModelLateFee,
+            'late_fee_per_hour': parsedModelLateFee,
+          },
           'rates': formattedRates,
         };
         resultModel = _isEditing
@@ -1213,91 +1206,6 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-
-                      // Denda Keterlambatan / Jam (Model-level default)
-                      Builder(
-                        builder: (context) {
-                          final biz = ref.watch(businessProvider).activeBusiness;
-                          final defaultBizRate = double.tryParse(
-                                biz?['default_hourly_late_fee']?.toString() ?? '',
-                              ) ??
-                              0.0;
-                          final helperText = defaultBizRate > 0
-                              ? 'Kosongkan untuk mengikuti tarif default toko (${CurrencyFormatter.format(defaultBizRate)}/jam)'
-                              : 'Tarif standar denda keterlambatan per jam untuk semua unit model ini';
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      'Denda Keterlambatan / Jam',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF334155),
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Opsional',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      color: Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                helperText,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                key: const Key('model_hourly_late_fee_input'),
-                                controller: _hourlyLateFeeController,
-                                keyboardType: TextInputType.number,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1E293B),
-                                ),
-                                decoration: _inputDecoration(
-                                  hintText: defaultBizRate > 0
-                                      ? defaultBizRate.toInt().toString()
-                                      : 'Misal: 25000',
-                                ).copyWith(
-                                  prefixIcon: const Padding(
-                                    padding: EdgeInsets.only(left: 14, right: 8),
-                                    child: Text(
-                                      'Rp',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF64748B),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  prefixIconConstraints: const BoxConstraints(
-                                    minWidth: 0,
-                                    minHeight: 0,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
                       const SizedBox(height: 20),
 
                       // SECTION 2: PROTEKSI & TIPE UNIT
@@ -1490,264 +1398,235 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Rate cards
+                      // Column headers for aligned single-row rate tiers
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8, left: 2, right: 2),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              flex: 6,
+                              child: Text(
+                                'Paket / Durasi',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              flex: 6,
+                              child: Text(
+                                'Harga Sewa (Rp)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                            if (_rates.length > 1) const SizedBox(width: 36),
+                          ],
+                        ),
+                      ),
+
+                      // Streamlined single-row rate tiers (Airy Minimalist — no per-tier late fee)
                       ..._rates.asMap().entries.map((entry) {
                         final idx = entry.key;
                         final rate = entry.value;
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        return Padding(
+                          key: Key('rate_tier_row_$idx'),
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Card Header Badge & Delete Action
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Flexible(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF1F5F9),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.sell_outlined, size: 12, color: Color(0xFF0F172A)),
-                                          const SizedBox(width: 6),
-                                          Flexible(
-                                            child: Text(
-                                              'Paket #${idx + 1}: ${rate.valueController.text.isEmpty ? "1" : rate.valueController.text} ${_formatUnitName(rate.unit)}',
-                                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: Color(0xFF0F172A)),
-                                              overflow: TextOverflow.ellipsis,
+                              // Paket / Durasi (Value + Unit)
+                              Expanded(
+                                flex: 6,
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 52,
+                                      child: TextField(
+                                        key: Key('rate_tier_duration_$idx'),
+                                        controller: rate.valueController,
+                                        keyboardType: TextInputType.number,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13.5,
+                                          color: Color(0xFF0F172A),
+                                          fontFeatures: [FontFeature.tabularFigures()],
+                                        ),
+                                        decoration: InputDecoration(
+                                          hintText: '1',
+                                          hintStyle: const TextStyle(
+                                            color: Color(0xFF94A3B8),
+                                            fontWeight: FontWeight.normal,
+                                          ),
+                                          filled: true,
+                                          fillColor: const Color(0xFFF8FAFC),
+                                          isDense: true,
+                                          contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 12,
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFFE2E8F0),
+                                              width: 1,
                                             ),
                                           ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFF0F172A),
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                        ),
+                                        onChanged: (_) => setState(() {}),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        key: Key('rate_tier_unit_$idx'),
+                                        // ignore: deprecated_member_use
+                                        value: rate.unit,
+                                        isExpanded: true,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                        decoration: InputDecoration(
+                                          filled: true,
+                                          fillColor: const Color(0xFFF8FAFC),
+                                          isDense: true,
+                                          contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 11,
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFFE2E8F0),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFF0F172A),
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.keyboard_arrow_down_rounded,
+                                          size: 18,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'day', child: Text('Hari')),
+                                          DropdownMenuItem(value: 'hour', child: Text('Jam')),
+                                          DropdownMenuItem(value: 'week', child: Text('Minggu')),
+                                          DropdownMenuItem(value: 'month', child: Text('Bulan')),
                                         ],
+                                        onChanged: (val) {
+                                          if (val != null) setState(() => rate.unit = val);
+                                        },
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (idx == 0) ...[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFECFDF5),
-                                            borderRadius: BorderRadius.circular(6),
-                                            border: Border.all(color: const Color(0xFFA7F3D0)),
-                                          ),
-                                          child: const Text(
-                                            'Paket Utama',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF047857),
-                                            ),
-                                          ),
-                                        ),
-                                        if (_rates.length > 1) const SizedBox(width: 8),
-                                      ],
-                                      if (_rates.length > 1)
-                                        InkWell(
-                                          onTap: () => _removeRateRow(idx),
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: const Padding(
-                                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.delete_outline_rounded, size: 15, color: Color(0xFFF43F5E)),
-                                                SizedBox(width: 4),
-                                                Text(
-                                                  'Hapus Paket',
-                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFF43F5E)),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(width: 8),
 
-                              // Duration Value & Duration Unit (2 Columns)
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 4,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('Durasi *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
-                                        const SizedBox(height: 6),
-                                        TextField(
-                                          controller: rate.valueController,
-                                          keyboardType: TextInputType.number,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A)),
-                                          decoration: InputDecoration(
-                                            hintText: '1',
-                                            filled: true,
-                                            fillColor: Colors.white,
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                              borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
-                                            ),
-                                          ),
-                                          onChanged: (_) => setState(() {}),
+                              // Harga Sewa (Rp)
+                              Expanded(
+                                flex: 6,
+                                child: TextField(
+                                  key: Key('rate_tier_price_$idx'),
+                                  controller: rate.priceController,
+                                  keyboardType: TextInputType.number,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                    color: Color(0xFF0F172A),
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                  decoration: InputDecoration(
+                                    prefixIcon: const Padding(
+                                      padding: EdgeInsets.only(left: 12, right: 6),
+                                      child: Text(
+                                        'Rp',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF64748B),
+                                          fontSize: 13,
                                         ),
-                                      ],
+                                      ),
+                                    ),
+                                    prefixIconConstraints: const BoxConstraints(
+                                      minWidth: 0,
+                                      minHeight: 0,
+                                    ),
+                                    hintText: '200000',
+                                    hintStyle: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.normal,
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 12,
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF0F172A),
+                                        width: 1.5,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    flex: 7,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('Satuan *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
-                                        const SizedBox(height: 6),
-                                        DropdownButtonFormField<String>(
-                                          // ignore: deprecated_member_use
-                                          value: rate.unit,
-                                          isExpanded: true,
-                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                                          decoration: InputDecoration(
-                                            filled: true,
-                                            fillColor: const Color(0xFFF8FAFC),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                              borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
-                                            ),
-                                          ),
-                                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
-                                          items: const [
-                                            DropdownMenuItem(value: 'day', child: Text('Hari (day)')),
-                                            DropdownMenuItem(value: 'hour', child: Text('Jam (hour)')),
-                                            DropdownMenuItem(value: 'week', child: Text('Minggu (week)')),
-                                            DropdownMenuItem(value: 'month', child: Text('Bulan (month)')),
-                                          ],
-                                          onChanged: (val) {
-                                            if (val != null) setState(() => rate.unit = val);
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
-                              const SizedBox(height: 12),
 
-                              // Price
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Harga Sewa Paket *',
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  TextField(
-                                    controller: rate.priceController,
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
-                                    decoration: InputDecoration(
-                                      prefixIcon: const Padding(
-                                        padding: EdgeInsets.only(left: 14, right: 8),
-                                        child: Text('Rp', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF64748B), fontSize: 14)),
-                                      ),
-                                      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                      hintText: 'Misal: 300000',
-                                      hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8), fontWeight: FontWeight.normal),
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
-                                      ),
+                              // Subtle delete button when > 1 tier
+                              if (_rates.length > 1) ...[
+                                const SizedBox(width: 4),
+                                SizedBox(
+                                  width: 32,
+                                  height: 36,
+                                  child: IconButton(
+                                    key: Key('rate_tier_delete_$idx'),
+                                    tooltip: 'Hapus Paket',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () => _removeRateRow(idx),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 18,
+                                      color: Color(0xFF94A3B8),
                                     ),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-
-                              // Extension rate per hour
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          'Denda / Overtime per Jam',
-                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Opsional',
-                                        style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  TextField(
-                                    controller: rate.extensionRateController,
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B)),
-                                    decoration: InputDecoration(
-                                      prefixIcon: const Padding(
-                                        padding: EdgeInsets.only(left: 14, right: 8),
-                                        child: Text('Rp', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B), fontSize: 13)),
-                                      ),
-                                      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                      hintText: '20000',
-                                      hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                                      filled: true,
-                                      fillColor: const Color(0xFFF8FAFC),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ],
                           ),
                         );
@@ -1782,14 +1661,136 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
                           backgroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           side: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
                         label: const Text(
                           '+ Tambah Paket Tarif Baru (Kustom)',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                         ),
                         onPressed: _addRateRow,
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Single model-level Denda Keterlambatan / Jam (below Paket Tarif Sewa)
+                      Builder(
+                        builder: (context) {
+                          final biz = ref.watch(businessProvider).activeBusiness;
+                          final defaultType =
+                              biz?['late_fee_default_type']?.toString() ?? 'fixed';
+                          final defaultBizRate = double.tryParse(
+                                (biz?['late_fee_default_rate'] ??
+                                        biz?['default_hourly_late_fee'])
+                                    ?.toString() ??
+                                    '',
+                              ) ??
+                              0.0;
+                          final storeDefaultSuffix = defaultBizRate > 0
+                              ? (defaultType == 'percent_daily'
+                                  ? ' (Default toko: ${defaultBizRate % 1 == 0 ? defaultBizRate.toInt() : defaultBizRate}% tarif harian/jam)'
+                                  : ' (Default toko: ${CurrencyFormatter.format(defaultBizRate)}/jam)')
+                              : '';
+                          final helperText =
+                              'Berlaku untuk semua paket sewa model ini. Kosongkan untuk memakai tarif default toko.$storeDefaultSuffix';
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      'Denda Keterlambatan / Jam',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Opsional',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                key: const Key('model_hourly_late_fee_input'),
+                                controller: _hourlyLateFeeController,
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F172A),
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: defaultBizRate > 0
+                                      ? defaultBizRate.toInt().toString()
+                                      : 'Misal: 25000',
+                                  hintStyle: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF94A3B8),
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF0F172A),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  prefixIcon: const Padding(
+                                    padding: EdgeInsets.only(left: 14, right: 8),
+                                    child: Text(
+                                      'Rp',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF64748B),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  prefixIconConstraints: const BoxConstraints(
+                                    minWidth: 0,
+                                    minHeight: 0,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                helperText,
+                                key: const Key('model_hourly_late_fee_helper'),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),

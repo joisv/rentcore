@@ -3,9 +3,22 @@ import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/models/paginated_result.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/idempotency_helper.dart';
 
 class BookingRepository {
   final ApiClient _client = ApiClient();
+  CancelToken? _pendingCancelToken;
+
+  /// Attach a [CancelToken] to be consumed by the next read/search request.
+  void attachCancelToken(CancelToken? cancelToken) {
+    _pendingCancelToken = cancelToken;
+  }
+
+  CancelToken? _takeCancelToken() {
+    final token = _pendingCancelToken;
+    _pendingCancelToken = null;
+    return token;
+  }
 
   String? _resolveIdempotencyKey(
     String? explicitKey,
@@ -42,8 +55,9 @@ class BookingRepository {
     int? branchId,
     bool allBranches = false,
   }) async {
+    final cancelToken = _takeCancelToken();
     final queryParams = <String, dynamic>{
-      'per_page': '200',
+      'per_page': '50',
     };
     if (status != null) queryParams['status'] = status;
     if (search != null) queryParams['search'] = search;
@@ -56,6 +70,7 @@ class BookingRepository {
     final response = await _client.dio.get(
       ApiConstants.bookings,
       queryParameters: queryParams,
+      cancelToken: cancelToken,
     );
     final rawData = response.data['data'];
     if (rawData is List) {
@@ -75,9 +90,11 @@ class BookingRepository {
     int page = 1,
     int perPage = 15,
   }) async {
+    final cancelToken = _takeCancelToken();
+    final cappedPerPage = perPage.clamp(1, 50);
     final queryParams = <String, dynamic>{
       'page': page.toString(),
-      'per_page': perPage.toString(),
+      'per_page': cappedPerPage.toString(),
     };
     if (status != null) queryParams['status'] = status;
     if (search != null) queryParams['search'] = search;
@@ -91,6 +108,7 @@ class BookingRepository {
       final response = await _client.dio.get(
         ApiConstants.bookings,
         queryParameters: queryParams,
+        cancelToken: cancelToken,
       );
 
       final rawData = response.data['data'];
@@ -190,8 +208,10 @@ class BookingRepository {
     Map<String, dynamic> payload, {
     String? idempotencyKey,
   }) async {
-    final body = _attachIdempotencyKey(payload, idempotencyKey);
-    final effectiveKey = _resolveIdempotencyKey(idempotencyKey, body);
+    final effectiveKey =
+        _resolveIdempotencyKey(idempotencyKey, payload) ??
+        IdempotencyHelper.generateUuidV4();
+    final body = _attachIdempotencyKey(payload, effectiveKey);
     Options? opts = _idempotencyOptions(effectiveKey);
     final rawBranch = body['branch_id'] ?? body['affiliate_id'];
     if (rawBranch != null && rawBranch.toString().trim().isNotEmpty) {
@@ -291,8 +311,10 @@ class BookingRepository {
     Map<String, dynamic> returnData, {
     String? idempotencyKey,
   }) async {
-    final body = _attachIdempotencyKey(returnData, idempotencyKey);
-    final effectiveKey = _resolveIdempotencyKey(idempotencyKey, body);
+    final effectiveKey =
+        _resolveIdempotencyKey(idempotencyKey, returnData) ??
+        IdempotencyHelper.generateUuidV4();
+    final body = _attachIdempotencyKey(returnData, effectiveKey);
     final response = await _client.dio.post(
       ApiConstants.returnBooking(bookingId),
       data: body,
@@ -331,6 +353,7 @@ class BookingRepository {
     int? categoryId,
     String? search,
   }) async {
+    final cancelToken = _takeCancelToken();
     if (branchId == null) {
       throw Exception('Cabang aktif wajib dipilih sebelum mengecek ketersediaan booking.');
     }
@@ -348,6 +371,7 @@ class BookingRepository {
       ApiConstants.bookingAvailability,
       queryParameters: queryParams,
       options: Options(headers: {'X-Branch-Id': branchId.toString()}),
+      cancelToken: cancelToken,
     );
     final rawData = response.data['data'];
     if (rawData is List) {

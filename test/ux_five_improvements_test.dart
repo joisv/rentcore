@@ -4,18 +4,18 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:rentcore_mobile/core/constants/navigation_keys.dart';
-import 'package:rentcore_mobile/core/theme/app_theme.dart';
-import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/bookings/presentation/direct_rental_screen.dart';
-import 'package:rentcore_mobile/features/home/presentation/widgets/progressive_checklist_banner.dart';
-import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
-import 'package:rentcore_mobile/features/inventory/presentation/add_product_sheet.dart';
-import 'package:rentcore_mobile/features/inventory/presentation/inventory_screen.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
-import 'package:rentcore_mobile/shared/widgets/floating_capsule_dock.dart';
+import 'package:sewakasir/core/constants/navigation_keys.dart';
+import 'package:sewakasir/core/theme/app_theme.dart';
+import 'package:sewakasir/features/auth/data/auth_repository.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/bookings/presentation/direct_rental_screen.dart';
+import 'package:sewakasir/features/home/presentation/widgets/progressive_checklist_banner.dart';
+import 'package:sewakasir/features/inventory/data/asset_repository.dart';
+import 'package:sewakasir/features/inventory/presentation/add_product_sheet.dart';
+import 'package:sewakasir/features/inventory/presentation/inventory_screen.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/shared/widgets/floating_capsule_dock.dart';
 
 class _TestBusinessNotifier extends BusinessNotifier {
   @override

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/core/constants/api_constants.dart';
-import 'package:rentcore_mobile/core/network/api_client.dart';
-import 'package:rentcore_mobile/features/notifications/models/notification_item.dart';
-import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
-import 'package:rentcore_mobile/features/notifications/presentation/notification_center_screen.dart';
+import 'package:sewakasir/core/constants/api_constants.dart';
+import 'package:sewakasir/core/network/api_client.dart';
+import 'package:sewakasir/features/notifications/models/notification_item.dart';
+import 'package:sewakasir/features/notifications/providers/notification_provider.dart';
+import 'package:sewakasir/features/notifications/presentation/notification_center_screen.dart';
 
 class _FakeNotificationNotifier extends NotificationNotifier {
   final NotificationState initialState;

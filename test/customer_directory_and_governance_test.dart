@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rentcore_mobile/core/models/paginated_result.dart';
-import 'package:rentcore_mobile/features/customers/data/customer_repository.dart';
-import 'package:rentcore_mobile/features/customers/presentation/customer_directory_screen.dart';
-import 'package:rentcore_mobile/features/customers/presentation/widgets/add_customer_sheet.dart';
-import 'package:rentcore_mobile/features/customers/presentation/widgets/customer_detail_sheet.dart';
-import 'package:rentcore_mobile/features/customers/providers/customer_provider.dart';
+import 'package:sewakasir/core/models/paginated_result.dart';
+import 'package:sewakasir/features/customers/data/customer_repository.dart';
+import 'package:sewakasir/features/customers/presentation/customer_directory_screen.dart';
+import 'package:sewakasir/features/customers/presentation/widgets/add_customer_sheet.dart';
+import 'package:sewakasir/features/customers/presentation/widgets/customer_detail_sheet.dart';
+import 'package:sewakasir/features/customers/providers/customer_provider.dart';
 
 class MockCustomerRepository extends CustomerRepository {
   List<Map<String, dynamic>> dummyCustomers = [

@@ -2216,88 +2216,43 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
 
   void _printPaymentReceipt(PaymentResult result, {bool autoShareOnOpen = false}) {
     try {
-      final printerService = ThermalPrinterService();
       final printerSettings = ref.read(printerProvider).settings;
       final authState = ref.read(authProvider);
       final bizState = ref.read(businessProvider);
       final ctx = widget.paymentContext;
-
-      final resolvedStoreName = bizState.resolvedStoreName;
-      final resolvedBranchName = (ctx.branchName != null && ctx.branchName!.trim().isNotEmpty)
-          ? ctx.branchName!.trim()
-          : (bizState.resolvedBranchName.isNotEmpty
-              ? bizState.resolvedBranchName
-              : 'Cabang Utama');
-      final resolvedAddress = bizState.resolvedBranchAddress;
-      final resolvedPhone = bizState.resolvedBranchPhone;
       final rawCashierName = authState.user?['name']?.toString().trim();
-      final resolvedCashierName =
-          (rawCashierName != null && rawCashierName.isNotEmpty) ? rawCashierName : 'Kasir';
+      final effectiveResult =
+          (result.paymentMethodName != null &&
+                  result.paymentMethodName!.trim().isNotEmpty)
+              ? result
+              : PaymentResult(
+                  status: result.status,
+                  transactionCode: result.transactionCode,
+                  receiptNumber: result.receiptNumber,
+                  amountPaid: result.amountPaid,
+                  cashReceived: result.cashReceived,
+                  cashChange: result.cashChange,
+                  paymentMethodCode: result.paymentMethodCode,
+                  paymentMethodName: _selectedMethodName,
+                  responseData: result.responseData,
+                  errorMessage: result.errorMessage,
+                );
 
-      final model = ReceiptDataModel(
-        type: ReceiptType.posPayment,
-        title: 'STRUK TRANSAKSI POS',
-        shopName: resolvedStoreName.isNotEmpty ? resolvedStoreName : null,
-        branchName: resolvedBranchName,
-        branchAddress: resolvedAddress.isNotEmpty ? resolvedAddress : null,
-        branchPhone: resolvedPhone.isNotEmpty ? resolvedPhone : null,
-        receiptNumber: result.receiptNumber,
-        bookingCode: ctx.bookingCode,
-        customerName: ctx.customerName,
-        customerPhone: ctx.customerPhone,
-        cashierName: resolvedCashierName,
-        unitName: ctx.deviceName,
-        items: ctx.items.isNotEmpty
-            ? ctx.items
-                .map((i) => {
-                      'name': i.isAddon ? '${i.name} (Add-on)' : i.name,
-                      'asset_code': i.assetCode,
-                      'price': i.price,
-                      'duration': i.durationText,
-                    })
-                .toList()
-            : null,
-        subtotal: (ctx.primarySubtotal != null || ctx.addonSubtotal != null)
-            ? ((ctx.primarySubtotal ?? 0) + (ctx.addonSubtotal ?? 0))
-            : null,
-        discount: ctx.discountAmount,
-        totalAmount: result.amountPaid,
-        paymentMethod: result.paymentMethodName ?? _selectedMethodName,
-        cashReceived: result.cashReceived,
-        cashChange: result.cashChange,
-        isDownPayment: ctx.isDownPayment,
-        remainingBalance: ctx.remainingAfterCurrentPayment,
-        transactedAt: DateTime.now().toString().substring(0, 16),
+      final document = ReceiptDocumentData.fromTransaction(
+        business: bizState,
+        paymentContext: ctx,
+        paymentResult: effectiveResult,
+        settings: printerSettings,
+        fallbackCashierName: rawCashierName,
+        isReprint: false,
       );
-
-      final escposBytes = printerService.buildPosPaymentSlipBytes(model, printerSettings);
 
       showDialog(
         context: context,
-        builder: (dCtx) => ThermalReceiptPreviewDialog(
+        builder: (dCtx) => ThermalReceiptPreviewDialog.fromDocument(
           title: 'Struk Pembayaran POS',
-          shopName: resolvedStoreName.isNotEmpty ? resolvedStoreName : null,
-          branchName: resolvedBranchName,
-          branchAddress: resolvedAddress.isNotEmpty ? resolvedAddress : null,
-          branchPhone: resolvedPhone.isNotEmpty ? resolvedPhone : null,
+          document: document,
           autoShareOnOpen: autoShareOnOpen,
-          qrData: ctx.bookingCode ?? result.receiptNumber,
-          escposBytes: escposBytes,
-          content: Column(
-            children: [
-              Text(ctx.transactionTypeTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              Text('No: ${result.receiptNumber ?? "-"}', style: const TextStyle(fontSize: 11)),
-              Text('Pelanggan: ${ctx.customerName}', style: const TextStyle(fontSize: 11)),
-              const Divider(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total Bayar:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text(CurrencyFormatter.format(result.amountPaid), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                ],
-              ),
-            ],
-          ),
         ),
       );
     } catch (e) {

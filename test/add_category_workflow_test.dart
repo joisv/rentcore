@@ -4,11 +4,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:rentcore_mobile/core/theme/app_theme.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
-import 'package:rentcore_mobile/features/inventory/presentation/add_product_sheet.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/core/theme/app_theme.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/inventory/data/asset_repository.dart';
+import 'package:sewakasir/features/inventory/presentation/add_product_sheet.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
 
 class _MockCategoryAssetRepo extends AssetRepository {
   final List<Map<String, dynamic>> _categories = [

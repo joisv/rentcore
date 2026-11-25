@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/thermal_printer_service.dart';
+import '../../../core/widgets/unified_thermal_receipt_preview.dart';
 import '../../../shared/widgets/rentcore_app_bar.dart';
 import '../../auth/providers/business_provider.dart';
 import '../providers/printer_provider.dart';
@@ -195,11 +195,22 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
     );
   }
 
-  // --- 1. Dual-Mode Live Preview (Standard Thermal & Echo Clean Receipt) ---
+  // --- 1. Dual-Mode Live Preview (Single Source of Truth: UnifiedThermalReceiptPreview) ---
   Widget _buildLivePreviewCard() {
-    final sampleData = ThermalPrinterService().getSampleBookingReceipt(_currentSettings);
-    final standardDoc = ThermalPrinterService().buildReceiptDocument(sampleData, _currentSettings, PrintMode.normal);
-    final echoDoc = ThermalPrinterService().buildReceiptDocument(sampleData, _currentSettings, PrintMode.echo);
+    final bizState = ref.watch(businessProvider);
+    final standardData = ReceiptDocumentData.sample(
+      bizState,
+      settings: _currentSettings,
+      modeOverride: PrintMode.normal,
+    );
+    final echoData = ReceiptDocumentData.sample(
+      bizState,
+      settings: _currentSettings,
+      modeOverride: PrintMode.echo,
+    );
+    final is58mm = _currentSettings.paperWidth == ReceiptPaperWidth.mm58;
+    final isStandard = _previewTab == PrintMode.normal;
+    final activeData = isStandard ? standardData : echoData;
 
     return Container(
       decoration: BoxDecoration(
@@ -244,9 +255,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  _currentSettings.paperWidth == ReceiptPaperWidth.mm80
-                      ? '80mm POS'
-                      : '58mm Standar',
+                  is58mm ? '58mm Standar' : '80mm POS',
                   style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -268,7 +277,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                   child: _buildPreviewTabButton(
                     title: 'Standar (58mm)',
                     icon: Icons.receipt_long_rounded,
-                    isSelected: _previewTab == PrintMode.normal,
+                    isSelected: isStandard,
                     onTap: () => setState(() => _previewTab = PrintMode.normal),
                   ),
                 ),
@@ -277,7 +286,7 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
                   child: _buildPreviewTabButton(
                     title: 'Kompak',
                     icon: Icons.eco_outlined,
-                    isSelected: _previewTab == PrintMode.echo,
+                    isSelected: !isStandard,
                     onTap: () => setState(() => _previewTab = PrintMode.echo),
                   ),
                 ),
@@ -286,11 +295,80 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
           ),
           const SizedBox(height: 16),
 
-          // Active Preview Render
-          if (_previewTab == PrintMode.normal)
-            _buildStandardThermalPreview(standardDoc, _currentSettings)
-          else
-            _buildEchoThermalPreview(echoDoc, _currentSettings),
+          // Active Preview Render via UnifiedThermalReceiptPreview
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: is58mm ? 320.0 : 400.0),
+              child: Column(
+                children: [
+                  UnifiedThermalReceiptPreview(
+                    data: activeData,
+                    paperEdgeLabel: isStandard
+                        ? (is58mm
+                            ? 'TEAR BAR MANUAL (58MM)'
+                            : 'AUTO-CUTTER POS (80MM)')
+                        : (is58mm
+                            ? 'MODE ECHO • KOMPAK (58MM)'
+                            : 'MODE ECHO • KOMPAK (80MM)'),
+                    paperEdgeIcon: isStandard
+                        ? (is58mm
+                            ? Icons.straighten_rounded
+                            : Icons.content_cut_rounded)
+                        : Icons.eco_rounded,
+                    paperEdgeIconColor:
+                        isStandard ? AppColors.textMuted : AppColors.success,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.obsidian,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: (isStandard ? _isPrintingStandard : _isPrintingEcho)
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              isStandard
+                                  ? Icons.print_rounded
+                                  : Icons.print_outlined,
+                              size: 18,
+                            ),
+                      label: Text(
+                        isStandard
+                            ? (_isPrintingStandard
+                                ? 'Mencetak Standard...'
+                                : 'Print Standard')
+                            : (_isPrintingEcho
+                                ? 'Memproses Echo...'
+                                : 'Print Echo'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      onPressed: (_isPrintingStandard || _isPrintingEcho)
+                          ? null
+                          : () => _printPreviewReceipt(
+                                isStandard ? PrintMode.normal : PrintMode.echo,
+                              ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -348,390 +426,6 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
     );
   }
 
-  // --- Standard Mode: Physical Thermal Paper Roll Preview ---
-  Widget _buildStandardThermalPreview(
-    ReceiptPrintDocument doc,
-    ReceiptCustomizationSettings settings,
-  ) {
-    final is58mm = settings.paperWidth == ReceiptPaperWidth.mm58;
-    final maxWidth = is58mm ? 320.0 : 400.0;
-
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Column(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top Tear Bar / Auto-cutter representation
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted.withValues(alpha: 0.4),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
-                      border: Border(
-                        bottom: BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          is58mm ? Icons.straighten_rounded : Icons.content_cut_rounded,
-                          size: 12,
-                          color: AppColors.textMuted,
-                        ),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            is58mm ? 'TEAR BAR MANUAL (58MM)' : 'AUTO-CUTTER POS (80MM)',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Printed Receipt Content (Rendered from doc.lines)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: doc.lines.map((line) => _buildStandardLineWidget(line, settings)).toList(),
-                    ),
-                  ),
-
-                  // Bottom Paper Roll Finish
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted.withValues(alpha: 0.2),
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(9)),
-                    ),
-                    child: Center(
-                      child: Text(
-                        is58mm ? '· · · · · · · · · · · · · · · ·' : '· · · · · · · · · · · · · · · · · · · · · · · ·',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 8,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Dedicated Print Standard Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                icon: _isPrintingStandard
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.print_rounded, size: 18),
-                label: Text(
-                  _isPrintingStandard ? 'Mencetak Standard...' : 'Print Standard',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                onPressed: (_isPrintingStandard || _isPrintingEcho)
-                    ? null
-                    : () => _printPreviewReceipt(PrintMode.normal),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Echo Mode: Clean & Compact Thermal Receipt Preview ---
-  Widget _buildEchoThermalPreview(
-    ReceiptPrintDocument doc,
-    ReceiptCustomizationSettings settings,
-  ) {
-    final is58mm = settings.paperWidth == ReceiptPaperWidth.mm58;
-    final maxWidth = is58mm ? 320.0 : 400.0;
-
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Column(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top Tear Bar / Eco Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted.withValues(alpha: 0.4),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
-                      border: Border(
-                        bottom: BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.eco_rounded, size: 12, color: AppColors.success),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            is58mm
-                                ? 'MODE ECHO • KOMPAK (58MM)'
-                                : 'MODE ECHO • KOMPAK (80MM)',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Compact Printed Receipt Content
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: doc.lines
-                          .map((line) => _buildStandardLineWidget(line, settings, isCompact: true))
-                          .toList(),
-                    ),
-                  ),
-
-                  // Bottom Paper Roll Finish
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted.withValues(alpha: 0.2),
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(9)),
-                    ),
-                    child: Center(
-                      child: Text(
-                        is58mm ? '· · · · · · · · · · · · · · · ·' : '· · · · · · · · · · · · · · · · · · · · · · · ·',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 8,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Dedicated Print Echo Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.obsidian,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                icon: _isPrintingEcho
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.print_outlined, size: 18),
-                label: Text(
-                  _isPrintingEcho ? 'Memproses Echo...' : 'Print Echo',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                onPressed: (_isPrintingStandard || _isPrintingEcho)
-                    ? null
-                    : () => _printPreviewReceipt(PrintMode.echo),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStandardLineWidget(
-    ReceiptLineItem line,
-    ReceiptCustomizationSettings settings, {
-    bool isCompact = false,
-  }) {
-    final isCenter = line.alignment == ReceiptHeaderAlignment.center;
-    final is58mm = settings.paperWidth == ReceiptPaperWidth.mm58;
-
-    switch (line.type) {
-      case ReceiptLineType.header:
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: isCompact ? 0.0 : 0.5),
-          child: Text(
-            line.text,
-            textAlign: isCenter ? TextAlign.center : TextAlign.left,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: line.isDoubleSize ? 14 : (isCompact ? 11 : 11),
-              fontWeight: line.isBold ? FontWeight.w900 : FontWeight.w600,
-              letterSpacing: line.isDoubleSize ? 0.6 : 0,
-              color: AppColors.obsidian,
-            ),
-          ),
-        );
-
-      case ReceiptLineType.text:
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: isCompact ? 0.5 : 1.0),
-          child: Text(
-            line.text,
-            textAlign: isCenter ? TextAlign.center : TextAlign.left,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: isCompact ? 10.5 : 11,
-              fontWeight: line.isBold ? FontWeight.w800 : FontWeight.normal,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        );
-
-      case ReceiptLineType.keyValue:
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: isCompact ? 1.0 : 1.5),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  line.leftText ?? '',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: isCompact ? 10.0 : 10.5,
-                    fontWeight: line.isBold ? FontWeight.bold : FontWeight.normal,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                line.rightText ?? '',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: isCompact ? 10.0 : 10.5,
-                  fontWeight: line.isBold ? FontWeight.bold : FontWeight.normal,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        );
-
-      case ReceiptLineType.divider:
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: isCompact ? 1.0 : 2.0),
-          child: Text(
-            line.text,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.clip,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 10,
-              color: Colors.grey.shade400,
-              letterSpacing: 0.5,
-            ),
-          ),
-        );
-
-      case ReceiptLineType.qrCode:
-        return Column(
-          children: [
-            SizedBox(height: isCompact ? 4 : 6),
-            Center(
-              child: QrImageView(
-                data: line.qrData ?? line.text,
-                version: QrVersions.auto,
-                size: is58mm ? (isCompact ? 60.0 : 75.0) : (isCompact ? 80.0 : 95.0),
-                padding: const EdgeInsets.all(2),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Center(
-              child: Text(
-                line.qrData ?? line.text,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            SizedBox(height: isCompact ? 4 : 6),
-          ],
-        );
-
-      case ReceiptLineType.emptyFeed:
-        return SizedBox(height: isCompact ? 4 : 8);
-    }
-  }
-
   // --- Per-Mode Printing Action Pipeline ---
   Future<void> _printPreviewReceipt(PrintMode mode) async {
     if (_isPrintingStandard || _isPrintingEcho) return;
@@ -750,11 +444,14 @@ class _ReceiptCustomizationScreenState extends ConsumerState<ReceiptCustomizatio
     final messenger = ScaffoldMessenger.of(context);
     try {
       final activeSettings = _currentSettings.copyWith(printMode: mode);
-      final sampleData = ThermalPrinterService().getSampleBookingReceipt(activeSettings);
-      final doc = ThermalPrinterService().buildReceiptDocument(sampleData, activeSettings, mode);
-      final bytes = ThermalPrinterService().buildSlipBytesFromDocument(doc, activeSettings);
+      final bizState = ref.read(businessProvider);
+      final sampleDoc = ReceiptDocumentData.sample(
+        bizState,
+        settings: activeSettings,
+        modeOverride: mode,
+      );
 
-      final success = await ThermalPrinterService().sendPrintJob(bytes, mode);
+      final success = await ThermalPrinterService().printReceipt(sampleDoc);
 
       if (mounted) {
         setState(() {

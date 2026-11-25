@@ -4,23 +4,23 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:rentcore_mobile/core/constants/app_colors.dart';
-import 'package:rentcore_mobile/core/theme/app_text_styles.dart';
-import 'package:rentcore_mobile/core/theme/app_theme.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/cashier/data/cashier_repository.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/cashier_screen.dart';
-import 'package:rentcore_mobile/features/cashier/presentation/financial_hub_screen.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/home/presentation/home_screen.dart';
-import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
-import 'package:rentcore_mobile/features/notifications/presentation/notification_center_screen.dart';
-import 'package:rentcore_mobile/features/organization/presentation/store_settings_screen.dart';
-import 'package:rentcore_mobile/features/payments/models/payment_context.dart';
-import 'package:rentcore_mobile/features/payments/presentation/payment_page.dart';
-import 'package:rentcore_mobile/shared/widgets/rentcore_app_bar.dart';
+import 'package:sewakasir/core/constants/app_colors.dart';
+import 'package:sewakasir/core/theme/app_text_styles.dart';
+import 'package:sewakasir/core/theme/app_theme.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/cashier/data/cashier_repository.dart';
+import 'package:sewakasir/features/cashier/presentation/cashier_screen.dart';
+import 'package:sewakasir/features/cashier/presentation/financial_hub_screen.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/home/presentation/home_screen.dart';
+import 'package:sewakasir/features/home/providers/dashboard_provider.dart';
+import 'package:sewakasir/features/notifications/presentation/notification_center_screen.dart';
+import 'package:sewakasir/features/organization/presentation/store_settings_screen.dart';
+import 'package:sewakasir/features/payments/models/payment_context.dart';
+import 'package:sewakasir/features/payments/presentation/payment_page.dart';
+import 'package:sewakasir/shared/widgets/rentcore_app_bar.dart';
 
 class _MockCashierRepository extends CashierRepository {
   @override

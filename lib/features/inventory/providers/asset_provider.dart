@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/business_provider.dart';
 import '../data/asset_repository.dart';
@@ -108,7 +109,14 @@ final productsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>(
   final repo = ref.watch(assetRepositoryProvider);
   final categoryId = ref.watch(selectedAssetCategoryFilterProvider);
   final search = ref.watch(catalogSearchQueryProvider);
+  final cancelToken = CancelToken();
+  ref.onDispose(() {
+    if (!cancelToken.isCancelled) {
+      cancelToken.cancel('Superseded by newer catalog query');
+    }
+  });
 
+  repo.attachCancelToken(cancelToken);
   return repo.fetchProducts(
     categoryId: categoryId,
     search: search.isEmpty ? null : search,
@@ -124,8 +132,15 @@ final inventoryListProvider = FutureProvider.autoDispose<List<Map<String, dynami
   final status = ref.watch(selectedAssetStatusFilterProvider);
   final categoryId = ref.watch(selectedAssetCategoryFilterProvider);
   final search = ref.watch(assetSearchQueryProvider);
+  final cancelToken = CancelToken();
+  ref.onDispose(() {
+    if (!cancelToken.isCancelled) {
+      cancelToken.cancel('Superseded by newer inventory query');
+    }
+  });
 
   try {
+    repo.attachCancelToken(cancelToken);
     final list = await repo.fetchAssets(
       status: status,
       categoryId: categoryId,

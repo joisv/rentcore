@@ -4,10 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:qr/qr.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/receipt_document_data.dart';
 import '../models/thermal_printer_models.dart';
 import 'printer_bluetooth_driver.dart';
+import 'thermal_receipt_escpos_builder.dart';
 
+export '../models/receipt_document_data.dart';
 export '../models/thermal_printer_models.dart';
+export 'thermal_receipt_escpos_builder.dart';
 
 class ThermalPrinterService {
   static final ThermalPrinterService _instance = ThermalPrinterService._internal();
@@ -773,6 +777,18 @@ class ThermalPrinterService {
     builder.add(_buildFeedLinesCmd(settings.extraFeedLines));
     builder.add(cmdCutPaper);
     return builder.toBytes();
+  }
+
+  /// Builds ESC/POS bytes directly from the unified [ReceiptDocumentData] model.
+  Uint8List buildReceiptBytes(ReceiptDocumentData data) {
+    return ThermalReceiptEscPosBuilder.build(data);
+  }
+
+  /// Prints a unified [ReceiptDocumentData] directly via [ThermalReceiptEscPosBuilder]
+  /// so physical thermal prints match `UnifiedThermalReceiptPreview` 1:1.
+  Future<bool> printReceipt(ReceiptDocumentData data) async {
+    final bytes = ThermalReceiptEscPosBuilder.build(data);
+    return sendPrintJob(bytes, data.printMode);
   }
 
   /// Sends a structured [ReceiptPrintDocument] to printer or echo simulation.

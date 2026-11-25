@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:rentcore_mobile/features/auth/data/auth_repository.dart';
-import 'package:rentcore_mobile/features/auth/presentation/login_screen.dart';
-import 'package:rentcore_mobile/features/auth/providers/auth_provider.dart';
-import 'package:rentcore_mobile/features/auth/providers/business_provider.dart';
-import 'package:rentcore_mobile/features/bookings/data/booking_repository.dart';
-import 'package:rentcore_mobile/features/bookings/providers/booking_provider.dart';
-import 'package:rentcore_mobile/features/cashier/providers/cashier_provider.dart';
-import 'package:rentcore_mobile/features/home/providers/dashboard_provider.dart';
-import 'package:rentcore_mobile/features/inventory/data/asset_repository.dart';
-import 'package:rentcore_mobile/features/inventory/providers/asset_provider.dart';
-import 'package:rentcore_mobile/features/notifications/providers/notification_provider.dart';
-import 'package:rentcore_mobile/features/onboarding/presentation/business_setup_wizard_screen.dart';
-import 'package:rentcore_mobile/features/onboarding/presentation/feature_walkthrough_screen.dart';
-import 'package:rentcore_mobile/features/onboarding/providers/onboarding_provider.dart';
-import 'package:rentcore_mobile/main.dart';
+import 'package:sewakasir/features/auth/data/auth_repository.dart';
+import 'package:sewakasir/features/auth/presentation/login_screen.dart';
+import 'package:sewakasir/features/auth/providers/auth_provider.dart';
+import 'package:sewakasir/features/auth/providers/business_provider.dart';
+import 'package:sewakasir/features/bookings/data/booking_repository.dart';
+import 'package:sewakasir/features/bookings/providers/booking_provider.dart';
+import 'package:sewakasir/features/cashier/providers/cashier_provider.dart';
+import 'package:sewakasir/features/home/providers/dashboard_provider.dart';
+import 'package:sewakasir/features/inventory/data/asset_repository.dart';
+import 'package:sewakasir/features/inventory/providers/asset_provider.dart';
+import 'package:sewakasir/features/notifications/providers/notification_provider.dart';
+import 'package:sewakasir/features/onboarding/presentation/business_setup_wizard_screen.dart';
+import 'package:sewakasir/features/onboarding/presentation/feature_walkthrough_screen.dart';
+import 'package:sewakasir/features/onboarding/providers/onboarding_provider.dart';
+import 'package:sewakasir/main.dart';
 
 class _StubGateNotificationNotifier extends NotificationNotifier {
   @override
