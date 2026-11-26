@@ -1,3 +1,5 @@
+import '../network/api_client.dart';
+
 class ApiConstants {
   // Production endpoint (can be customized at build time via --dart-define=API_BASE_URL=...)
   static const String productionBaseUrl = String.fromEnvironment(
@@ -100,6 +102,8 @@ class ApiConstants {
   static String extendBooking(dynamic id) => '/bookings/$id/extend';
   static String adjustBookingDuration(dynamic id) =>
       '/bookings/$id/adjust-duration';
+  static String bookingLateFeePreview(dynamic id) =>
+      '/bookings/$id/late-fee-preview';
   static String returnBooking(dynamic id) => '/bookings/$id/return';
   static String availableReplacements(dynamic id, {dynamic assetId}) =>
       assetId != null
@@ -152,4 +156,88 @@ class ApiConstants {
   static const String notifications = '/notifications';
   static String markNotificationRead(dynamic id) => '/notifications/$id/read';
   static const String markAllNotificationsRead = '/notifications/read-all';
+
+  /// Extracts the active server origin (scheme://host[:port][optional prefix]) from [baseUrl],
+  /// stripping `/api/v1` (or `/api`) and trailing slashes.
+  static String resolveServerOrigin({String? baseUrlOverride}) {
+    final rawBase = (baseUrlOverride ?? ApiClient().currentBaseUrl).trim();
+    final parsed = Uri.tryParse(rawBase);
+    if (parsed != null && parsed.hasScheme && parsed.host.isNotEmpty) {
+      final portPart = parsed.hasPort ? ':${parsed.port}' : '';
+      final prefixPath = parsed.path
+          .replaceFirst(RegExp(r'/api/v\d+/?$', caseSensitive: false), '')
+          .replaceFirst(RegExp(r'/api/?$', caseSensitive: false), '')
+          .replaceFirst(RegExp(r'/+$'), '');
+      return '${parsed.scheme}://${parsed.host}$portPart$prefixPath';
+    }
+    return rawBase
+        .replaceFirst(RegExp(r'/api/v\d+/?$', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'/api/?$', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'/+$'), '');
+  }
+
+  /// Resolves a raw media/storage URL against the active API server origin.
+  ///
+  /// - Returns `null` if empty, invalid, or a raw `data:image/...` blob.
+  /// - Prepends the active server origin when [rawUrl] starts with `/storage/`
+  ///   or `storage/` (or a bare storage directory like `models/`).
+  /// - Rewrites localhost / stale dev hosts (`rentcore_backend.test`, `127.0.0.1`,
+  ///   `localhost`, `10.0.2.2`, `sewakasir_backend.test`) to the active server host.
+  static String? resolveMediaUrl(String? rawUrl, {String? baseUrlOverride}) {
+    if (rawUrl == null) return null;
+    final trimmed = rawUrl.trim().replaceAll('\\', '/');
+    if (trimmed.isEmpty) return null;
+    if (trimmed.toLowerCase().startsWith('data:image')) return null;
+
+    final origin = resolveServerOrigin(baseUrlOverride: baseUrlOverride);
+    if (origin.isEmpty) return null;
+
+    if (trimmed.startsWith('/storage/') || trimmed.startsWith('storage/')) {
+      final normalizedPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+      return '$origin$normalizedPath';
+    }
+
+    final withoutPublicPrefix = trimmed.startsWith('public/')
+        ? trimmed.substring('public/'.length)
+        : trimmed;
+    if (withoutPublicPrefix.startsWith('models/') ||
+        withoutPublicPrefix.startsWith('asset_models/') ||
+        withoutPublicPrefix.startsWith('qris/')) {
+      return '$origin/storage/$withoutPublicPrefix';
+    }
+
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      final uri = Uri.tryParse(trimmed);
+      if (uri == null || uri.host.isEmpty) return null;
+      final hostLower = uri.host.toLowerCase();
+      final isStaleOrLocalHost = hostLower == 'localhost' ||
+          hostLower == '127.0.0.1' ||
+          hostLower == '10.0.2.2' ||
+          hostLower == 'rentcore_backend.test' ||
+          hostLower == 'sewakasir_backend.test' ||
+          hostLower.contains('rentcore_backend') ||
+          hostLower.endsWith('.test') ||
+          hostLower.endsWith('.local');
+
+      if (isStaleOrLocalHost) {
+        final originUri = Uri.tryParse(origin);
+        if (originUri != null && originUri.hasScheme && originUri.host.isNotEmpty) {
+          return uri
+              .replace(
+                scheme: originUri.scheme,
+                host: originUri.host,
+                port: originUri.hasPort ? originUri.port : null,
+              )
+              .toString();
+        }
+      }
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('/')) {
+      return '$origin$trimmed';
+    }
+
+    return null;
+  }
 }

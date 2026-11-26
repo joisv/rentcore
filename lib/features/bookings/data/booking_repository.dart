@@ -328,6 +328,20 @@ class BookingRepository {
     return response.data['data'];
   }
 
+  Future<Map<String, dynamic>> fetchLateFeePreview(dynamic bookingId) async {
+    final response = await _client.dio.get(
+      ApiConstants.bookingLateFeePreview(bookingId),
+    );
+    final raw = response.data;
+    if (raw is Map) {
+      final breakdown = raw['late_fee_breakdown'] ?? raw['data'];
+      if (breakdown is Map) {
+        return Map<String, dynamic>.from(breakdown);
+      }
+    }
+    return {};
+  }
+
   Future<Map<String, dynamic>> fetchAvailableReplacements(dynamic bookingId, {dynamic assetId}) async {
     final response = await _client.dio.get(
       ApiConstants.availableReplacements(bookingId, assetId: assetId),

@@ -1244,7 +1244,7 @@ class _LateFeePolicyBottomSheetState
               : CurrencyFormatter.parse(rawRate))
           : 0.0;
 
-      await ref.read(authRepositoryProvider).updateBusiness(widget.businessId, {
+      final payload = <String, dynamic>{
         'return_grace_period_minutes': _returnGraceMinutes,
         'late_fee_grace_minutes': _returnGraceMinutes,
         'late_fee_grace_mode': _graceMode,
@@ -1256,7 +1256,14 @@ class _LateFeePolicyBottomSheetState
         'late_fee_default_rate': parsedRate,
         'late_fee_default_type': _defaultRateType,
         'allow_cashier_late_fee_waiver': _allowCashierWaiver,
-      });
+      };
+      final updatedBiz = await ref
+          .read(authRepositoryProvider)
+          .updateBusiness(widget.businessId, payload);
+      await ref.read(businessProvider.notifier).updateActiveBusinessProfile(
+        widget.businessId,
+        {...payload, ...updatedBiz},
+      );
       await ref.read(businessProvider.notifier).refresh();
       if (!mounted) return;
       nav.pop();
@@ -1616,6 +1623,44 @@ class _LateFeePolicyBottomSheetState
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              key: const Key('late_fee_hierarchy_note'),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFE2E8F0),
+                  width: 1,
+                ),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(top: 1),
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tarif default toko berlaku untuk semua model, kecuali model tersebut memiliki tarif denda khusus di katalog.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF475569),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const Divider(height: 28, color: Color(0xFFF1F5F9)),

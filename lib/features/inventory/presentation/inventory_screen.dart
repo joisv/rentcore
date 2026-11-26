@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/currency_formatter.dart';
@@ -2530,11 +2531,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 // ==========================================
 String? _extractModelImageUrl(Map<String, dynamic>? model) {
   if (model == null) return null;
-  return (model['image_url'] ??
-          model['image'] ??
-          model['photo_url'] ??
-          model['thumbnail'])
-      ?.toString();
+  final candidates = [
+    model['image_url'],
+    model['image'],
+    model['photo_url'],
+    model['thumbnail'],
+    model['image_path'],
+  ];
+  for (final candidate in candidates) {
+    final resolved = ApiConstants.resolveMediaUrl(candidate?.toString());
+    if (resolved != null && resolved.isNotEmpty) {
+      return resolved;
+    }
+  }
+  return null;
 }
 
 String? _extractModelPrimaryRate(
@@ -2593,42 +2603,133 @@ Widget _buildModelThumbnailWidget(
   double size = 44,
 }) {
   Widget fallback() {
-    final initial = name.trim().isNotEmpty
-        ? name.trim().substring(0, 1).toUpperCase()
-        : 'P';
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: TextStyle(
-          color: AppColors.obsidian,
-          fontWeight: FontWeight.w800,
-          fontSize: size * 0.4,
-        ),
+      child: Icon(
+        Icons.inventory_2_outlined,
+        color: const Color(0xFF64748B),
+        size: size * 0.48,
       ),
     );
   }
 
-  if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+  final resolvedUrl = ApiConstants.resolveMediaUrl(imageUrl);
+  if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Image.network(
-        imageUrl,
+        resolvedUrl,
         width: size,
         height: size,
         fit: BoxFit.cover,
+        loadingBuilder: (_, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return fallback();
+        },
         errorBuilder: (_, _, _) => fallback(),
       ),
     );
   }
   return fallback();
+}
+
+/// Calm read-only info chip showing the active late fee rate inherited by a physical unit
+/// under the unified 2-level hierarchy (`Model Override` -> `Store Default`).
+Widget _buildInheritedLateFeeChip({
+  required Map<String, dynamic>? model,
+  required Map<String, dynamic>? business,
+}) {
+  final rawModelRate = model?['late_fee_per_hour'] ?? model?['hourly_late_fee'];
+  final modelRate = rawModelRate != null
+      ? double.tryParse(rawModelRate.toString())
+      : null;
+
+  final rawBizRate = business?['late_fee_default_rate'] ??
+      business?['default_hourly_late_fee'];
+  final bizDefaultRate =
+      rawBizRate != null ? double.tryParse(rawBizRate.toString()) : null;
+  final bizDefaultType =
+      business?['late_fee_default_type']?.toString() ?? 'fixed';
+
+  double? modelDailyPrice;
+  final rawTiers = model?['pricing_tiers'] ?? model?['pricingTiers'];
+  if (rawTiers is List) {
+    for (final t in rawTiers.whereType<Map>()) {
+      final isOneDay = (t['duration_unit']?.toString().toLowerCase() == 'day' &&
+              int.tryParse(t['duration_value']?.toString() ?? '') == 1) ||
+          int.tryParse(t['duration_hours']?.toString() ?? '') == 24;
+      if (isOneDay && t['price'] != null) {
+        final parsed = double.tryParse(t['price'].toString());
+        if (parsed != null && parsed > 0) {
+          modelDailyPrice = parsed;
+          break;
+        }
+      }
+    }
+  }
+
+  final String rateLabel;
+  if (modelRate != null && modelRate > 0) {
+    rateLabel = 'Tarif Denda Model: ${CurrencyFormatter.format(modelRate)}/jam';
+  } else if (bizDefaultRate != null && bizDefaultRate > 0) {
+    if (bizDefaultType == 'percent_daily') {
+      if (modelDailyPrice != null && modelDailyPrice > 0) {
+        final computed = ((modelDailyPrice * bizDefaultRate) / 100).roundToDouble();
+        rateLabel = 'Mengikuti Tarif Toko: ${CurrencyFormatter.format(computed)}/jam';
+      } else {
+        final pctText = bizDefaultRate % 1 == 0
+            ? bizDefaultRate.toInt().toString()
+            : bizDefaultRate.toString();
+        rateLabel = 'Mengikuti Tarif Toko: $pctText% tarif harian/jam';
+      }
+    } else {
+      rateLabel =
+          'Mengikuti Tarif Toko: ${CurrencyFormatter.format(bizDefaultRate)}/jam';
+    }
+  } else {
+    rateLabel = 'Mengikuti Tarif Toko: Rp 0/jam (Belum diatur)';
+  }
+
+  return Container(
+    key: const Key('unit_inherited_late_fee_chip'),
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.info_outline_rounded,
+          size: 15,
+          color: Color(0xFF64748B),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            rateLabel,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF334155),
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // ==========================================
@@ -2743,7 +2844,6 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
   final _serialNumberController = TextEditingController();
   final _imei1Controller = TextEditingController();
   final _batteryHealthController = TextEditingController();
-  final _hourlyLateFeeController = TextEditingController();
   final _notesController = TextEditingController();
   String _grade = 'A';
   bool _isLoading = false;
@@ -2762,7 +2862,6 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
     _serialNumberController.dispose();
     _imei1Controller.dispose();
     _batteryHealthController.dispose();
-    _hourlyLateFeeController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -2977,6 +3076,13 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                   style: const TextStyle(color: AppColors.danger),
                 ),
               ),
+              if (selectedModel != null) ...[
+                const SizedBox(height: 10),
+                _buildInheritedLateFeeChip(
+                  model: selectedModel,
+                  business: bizState.activeBusiness,
+                ),
+              ],
               const SizedBox(height: 14),
               // Asset Code
               const Text(
@@ -3121,54 +3227,6 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                 ),
               ],
               const SizedBox(height: 14),
-              // Denda / Jam (Opsional - inherits model/business)
-              Builder(
-                builder: (context) {
-                  final modelRate = double.tryParse(
-                    selectedModel?['hourly_late_fee']?.toString() ?? '',
-                  );
-                  final bizDefaultRate = double.tryParse(
-                    bizState.activeBusiness?['default_hourly_late_fee']
-                            ?.toString() ??
-                        '',
-                  );
-                  final inheritedRate = modelRate ?? bizDefaultRate ?? 0.0;
-                  final helper = modelRate != null
-                      ? 'Kosongkan untuk mengikuti tarif model: ${CurrencyFormatter.format(modelRate)}/jam'
-                      : (bizDefaultRate != null && bizDefaultRate > 0
-                            ? 'Kosongkan untuk mengikuti tarif default toko: ${CurrencyFormatter.format(bizDefaultRate)}/jam'
-                            : 'Kosongkan untuk mengikuti tarif default model/toko');
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Denda / Jam (Opsional)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        key: const Key('add_unit_hourly_late_fee_input'),
-                        controller: _hourlyLateFeeController,
-                        keyboardType: TextInputType.number,
-                        decoration: _airyAssetInputDecoration(
-                          prefixText: 'Rp ',
-                          hintText: inheritedRate > 0
-                              ? inheritedRate.toInt().toString()
-                              : 'Otomatis sesuai model',
-                          helperText: helper,
-                          helperMaxLines: 2,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 14),
               // Notes
               const Text(
                 'Catatan Tambahan',
@@ -3210,13 +3268,6 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                             final imei = _imei1Controller.text.trim();
                             final bh = _batteryHealthController.text.trim();
 
-                            final rawHourlyLateFee =
-                                _hourlyLateFeeController.text.trim();
-                            final double? parsedHourlyLateFee =
-                                rawHourlyLateFee.isNotEmpty
-                                ? CurrencyFormatter.parse(rawHourlyLateFee)
-                                : null;
-
                             final payload = <String, dynamic>{
                               'model_id': _selectedModelId,
                               'asset_code': _assetCodeController.text.trim(),
@@ -3226,7 +3277,6 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
                               'condition_grade': _grade,
                               if (bh.isNotEmpty)
                                 'battery_health': int.tryParse(bh),
-                              'hourly_late_fee': ?parsedHourlyLateFee,
                               if (_notesController.text.trim().isNotEmpty)
                                 'notes': _notesController.text.trim(),
                               if (bizState.activeBranchId != null)
@@ -3674,7 +3724,6 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
   late final TextEditingController _serialNumberController;
   late final TextEditingController _imei1Controller;
   late final TextEditingController _batteryHealthController;
-  late final TextEditingController _hourlyLateFeeController;
   late final TextEditingController _notesController;
   late String _status;
   late String _grade;
@@ -3695,13 +3744,6 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
     _batteryHealthController = TextEditingController(
       text: widget.asset['battery_health']?.toString() ?? '',
     );
-    final rawLateFee = widget.asset['hourly_late_fee'];
-    final parsedLateFee = rawLateFee != null
-        ? double.tryParse(rawLateFee.toString())
-        : null;
-    _hourlyLateFeeController = TextEditingController(
-      text: parsedLateFee != null ? parsedLateFee.toInt().toString() : '',
-    );
     _notesController = TextEditingController(
       text: widget.asset['notes']?.toString() ?? '',
     );
@@ -3715,7 +3757,6 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
     _serialNumberController.dispose();
     _imei1Controller.dispose();
     _batteryHealthController.dispose();
-    _hourlyLateFeeController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -3755,7 +3796,12 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                 title: 'Edit Unit Inventaris',
                 subtitle: modelName,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              _buildInheritedLateFeeChip(
+                model: model,
+                business: bizState.activeBusiness,
+              ),
+              const SizedBox(height: 14),
               // Status Dropdown
               const Text(
                 'Status Operasional Unit',
@@ -4032,54 +4078,6 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                 ),
               ],
               const SizedBox(height: 14),
-              // Denda / Jam (Opsional - inherits model/business)
-              Builder(
-                builder: (context) {
-                  final modelRate = double.tryParse(
-                    model?['hourly_late_fee']?.toString() ?? '',
-                  );
-                  final bizDefaultRate = double.tryParse(
-                    bizState.activeBusiness?['default_hourly_late_fee']
-                            ?.toString() ??
-                        '',
-                  );
-                  final inheritedRate = modelRate ?? bizDefaultRate ?? 0.0;
-                  final helper = modelRate != null
-                      ? 'Kosongkan untuk mengikuti tarif model: ${CurrencyFormatter.format(modelRate)}/jam'
-                      : (bizDefaultRate != null && bizDefaultRate > 0
-                            ? 'Kosongkan untuk mengikuti tarif default toko: ${CurrencyFormatter.format(bizDefaultRate)}/jam'
-                            : 'Kosongkan untuk mengikuti tarif default model/toko');
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Denda / Jam (Opsional)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        key: const Key('edit_unit_hourly_late_fee_input'),
-                        controller: _hourlyLateFeeController,
-                        keyboardType: TextInputType.number,
-                        decoration: _airyAssetInputDecoration(
-                          prefixText: 'Rp ',
-                          hintText: inheritedRate > 0
-                              ? inheritedRate.toInt().toString()
-                              : 'Otomatis sesuai model',
-                          helperText: helper,
-                          helperMaxLines: 2,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 14),
               // Notes
               const Text(
                 'Catatan Perangkat',
@@ -4120,13 +4118,6 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                             final imei = _imei1Controller.text.trim();
                             final bh = _batteryHealthController.text.trim();
 
-                            final rawHourlyLateFee =
-                                _hourlyLateFeeController.text.trim();
-                            final double? parsedHourlyLateFee =
-                                rawHourlyLateFee.isNotEmpty
-                                ? CurrencyFormatter.parse(rawHourlyLateFee)
-                                : null;
-
                             final payload = <String, dynamic>{
                               'asset_code': _assetCodeController.text.trim(),
                               'serial_number': sn.isNotEmpty ? sn : null,
@@ -4136,7 +4127,6 @@ class _EditAssetSheetState extends ConsumerState<_EditAssetSheet> {
                               'battery_health': bh.isNotEmpty
                                   ? int.tryParse(bh)
                                   : null,
-                              'hourly_late_fee': parsedHourlyLateFee,
                               'notes': _notesController.text.trim(),
                             };
 

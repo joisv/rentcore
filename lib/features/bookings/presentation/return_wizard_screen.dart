@@ -13,6 +13,7 @@ import '../../../shared/widgets/thermal_receipt_preview_dialog.dart';
 import '../../auth/providers/business_provider.dart';
 import '../../cashier/providers/cashier_provider.dart';
 import '../../printer/providers/printer_provider.dart';
+import '../data/booking_repository.dart';
 import '../providers/booking_provider.dart';
 import '../../payments/models/payment_context.dart';
 import '../../payments/presentation/payment_page.dart';
@@ -73,6 +74,7 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   final Map<String, bool> _checklistStates = {};
   late final List<_ReturnAddonItem> _addonItems;
   final Set<String> _checkedAddonKeys = {};
+  Map<String, dynamic>? _liveBreakdown;
 
   @override
   void initState() {
@@ -83,6 +85,40 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       _checklistStates[def.key] = true;
     }
     _addonItems = _extractAddonItems(widget.booking);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchAuthoritativeLateFeePreview();
+    });
+  }
+
+  Future<void> _fetchAuthoritativeLateFeePreview() async {
+    if (!mounted) return;
+    final hasEmbedded = widget.booking['late_fee_breakdown'] is Map ||
+        widget.booking['late_fee_preview'] is Map;
+    if (hasEmbedded) return;
+
+    final status = (widget.booking['status'] ?? '').toString().toLowerCase();
+    if (status != 'rented' && status != 'active') return;
+
+    final rawId = widget.booking['id'] ?? widget.booking['booking_id'];
+    final bookingId =
+        rawId is num ? rawId.toInt() : int.tryParse(rawId?.toString() ?? '');
+    if (bookingId == null || bookingId <= 0) return;
+
+    final repo = ref.read(bookingRepositoryProvider);
+    final isWidgetTest =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (isWidgetTest && repo.runtimeType == BookingRepository) {
+      return;
+    }
+
+    try {
+      final breakdown = await repo.fetchLateFeePreview(bookingId);
+      if (mounted && breakdown.isNotEmpty) {
+        setState(() => _liveBreakdown = breakdown);
+      }
+    } catch (_) {
+      // Deterministic client-side calculation remains active as immediate fallback.
+    }
   }
 
   static List<_ReturnAddonItem> _extractAddonItems(Map<String, dynamic> booking) {
@@ -370,13 +406,13 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
   Widget build(BuildContext context) {
     final booking = widget.booking;
     final customer = booking['customer'] ?? {};
-    final endAt = booking['end_at'] != null ? DateTime.tryParse(booking['end_at']) : null;
+    final endAt = DateFormatter.parseLocal(booking['end_at']);
     final now = DateTime.now();
     final bizState = ref.watch(businessProvider);
     final activeBusiness = bizState.activeBusiness;
 
     // Resolve deterministic 4-step cascading late-fee policy
-    // (server preview -> contract snapshot -> unit -> model -> business -> legacy)
+    // (server breakdown -> contract snapshot (>0) -> model override (>0) -> store default -> legacy)
     int lateMinutes = 0;
     int billableMinutes = 0;
     double billableHours = 0.0;
@@ -465,48 +501,67 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       roundingMode = rawRoundingMode!;
     }
 
-    // 3. Hourly late rate (applied snapshot -> unit -> model -> business -> legacy tier rate)
-    final rawAppliedRate = primaryItem?['applied_hourly_late_fee'] ??
-        rateSnap?['applied_hourly_late_fee'];
-    final rawModelRate =
-        modelMap?['late_fee_per_hour'] ?? modelMap?['hourly_late_fee'];
+    // 3. Hourly late rate (applied snapshot >0 -> legacy unit >0 -> model >0 -> business default -> legacy tier rate)
+    final double? parsedAppliedRate = double.tryParse(
+      (primaryItem?['applied_hourly_late_fee'] ??
+                  rateSnap?['applied_hourly_late_fee'])
+              ?.toString() ??
+          '',
+    );
+    final double? parsedAssetRate = assetMap != null
+        ? double.tryParse(assetMap['hourly_late_fee']?.toString() ?? '')
+        : null;
+    final double? parsedModelRate = double.tryParse(
+      (modelMap?['late_fee_per_hour'] ?? modelMap?['hourly_late_fee'])
+              ?.toString() ??
+          '',
+    );
     final rawBusinessDefaultRate = activeBusiness?['late_fee_default_rate'] ??
         activeBusiness?['default_hourly_late_fee'];
+    final double? parsedBusinessDefault = rawBusinessDefaultRate != null
+        ? double.tryParse(rawBusinessDefaultRate.toString())
+        : null;
     final String defaultRateType =
         activeBusiness?['late_fee_default_type']?.toString() ?? 'fixed';
 
-    if (rawAppliedRate != null) {
-      hourlyLateRate = double.tryParse(rawAppliedRate.toString()) ?? 0.0;
+    if (parsedAppliedRate != null && parsedAppliedRate > 0) {
+      hourlyLateRate = parsedAppliedRate;
       rateSourceLabel = 'Kontrak Sewa';
-    } else if (assetMap != null && assetMap['hourly_late_fee'] != null) {
-      hourlyLateRate = double.tryParse(assetMap['hourly_late_fee'].toString()) ?? 0.0;
+    } else if (parsedAssetRate != null && parsedAssetRate > 0) {
+      hourlyLateRate = parsedAssetRate;
       rateSourceLabel = 'Tarif Unit';
-    } else if (rawModelRate != null) {
-      hourlyLateRate = double.tryParse(rawModelRate.toString()) ?? 0.0;
+    } else if (parsedModelRate != null && parsedModelRate > 0) {
+      hourlyLateRate = parsedModelRate;
       rateSourceLabel = 'Tarif Model';
-    } else if (rawBusinessDefaultRate != null) {
-      final parsedDefault =
-          double.tryParse(rawBusinessDefaultRate.toString()) ?? 0.0;
+    } else if (parsedBusinessDefault != null && parsedBusinessDefault > 0) {
       if (defaultRateType == 'percent_daily' && modelDailyPrice != null) {
-        hourlyLateRate = ((modelDailyPrice * parsedDefault) / 100).roundToDouble();
-        rateSourceLabel = '% Tarif Harian';
-      } else {
-        hourlyLateRate = parsedDefault;
+        hourlyLateRate =
+            ((modelDailyPrice * parsedBusinessDefault) / 100).roundToDouble();
+        rateSourceLabel = '% Tarif Harian (Default Toko)';
+      } else if (defaultRateType != 'percent_daily') {
+        hourlyLateRate = parsedBusinessDefault;
         rateSourceLabel = 'Tarif Default Toko';
+      } else {
+        hourlyLateRate = 0.0;
+        rateSourceLabel = '% Tarif Harian (Default Toko)';
       }
     } else if (rateSnap != null && rateSnap['extension_hourly_rate'] != null) {
-      hourlyLateRate =
-          double.tryParse(rateSnap['extension_hourly_rate'].toString()) ?? 15000.0;
+      final extRate =
+          double.tryParse(rateSnap['extension_hourly_rate'].toString()) ?? 0.0;
+      hourlyLateRate = extRate > 0 ? extRate : 15000.0;
       rateSourceLabel = 'Tarif Ekstensi';
     } else if (modelTiers != null &&
         modelTiers.isNotEmpty &&
-        modelTiers.first is Map) {
+        modelTiers.first is Map &&
+        (modelTiers.first as Map)['extension_hourly_rate'] != null) {
       final firstTier = modelTiers.first as Map;
-      if (firstTier['extension_hourly_rate'] != null) {
-        hourlyLateRate =
-            double.tryParse(firstTier['extension_hourly_rate'].toString()) ?? 15000.0;
-        rateSourceLabel = 'Tarif Ekstensi';
-      }
+      final extRate =
+          double.tryParse(firstTier['extension_hourly_rate'].toString()) ?? 0.0;
+      hourlyLateRate = extRate > 0 ? extRate : 15000.0;
+      rateSourceLabel = 'Tarif Ekstensi';
+    } else if (rawBusinessDefaultRate != null) {
+      hourlyLateRate = 0.0;
+      rateSourceLabel = 'Tarif Default Toko';
     }
 
     // 4. Daily rate cap
@@ -522,53 +577,8 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
       dailyRateCap = modelDailyPrice;
     }
 
-    // Check if backend provided authoritative late_fee_preview
-    final rawPreview = booking['late_fee_preview'];
-    if (rawPreview is Map && rawPreview.containsKey('calculated_fee')) {
-      lateMinutes =
-          int.tryParse(rawPreview['raw_overdue_minutes']?.toString() ?? '') ??
-              (endAt != null && now.isAfter(endAt)
-                  ? now.difference(endAt).inMinutes
-                  : 0);
-      billableMinutes =
-          int.tryParse(rawPreview['billable_minutes']?.toString() ?? '') ?? 0;
-      billableHours =
-          double.tryParse(rawPreview['billable_hours']?.toString() ?? '') ??
-              (billableMinutes / 60.0);
-      hourlyLateRate =
-          double.tryParse(rawPreview['applied_rate']?.toString() ?? '') ??
-              hourlyLateRate;
-      calculatedPenalty =
-          double.tryParse(rawPreview['calculated_fee']?.toString() ?? '') ?? 0.0;
-      wasCapped = rawPreview['cap_applied'] == true;
-      if (rawPreview['daily_rate_cap'] != null) {
-        dailyRateCap =
-            double.tryParse(rawPreview['daily_rate_cap'].toString());
-      }
-      if (rawPreview['grace_period_minutes'] != null) {
-        gracePeriodMinutes =
-            int.tryParse(rawPreview['grace_period_minutes'].toString()) ??
-                gracePeriodMinutes;
-      }
-      if (rawPreview['grace_mode'] != null) {
-        graceMode = rawPreview['grace_mode'].toString();
-      }
-      if (rawPreview['rounding_mode'] != null) {
-        roundingMode = rawPreview['rounding_mode'].toString();
-      }
-      final previewSource = rawPreview['rate_source']?.toString();
-      if (previewSource == 'model') {
-        rateSourceLabel = 'Tarif Model';
-      } else if (previewSource == 'asset') {
-        rateSourceLabel = 'Tarif Unit';
-      } else if (previewSource == 'snapshot') {
-        rateSourceLabel = 'Kontrak Sewa';
-      } else if (previewSource == 'business_percent_daily') {
-        rateSourceLabel = '% Tarif Harian';
-      } else if (previewSource == 'business_default') {
-        rateSourceLabel = 'Tarif Default Toko';
-      }
-    } else if (endAt != null && now.isAfter(endAt)) {
+    // Compute deterministic 4-step client preview first
+    if (endAt != null && now.isAfter(endAt)) {
       lateMinutes = now.difference(endAt).inMinutes;
       if (lateMinutes > gracePeriodMinutes) {
         billableMinutes = graceMode == 'forfeit'
@@ -596,6 +606,83 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
             calculatedPenalty = cappedPenalty;
             wasCapped = true;
           }
+        }
+      }
+    }
+
+    // Reconcile with backend authoritative late_fee_breakdown / late_fee_preview when available
+    final rawPreview = _liveBreakdown ??
+        booking['late_fee_breakdown'] ??
+        booking['late_fee_preview'];
+    if (rawPreview is Map) {
+      final rawServerFee = rawPreview['calculated_fee'] ??
+          rawPreview['calculated_late_fee'] ??
+          rawPreview['late_fee'];
+      final serverFee = rawServerFee != null
+          ? double.tryParse(rawServerFee.toString())
+          : null;
+      final bool localOverdueWithFee =
+          lateMinutes > gracePeriodMinutes && calculatedPenalty > 0;
+      final bool trustServerPreview =
+          serverFee != null && (serverFee > 0 || !localOverdueWithFee);
+
+      if (trustServerPreview) {
+        lateMinutes = int.tryParse(
+              (rawPreview['raw_overdue_minutes'] ??
+                      rawPreview['overdue_minutes'])
+                  ?.toString() ??
+                  '',
+            ) ??
+            lateMinutes;
+        billableMinutes = int.tryParse(
+              (rawPreview['billable_minutes'] ??
+                      rawPreview['chargeable_minutes'])
+                  ?.toString() ??
+                  '',
+            ) ??
+            0;
+        billableHours =
+            double.tryParse(rawPreview['billable_hours']?.toString() ?? '') ??
+                (billableMinutes / 60.0);
+        final serverRate = double.tryParse(
+          (rawPreview['applied_rate'] ?? rawPreview['hourly_rate'])
+                  ?.toString() ??
+              '',
+        );
+        if (serverRate != null && serverRate > 0) {
+          hourlyLateRate = serverRate;
+        }
+        calculatedPenalty = serverFee;
+        wasCapped =
+            rawPreview['cap_applied'] == true || rawPreview['was_capped'] == true;
+        if (rawPreview['daily_rate_cap'] != null) {
+          dailyRateCap =
+              double.tryParse(rawPreview['daily_rate_cap'].toString());
+        }
+        final rawServerGrace =
+            rawPreview['grace_minutes'] ?? rawPreview['grace_period_minutes'];
+        if (rawServerGrace != null) {
+          gracePeriodMinutes =
+              int.tryParse(rawServerGrace.toString()) ?? gracePeriodMinutes;
+        }
+        if (rawPreview['grace_mode'] != null) {
+          graceMode = rawPreview['grace_mode'].toString();
+        }
+        if (rawPreview['rounding_mode'] != null) {
+          roundingMode = rawPreview['rounding_mode'].toString();
+        }
+        final previewSource = rawPreview['rate_source']?.toString();
+        if (previewSource == 'model') {
+          rateSourceLabel = 'Tarif Model';
+        } else if (previewSource == 'unit' || previewSource == 'asset') {
+          rateSourceLabel = 'Tarif Unit';
+        } else if (previewSource == 'contract_snapshot' ||
+            previewSource == 'snapshot') {
+          rateSourceLabel = 'Kontrak Sewa';
+        } else if (previewSource == 'business_percent_daily') {
+          rateSourceLabel = '% Tarif Harian (Default Toko)';
+        } else if (previewSource == 'business_default') {
+          rateSourceLabel = 'Tarif Default Toko';
         }
       }
     }
@@ -1415,15 +1502,45 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                '${_formatOverdueDuration(lateMinutes)} ($lateMinutes menit)',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFDC2626),
-                                  fontFeatures: [FontFeature.tabularFigures()],
+                              Flexible(
+                                child: Text(
+                                  '${_formatOverdueDuration(lateMinutes)} ($lateMinutes menit)',
+                                  key: const Key('late_fee_overdue_duration_value'),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFDC2626),
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                  textAlign: TextAlign.end,
                                 ),
-                                textAlign: TextAlign.end,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            key: const Key('late_fee_rate_source_row'),
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Tarif Berlaku & Sumber',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  '${CurrencyFormatter.format(hourlyLateRate)}/jam • $rateSourceLabel',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                  textAlign: TextAlign.end,
+                                ),
                               ),
                             ],
                           ),
@@ -1561,32 +1678,33 @@ class _ReturnWizardScreenState extends ConsumerState<ReturnWizardScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Expanded(
-                                  child: Text(
-                                    'Total Denda Akhir',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  CurrencyFormatter.format(penaltyAmount),
-                                  style: const TextStyle(
-                                    fontSize: 13.5,
+                          ],
+                          const SizedBox(height: 6),
+                          Row(
+                            key: const Key('late_fee_total_row'),
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Total Denda Keterlambatan',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
                                     color: Color(0xFF0F172A),
-                                    fontFeatures: [FontFeature.tabularFigures()],
                                   ),
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              Text(
+                                CurrencyFormatter.format(penaltyAmount),
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFDC2626),
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),

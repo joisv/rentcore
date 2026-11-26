@@ -227,7 +227,7 @@ void main() {
     );
 
     testWidgets(
-      'renders neat rounded avatar with first letter instead of generic phone icon',
+      'renders crisp #F8FAFC fallback icon instead of generic phone icon when model has no image',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;
@@ -236,10 +236,8 @@ void main() {
         await tester.pumpWidget(buildCatalogScreen(products: sampleProducts));
         await tester.pumpAndSettle();
 
-        // Avatars with initial letters
-        expect(find.text('S'), findsOneWidget); // Sony
-        expect(find.text('I'), findsNWidgets(2)); // iPhone & iPad
-        expect(find.text('A'), findsOneWidget); // Anker
+        // Crisp fallback icon for models without image
+        expect(find.byIcon(Icons.inventory_2_outlined), findsNWidgets(4));
 
         // Static style icon is removed
         expect(find.byIcon(Icons.style_rounded), findsNothing);

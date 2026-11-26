@@ -258,7 +258,7 @@ void main() {
   );
 
   testWidgets(
-    'Inventory Edit Unit shows inherited rate helper and preserves null override',
+    'Inventory Edit Unit omits per-unit penalty input and displays inherited model rate chip',
     (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
@@ -299,9 +299,11 @@ void main() {
       await tester.tap(find.byKey(const Key('edit_unit_btn_101')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Denda / Jam (Opsional)'), findsOneWidget);
+      expect(find.byKey(const Key('edit_unit_hourly_late_fee_input')), findsNothing);
+      expect(find.text('Denda / Jam (Opsional)'), findsNothing);
+      expect(find.byKey(const Key('unit_inherited_late_fee_chip')), findsOneWidget);
       expect(
-        find.textContaining('Kosongkan untuk mengikuti tarif model:'),
+        find.textContaining('Tarif Denda Model:'),
         findsOneWidget,
       );
       expect(find.textContaining('25.000'), findsWidgets);
@@ -310,7 +312,7 @@ void main() {
       await tester.tap(find.text('Simpan Perubahan'));
       await tester.pumpAndSettle();
 
-      expect(fakeAssetRepo.lastUpdatedAsset?['hourly_late_fee'], isNull);
+      expect(fakeAssetRepo.lastUpdatedAsset?.containsKey('hourly_late_fee'), isFalse);
     },
   );
 

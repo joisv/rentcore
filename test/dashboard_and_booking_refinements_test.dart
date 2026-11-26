@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:sewakasir/core/constants/api_constants.dart';
 import 'package:sewakasir/core/theme/app_theme.dart';
 import 'package:sewakasir/features/auth/providers/auth_provider.dart';
 import 'package:sewakasir/features/auth/providers/business_provider.dart';
@@ -340,11 +341,14 @@ void main() {
 
     final thumbnails = tester.widgetList<UnitThumbnail>(find.byType(UnitThumbnail)).toList();
     expect(thumbnails.length, 2);
-    expect(thumbnails[0].imageUrl, 'http://127.0.0.1:9999/non-existent.jpg');
+    expect(
+      thumbnails[0].imageUrl,
+      ApiConstants.resolveMediaUrl('http://127.0.0.1:9999/non-existent.jpg'),
+    );
     expect(thumbnails[0].size, 44);
     expect(thumbnails[0].borderRadius, 10);
-    expect(thumbnails[0].backgroundColor, const Color(0xFFF3F4F6));
-    expect(thumbnails[0].iconColor, const Color(0xFF374151));
+    expect(thumbnails[0].backgroundColor, const Color(0xFFF8FAFC));
+    expect(thumbnails[0].iconColor, const Color(0xFF475569));
     expect(thumbnails[1].imageUrl, isNull);
     expect(find.byType(Image), findsOneWidget);
 
@@ -400,7 +404,10 @@ void main() {
 
     final bookingThumbs = tester.widgetList<UnitThumbnail>(find.byType(UnitThumbnail)).toList();
     expect(bookingThumbs.length, 2);
-    expect(bookingThumbs[0].imageUrl, 'http://127.0.0.1:9999/camera.jpg');
+    expect(
+      bookingThumbs[0].imageUrl,
+      ApiConstants.resolveMediaUrl('http://127.0.0.1:9999/camera.jpg'),
+    );
     expect(bookingThumbs[0].size, 40);
     expect(bookingThumbs[1].imageUrl, isNull);
     expect(find.byType(Image), findsOneWidget);

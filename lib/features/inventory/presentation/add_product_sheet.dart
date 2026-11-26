@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/constants/api_constants.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../auth/providers/business_provider.dart';
@@ -85,11 +86,14 @@ class _AddProductSheetState extends ConsumerState<AddProductSheet> {
       _hasSerialNumber = p['has_serial_number'] != false;
       _requiresFrpCheck = p['requires_frp_check'] == true;
       _isAddon = p['is_addon'] == true || p['is_addon'] == 1;
-      _existingImageUrl = (p['image_url'] ??
-              p['image'] ??
-              p['photo_url'] ??
-              p['thumbnail'])
-          ?.toString();
+      _existingImageUrl = ApiConstants.resolveMediaUrl(
+        (p['image_url'] ??
+                p['image'] ??
+                p['photo_url'] ??
+                p['thumbnail'] ??
+                p['image_path'])
+            ?.toString(),
+      );
 
       final acc = p['standard_accessories'];
       if (acc is List) {
